@@ -1,0 +1,1839 @@
+diff --git a/src/utils/bodyProportions.test.ts b/src/utils/bodyProportions.test.ts
+new file mode 100644
+index 0000000..643a684
+--- /dev/null
++++ b/src/utils/bodyProportions.test.ts
+@@ -0,0 +1,326 @@
++import { describe, expect, it } from 'vitest';
++import {
++  DEFAULT_MIN_VISIBILITY,
++  NOSE_TO_ANKLE_FRACTION_OF_HEIGHT,
++  calculateApproxTorsoLengthCm,
++  calculateBodyMetrics,
++  calculateHipTilt,
++  calculateShoulderHipWidthRatio,
++  calculateShoulderTilt,
++  calculateTorsoLean,
++  calculateTorsoToBodyHeightRatio,
++  confidenceFromVisibility,
++  type BodyMetricOptions,
++  type MetricResult,
++} from './bodyProportions';
++import { makeFrontPose, makeSidePose } from './syntheticPose.testutil';
++
++// All fixtures here are hand-placed SYNTHETIC landmarks, not camera or model output.
++const front: BodyMetricOptions = { view: 'front', aspectRatio: 1 };
++const side: BodyMetricOptions = { view: 'side', aspectRatio: 1 };
++
++function value(r: MetricResult): number {
++  if (r.status !== 'ok') throw new Error(`expected ok, got unavailable: ${r.reason} (${r.detail})`);
++  return r.measurement.value;
++}
++function reason(r: MetricResult): string {
++  if (r.status !== 'unavailable') throw new Error('expected unavailable');
++  return r.reason;
++}
++
++describe('shoulder and hip tilt', () => {
++  it('is 0 degrees for level shoulders and hips', () => {
++    expect(value(calculateShoulderTilt(makeFrontPose(), front))).toBeCloseTo(0, 6);
++    expect(value(calculateHipTilt(makeFrontPose(), front))).toBeCloseTo(0, 6);
++  });
++
++  it('matches a known angle: dx 0.2, dy 0.05 => -14.0362 deg (right-of-image joint higher)', () => {
++    const pose = makeFrontPose({ rightShoulder: { y: 0.3 } }); // image-left joint lower, image-right joint higher
++    expect(value(calculateShoulderTilt(pose, front))).toBeCloseTo(-14.0362, 3);
++  });
++
++  it('matches an exact 45 degree hip tilt and flips sign when mirrored', () => {
++    const pose = makeFrontPose({ leftHip: { x: 0.6, y: 0.6 }, rightHip: { x: 0.4, y: 0.4 } });
++    expect(value(calculateHipTilt(pose, front))).toBeCloseTo(45, 6);
++    const mirrored = makeFrontPose({ leftHip: { x: 0.4, y: 0.6 }, rightHip: { x: 0.6, y: 0.4 } });
++    expect(value(calculateHipTilt(mirrored, front))).toBeCloseTo(-45, 6);
++  });
++
++  it('uses the aspect ratio: x is scaled by width/height (dx 0.2 -> 0.1 gives atan(0.5) = 26.565 deg)', () => {
++    const pose = makeFrontPose({ rightShoulder: { y: 0.2 } }); // image-left joint higher by 0.05
++    expect(value(calculateShoulderTilt(pose, { view: 'front', aspectRatio: 0.5 }))).toBeCloseTo(26.5651, 3);
++    expect(value(calculateShoulderTilt(pose, front))).toBeCloseTo(14.0362, 3);
++  });
++
++  it('reports landmark provenance, degrees and confidence', () => {
++    const r = calculateShoulderTilt(makeFrontPose(), front);
++    expect(r.status === 'ok' && r.measurement).toMatchObject({ key: 'shoulder_tilt', unit: 'deg', source: 'landmark', confidence: 'high' });
++  });
++
++  it('is not applicable to side view', () => {
++    expect(reason(calculateShoulderTilt(makeFrontPose(), side))).toBe('not_applicable_to_view');
++    expect(reason(calculateHipTilt(makeFrontPose(), side))).toBe('not_applicable_to_view');
++  });
++
++  it('is unavailable when the two landmarks collapse horizontally', () => {
++    const pose = makeFrontPose({ leftShoulder: { x: 0.5 }, rightShoulder: { x: 0.51 } });
++    expect(reason(calculateShoulderTilt(pose, front))).toBe('degenerate_geometry');
++  });
++});
++
++describe('shoulder-to-hip width ratio', () => {
++  it('equals 0.20 / 0.14 for the synthetic pose', () => {
++    const r = calculateShoulderHipWidthRatio(makeFrontPose(), front);
++    expect(value(r)).toBeCloseTo(0.2 / 0.14, 6);
++    expect(r.status === 'ok' && r.measurement).toMatchObject({ unit: 'ratio', source: 'landmark' });
++  });
++
++  it('is independent of aspect ratio for purely horizontal spacings', () => {
++    expect(value(calculateShoulderHipWidthRatio(makeFrontPose(), { view: 'front', aspectRatio: 0.5 }))).toBeCloseTo(0.2 / 0.14, 6);
++  });
++
++  it('is unavailable (not NaN/Infinity) when hip landmarks coincide', () => {
++    const pose = makeFrontPose({ leftHip: { x: 0.5, y: 0.55 }, rightHip: { x: 0.5, y: 0.55 } });
++    expect(reason(calculateShoulderHipWidthRatio(pose, front))).toBe('degenerate_geometry');
++  });
++
++  it('flags implausible ratios with low confidence and a warning note', () => {
++    const pose = makeFrontPose({ leftHip: { x: 0.52 }, rightHip: { x: 0.48 } }); // 0.2 / 0.04 = 5
++    const r = calculateShoulderHipWidthRatio(pose, front);
++    expect(r.status === 'ok' && r.measurement.confidence).toBe('low');
++    expect(r.status === 'ok' && r.measurement.note).toMatch(/unusual/i);
++  });
++
++  it('is not applicable to side view', () => {
++    expect(reason(calculateShoulderHipWidthRatio(makeFrontPose(), side))).toBe('not_applicable_to_view');
++  });
++});
++
++describe('torso to body height ratio', () => {
++  it('equals 0.30 / 0.80 = 0.375 in front view and documents its landmark definitions', () => {
++    const r = calculateTorsoToBodyHeightRatio(makeFrontPose(), front);
++    expect(value(r)).toBeCloseTo(0.375, 6);
++    expect(r.status === 'ok' && r.measurement.note).toMatch(/nose to the ankle/i);
++  });
++
++  it('uses aspect-corrected distances when the body is not vertical-only', () => {
++    // shoulders shifted +0.1 in x: torso = hypot(0.1*aspect, 0.3)
++    const pose = makeFrontPose({ leftShoulder: { x: 0.7 }, rightShoulder: { x: 0.5 } });
++    expect(value(calculateTorsoToBodyHeightRatio(pose, front))).toBeCloseTo(Math.hypot(0.1, 0.3) / 0.8, 6);
++    expect(value(calculateTorsoToBodyHeightRatio(pose, { view: 'front', aspectRatio: 0.5 }))).toBeCloseTo(Math.hypot(0.05, 0.3) / Math.hypot(0, 0.8), 6);
++  });
++
++  it('works from the clearer side in side view and caps confidence at medium', () => {
++    const r = calculateTorsoToBodyHeightRatio(makeSidePose(), side);
++    expect(value(r)).toBeCloseTo(0.375, 6);
++    expect(r.status === 'ok' && r.measurement.confidence).toBe('medium');
++  });
++
++  it('uses the right side when only the right chain is visible', () => {
++    const pose = makeSidePose({
++      leftShoulder: { visibility: 0.1 },
++      leftHip: { visibility: 0.1 },
++      leftKnee: { visibility: 0.1 },
++      leftAnkle: { visibility: 0.1 },
++      rightShoulder: { visibility: 0.95 },
++      rightHip: { visibility: 0.95 },
++      rightKnee: { visibility: 0.95 },
++      rightAnkle: { visibility: 0.95 },
++    });
++    expect(value(calculateTorsoToBodyHeightRatio(pose, side))).toBeCloseTo(0.375, 6);
++  });
++
++  it('is unavailable in side view when neither side is fully usable', () => {
++    const pose = makeSidePose({ leftAnkle: { visibility: 0.1 } }); // right chain is already low
++    expect(reason(calculateTorsoToBodyHeightRatio(pose, side))).toBe('landmark_not_usable');
++  });
++
++  it('is unavailable for a non-upright (inverted) pose', () => {
++    const pose = makeFrontPose({ nose: { y: 0.95 } });
++    expect(reason(calculateTorsoToBodyHeightRatio(pose, front))).toBe('degenerate_geometry');
++  });
++
++  it('is unavailable when torso length is zero (shoulders and hips at the same height)', () => {
++    const pose = makeFrontPose({ leftHip: { y: 0.25 }, rightHip: { y: 0.25 } });
++    const r = calculateTorsoToBodyHeightRatio(pose, front);
++    expect(r.status).toBe('unavailable');
++  });
++});
++
++describe('torso lean', () => {
++  it('is 0 for a vertical torso', () => {
++    expect(value(calculateTorsoLean(makeFrontPose(), front))).toBeCloseTo(0, 6);
++  });
++
++  it('matches a known angle: shoulders 0.1 right of hips over 0.3 height => 18.435 deg', () => {
++    const pose = makeFrontPose({ leftShoulder: { x: 0.7 }, rightShoulder: { x: 0.5 } });
++    expect(value(calculateTorsoLean(pose, front))).toBeCloseTo(18.4349, 3);
++  });
++
++  it('is available in side view from one side', () => {
++    const pose = makeSidePose({ leftShoulder: { x: 0.6 } });
++    expect(value(calculateTorsoLean(pose, side))).toBeCloseTo(18.4349, 3);
++  });
++});
++
++describe('approximate torso length in cm', () => {
++  it('is torso ratio x (height x documented fraction), labelled approximate with low confidence', () => {
++    const r = calculateApproxTorsoLengthCm(makeFrontPose(), { ...front, heightCm: 180 });
++    expect(value(r)).toBeCloseTo(0.375 * 180 * NOSE_TO_ANKLE_FRACTION_OF_HEIGHT, 6);
++    expect(NOSE_TO_ANKLE_FRACTION_OF_HEIGHT).toBe(0.87);
++    expect(r.status === 'ok' && r.measurement).toMatchObject({ unit: 'cm', source: 'calculated', confidence: 'low' });
++    expect(r.status === 'ok' && r.measurement.note).toMatch(/approximate/i);
++    expect(r.status === 'ok' && r.measurement.note).toMatch(/not a tape measurement/i);
++  });
++
++  it('stays low confidence even with perfect landmark visibility', () => {
++    const r = calculateApproxTorsoLengthCm(makeFrontPose({}, 1), { ...front, heightCm: 170 });
++    expect(r.status === 'ok' && r.measurement.confidence).toBe('low');
++  });
++
++  it('requires a height', () => {
++    expect(reason(calculateApproxTorsoLengthCm(makeFrontPose(), front))).toBe('height_not_provided');
++    expect(reason(calculateApproxTorsoLengthCm(makeFrontPose(), { ...front, heightCm: null }))).toBe('height_not_provided');
++  });
++
++  it.each([0, -5, 99, 251, 1000, Number.NaN, Infinity, '180' as unknown as number])('rejects invalid height %s', (h) => {
++    expect(reason(calculateApproxTorsoLengthCm(makeFrontPose(), { ...front, heightCm: h }))).toBe('invalid_height');
++  });
++
++  it('accepts the boundary heights', () => {
++    expect(calculateApproxTorsoLengthCm(makeFrontPose(), { ...front, heightCm: 100 }).status).toBe('ok');
++    expect(calculateApproxTorsoLengthCm(makeFrontPose(), { ...front, heightCm: 250 }).status).toBe('ok');
++  });
++
++  it('is unavailable when the landmarks do not support it, even with a valid height', () => {
++    expect(reason(calculateApproxTorsoLengthCm(makeFrontPose({ leftAnkle: { visibility: 0.1 } }), { ...front, heightCm: 180 }))).toBe('landmark_not_usable');
++  });
++});
++
++describe('landmark validity handling', () => {
++  it.each([
++    ['undefined', undefined],
++    ['null', null],
++    ['empty array', []],
++    ['too-short array', makeFrontPose().slice(0, 12)],
++  ])('%s landmarks => unavailable, no throw', (_n, lm) => {
++    const rep = calculateBodyMetrics(lm as never, { ...front, heightCm: 180 });
++    expect(rep.measurements).toHaveLength(0);
++    expect(rep.unavailable.length).toBe(rep.results.length);
++  });
++
++  it('rejects low-confidence landmarks (below default 0.5) and respects a custom threshold', () => {
++    const pose = makeFrontPose({ leftShoulder: { visibility: 0.45 } });
++    expect(DEFAULT_MIN_VISIBILITY).toBe(0.5);
++    expect(reason(calculateShoulderTilt(pose, front))).toBe('landmark_not_usable');
++    expect(calculateShoulderTilt(pose, { ...front, minVisibility: 0.4 }).status).toBe('ok');
++  });
++
++  it('rejects landmarks with missing or invalid visibility rather than assuming they are visible', () => {
++    const noVis = makeFrontPose();
++    delete noVis[11].visibility;
++    expect(reason(calculateShoulderTilt(noVis, front))).toBe('landmark_not_usable');
++    expect(reason(calculateShoulderTilt(makeFrontPose({ leftShoulder: { visibility: 1.5 } }), front))).toBe('landmark_not_usable');
++    expect(reason(calculateShoulderTilt(makeFrontPose({ leftShoulder: { visibility: Number.NaN } }), front))).toBe('landmark_not_usable');
++  });
++
++  it.each([Number.NaN, Infinity, -Infinity])('rejects non-finite coordinate %s', (bad) => {
++    expect(reason(calculateShoulderTilt(makeFrontPose({ leftShoulder: { x: bad } }), front))).toBe('landmark_not_usable');
++    expect(reason(calculateShoulderTilt(makeFrontPose({ leftShoulder: { y: bad } }), front))).toBe('landmark_not_usable');
++  });
++
++  it('rejects landmarks outside the 0..1 frame instead of using a guessed position', () => {
++    expect(reason(calculateHipTilt(makeFrontPose({ leftHip: { y: 1.2 } }), front))).toBe('landmark_not_usable');
++    expect(reason(calculateHipTilt(makeFrontPose({ leftHip: { x: -0.1 } }), front))).toBe('landmark_not_usable');
++  });
++
++  it('tolerates sparse arrays and null entries', () => {
++    const sparse = makeFrontPose() as unknown[];
++    sparse[11] = null;
++    delete sparse[12];
++    expect(reason(calculateShoulderTilt(sparse as never, front))).toBe('landmark_not_usable');
++  });
++
++  it.each([0, -1, Number.NaN, Infinity, 0.01, 50, undefined as unknown as number])('rejects invalid aspect ratio %s', (a) => {
++    expect(reason(calculateShoulderTilt(makeFrontPose(), { view: 'front', aspectRatio: a }))).toBe('invalid_options');
++    expect(reason(calculateTorsoLean(makeFrontPose(), { view: 'front', aspectRatio: a }))).toBe('invalid_options');
++  });
++
++  it('rejects an invalid minVisibility option', () => {
++    expect(reason(calculateTorsoLean(makeFrontPose(), { ...front, minVisibility: 2 }))).toBe('invalid_options');
++    expect(reason(calculateTorsoLean(makeFrontPose(), { ...front, minVisibility: Number.NaN }))).toBe('invalid_options');
++  });
++
++  it('does not mutate its input', () => {
++    const pose = Object.freeze(makeFrontPose().map((p) => Object.freeze({ ...p })));
++    expect(() => calculateBodyMetrics(pose as never, { ...front, heightCm: 180 })).not.toThrow();
++  });
++});
++
++describe('confidence from visibility', () => {
++  it.each([
++    [0.99, 'high'],
++    [0.85, 'high'],
++    [0.84, 'medium'],
++    [0.65, 'medium'],
++    [0.64, 'low'],
++    [0.5, 'low'],
++    [Number.NaN, 'low'],
++  ])('%s => %s', (v, expected) => {
++    expect(confidenceFromVisibility(v)).toBe(expected);
++  });
++
++  it('a metric takes the LOWEST visibility among its landmarks', () => {
++    const pose = makeFrontPose({ rightShoulder: { visibility: 0.7 } });
++    const r = calculateShoulderTilt(pose, front);
++    expect(r.status === 'ok' && r.measurement.confidence).toBe('medium');
++  });
++});
++
++describe('calculateBodyMetrics', () => {
++  it('front view with height returns all six metrics, each with unit, source and confidence', () => {
++    const rep = calculateBodyMetrics(makeFrontPose(), { ...front, heightCm: 175 });
++    expect(rep.measurements.map((m) => m.key)).toEqual([
++      'shoulder_tilt',
++      'hip_tilt',
++      'shoulder_hip_width_ratio',
++      'torso_to_body_height_ratio',
++      'torso_lean',
++      'approx_torso_length_cm',
++    ]);
++    for (const m of rep.measurements) {
++      expect(['deg', 'ratio', 'cm']).toContain(m.unit);
++      expect(['landmark', 'calculated']).toContain(m.source);
++      expect(m.confidence).toBeDefined();
++      expect(m.note).toBeTruthy();
++    }
++    expect(rep.unavailable).toHaveLength(0);
++  });
++
++  it('front view without height lists the cm value as unavailable instead of inventing one', () => {
++    const rep = calculateBodyMetrics(makeFrontPose(), front);
++    expect(rep.measurements).toHaveLength(5);
++    expect(rep.unavailable).toEqual([expect.objectContaining({ key: 'approx_torso_length_cm', reason: 'height_not_provided' })]);
++  });
++
++  it('side view only reports metrics that a side photo supports', () => {
++    const rep = calculateBodyMetrics(makeSidePose(), { ...side, heightCm: 175 });
++    expect(rep.measurements.map((m) => m.key)).toEqual(['torso_to_body_height_ratio', 'torso_lean', 'approx_torso_length_cm']);
++  });
++
++  it('never produces body fat, muscle mass, weight or circumference measurements', () => {
++    const keys = [
++      ...calculateBodyMetrics(makeFrontPose(), { ...front, heightCm: 175 }).measurements,
++      ...calculateBodyMetrics(makeSidePose(), { ...side, heightCm: 175 }).measurements,
++    ].map((m) => m.key);
++    for (const k of keys) expect(k).not.toMatch(/fat|muscle|weight|circumference|waist|chest|arm|thigh|kg|percent/i);
++    for (const m of [...calculateBodyMetrics(makeFrontPose(), { ...front, heightCm: 175 }).measurements]) {
++      expect(['kg', '%']).not.toContain(m.unit);
++    }
++  });
++
++  it('falls back to front for an unrecognised view value instead of throwing', () => {
++    const rep = calculateBodyMetrics(makeFrontPose(), { view: 'back' as never, aspectRatio: 1 });
++    expect(rep.view).toBe('front');
++  });
++});
+diff --git a/src/utils/bodyProportions.ts b/src/utils/bodyProportions.ts
+new file mode 100644
+index 0000000..7468d9e
+--- /dev/null
++++ b/src/utils/bodyProportions.ts
+@@ -0,0 +1,508 @@
++/**
++ * Defensible 2D landmark metrics for Body Scan.
++ *
++ * Pure functions over pose landmarks (normalised 0..1 image space, y down).
++ * No browser APIs, no React, no I/O.
++ *
++ * WHAT THESE ARE
++ * Geometry between detected joint positions in ONE 2D photo: tilt angles and
++ * ratios of landmark-to-landmark distances. Angles and distances are computed
++ * in an aspect-corrected space (x multiplied by width/height), because
++ * normalised x and y are different physical units on any non-square image.
++ *
++ * WHAT THESE ARE NOT
++ * - Not body measurements. Landmarks are joint-centre estimates, not the body
++ *   outline: "shoulder width" is the distance between the two shoulder joints,
++ *   not the width across the shoulders or arms, and "hip width" is between hip
++ *   joints, not the widest point of the hips.
++ * - Not 3D. Perspective, lens distortion, camera tilt, and the person turning
++ *   or leaning toward/away from the camera all change 2D distances. Nothing
++ *   here can detect these.
++ * - Not medical or clinical. No body-fat %, muscle mass, weight or
++ *   circumference (waist, chest, arm, thigh...) is, or can be, derived from
++ *   these inputs, and this module deliberately has no function for them.
++ * - Confidence is derived ONLY from the pose model's own landmark visibility
++ *   scores (and capped further where noted). It says how clearly the landmarks
++ *   were detected, not how accurate the number is in real life.
++ *
++ * Normalised ratios/angles (units 'ratio', 'deg') are kept distinct from the
++ * one approximate-centimetre value, which requires a user-supplied height and
++ * an explicit assumption (see `calculateApproxTorsoLengthCm`).
++ */
++
++import type { MeasurementConfidence, ScanMeasurement, ScanView } from '../types/bodyScan';
++import {
++  type LandmarkList,
++  type PoseLandmarkName,
++  POSE_LANDMARK_LABEL,
++  isValidAspectRatio,
++  readLandmark,
++} from './poseLandmarks';
++
++// ---------------------------------------------------------------------------
++// Public types and constants
++// ---------------------------------------------------------------------------
++
++export type BodyMetricKey =
++  | 'shoulder_tilt'
++  | 'hip_tilt'
++  | 'shoulder_hip_width_ratio'
++  | 'torso_to_body_height_ratio'
++  | 'torso_lean'
++  | 'approx_torso_length_cm';
++
++export type UnavailableReason =
++  | 'invalid_options' //         bad aspect ratio or minVisibility
++  | 'landmark_not_usable' //     missing, non-finite, low-confidence or outside the frame
++  | 'degenerate_geometry' //     zero/near-zero lengths, or not an upright pose
++  | 'not_applicable_to_view' //  e.g. shoulder tilt from a side-on photo
++  | 'height_not_provided'
++  | 'invalid_height';
++
++export interface MetricUnavailable {
++  key: BodyMetricKey;
++  reason: UnavailableReason;
++  /** Plain-language explanation suitable for showing next to the empty value. */
++  detail: string;
++}
++
++export type MetricResult =
++  | { status: 'ok'; measurement: ScanMeasurement }
++  | ({ status: 'unavailable' } & MetricUnavailable);
++
++export interface BodyMetricOptions {
++  view: ScanView;
++  /** Width / height of the image the landmarks were normalised against (e.g. 0.75 for a 3:4 portrait). Required. */
++  aspectRatio: number;
++  /** Landmarks with visibility below this are not used. Default 0.5. */
++  minVisibility?: number;
++  /** User-entered standing height in cm. Only used by `approx_torso_length_cm`. */
++  heightCm?: number | null;
++}
++
++export interface BodyMetricsReport {
++  view: ScanView;
++  /** One entry per metric applicable to the view, available or not. */
++  results: MetricResult[];
++  /** Only the metrics that could be calculated; ready for `BodyScanRecord.measurements`. */
++  measurements: ScanMeasurement[];
++  unavailable: MetricUnavailable[];
++}
++
++/** Default minimum landmark visibility. */
++export const DEFAULT_MIN_VISIBILITY = 0.5;
++
++/**
++ * Minimum length, as a fraction of image height, that a landmark-to-landmark
++ * distance (or horizontal separation) must have to be used. Guards against
++ * division by ~zero and against landmarks that collapsed onto each other.
++ */
++export const MIN_LANDMARK_SEPARATION = 0.03;
++
++/**
++ * ASSUMPTION (approximate, population-average rule of thumb): the vertical span
++ * from the nose landmark to the ankle-joint landmark is about 87% of standing
++ * height. It varies between individuals and body shapes, and with pose. Used
++ * only for `approx_torso_length_cm`.
++ */
++export const NOSE_TO_ANKLE_FRACTION_OF_HEIGHT = 0.87;
++
++export const MIN_HEIGHT_CM = 100;
++export const MAX_HEIGHT_CM = 250;
++
++/** Shoulder/hip width ratios outside this range are reported with low confidence. */
++const PLAUSIBLE_WIDTH_RATIO: readonly [number, number] = [0.5, 2.5];
++
++// ---------------------------------------------------------------------------
++// Confidence
++// ---------------------------------------------------------------------------
++
++const CONFIDENCE_RANK: Record<MeasurementConfidence, number> = { low: 0, medium: 1, high: 2 };
++
++/**
++ * Maps the LOWEST landmark visibility used by a metric to a confidence level.
++ * Heuristic, not validated against real-world accuracy.
++ */
++export function confidenceFromVisibility(minVisibility: number): MeasurementConfidence {
++  if (!Number.isFinite(minVisibility)) return 'low';
++  if (minVisibility >= 0.85) return 'high';
++  if (minVisibility >= 0.65) return 'medium';
++  return 'low';
++}
++
++function capConfidence(c: MeasurementConfidence, cap: MeasurementConfidence): MeasurementConfidence {
++  return CONFIDENCE_RANK[c] <= CONFIDENCE_RANK[cap] ? c : cap;
++}
++
++// ---------------------------------------------------------------------------
++// Internal helpers
++// ---------------------------------------------------------------------------
++
++interface Pt {
++  x: number;
++  y: number;
++}
++type Usable = { ok: true; pt: Pt; vis: number } | { ok: false; detail: string };
++type Resolved<T> = { ok: true; value: T } | { ok: false; detail: string };
++
++const RAD_TO_DEG = 180 / Math.PI;
++
++function unavailable(key: BodyMetricKey, reason: UnavailableReason, detail: string): MetricResult {
++  return { status: 'unavailable', key, reason, detail };
++}
++
++function ok(
++  key: BodyMetricKey,
++  value: number,
++  unit: ScanMeasurement['unit'],
++  source: ScanMeasurement['source'],
++  confidence: MeasurementConfidence,
++  note: string
++): MetricResult {
++  return { status: 'ok', measurement: { key, value, unit, source, confidence, note } };
++}
++
++function resolveOptions(o: BodyMetricOptions): Resolved<{ aspect: number; minVis: number }> {
++  if (!o || !isValidAspectRatio(o.aspectRatio)) {
++    return { ok: false, detail: 'A valid image aspect ratio (width / height) is required to compute angles and distances.' };
++  }
++  const minVis = o.minVisibility === undefined ? DEFAULT_MIN_VISIBILITY : o.minVisibility;
++  if (typeof minVis !== 'number' || !Number.isFinite(minVis) || minVis < 0 || minVis > 1) {
++    return { ok: false, detail: 'minVisibility must be a number between 0 and 1.' };
++  }
++  return { ok: true, value: { aspect: o.aspectRatio, minVis } };
++}
++
++/** A landmark is usable only if detected, finite, confident enough and inside the frame. */
++function useLandmark(landmarks: LandmarkList, name: PoseLandmarkName, aspect: number, minVis: number): Usable {
++  const label = POSE_LANDMARK_LABEL[name];
++  const r = readLandmark(landmarks, name, minVis);
++  switch (r.status) {
++    case 'missing':
++      return { ok: false, detail: `${label} was not detected.` };
++    case 'non_finite':
++      return { ok: false, detail: `${label} has invalid coordinates.` };
++    case 'visibility_unknown':
++      return { ok: false, detail: `${label} has no valid confidence score.` };
++    case 'low_visibility':
++      return { ok: false, detail: `${label} is not clearly visible.` };
++    default:
++      break;
++  }
++  const p = r.point!;
++  if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) {
++    return { ok: false, detail: `${label} is outside the frame (its position would be a guess).` };
++  }
++  return { ok: true, pt: { x: p.x * aspect, y: p.y }, vis: r.visibility as number };
++}
++
++function gather(
++  landmarks: LandmarkList,
++  names: readonly PoseLandmarkName[],
++  aspect: number,
++  minVis: number
++): Resolved<{ pts: Partial<Record<PoseLandmarkName, Pt>>; minVis: number }> {
++  const pts: Partial<Record<PoseLandmarkName, Pt>> = {};
++  let lowest = 1;
++  for (const name of names) {
++    const u = useLandmark(landmarks, name, aspect, minVis);
++    if (!u.ok) return { ok: false, detail: u.detail };
++    pts[name] = u.pt;
++    lowest = Math.min(lowest, u.vis);
++  }
++  return { ok: true, value: { pts, minVis: lowest } };
++}
++
++const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
++const mid = (a: Pt, b: Pt): Pt => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
++
++/**
++ * The landmarks that define the torso axis and body span.
++ *
++ * Front view: midpoints of the left/right pairs. Side view: one side only (the
++ * clearly visible side with the higher lowest-visibility), since the far side
++ * is normally hidden behind the body.
++ *
++ * Requires an upright ordering (nose above shoulders above hips above ankles
++ * in image y), otherwise the geometry is not meaningful and we say so.
++ */
++interface UprightChain {
++  nose?: Pt;
++  shoulder: Pt;
++  hip: Pt;
++  ankle?: Pt;
++  minVisibility: number;
++}
++
++function resolveChain(
++  landmarks: LandmarkList,
++  view: ScanView,
++  aspect: number,
++  minVis: number,
++  needs: { nose: boolean; ankle: boolean }
++): Resolved<UprightChain> {
++  const build = (side: 'both' | 'left' | 'right'): Resolved<UprightChain> => {
++    const sideNames = (part: 'Shoulder' | 'Hip' | 'Ankle'): PoseLandmarkName[] =>
++      side === 'both'
++        ? [`left${part}` as PoseLandmarkName, `right${part}` as PoseLandmarkName]
++        : [`${side}${part}` as PoseLandmarkName];
++    const names: PoseLandmarkName[] = [...sideNames('Shoulder'), ...sideNames('Hip')];
++    if (needs.ankle) names.push(...sideNames('Ankle'));
++    if (needs.nose) names.push('nose');
++    const g = gather(landmarks, names, aspect, minVis);
++    if (!g.ok) return g;
++    const { pts, minVis: lowest } = g.value;
++    const pick = (part: 'Shoulder' | 'Hip' | 'Ankle'): Pt => {
++      const n = sideNames(part);
++      return n.length === 2 ? mid(pts[n[0]] as Pt, pts[n[1]] as Pt) : (pts[n[0]] as Pt);
++    };
++    const chain: UprightChain = {
++      shoulder: pick('Shoulder'),
++      hip: pick('Hip'),
++      ankle: needs.ankle ? pick('Ankle') : undefined,
++      nose: needs.nose ? pts.nose : undefined,
++      minVisibility: lowest,
++    };
++    const upright =
++      chain.shoulder.y < chain.hip.y &&
++      (!chain.nose || chain.nose.y < chain.shoulder.y) &&
++      (!chain.ankle || chain.hip.y < chain.ankle.y);
++    if (!upright) {
++      return {
++        ok: false,
++        detail: 'Landmarks are not in an upright order (head above shoulders above hips above feet); stand upright with the camera held level.',
++      };
++    }
++    return { ok: true, value: chain };
++  };
++
++  if (view !== 'side') return build('both');
++  const left = build('left');
++  const right = build('right');
++  if (left.ok && right.ok) return right.value.minVisibility > left.value.minVisibility ? right : left;
++  if (left.ok) return left;
++  if (right.ok) return right;
++  return { ok: false, detail: `Left side: ${left.detail} Right side: ${right.detail}` };
++}
++
++// ---------------------------------------------------------------------------
++// Metrics
++// ---------------------------------------------------------------------------
++
++const TILT_NOTE =
++  'Angle of the line between the two joints in the 2D photo, relative to horizontal. Positive = the joint on the right of the image is lower. ' +
++  'Photo-based and approximate: camera tilt or a turned body changes it. Sign depends on whether the image is mirrored; compare the size, not the direction.';
++
++function calculateTilt(
++  key: 'shoulder_tilt' | 'hip_tilt',
++  leftName: PoseLandmarkName,
++  rightName: PoseLandmarkName,
++  landmarks: LandmarkList,
++  o: BodyMetricOptions
++): MetricResult {
++  if (o?.view !== 'front') {
++    return unavailable(key, 'not_applicable_to_view', 'Tilt between left and right joints is only meaningful in a front-facing photo.');
++  }
++  const opts = resolveOptions(o);
++  if (!opts.ok) return unavailable(key, 'invalid_options', opts.detail);
++  const { aspect, minVis } = opts.value;
++  const g = gather(landmarks, [leftName, rightName], aspect, minVis);
++  if (!g.ok) return unavailable(key, 'landmark_not_usable', g.detail);
++  const a = g.value.pts[leftName] as Pt;
++  const b = g.value.pts[rightName] as Pt;
++  const [p1, p2] = a.x <= b.x ? [a, b] : [b, a]; // p1 = left of the image
++  const dx = p2.x - p1.x;
++  if (dx < MIN_LANDMARK_SEPARATION) {
++    return unavailable(key, 'degenerate_geometry', 'The two landmarks are too close together horizontally (is the body turned side-on?).');
++  }
++  const deg = Math.atan2(p2.y - p1.y, dx) * RAD_TO_DEG;
++  return ok(key, deg, 'deg', 'landmark', confidenceFromVisibility(g.value.minVis), TILT_NOTE);
++}
++
++/** Tilt of the line between the shoulder joints. Front view only. */
++export function calculateShoulderTilt(landmarks: LandmarkList, o: BodyMetricOptions): MetricResult {
++  return calculateTilt('shoulder_tilt', 'leftShoulder', 'rightShoulder', landmarks, o);
++}
++
++/** Tilt of the line between the hip joints. Front view only. */
++export function calculateHipTilt(landmarks: LandmarkList, o: BodyMetricOptions): MetricResult {
++  return calculateTilt('hip_tilt', 'leftHip', 'rightHip', landmarks, o);
++}
++
++/**
++ * Shoulder-joint distance divided by hip-joint distance. Front view only.
++ * This is a ratio of joint spacings, not of body widths: clothing, arms,
++ * body shape and a slightly turned stance all affect it. Unusual values
++ * (outside 0.5 to 2.5) are reported with low confidence.
++ */
++export function calculateShoulderHipWidthRatio(landmarks: LandmarkList, o: BodyMetricOptions): MetricResult {
++  const key = 'shoulder_hip_width_ratio';
++  if (o?.view !== 'front') {
++    return unavailable(key, 'not_applicable_to_view', 'The shoulder-to-hip width ratio needs a front-facing photo.');
++  }
++  const opts = resolveOptions(o);
++  if (!opts.ok) return unavailable(key, 'invalid_options', opts.detail);
++  const { aspect, minVis } = opts.value;
++  const g = gather(landmarks, ['leftShoulder', 'rightShoulder', 'leftHip', 'rightHip'], aspect, minVis);
++  if (!g.ok) return unavailable(key, 'landmark_not_usable', g.detail);
++  const { pts } = g.value;
++  const shoulderWidth = dist(pts.leftShoulder as Pt, pts.rightShoulder as Pt);
++  const hipWidth = dist(pts.leftHip as Pt, pts.rightHip as Pt);
++  if (shoulderWidth < MIN_LANDMARK_SEPARATION || hipWidth < MIN_LANDMARK_SEPARATION) {
++    return unavailable(key, 'degenerate_geometry', 'The shoulder or hip landmarks are too close together to form a reliable ratio (is the body turned side-on?).');
++  }
++  const ratio = shoulderWidth / hipWidth;
++  let confidence = confidenceFromVisibility(g.value.minVis);
++  let note =
++    'Ratio of the distance between the shoulder joints to the distance between the hip joints in a front photo. Joint spacing, not body width; unitless.';
++  if (ratio < PLAUSIBLE_WIDTH_RATIO[0] || ratio > PLAUSIBLE_WIDTH_RATIO[1]) {
++    confidence = 'low';
++    note += ' This value is unusual: check that you faced the camera squarely and that the landmarks are correct.';
++  }
++  return ok(key, ratio, 'ratio', 'landmark', confidence, note);
++}
++
++const TORSO_BODY_NOTE =
++  'Torso = distance from the shoulder point to the hip point. "Body height" here = distance from the nose to the ankle point, which is shorter than standing height (it excludes the top of the head and the floor). ' +
++  'A 2D ratio of landmark distances: sensitive to camera angle and posture, and not comparable with ratios computed from a different pose or framing.';
++
++interface TorsoGeometry {
++  torsoLength: number;
++  span: number;
++  minVisibility: number;
++}
++
++type TorsoResult = { ok: true; value: TorsoGeometry } | { ok: false; detail: string; reason: UnavailableReason };
++
++function torsoGeometry(landmarks: LandmarkList, o: BodyMetricOptions): TorsoResult {
++  const opts = resolveOptions(o);
++  if (!opts.ok) return { ok: false, detail: opts.detail, reason: 'invalid_options' };
++  const chain = resolveChain(landmarks, o.view, opts.value.aspect, opts.value.minVis, { nose: true, ankle: true });
++  if (!chain.ok) {
++    const geometry = chain.detail.startsWith('Landmarks are not in an upright');
++    return { ok: false, detail: chain.detail, reason: geometry ? 'degenerate_geometry' : 'landmark_not_usable' };
++  }
++  const c = chain.value;
++  const torsoLength = dist(c.shoulder, c.hip);
++  const span = dist(c.nose as Pt, c.ankle as Pt);
++  if (torsoLength < MIN_LANDMARK_SEPARATION || span < MIN_LANDMARK_SEPARATION) {
++    return { ok: false, detail: 'Torso or body-height landmarks are too close together to measure.', reason: 'degenerate_geometry' };
++  }
++  return { ok: true, value: { torsoLength, span, minVisibility: c.minVisibility } };
++}
++
++/**
++ * Torso length divided by nose-to-ankle length (see `TORSO_BODY_NOTE` for the
++ * exact landmark definitions). Works from front or side view; in a side view
++ * the single clearer side is used and confidence is capped at 'medium'.
++ */
++export function calculateTorsoToBodyHeightRatio(landmarks: LandmarkList, o: BodyMetricOptions): MetricResult {
++  const key = 'torso_to_body_height_ratio';
++  const g = torsoGeometry(landmarks, o);
++  if (!g.ok) return unavailable(key, g.reason, g.detail);
++  let confidence = confidenceFromVisibility(g.value.minVisibility);
++  if (o.view === 'side') confidence = capConfidence(confidence, 'medium');
++  return ok(key, g.value.torsoLength / g.value.span, 'ratio', 'landmark', confidence, TORSO_BODY_NOTE);
++}
++
++/**
++ * Angle between the hip-to-shoulder line and vertical, in degrees. Positive =
++ * the shoulders are to the right of the hips in the image. In a front photo
++ * this is sideways lean; in a side photo it is forward/back lean (which way is
++ * "forward" depends on which way the person faces). Approximate and
++ * perspective-dependent. Not a posture diagnosis.
++ */
++export function calculateTorsoLean(landmarks: LandmarkList, o: BodyMetricOptions): MetricResult {
++  const key = 'torso_lean';
++  const opts = resolveOptions(o);
++  if (!opts.ok) return unavailable(key, 'invalid_options', opts.detail);
++  const chain = resolveChain(landmarks, o.view, opts.value.aspect, opts.value.minVis, { nose: false, ankle: false });
++  if (!chain.ok) {
++    const geometry = chain.detail.startsWith('Landmarks are not in an upright');
++    return unavailable(key, geometry ? 'degenerate_geometry' : 'landmark_not_usable', chain.detail);
++  }
++  const { shoulder, hip, minVisibility } = chain.value;
++  if (dist(shoulder, hip) < MIN_LANDMARK_SEPARATION) {
++    return unavailable(key, 'degenerate_geometry', 'Shoulder and hip landmarks are too close together to measure lean.');
++  }
++  const deg = Math.atan2(shoulder.x - hip.x, hip.y - shoulder.y) * RAD_TO_DEG;
++  let confidence = confidenceFromVisibility(minVisibility);
++  if (o.view === 'side') confidence = capConfidence(confidence, 'medium');
++  return ok(
++    key,
++    deg,
++    'deg',
++    'landmark',
++    confidence,
++    'Angle of the hip-to-shoulder line from vertical in the 2D photo. Positive = shoulders are to the right of the hips in the image. Approximate; depends on camera angle and posture.'
++  );
++}
++
++/**
++ * APPROXIMATE torso length in centimetres:
++ *   ratio(torso / nose-to-ankle) x (heightCm x NOSE_TO_ANKLE_FRACTION_OF_HEIGHT)
++ *
++ * Assumptions (all of which real photos violate to some degree):
++ *  1. Nose-to-ankle landmark span is about 87% of standing height.
++ *  2. Camera is level, at about mid-body height, and perpendicular to the
++ *     person, who stands upright in a plane parallel to the image (no
++ *     perspective foreshortening, no lens distortion, no leaning).
++ *  3. The landmarks sit where the real joints are.
++ * Confidence is always 'low'. This is not a tape-measure value and must not be
++ * presented as one.
++ */
++export function calculateApproxTorsoLengthCm(landmarks: LandmarkList, o: BodyMetricOptions): MetricResult {
++  const key = 'approx_torso_length_cm';
++  const h = o?.heightCm;
++  if (h === undefined || h === null) {
++    return unavailable(key, 'height_not_provided', 'Enter your height to see an approximate length in centimetres.');
++  }
++  if (typeof h !== 'number' || !Number.isFinite(h) || h < MIN_HEIGHT_CM || h > MAX_HEIGHT_CM) {
++    return unavailable(key, 'invalid_height', `Height must be a number between ${MIN_HEIGHT_CM} and ${MAX_HEIGHT_CM} cm.`);
++  }
++  const g = torsoGeometry(landmarks, o);
++  if (!g.ok) return unavailable(key, g.reason, g.detail);
++  const cm = (g.value.torsoLength / g.value.span) * (h * NOSE_TO_ANKLE_FRACTION_OF_HEIGHT);
++  return ok(
++    key,
++    cm,
++    'cm',
++    'calculated',
++    'low',
++    `Approximate. Estimated from your entered height (${h} cm) and the 2D torso-to-body ratio, assuming the nose-to-ankle span is about ${Math.round(
++      NOSE_TO_ANKLE_FRACTION_OF_HEIGHT * 100
++    )}% of your height and that you stood upright, square to a level camera. Perspective and posture can change this materially. Not a tape measurement.`
++  );
++}
++
++/**
++ * Runs every metric that applies to the view.
++ *   front: shoulder tilt, hip tilt, shoulder/hip width ratio, torso/body ratio, torso lean, approx torso length
++ *   side:  torso/body ratio, torso lean, approx torso length
++ */
++export function calculateBodyMetrics(landmarks: LandmarkList, o: BodyMetricOptions): BodyMetricsReport {
++  const view: ScanView = o?.view === 'side' ? 'side' : 'front';
++  const opts: BodyMetricOptions = { ...o, view };
++  const results: MetricResult[] =
++    view === 'front'
++      ? [
++          calculateShoulderTilt(landmarks, opts),
++          calculateHipTilt(landmarks, opts),
++          calculateShoulderHipWidthRatio(landmarks, opts),
++          calculateTorsoToBodyHeightRatio(landmarks, opts),
++          calculateTorsoLean(landmarks, opts),
++          calculateApproxTorsoLengthCm(landmarks, opts),
++        ]
++      : [
++          calculateTorsoToBodyHeightRatio(landmarks, opts),
++          calculateTorsoLean(landmarks, opts),
++          calculateApproxTorsoLengthCm(landmarks, opts),
++        ];
++  const measurements: ScanMeasurement[] = [];
++  const unavailableList: MetricUnavailable[] = [];
++  for (const r of results) {
++    if (r.status === 'ok') measurements.push(r.measurement);
++    else unavailableList.push({ key: r.key, reason: r.reason, detail: r.detail });
++  }
++  return { view, results, measurements, unavailable: unavailableList };
++}
+diff --git a/src/utils/captureQuality.test.ts b/src/utils/captureQuality.test.ts
+new file mode 100644
+index 0000000..ee55511
+--- /dev/null
++++ b/src/utils/captureQuality.test.ts
+@@ -0,0 +1,308 @@
++import { describe, expect, it } from 'vitest';
++import {
++  DEFAULT_CAPTURE_QUALITY_CONFIG,
++  assessCaptureQuality,
++  measureLandmarkMotion,
++  resolveCaptureQualityConfig,
++  toCaptureQualityReport,
++  type CaptureQualityAssessment,
++  type QualityCheckId,
++} from './captureQuality';
++import { makeFrontPose, makeSidePose } from './syntheticPose.testutil';
++import type { LandmarkPoint } from '../types/bodyScan';
++
++// All landmark fixtures are hand-placed SYNTHETIC numbers, not camera or pose-model output.
++// Brightness / sharpness / motion values below are likewise just numbers passed in; nothing here analyses an image.
++
++const goodInputs = { brightness: 0.5, sharpness: 200, motion: 0.002 };
++const check = (a: CaptureQualityAssessment, id: QualityCheckId) => a.checks.find((c) => c.id === id)!;
++
++/** Shift every landmark x by dx. */
++const shiftX = (pose: LandmarkPoint[], dx: number) => pose.map((p) => ({ ...p, x: p.x + dx }));
++
++describe('assessCaptureQuality: all inputs good', () => {
++  it('passes, is complete, and maps to a "good" stored report with no issues', () => {
++    const a = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose(), ...goodInputs });
++    expect(a.status).toBe('pass');
++    expect(a.complete).toBe(true);
++    expect(a.notEvaluated).toEqual([]);
++    expect(a.feedback).toEqual([]);
++    expect(a.checks).toHaveLength(7);
++    expect(toCaptureQualityReport(a)).toEqual({ level: 'good', issues: [] });
++  });
++});
++
++describe('landmark visibility', () => {
++  it('fails when a required landmark has low confidence, naming it', () => {
++    const a = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose({ leftAnkle: { visibility: 0.3 } }), ...goodInputs });
++    expect(a.status).toBe('fail');
++    expect(check(a, 'landmarks_visible').status).toBe('fail');
++    expect(check(a, 'landmarks_visible').message).toContain('Left ankle');
++    expect(a.feedback.length).toBeGreaterThan(0);
++  });
++
++  it('warns (not fails) for borderline confidence between min and good thresholds', () => {
++    const a = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose({ nose: { visibility: 0.6 } }), ...goodInputs });
++    expect(check(a, 'landmarks_visible').status).toBe('warning');
++    expect(a.status).toBe('warning');
++    expect(toCaptureQualityReport(a).level).toBe('fair');
++  });
++
++  it.each([
++    ['undefined', undefined],
++    ['null', null],
++    ['empty', []],
++  ])('fails with a clear message when landmarks are %s', (_n, lm) => {
++    const a = assessCaptureQuality({ view: 'front', landmarks: lm as never, ...goodInputs });
++    expect(a.status).toBe('fail');
++    expect(check(a, 'landmarks_visible').message).toMatch(/no body landmarks/i);
++    expect(check(a, 'in_frame').status).toBe('not_evaluated');
++  });
++
++  it('fails when the landmark array is too short to contain the required indices', () => {
++    const a = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose().slice(0, 12), ...goodInputs });
++    expect(check(a, 'landmarks_visible').status).toBe('fail');
++  });
++
++  it('fails without throwing on NaN / Infinity coordinates and missing visibility', () => {
++    const nan = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose({ nose: { x: Number.NaN } }), ...goodInputs });
++    expect(check(nan, 'landmarks_visible').status).toBe('fail');
++    const inf = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose({ nose: { y: Infinity } }), ...goodInputs });
++    expect(check(inf, 'landmarks_visible').status).toBe('fail');
++    const noVis = makeFrontPose();
++    delete noVis[0].visibility;
++    expect(check(assessCaptureQuality({ view: 'front', landmarks: noVis, ...goodInputs }), 'landmarks_visible').status).toBe('fail');
++  });
++
++  it('side view needs only ONE complete side: passes with the right chain hidden', () => {
++    const a = assessCaptureQuality({ view: 'side', landmarks: makeSidePose(), ...goodInputs });
++    expect(check(a, 'landmarks_visible').status).toBe('pass');
++    expect(a.status).toBe('pass');
++  });
++
++  it('side view fails if each side is missing a different landmark', () => {
++    const pose = makeSidePose({ leftAnkle: { visibility: 0.1 }, rightShoulder: { visibility: 0.1 } });
++    expect(check(assessCaptureQuality({ view: 'side', landmarks: pose, ...goodInputs }), 'landmarks_visible').status).toBe('fail');
++  });
++});
++
++describe('in-frame check', () => {
++  it('fails when feet are cut off at the bottom and advises stepping back', () => {
++    const a = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose({ leftAnkle: { y: 1.02 }, rightAnkle: { y: 1.02 } }), ...goodInputs });
++    const c = check(a, 'in_frame');
++    expect(c.status).toBe('fail');
++    expect(c.message).toMatch(/ankle/i);
++    expect(c.advice).toMatch(/feet/i);
++  });
++
++  it('fails when the head touches the top edge', () => {
++    const a = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose({ nose: { y: 0.002 } }), ...goodInputs });
++    expect(check(a, 'in_frame').status).toBe('fail');
++    expect(check(a, 'in_frame').advice).toMatch(/head/i);
++  });
++
++  it('respects a configurable margin', () => {
++    const pose = makeFrontPose({ nose: { y: 0.05 } });
++    expect(check(assessCaptureQuality({ view: 'front', landmarks: pose, ...goodInputs }), 'in_frame').status).toBe('pass');
++    expect(check(assessCaptureQuality({ view: 'front', landmarks: pose, ...goodInputs }, { frameMargin: 0.1 }), 'in_frame').status).toBe('fail');
++  });
++});
++
++describe('centring', () => {
++  it('passes when centred, warns when moderately off-centre, fails when far off', () => {
++    const base = makeFrontPose();
++    expect(check(assessCaptureQuality({ view: 'front', landmarks: base, ...goodInputs }), 'centered').status).toBe('pass');
++    const warn = check(assessCaptureQuality({ view: 'front', landmarks: shiftX(base, 0.2), ...goodInputs }), 'centered');
++    expect(warn.status).toBe('warning');
++    expect(warn.value).toBeCloseTo(0.2, 6);
++    expect(check(assessCaptureQuality({ view: 'front', landmarks: shiftX(base, 0.3), ...goodInputs }), 'centered').status).toBe('fail');
++    expect(check(assessCaptureQuality({ view: 'front', landmarks: shiftX(base, -0.3), ...goodInputs }), 'centered').status).toBe('fail');
++  });
++
++  it('is not evaluated when fewer than two landmarks are reliable', () => {
++    const a = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose({}, 0.1), ...goodInputs });
++    expect(check(a, 'centered').status).toBe('not_evaluated');
++  });
++});
++
++describe('body-height fraction (nose to lowest ankle)', () => {
++  const withSpan = (top: number, bottom: number) =>
++    makeFrontPose({ nose: { y: top }, leftAnkle: { y: bottom }, rightAnkle: { y: bottom }, leftShoulder: { y: top + 0.05 }, rightShoulder: { y: top + 0.05 }, leftHip: { y: (top + bottom) / 2 }, rightHip: { y: (top + bottom) / 2 }, leftKnee: { y: bottom - 0.05 }, rightKnee: { y: bottom - 0.05 } });
++
++  it('passes inside the limits (0.80 with defaults)', () => {
++    const c = check(assessCaptureQuality({ view: 'front', landmarks: makeFrontPose(), ...goodInputs }), 'body_height_fraction');
++    expect(c.status).toBe('pass');
++    expect(c.value).toBeCloseTo(0.8, 6);
++  });
++
++  it('warns when a bit small (0.50) and fails when far away (0.30)', () => {
++    expect(check(assessCaptureQuality({ view: 'front', landmarks: withSpan(0.25, 0.75), ...goodInputs }), 'body_height_fraction').status).toBe('warning');
++    const far = check(assessCaptureQuality({ view: 'front', landmarks: withSpan(0.35, 0.65), ...goodInputs }), 'body_height_fraction');
++    expect(far.status).toBe('fail');
++    expect(far.advice).toMatch(/closer/i);
++  });
++
++  it('warns when nearly filling the frame (0.95)', () => {
++    const c = check(assessCaptureQuality({ view: 'front', landmarks: withSpan(0.03, 0.98), ...goodInputs }), 'body_height_fraction');
++    expect(c.status).toBe('warning');
++    expect(c.value).toBeCloseTo(0.95, 6);
++  });
++
++  it('limits are configurable', () => {
++    const cfg = { heightFractionMax: 0.7, heightFractionHardMax: 0.75 };
++    expect(check(assessCaptureQuality({ view: 'front', landmarks: makeFrontPose(), ...goodInputs }, { heightFractionMax: 0.7 }), 'body_height_fraction').status).toBe('warning');
++    const tooClose = check(assessCaptureQuality({ view: 'front', landmarks: makeFrontPose(), ...goodInputs }, cfg), 'body_height_fraction');
++    expect(tooClose.status).toBe('fail');
++    expect(tooClose.advice).toMatch(/step back/i);
++  });
++
++  it('fails for an inverted pose (feet above head) and is not evaluated without a reliable ankle', () => {
++    expect(check(assessCaptureQuality({ view: 'front', landmarks: makeFrontPose({ nose: { y: 0.95 } }), ...goodInputs }), 'body_height_fraction').status).toBe('fail');
++    expect(
++      check(assessCaptureQuality({ view: 'front', landmarks: makeFrontPose({ leftAnkle: { visibility: 0.1 }, rightAnkle: { visibility: 0.1 } }), ...goodInputs }), 'body_height_fraction').status
++    ).toBe('not_evaluated');
++  });
++});
++
++describe('brightness (caller-supplied mean luminance 0..1)', () => {
++  const run = (brightness: number | null | undefined) => check(assessCaptureQuality({ view: 'front', landmarks: makeFrontPose(), brightness }), 'brightness');
++  it.each([
++    [0.05, 'fail'],
++    [0.2, 'warning'],
++    [0.5, 'pass'],
++    [0.9, 'warning'],
++    [0.97, 'fail'],
++  ])('%s => %s', (v, expected) => {
++    expect(run(v).status).toBe(expected);
++  });
++  it('is not evaluated (never a pass) when missing', () => {
++    expect(run(undefined).status).toBe('not_evaluated');
++    expect(run(null).status).toBe('not_evaluated');
++    expect(run(undefined).message).toMatch(/not supplied/i);
++  });
++  it.each([Number.NaN, Infinity, -0.1, 1.5, '0.5' as unknown as number])('treats invalid value %s as not evaluated', (v) => {
++    const c = run(v);
++    expect(c.status).toBe('not_evaluated');
++    expect(c.message).toMatch(/invalid/i);
++  });
++});
++
++describe('sharpness (caller-supplied, higher = sharper)', () => {
++  const run = (sharpness: number | null | undefined) => check(assessCaptureQuality({ view: 'front', landmarks: makeFrontPose(), sharpness }), 'sharpness');
++  it.each([
++    [20, 'fail'],
++    [70, 'warning'],
++    [150, 'pass'],
++  ])('%s => %s', (v, expected) => {
++    expect(run(v).status).toBe(expected);
++  });
++  it('is not evaluated when missing or invalid', () => {
++    expect(run(undefined).status).toBe('not_evaluated');
++    for (const bad of [Number.NaN, -5, Infinity]) expect(run(bad).status).toBe('not_evaluated');
++  });
++  it('thresholds are configurable for other sharpness metrics', () => {
++    const c = check(assessCaptureQuality({ view: 'front', landmarks: makeFrontPose(), sharpness: 0.3 }, { sharpnessFailBelow: 0.1, sharpnessWarnBelow: 0.5 }), 'sharpness');
++    expect(c.status).toBe('warning');
++  });
++});
++
++describe('stillness (caller-supplied motion, fractions of image height)', () => {
++  const run = (motion: number | null | undefined) => check(assessCaptureQuality({ view: 'front', landmarks: makeFrontPose(), motion }), 'stillness');
++  it.each([
++    [0.002, 'pass'],
++    [0.015, 'warning'],
++    [0.04, 'fail'],
++  ])('%s => %s', (v, expected) => {
++    expect(run(v).status).toBe(expected);
++  });
++  it('is not evaluated when missing or invalid', () => {
++    expect(run(undefined).status).toBe('not_evaluated');
++    for (const bad of [Number.NaN, -1, Infinity]) expect(run(bad).status).toBe('not_evaluated');
++  });
++});
++
++describe('overall status and partial results', () => {
++  it('with no brightness/sharpness/motion: a clean pose is a PARTIAL pass', () => {
++    const a = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose() });
++    expect(a.status).toBe('pass');
++    expect(a.complete).toBe(false);
++    expect(a.notEvaluated).toEqual(['brightness', 'sharpness', 'stillness']);
++    // not-evaluated checks are not reported as issues in the stored report
++    expect(toCaptureQualityReport(a).issues).toEqual([]);
++  });
++
++  it('a single failure dominates warnings and passes, and failures are listed first in issues/feedback', () => {
++    const a = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose(), brightness: 0.2 /* warning */, sharpness: 10 /* fail */, motion: 0.002 });
++    expect(a.status).toBe('fail');
++    const report = toCaptureQualityReport(a);
++    expect(report.level).toBe('poor');
++    expect(report.issues[0]).toMatch(/blurry/i);
++    expect(report.issues[1]).toMatch(/dark/i);
++    expect(a.feedback[0]).toMatch(/steady|lens/i);
++  });
++
++  it('does not mutate frozen input', () => {
++    const pose = Object.freeze(makeFrontPose().map((p) => Object.freeze({ ...p })));
++    expect(() => assessCaptureQuality({ view: 'front', landmarks: pose as never, ...goodInputs })).not.toThrow();
++  });
++
++  it('treats an unrecognised view as front rather than throwing', () => {
++    expect(() => assessCaptureQuality({ view: 'back' as never, landmarks: makeFrontPose(), ...goodInputs })).not.toThrow();
++  });
++});
++
++describe('config validation', () => {
++  it('defaults resolve unchanged and overrides with undefined values are ignored', () => {
++    expect(resolveCaptureQualityConfig()).toEqual(DEFAULT_CAPTURE_QUALITY_CONFIG);
++    expect(resolveCaptureQualityConfig({ frameMargin: undefined })).toEqual(DEFAULT_CAPTURE_QUALITY_CONFIG);
++  });
++  it('throws RangeError for non-finite or inconsistent thresholds', () => {
++    expect(() => resolveCaptureQualityConfig({ frameMargin: Number.NaN })).toThrow(RangeError);
++    expect(() => resolveCaptureQualityConfig({ minLandmarkVisibility: 0.9 })).toThrow(RangeError); // > good (0.7)
++    expect(() => resolveCaptureQualityConfig({ heightFractionMin: 0.95 })).toThrow(RangeError); // > max
++    expect(() => resolveCaptureQualityConfig({ brightnessWarnLow: 0.05 })).toThrow(RangeError); // < failLow
++    expect(() => resolveCaptureQualityConfig({ sharpnessFailBelow: 500 })).toThrow(RangeError);
++    expect(() => resolveCaptureQualityConfig({ motionWarnAbove: 0.5 })).toThrow(RangeError);
++    expect(() => assessCaptureQuality({ view: 'front' }, { centerOffsetWarn: 0.4 })).toThrow(RangeError);
++  });
++});
++
++describe('measureLandmarkMotion (derives stillness from supplied landmark frames)', () => {
++  it('is 0 for identical frames', () => {
++    expect(measureLandmarkMotion([makeFrontPose(), makeFrontPose(), makeFrontPose()], 1)).toBeCloseTo(0, 10);
++  });
++
++  it('matches a known value: every tracked landmark moves 0.02 in y between two frames => RMS spread 0.01', () => {
++    const moved = makeFrontPose().map((p) => ({ ...p, y: p.y + 0.02 }));
++    expect(measureLandmarkMotion([makeFrontPose(), moved], 1)).toBeCloseTo(0.01, 8);
++  });
++
++  it('scales x by the aspect ratio: 0.02 in x with aspect 0.5 => 0.005', () => {
++    const moved = makeFrontPose().map((p) => ({ ...p, x: p.x + 0.02 }));
++    expect(measureLandmarkMotion([makeFrontPose(), moved], 0.5)).toBeCloseTo(0.005, 8);
++  });
++
++  it('returns null when it cannot be computed (never 0, which would look perfectly still)', () => {
++    expect(measureLandmarkMotion([], 1)).toBeNull();
++    expect(measureLandmarkMotion([makeFrontPose()], 1)).toBeNull();
++    expect(measureLandmarkMotion(undefined as never, 1)).toBeNull();
++    expect(measureLandmarkMotion([makeFrontPose(), makeFrontPose()], 0)).toBeNull();
++    expect(measureLandmarkMotion([makeFrontPose(), makeFrontPose()], Number.NaN)).toBeNull();
++    expect(measureLandmarkMotion([[], []], 1)).toBeNull();
++    expect(measureLandmarkMotion([makeFrontPose(), null as never], 1)).toBeNull();
++  });
++
++  it('ignores frames where a landmark is non-finite and uses the rest', () => {
++    const bad = makeFrontPose({ leftShoulder: { x: Number.NaN } });
++    const v = measureLandmarkMotion([makeFrontPose(), bad, makeFrontPose()], 1);
++    expect(v).not.toBeNull();
++    expect(Number.isFinite(v as number)).toBe(true);
++  });
++
++  it('feeds the stillness check end to end', () => {
++    const moved = makeFrontPose().map((p) => ({ ...p, y: p.y + 0.06 })); // spread 0.03 > fail 0.025
++    const motion = measureLandmarkMotion([makeFrontPose(), moved], 1);
++    const a = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose(), brightness: 0.5, sharpness: 200, motion });
++    expect(check(a, 'stillness').status).toBe('fail');
++  });
++});
+diff --git a/src/utils/captureQuality.ts b/src/utils/captureQuality.ts
+new file mode 100644
+index 0000000..cfdd55e
+--- /dev/null
++++ b/src/utils/captureQuality.ts
+@@ -0,0 +1,515 @@
++/**
++ * Capture-quality checks for Body Scan photos.
++ *
++ * WHAT THIS IS
++ * Pure functions that turn numbers supplied by a future camera/capture layer
++ * into pass / warning / fail feedback. No browser APIs, no React, no I/O.
++ *
++ * WHAT THIS IS NOT
++ * - It performs NO image analysis. Brightness, sharpness and motion must be
++ *   computed by the caller from real frames and passed in. If they are not
++ *   supplied (or are invalid) the matching check is reported as
++ *   `not_evaluated`; it is never guessed and never counted as a pass.
++ * - Landmark checks are only as good as the pose model's own `visibility`
++ *   scores. A passing result means "no problems found among the checks that
++ *   could be run", not that the photo is suitable for any particular purpose.
++ * - All default thresholds are heuristics chosen for sensible UX. They have
++ *   NOT been calibrated against real devices or real users and should be tuned
++ *   once the capture layer exists. Everything is overridable via
++ *   `CaptureQualityConfig`.
++ *
++ * Coordinates: normalised 0..1 image space (see `LandmarkPoint`), y grows
++ * downward. Fractions below are fractions of the frame width/height.
++ */
++
++import type { CaptureQualityReport, ScanView } from '../types/bodyScan';
++import {
++  type LandmarkList,
++  type LandmarkRead,
++  type PoseLandmarkName,
++  POSE_LANDMARK_LABEL,
++  isValidAspectRatio,
++  readLandmark,
++} from './poseLandmarks';
++
++// ---------------------------------------------------------------------------
++// Types
++// ---------------------------------------------------------------------------
++
++export type QualityCheckId =
++  | 'landmarks_visible'
++  | 'in_frame'
++  | 'centered'
++  | 'body_height_fraction'
++  | 'brightness'
++  | 'sharpness'
++  | 'stillness';
++
++export type QualityCheckStatus = 'pass' | 'warning' | 'fail' | 'not_evaluated';
++export type OverallQualityStatus = 'pass' | 'warning' | 'fail';
++
++export interface QualityCheck {
++  id: QualityCheckId;
++  status: QualityCheckStatus;
++  /** The number the decision was based on, when there is one. */
++  value?: number;
++  /** What was found. */
++  message: string;
++  /** What the user can do about it. Absent for pass / not_evaluated. */
++  advice?: string;
++}
++
++export interface CaptureQualityAssessment {
++  /** Worst status among the checks that WERE evaluated. */
++  status: OverallQualityStatus;
++  checks: QualityCheck[];
++  /** De-duplicated advice for every warning/fail, failures first. */
++  feedback: string[];
++  notEvaluated: QualityCheckId[];
++  /**
++   * False when any check could not be evaluated (e.g. no sharpness value was
++   * supplied). A `pass` with `complete: false` is a partial result.
++   */
++  complete: boolean;
++}
++
++export interface CaptureQualityInput {
++  view: ScanView;
++  /** Pose landmarks for this frame (MediaPipe 33-point ordering). */
++  landmarks?: LandmarkList;
++  /**
++   * Mean luminance of the frame, 0 (black) .. 1 (white). Computed by the
++   * caller; for example the mean of a downscaled greyscale copy divided by 255.
++   */
++  brightness?: number | null;
++  /**
++   * Sharpness score where HIGHER = SHARPER, computed by the caller. The default
++   * thresholds assume variance of the Laplacian of an 8-bit greyscale frame
++   * downscaled to roughly 640 px on its long side. Different metrics or sizes
++   * need different thresholds (pass them in the config).
++   */
++  sharpness?: number | null;
++  /**
++   * Landmark movement over a short window, in fractions of image height; see
++   * `measureLandmarkMotion`. 0 = perfectly still. Measures pose stability, not
++   * camera shake in isolation.
++   */
++  motion?: number | null;
++}
++
++export interface CaptureQualityConfig {
++  /** Landmark visibility below this = not usable (fail). */
++  minLandmarkVisibility: number;
++  /** Visibility from min up to this = usable but borderline (warning). */
++  goodLandmarkVisibility: number;
++  /** Landmarks closer than this to a frame edge count as cut off. */
++  frameMargin: number;
++  /** Horizontal offset of the body centre from the frame centre: warning above. */
++  centerOffsetWarn: number;
++  /** ...and fail above. */
++  centerOffsetFail: number;
++  /**
++   * Vertical span from nose to the lowest visible ankle, as a fraction of frame
++   * height. Note this span is roughly 85-90% of standing height (it excludes
++   * the top of the head and the floor), so these bounds are on that landmark
++   * span, not on full body height.
++   */
++  heightFractionHardMin: number; // below = fail (too far away)
++  heightFractionMin: number; //     below = warning
++  heightFractionMax: number; //     above = warning
++  heightFractionHardMax: number; // above = fail (too close)
++  brightnessFailLow: number;
++  brightnessWarnLow: number;
++  brightnessWarnHigh: number;
++  brightnessFailHigh: number;
++  sharpnessFailBelow: number;
++  sharpnessWarnBelow: number;
++  motionWarnAbove: number;
++  motionFailAbove: number;
++}
++
++export const DEFAULT_CAPTURE_QUALITY_CONFIG: CaptureQualityConfig = {
++  minLandmarkVisibility: 0.5,
++  goodLandmarkVisibility: 0.7,
++  frameMargin: 0.01,
++  centerOffsetWarn: 0.1,
++  centerOffsetFail: 0.25,
++  heightFractionHardMin: 0.45,
++  heightFractionMin: 0.6,
++  heightFractionMax: 0.92,
++  heightFractionHardMax: 0.98,
++  brightnessFailLow: 0.12,
++  brightnessWarnLow: 0.25,
++  brightnessWarnHigh: 0.85,
++  brightnessFailHigh: 0.95,
++  sharpnessFailBelow: 40,
++  sharpnessWarnBelow: 100,
++  motionWarnAbove: 0.01,
++  motionFailAbove: 0.025,
++};
++
++// ---------------------------------------------------------------------------
++// Config
++// ---------------------------------------------------------------------------
++
++/**
++ * Merges overrides onto the defaults and validates the result.
++ * Throws RangeError for non-finite values or inconsistent ordering: config is
++ * developer-supplied, and silently "fixing" it would hide a bug.
++ */
++export function resolveCaptureQualityConfig(
++  overrides?: Partial<CaptureQualityConfig>
++): CaptureQualityConfig {
++  const cfg: CaptureQualityConfig = { ...DEFAULT_CAPTURE_QUALITY_CONFIG };
++  if (overrides) {
++    for (const key of Object.keys(overrides) as (keyof CaptureQualityConfig)[]) {
++      const v = overrides[key];
++      if (v !== undefined) cfg[key] = v;
++    }
++  }
++  for (const key of Object.keys(cfg) as (keyof CaptureQualityConfig)[]) {
++    if (typeof cfg[key] !== 'number' || !Number.isFinite(cfg[key])) {
++      throw new RangeError(`captureQuality config "${key}" must be a finite number`);
++    }
++  }
++  const ordered = (label: string, ...values: number[]) => {
++    for (let i = 1; i < values.length; i++) {
++      if (values[i - 1] > values[i]) throw new RangeError(`captureQuality config inconsistent: ${label}`);
++    }
++  };
++  ordered('0 <= minLandmarkVisibility <= goodLandmarkVisibility <= 1', 0, cfg.minLandmarkVisibility, cfg.goodLandmarkVisibility, 1);
++  ordered('0 <= frameMargin <= 0.25', 0, cfg.frameMargin, 0.25);
++  ordered('0 <= centerOffsetWarn <= centerOffsetFail <= 0.5', 0, cfg.centerOffsetWarn, cfg.centerOffsetFail, 0.5);
++  ordered(
++    '0 < heightFractionHardMin <= heightFractionMin <= heightFractionMax <= heightFractionHardMax <= 1',
++    0,
++    cfg.heightFractionHardMin,
++    cfg.heightFractionMin,
++    cfg.heightFractionMax,
++    cfg.heightFractionHardMax,
++    1
++  );
++  if (cfg.heightFractionHardMin <= 0) throw new RangeError('captureQuality config inconsistent: heightFractionHardMin must be > 0');
++  ordered(
++    '0 <= brightnessFailLow <= brightnessWarnLow <= brightnessWarnHigh <= brightnessFailHigh <= 1',
++    0,
++    cfg.brightnessFailLow,
++    cfg.brightnessWarnLow,
++    cfg.brightnessWarnHigh,
++    cfg.brightnessFailHigh,
++    1
++  );
++  ordered('0 <= sharpnessFailBelow <= sharpnessWarnBelow', 0, cfg.sharpnessFailBelow, cfg.sharpnessWarnBelow);
++  ordered('0 <= motionWarnAbove <= motionFailAbove', 0, cfg.motionWarnAbove, cfg.motionFailAbove);
++  return cfg;
++}
++
++// ---------------------------------------------------------------------------
++// Landmark selection
++// ---------------------------------------------------------------------------
++
++const FRONT_REQUIRED: readonly PoseLandmarkName[] = [
++  'nose',
++  'leftShoulder',
++  'rightShoulder',
++  'leftHip',
++  'rightHip',
++  'leftKnee',
++  'rightKnee',
++  'leftAnkle',
++  'rightAnkle',
++];
++const SIDE_CHAINS: Record<'left' | 'right', readonly PoseLandmarkName[]> = {
++  left: ['nose', 'leftShoulder', 'leftHip', 'leftKnee', 'leftAnkle'],
++  right: ['nose', 'rightShoulder', 'rightHip', 'rightKnee', 'rightAnkle'],
++};
++
++interface NamedRead {
++  name: PoseLandmarkName;
++  read: LandmarkRead;
++}
++
++function readAll(landmarks: LandmarkList, names: readonly PoseLandmarkName[], minVis: number): NamedRead[] {
++  return names.map((name) => ({ name, read: readLandmark(landmarks, name, minVis) }));
++}
++
++/**
++ * Front view needs every required landmark. A side view only ever shows one
++ * side of the body clearly, so it needs ONE complete side chain; the better of
++ * the two is used (fewest unusable landmarks, then highest minimum visibility).
++ */
++function selectRequiredReads(landmarks: LandmarkList, view: ScanView, minVis: number): NamedRead[] {
++  if (view !== 'side') return readAll(landmarks, FRONT_REQUIRED, minVis);
++  const left = readAll(landmarks, SIDE_CHAINS.left, minVis);
++  const right = readAll(landmarks, SIDE_CHAINS.right, minVis);
++  const score = (reads: NamedRead[]) => ({
++    bad: reads.filter((r) => r.read.status !== 'ok').length,
++    minVis: Math.min(...reads.map((r) => r.read.visibility ?? 0)),
++  });
++  const l = score(left);
++  const r = score(right);
++  if (r.bad < l.bad || (r.bad === l.bad && r.minVis > l.minVis)) return right;
++  return left;
++}
++
++const labels = (names: readonly PoseLandmarkName[]) => names.map((n) => POSE_LANDMARK_LABEL[n]).join(', ');
++
++// ---------------------------------------------------------------------------
++// Individual checks
++// ---------------------------------------------------------------------------
++
++function checkLandmarksVisible(reads: NamedRead[], hasList: boolean, cfg: CaptureQualityConfig): QualityCheck {
++  const id: QualityCheckId = 'landmarks_visible';
++  if (!hasList) {
++    return {
++      id,
++      status: 'fail',
++      message: 'No body landmarks were detected.',
++      advice: 'Stand fully in view of the camera, in good light, and try again.',
++    };
++  }
++  const bad = reads.filter((r) => r.read.status !== 'ok');
++  if (bad.length > 0) {
++    return {
++      id,
++      status: 'fail',
++      message: `Not clearly visible: ${labels(bad.map((b) => b.name))}.`,
++      advice: 'Make sure your whole body, head to feet, is in view, wear fitted clothing, and avoid anything blocking the camera.',
++    };
++  }
++  const visibilities = reads.map((r) => r.read.visibility as number);
++  const minV = Math.min(...visibilities);
++  const borderline = reads.filter((r) => (r.read.visibility as number) < cfg.goodLandmarkVisibility);
++  if (borderline.length > 0) {
++    return {
++      id,
++      status: 'warning',
++      value: minV,
++      message: `Detected with borderline confidence: ${labels(borderline.map((b) => b.name))}.`,
++      advice: 'Improve the lighting and stand against a plain background that contrasts with your clothing.',
++    };
++  }
++  return { id, status: 'pass', value: minV, message: 'All required body landmarks are clearly visible.' };
++}
++
++function checkInFrame(reads: NamedRead[], cfg: CaptureQualityConfig): QualityCheck {
++  const id: QualityCheckId = 'in_frame';
++  const located = reads.filter((r) => r.read.point !== undefined);
++  if (located.length === 0) {
++    return { id, status: 'not_evaluated', message: 'Frame position could not be checked: no landmark coordinates available.' };
++  }
++  const out: PoseLandmarkName[] = [];
++  const edges = new Set<'top' | 'bottom' | 'left' | 'right'>();
++  const m = cfg.frameMargin;
++  for (const { name, read } of located) {
++    const { x, y } = read.point!;
++    const touched: ('top' | 'bottom' | 'left' | 'right')[] = [];
++    if (y < m) touched.push('top');
++    if (y > 1 - m) touched.push('bottom');
++    if (x < m) touched.push('left');
++    if (x > 1 - m) touched.push('right');
++    touched.forEach((e) => edges.add(e));
++    if (touched.length > 0) out.push(name);
++  }
++  if (out.length === 0) return { id, status: 'pass', message: 'Your whole body is inside the frame.' };
++  const advice: string[] = [];
++  if (edges.has('bottom')) advice.push('step back or lower the camera so your feet are fully in frame');
++  if (edges.has('top')) advice.push('step back or tilt the camera down so your head is fully in frame');
++  if (edges.has('left') || edges.has('right')) advice.push('move toward the centre of the frame');
++  return {
++    id,
++    status: 'fail',
++    message: `Cut off at the edge of the frame: ${labels(out)}.`,
++    advice: `Please ${advice.join(' and ')}.`,
++  };
++}
++
++function checkCentered(reads: NamedRead[], cfg: CaptureQualityConfig): QualityCheck {
++  const id: QualityCheckId = 'centered';
++  const pts = reads.filter((r) => r.read.status === 'ok').map((r) => r.read.point!);
++  if (pts.length < 2) {
++    return { id, status: 'not_evaluated', message: 'Centring could not be checked: fewer than two reliable landmarks.' };
++  }
++  const xs = pts.map((p) => p.x);
++  const centre = (Math.min(...xs) + Math.max(...xs)) / 2;
++  const offset = Math.abs(centre - 0.5);
++  if (offset > cfg.centerOffsetFail) {
++    return { id, status: 'fail', value: offset, message: 'You are well off-centre in the frame.', advice: 'Move toward the centre of the frame.' };
++  }
++  if (offset > cfg.centerOffsetWarn) {
++    return { id, status: 'warning', value: offset, message: 'You are slightly off-centre in the frame.', advice: 'Move a little toward the centre of the frame.' };
++  }
++  return { id, status: 'pass', value: offset, message: 'You are centred in the frame.' };
++}
++
++function checkBodyHeightFraction(reads: NamedRead[], cfg: CaptureQualityConfig): QualityCheck {
++  const id: QualityCheckId = 'body_height_fraction';
++  const nose = reads.find((r) => r.name === 'nose' && r.read.status === 'ok');
++  const ankles = reads.filter((r) => /Ankle$/.test(r.name) && r.read.status === 'ok');
++  if (!nose || ankles.length === 0) {
++    return { id, status: 'not_evaluated', message: 'Body size in frame could not be checked: head or ankle landmark not reliable.' };
++  }
++  const fraction = Math.max(...ankles.map((a) => a.read.point!.y)) - nose.read.point!.y;
++  if (fraction <= 0) {
++    return {
++      id,
++      status: 'fail',
++      value: fraction,
++      message: 'Head and feet positions are inconsistent (head is not above the feet).',
++      advice: 'Hold the phone upright and stand facing the camera with your whole body in view.',
++    };
++  }
++  if (fraction < cfg.heightFractionHardMin) {
++    return { id, status: 'fail', value: fraction, message: 'You are too far from the camera.', advice: 'Move closer so your body fills more of the frame.' };
++  }
++  if (fraction < cfg.heightFractionMin) {
++    return { id, status: 'warning', value: fraction, message: 'You appear a bit small in the frame.', advice: 'Move a little closer to the camera.' };
++  }
++  if (fraction > cfg.heightFractionHardMax) {
++    return { id, status: 'fail', value: fraction, message: 'You are too close to the camera.', advice: 'Step back so your whole body fits with some space around it.' };
++  }
++  if (fraction > cfg.heightFractionMax) {
++    return { id, status: 'warning', value: fraction, message: 'You fill almost the whole frame.', advice: 'Step back a little to leave some margin.' };
++  }
++  return { id, status: 'pass', value: fraction, message: 'Body size in the frame looks right.' };
++}
++
++function suppliedNumber(raw: number | null | undefined, validRange: (n: number) => boolean) {
++  if (raw === undefined || raw === null) return { state: 'missing' as const };
++  if (typeof raw !== 'number' || !Number.isFinite(raw) || !validRange(raw)) return { state: 'invalid' as const };
++  return { state: 'ok' as const, value: raw };
++}
++
++function notEvaluated(id: QualityCheckId, noun: string, state: 'missing' | 'invalid'): QualityCheck {
++  return {
++    id,
++    status: 'not_evaluated',
++    message: state === 'missing' ? `${noun} was not supplied, so it was not checked.` : `${noun} value was invalid, so it was not checked.`,
++  };
++}
++
++function checkBrightness(raw: number | null | undefined, cfg: CaptureQualityConfig): QualityCheck {
++  const id: QualityCheckId = 'brightness';
++  const s = suppliedNumber(raw, (n) => n >= 0 && n <= 1);
++  if (s.state !== 'ok') return notEvaluated(id, 'Brightness', s.state);
++  const v = s.value;
++  if (v < cfg.brightnessFailLow) return { id, status: 'fail', value: v, message: 'The image is far too dark.', advice: 'Move to a brighter room or turn on more lights.' };
++  if (v < cfg.brightnessWarnLow) return { id, status: 'warning', value: v, message: 'The image is a bit dark.', advice: 'Add more light, ideally facing you rather than behind you.' };
++  if (v > cfg.brightnessFailHigh) return { id, status: 'fail', value: v, message: 'The image is far too bright or washed out.', advice: 'Avoid direct sunlight or a strong light pointing at the camera.' };
++  if (v > cfg.brightnessWarnHigh) return { id, status: 'warning', value: v, message: 'The image is very bright.', advice: 'Reduce glare or strong light behind or beside you.' };
++  return { id, status: 'pass', value: v, message: 'Brightness is within a reasonable range.' };
++}
++
++function checkSharpness(raw: number | null | undefined, cfg: CaptureQualityConfig): QualityCheck {
++  const id: QualityCheckId = 'sharpness';
++  const s = suppliedNumber(raw, (n) => n >= 0);
++  if (s.state !== 'ok') return notEvaluated(id, 'Sharpness', s.state);
++  const v = s.value;
++  if (v < cfg.sharpnessFailBelow) return { id, status: 'fail', value: v, message: 'The image is very blurry.', advice: 'Hold the phone steady or prop it up, and wipe the camera lens.' };
++  if (v < cfg.sharpnessWarnBelow) return { id, status: 'warning', value: v, message: 'The image is slightly blurry.', advice: 'Keep still and steady the phone or use a stand.' };
++  return { id, status: 'pass', value: v, message: 'The image looks sharp enough.' };
++}
++
++function checkStillness(raw: number | null | undefined, cfg: CaptureQualityConfig): QualityCheck {
++  const id: QualityCheckId = 'stillness';
++  const s = suppliedNumber(raw, (n) => n >= 0);
++  if (s.state !== 'ok') return notEvaluated(id, 'Motion', s.state);
++  const v = s.value;
++  if (v > cfg.motionFailAbove) return { id, status: 'fail', value: v, message: 'You are moving too much.', advice: 'Stand still for a moment before capturing.' };
++  if (v > cfg.motionWarnAbove) return { id, status: 'warning', value: v, message: 'There is some movement.', advice: 'Try to hold still for a second or two.' };
++  return { id, status: 'pass', value: v, message: 'You are holding still.' };
++}
++
++// ---------------------------------------------------------------------------
++// Public API
++// ---------------------------------------------------------------------------
++
++/** Runs every check and combines them. Never throws for bad *input*; see `resolveCaptureQualityConfig` for config errors. */
++export function assessCaptureQuality(
++  input: CaptureQualityInput,
++  configOverrides?: Partial<CaptureQualityConfig>
++): CaptureQualityAssessment {
++  const cfg = resolveCaptureQualityConfig(configOverrides);
++  const view: ScanView = input?.view === 'side' ? 'side' : 'front';
++  const landmarks = input?.landmarks;
++  const hasList = Array.isArray(landmarks) && landmarks.length > 0;
++  const reads = selectRequiredReads(landmarks, view, cfg.minLandmarkVisibility);
++
++  const checks: QualityCheck[] = [
++    checkLandmarksVisible(reads, hasList, cfg),
++    checkInFrame(reads, cfg),
++    checkCentered(reads, cfg),
++    checkBodyHeightFraction(reads, cfg),
++    checkBrightness(input?.brightness, cfg),
++    checkSharpness(input?.sharpness, cfg),
++    checkStillness(input?.motion, cfg),
++  ];
++
++  const status: OverallQualityStatus = checks.some((c) => c.status === 'fail')
++    ? 'fail'
++    : checks.some((c) => c.status === 'warning')
++      ? 'warning'
++      : 'pass';
++
++  const feedback: string[] = [];
++  for (const wanted of ['fail', 'warning'] as const) {
++    for (const c of checks) {
++      if (c.status === wanted && c.advice && !feedback.includes(c.advice)) feedback.push(c.advice);
++    }
++  }
++  const notEvaluatedIds = checks.filter((c) => c.status === 'not_evaluated').map((c) => c.id);
++
++  return { status, checks, feedback, notEvaluated: notEvaluatedIds, complete: notEvaluatedIds.length === 0 };
++}
++
++/**
++ * Adapter to the stored `CaptureQualityReport` type (good / fair / poor).
++ * `issues` lists what was found for warnings and failures (failures first).
++ * Checks that could not be evaluated are NOT issues; keep the full
++ * `CaptureQualityAssessment` if the UI needs to show them.
++ */
++export function toCaptureQualityReport(assessment: CaptureQualityAssessment): CaptureQualityReport {
++  const issues: string[] = [];
++  for (const wanted of ['fail', 'warning'] as const) {
++    for (const c of assessment.checks) if (c.status === wanted) issues.push(c.message);
++  }
++  const level = assessment.status === 'pass' ? 'good' : assessment.status === 'warning' ? 'fair' : 'poor';
++  return { level, issues };
++}
++
++const MOTION_LANDMARKS: readonly PoseLandmarkName[] = ['leftShoulder', 'rightShoulder', 'leftHip', 'rightHip'];
++
++/**
++ * Derives a stillness number from landmarks of several recent frames
++ * (oldest to newest; the caller decides the window, e.g. the last second).
++ *
++ * Result = mean over landmarks of the RMS distance of that landmark from its
++ * own average position across the frames, in fractions of image HEIGHT
++ * (x is scaled by `aspectRatio` = width / height so distances are isotropic).
++ *
++ * Returns null when it cannot be computed (fewer than two frames, invalid
++ * aspect ratio, or no landmark with finite coordinates in at least two frames).
++ * This measures pose-estimate stability, which includes model jitter.
++ */
++export function measureLandmarkMotion(
++  frames: readonly LandmarkList[],
++  aspectRatio: number,
++  names: readonly PoseLandmarkName[] = MOTION_LANDMARKS
++): number | null {
++  if (!Array.isArray(frames) || frames.length < 2 || !isValidAspectRatio(aspectRatio)) return null;
++  const spreads: number[] = [];
++  for (const name of names) {
++    const pts: { x: number; y: number }[] = [];
++    for (const frame of frames) {
++      const r = readLandmark(frame, name, 0);
++      if (r.point) pts.push({ x: r.point.x * aspectRatio, y: r.point.y });
++    }
++    if (pts.length < 2) continue;
++    const mx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
++    const my = pts.reduce((s, p) => s + p.y, 0) / pts.length;
++    const meanSq = pts.reduce((s, p) => s + (p.x - mx) ** 2 + (p.y - my) ** 2, 0) / pts.length;
++    spreads.push(Math.sqrt(meanSq));
++  }
++  if (spreads.length === 0) return null;
++  return spreads.reduce((s, v) => s + v, 0) / spreads.length;
++}
+diff --git a/src/utils/poseLandmarks.ts b/src/utils/poseLandmarks.ts
+new file mode 100644
+index 0000000..d3f220e
+--- /dev/null
++++ b/src/utils/poseLandmarks.ts
+@@ -0,0 +1,89 @@
++import type { LandmarkPoint } from '../types/bodyScan';
++
++/**
++ * Landmark index convention for Body Scan utilities.
++ *
++ * `BodyScanRecord` stores `LandmarkPoint[]` "as produced by the pose model".
++ * These utilities assume the MediaPipe Pose 33-landmark ordering, where the
++ * array index identifies the body part. Only the subset needed by the 2D
++ * metrics and capture-quality checks is listed here.
++ *
++ * "Left"/"right" are the model's anatomical labels (the person's own left and
++ * right). In a mirrored selfie preview these appear swapped on screen, so
++ * nothing in the utilities depends on which side of the image a label sits.
++ *
++ * Pure module: no browser APIs, no React.
++ */
++export const POSE_LANDMARK = {
++  nose: 0,
++  leftShoulder: 11,
++  rightShoulder: 12,
++  leftHip: 23,
++  rightHip: 24,
++  leftKnee: 25,
++  rightKnee: 26,
++  leftAnkle: 27,
++  rightAnkle: 28,
++} as const;
++
++export type PoseLandmarkName = keyof typeof POSE_LANDMARK;
++
++export const POSE_LANDMARK_LABEL: Record<PoseLandmarkName, string> = {
++  nose: 'Head (nose)',
++  leftShoulder: 'Left shoulder',
++  rightShoulder: 'Right shoulder',
++  leftHip: 'Left hip',
++  rightHip: 'Right hip',
++  leftKnee: 'Left knee',
++  rightKnee: 'Right knee',
++  leftAnkle: 'Left ankle',
++  rightAnkle: 'Right ankle',
++};
++
++/** Anything a caller might hand us; every utility tolerates all of these. */
++export type LandmarkList = readonly (LandmarkPoint | null | undefined)[] | null | undefined;
++
++export type LandmarkReadStatus =
++  | 'ok' //                  finite x/y and visibility >= the minimum
++  | 'low_visibility' //      finite x/y, visibility below the minimum
++  | 'visibility_unknown' //  finite x/y, but visibility missing, non-finite or outside 0..1
++  | 'non_finite' //          x or y is NaN/Infinity/not a number
++  | 'missing'; //            no entry at this index
++
++export interface LandmarkRead {
++  status: LandmarkReadStatus;
++  /** Present for ok, low_visibility and visibility_unknown (coordinates are finite). */
++  point?: LandmarkPoint;
++  /** Present only when the reported visibility is a valid number in 0..1. */
++  visibility?: number;
++}
++
++/**
++ * Reads one named landmark without ever throwing.
++ *
++ * A landmark with no usable `visibility` is NOT treated as visible: the pose
++ * model always reports it, so its absence means we cannot vouch for the point.
++ */
++export function readLandmark(
++  landmarks: LandmarkList,
++  name: PoseLandmarkName,
++  minVisibility: number
++): LandmarkRead {
++  if (!landmarks || !Array.isArray(landmarks)) return { status: 'missing' };
++  const p = (landmarks as readonly unknown[])[POSE_LANDMARK[name]] as LandmarkPoint | null | undefined;
++  if (p === null || p === undefined || typeof p !== 'object') return { status: 'missing' };
++  if (typeof p.x !== 'number' || typeof p.y !== 'number' || !Number.isFinite(p.x) || !Number.isFinite(p.y)) {
++    return { status: 'non_finite' };
++  }
++  const v = p.visibility;
++  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 1) {
++    return { status: 'visibility_unknown', point: p };
++  }
++  if (v < minVisibility) return { status: 'low_visibility', point: p, visibility: v };
++  return { status: 'ok', point: p, visibility: v };
++}
++
++/** Width / height of the image the landmarks were normalised against. */
++export function isValidAspectRatio(aspectRatio: unknown): aspectRatio is number {
++  return typeof aspectRatio === 'number' && Number.isFinite(aspectRatio) && aspectRatio >= 0.1 && aspectRatio <= 10;
++}
+diff --git a/src/utils/syntheticPose.testutil.ts b/src/utils/syntheticPose.testutil.ts
+new file mode 100644
+index 0000000..bd31ea0
+--- /dev/null
++++ b/src/utils/syntheticPose.testutil.ts
+@@ -0,0 +1,57 @@
++import type { LandmarkPoint } from '../types/bodyScan';
++import { POSE_LANDMARK, type PoseLandmarkName } from './poseLandmarks';
++
++/**
++ * Deterministic SYNTHETIC landmarks for unit tests only.
++ * These are hand-placed numbers, not output from a camera or a pose model.
++ */
++type Overrides = Partial<Record<PoseLandmarkName, Partial<LandmarkPoint>>>;
++
++const FRONT_BASE: Record<PoseLandmarkName, LandmarkPoint> = {
++  nose: { x: 0.5, y: 0.1 },
++  leftShoulder: { x: 0.6, y: 0.25 },
++  rightShoulder: { x: 0.4, y: 0.25 },
++  leftHip: { x: 0.57, y: 0.55 },
++  rightHip: { x: 0.43, y: 0.55 },
++  leftKnee: { x: 0.57, y: 0.75 },
++  rightKnee: { x: 0.43, y: 0.75 },
++  leftAnkle: { x: 0.57, y: 0.9 },
++  rightAnkle: { x: 0.43, y: 0.9 },
++};
++
++function build(base: Record<PoseLandmarkName, LandmarkPoint>, overrides: Overrides, visibility: number): LandmarkPoint[] {
++  // 33 entries (MediaPipe Pose layout); unused indices are harmless filler.
++  const list: LandmarkPoint[] = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, visibility }));
++  (Object.keys(base) as PoseLandmarkName[]).forEach((name) => {
++    list[POSE_LANDMARK[name]] = { ...base[name], visibility, ...(overrides[name] ?? {}) };
++  });
++  return list;
++}
++
++/**
++ * Front pose, aspect-ratio-independent geometry (all values in a unit square):
++ * shoulder width 0.20, hip width 0.14, torso 0.30, nose-to-ankle 0.80, no tilt.
++ */
++export function makeFrontPose(overrides: Overrides = {}, visibility = 0.99): LandmarkPoint[] {
++  return build(FRONT_BASE, overrides, visibility);
++}
++
++/** Side pose: left chain clearly visible, right chain low visibility (0.2). Torso 0.30, nose-to-ankle 0.80, no lean. */
++export function makeSidePose(overrides: Overrides = {}, visibility = 0.99): LandmarkPoint[] {
++  const base: Record<PoseLandmarkName, LandmarkPoint> = {
++    nose: { x: 0.5, y: 0.1 },
++    leftShoulder: { x: 0.5, y: 0.25 },
++    rightShoulder: { x: 0.5, y: 0.25 },
++    leftHip: { x: 0.5, y: 0.55 },
++    rightHip: { x: 0.5, y: 0.55 },
++    leftKnee: { x: 0.5, y: 0.75 },
++    rightKnee: { x: 0.5, y: 0.75 },
++    leftAnkle: { x: 0.5, y: 0.9 },
++    rightAnkle: { x: 0.5, y: 0.9 },
++  };
++  const list = build(base, overrides, visibility);
++  (['rightShoulder', 'rightHip', 'rightKnee', 'rightAnkle'] as PoseLandmarkName[]).forEach((n) => {
++    if (!overrides[n] || overrides[n]?.visibility === undefined) list[POSE_LANDMARK[n]] = { ...list[POSE_LANDMARK[n]], visibility: 0.2 };
++  });
++  return list;
++}
