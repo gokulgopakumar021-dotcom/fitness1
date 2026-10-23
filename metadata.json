@@ -1,6 +1,6 @@
 {
   "name": "IRON LOG — Personal Fitness OS",
   "description": "Professional strength-training, progressive overload engine, nutrition & body metrics tracking operating system.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

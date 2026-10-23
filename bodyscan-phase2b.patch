@@ -1,0 +1,2931 @@
+diff --git a/metadata.json b/metadata.json
+index 620e6b0..c453368 100644
+--- a/metadata.json
++++ b/metadata.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "IRON LOG — Personal Fitness OS",
+   "description": "Professional strength-training, progressive overload engine, nutrition & body metrics tracking operating system.",
+-  "requestFramePermissions": [],
++  "requestFramePermissions": ["camera"],
+   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+ }
+diff --git a/src/components/bodyscan/BodyScanFlow.test.tsx b/src/components/bodyscan/BodyScanFlow.test.tsx
+index bcbfe9f..7415fc4 100644
+--- a/src/components/bodyscan/BodyScanFlow.test.tsx
++++ b/src/components/bodyscan/BodyScanFlow.test.tsx
+@@ -1,16 +1,19 @@
+ import 'fake-indexeddb/auto';
+ import React, { act } from 'react';
+ import { createRoot, Root } from 'react-dom/client';
+-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+ import { BodyScanFlow } from './BodyScanFlow';
+ import { DEFAULT_PROFILE } from '../../storage/db';
+ import { getBodyScanConsent } from '../../storage/bodyScanConsent';
++import { listScans, getStorageSummary } from '../../storage/bodyScanStore';
++import { installFakeCamera, type FakeCamera } from '../../services/fakeMedia.testutil';
+ import { UserProfile } from '../../types';
+ 
+ (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+ 
+ let container: HTMLDivElement;
+ let root: Root;
++let cam: FakeCamera;
+ 
+ const render = async (profile: UserProfile) => {
+   await act(async () => {
+@@ -26,6 +29,10 @@ const byText = (tag: string, text: string) =>
+   Array.from(container.querySelectorAll(tag)).find((e) => e.textContent?.includes(text)) as HTMLElement;
+ 
+ beforeEach(() => {
++  cam = installFakeCamera();
++  vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
++  (URL as unknown as Record<string, unknown>).createObjectURL = vi.fn(() => 'blob:fake');
++  (URL as unknown as Record<string, unknown>).revokeObjectURL = vi.fn();
+   localStorage.clear();
+   container = document.createElement('div');
+   document.body.appendChild(container);
+@@ -34,6 +41,9 @@ beforeEach(() => {
+ afterEach(async () => {
+   await act(async () => root.unmount());
+   container.remove();
++  cam.uninstall();
++  delete (URL as unknown as Record<string, unknown>).createObjectURL;
++  delete (URL as unknown as Record<string, unknown>).revokeObjectURL;
+ });
+ 
+ describe('BodyScanFlow', () => {
+@@ -64,7 +74,145 @@ describe('BodyScanFlow', () => {
+     await click(byText('button', 'Continue'));
+     expect(getBodyScanConsent()).toMatchObject({ ageConfirmed18Plus: true, photoStorage: false });
+     expect(container.textContent).toContain('Privacy & data');
+-    expect(container.textContent).toContain('Camera capture and pose analysis are not');
++    expect(container.textContent).toContain('Photo capture is available as a preview');
++    expect(container.textContent).toContain('does not complete a scan');
+     expect(byText('button', 'Withdraw consent and delete all Body Scan data')).toBeTruthy();
+   });
+ });
++
++const flush = () =>
++  act(async () => {
++    await new Promise<void>((r) => setTimeout(r, 0));
++  });
++
++/** Gets through the consent screen the way a user does. */
++const giveConsent = async () => {
++  await render({ ...DEFAULT_PROFILE, age: 30 });
++  const boxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
++  await click(boxes[0]);
++  await click(boxes[1]);
++  await click(byText('button', 'Continue'));
++};
++
++describe('BodyScanFlow: camera capture (Phase 2B)', () => {
++  it('does not touch the camera at any point before the person explicitly turns it on', async () => {
++    await render({ ...DEFAULT_PROFILE, age: 30 }); // consent screen
++    expect(cam.getUserMedia).not.toHaveBeenCalled();
++    await giveConsent();
++    expect(byText('button', 'Take front photo')).toBeTruthy();
++    expect(byText('button', 'Take side photo')).toBeTruthy();
++    expect(cam.getUserMedia).not.toHaveBeenCalled();
++    await click(byText('button', 'Take front photo'));
++    expect(container.textContent).toContain('How to take your front photo');
++    expect(cam.getUserMedia).not.toHaveBeenCalled(); // still off until "Turn on camera"
++    await click(byText('button', 'Turn on camera'));
++    expect(cam.getUserMedia).toHaveBeenCalledTimes(1);
++  });
++
++  it('offers no capture to users who are under 18 or have not consented', async () => {
++    await render({ ...DEFAULT_PROFILE, age: 16 });
++    expect(byText('button', 'Take front photo')).toBeUndefined();
++    await act(async () => root.unmount());
++    root = createRoot(container);
++    await render({ ...DEFAULT_PROFILE, age: 30 }); // consent not yet given
++    expect(byText('button', 'Take front photo')).toBeUndefined();
++    expect(byText('button', 'Turn on camera')).toBeUndefined();
++  });
++
++  it('leaving Body Scan while the camera is on releases the camera', async () => {
++    await giveConsent();
++    await click(byText('button', 'Take front photo'));
++    await click(byText('button', 'Turn on camera'));
++    await flush();
++    expect(cam.streams[0].allStopped).toBe(false);
++    await act(async () => root.unmount());
++    expect(cam.streams[0].allStopped).toBe(true);
++    root = createRoot(container);
++  });
++
++  it('Cancel releases the camera and returns to the photo list', async () => {
++    await giveConsent();
++    await click(byText('button', 'Take side photo'));
++    await click(byText('button', 'Turn on camera'));
++    await flush();
++    await click(container.querySelector('button[aria-label^="Cancel"]')!);
++    expect(cam.streams[0].allStopped).toBe(true);
++    expect(byText('button', 'Take front photo')).toBeTruthy();
++    expect(container.textContent).toContain('Not taken');
++  });
++
++  it('a captured photo is kept only in memory, is not a "scan", and nothing is persisted', async () => {
++    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
++      (() => ({ drawImage: vi.fn() })) as unknown as HTMLCanvasElement['getContext']
++    );
++    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (this: HTMLCanvasElement, cb: BlobCallback) {
++      cb(new Blob(['jpeg'], { type: 'image/jpeg' }));
++    });
++    await giveConsent();
++    const storageKeysBefore = Object.keys(localStorage).sort(); // only the consent record at this point
++    // Consent to photo storage is deliberately NOT given here: photos must be discarded regardless in this phase.
++    await click(byText('button', 'Take front photo'));
++    await click(byText('button', 'Turn on camera'));
++    await flush();
++    const v = container.querySelector('video')!;
++    Object.defineProperty(v, 'videoWidth', { configurable: true, value: 720 });
++    Object.defineProperty(v, 'videoHeight', { configurable: true, value: 1280 });
++    Object.defineProperty(v, 'readyState', { configurable: true, value: 4 });
++    await act(async () => {
++      v.dispatchEvent(new Event('loadeddata'));
++    });
++    await click(byText('button', 'Take photo'));
++    await flush();
++    await click(byText('button', 'Use this photo'));
++
++    expect(container.textContent).toContain('Taken (temporary)');
++    expect(container.textContent).toContain('Retake front photo');
++    expect(container.textContent).not.toMatch(/scan (is )?complete|successfully|analysis complete/i);
++    expect(container.textContent).toContain('does not complete a scan');
++    expect(cam.streams[0].allStopped).toBe(true);
++
++    expect(await listScans()).toEqual([]);
++    expect(await getStorageSummary()).toMatchObject({ scanCount: 0, photoCount: 0 });
++    expect(Object.keys(localStorage).sort()).toEqual(storageKeysBefore); // capture added no localStorage entries
++
++    await click(byText('button', 'Discard these photos'));
++    expect(container.textContent).not.toContain('Taken (temporary)');
++  });
++});
++
++describe('BodyScanFlow: photo-storage opt-in does not enable persistence in Phase 2B', () => {
++  it('even with "Save my photos" consented, a captured photo is not written to IndexedDB', async () => {
++    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
++      (() => ({ drawImage: vi.fn() })) as unknown as HTMLCanvasElement['getContext']
++    );
++    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (this: HTMLCanvasElement, cb: BlobCallback) {
++      cb(new Blob(['jpeg'], { type: 'image/jpeg' }));
++    });
++    await render({ ...DEFAULT_PROFILE, age: 30 });
++    const boxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
++    await click(boxes[0]);
++    await click(boxes[1]);
++    await click(boxes[2]); // opt in to photo storage
++    await click(byText('button', 'Continue'));
++    expect(getBodyScanConsent()).toMatchObject({ photoStorage: true });
++
++    await click(byText('button', 'Take front photo'));
++    await click(byText('button', 'Turn on camera'));
++    await flush();
++    const v = container.querySelector('video')!;
++    Object.defineProperty(v, 'videoWidth', { configurable: true, value: 640 });
++    Object.defineProperty(v, 'videoHeight', { configurable: true, value: 480 });
++    Object.defineProperty(v, 'readyState', { configurable: true, value: 4 });
++    await act(async () => {
++      v.dispatchEvent(new Event('loadeddata'));
++    });
++    await click(byText('button', 'Take photo'));
++    await flush();
++    await click(byText('button', 'Use this photo'));
++
++    expect(container.textContent).toContain('Taken (temporary)');
++    expect(container.textContent).toContain('not saved or uploaded, even if you allowed photo storage');
++    expect(await getStorageSummary()).toMatchObject({ scanCount: 0, photoCount: 0, photoBytes: 0 });
++    expect(await listScans()).toEqual([]);
++  });
++});
+diff --git a/src/components/bodyscan/BodyScanFlow.tsx b/src/components/bodyscan/BodyScanFlow.tsx
+index 28af39d..354dd8a 100644
+--- a/src/components/bodyscan/BodyScanFlow.tsx
++++ b/src/components/bodyscan/BodyScanFlow.tsx
+@@ -1,9 +1,10 @@
+ import React, { useState } from 'react';
+-import { ArrowLeft, Scan, Info } from 'lucide-react';
++import { ArrowLeft, Scan } from 'lucide-react';
+ import { BodyScanConsent } from '../../types/bodyScan';
+ import { UserProfile } from '../../types';
+ import { getBodyScanConsent } from '../../storage/bodyScanConsent';
+ import { BODY_SCAN_MIN_AGE, getBodyScanGate } from '../../utils/bodyScanEligibility';
++import { CaptureSession } from './CaptureSession';
+ import { ConsentStep } from './ConsentStep';
+ import { PrivacyControls } from './PrivacyControls';
+ 
+@@ -49,16 +50,7 @@ export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose })
+ 
+       {gate.status === 'ready' && (
+         <>
+-          <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 shadow-xl space-y-2">
+-            <div className="flex items-center gap-2 text-zinc-100 font-bold">
+-              <Info className="w-4 h-4 text-lime-400" aria-hidden="true" />
+-              Body Scan is being built in stages
+-            </div>
+-            <p className="text-xs text-zinc-400 leading-relaxed">
+-              Consent, local storage and deletion controls are ready. Camera capture and pose analysis are not
+-              available yet, so no scans can be taken in this version.
+-            </p>
+-          </div>
++          <CaptureSession />
+           <PrivacyControls consent={gate.consent} onConsentChange={setConsent} />
+         </>
+       )}
+diff --git a/src/components/bodyscan/CameraCapture.test.tsx b/src/components/bodyscan/CameraCapture.test.tsx
+new file mode 100644
+index 0000000..ef1cf31
+--- /dev/null
++++ b/src/components/bodyscan/CameraCapture.test.tsx
+@@ -0,0 +1,557 @@
++import 'fake-indexeddb/auto';
++import React, { act } from 'react';
++import { createRoot, Root } from 'react-dom/client';
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { CameraCapture } from './CameraCapture';
++import type { NewScanPhoto } from '../../types/bodyScan';
++import {
++  domError,
++  installFakeCamera,
++  removeMediaDevices,
++  type FakeCamera,
++} from '../../services/fakeMedia.testutil';
++
++(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
++
++let container: HTMLDivElement;
++let root: Root;
++let cam: FakeCamera;
++let onCaptured: ReturnType<typeof vi.fn<(p: NewScanPhoto) => void>>;
++let onCancel: ReturnType<typeof vi.fn<() => void>>;
++let urlCounter = 0;
++
++const flush = () =>
++  act(async () => {
++    await new Promise<void>((r) => setTimeout(r, 0));
++  });
++const click = async (el: Element | null | undefined) => {
++  expect(el).toBeTruthy();
++  await act(async () => {
++    (el as HTMLElement).click();
++  });
++};
++const button = (text: string) =>
++  Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes(text)) as HTMLButtonElement | undefined;
++const text = () => container.textContent ?? '';
++const video = () => container.querySelector('video') as HTMLVideoElement | null;
++
++const render = async (props: Partial<React.ComponentProps<typeof CameraCapture>> = {}) => {
++  await act(async () => {
++    root.render(<CameraCapture view="front" onCaptured={onCaptured} onCancel={onCancel} {...props} />);
++  });
++};
++
++/** Starts the camera the way a user would, and waits for the stream. */
++const startCamera = async () => {
++  await click(button('Turn on camera'));
++  await flush();
++};
++
++/** Simulates the <video> element receiving its first frame. */
++const makeVideoReady = async (width = 720, height = 1280) => {
++  const v = video()!;
++  Object.defineProperty(v, 'videoWidth', { configurable: true, value: width });
++  Object.defineProperty(v, 'videoHeight', { configurable: true, value: height });
++  Object.defineProperty(v, 'readyState', { configurable: true, value: 4 });
++  await act(async () => {
++    v.dispatchEvent(new Event('loadeddata'));
++  });
++};
++
++const stubCanvas = (opts: { context?: boolean } = {}) => {
++  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
++    (() => (opts.context === false ? null : { drawImage: vi.fn() })) as unknown as HTMLCanvasElement['getContext']
++  );
++  return vi
++    .spyOn(HTMLCanvasElement.prototype, 'toBlob')
++    .mockImplementation(function (this: HTMLCanvasElement, cb: BlobCallback) {
++      cb(new Blob(['jpeg'], { type: 'image/jpeg' }));
++    });
++};
++
++const setVisibility = (state: 'visible' | 'hidden') => {
++  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
++  document.dispatchEvent(new Event('visibilitychange'));
++};
++
++beforeEach(() => {
++  cam = installFakeCamera();
++  onCaptured = vi.fn();
++  onCancel = vi.fn();
++  urlCounter = 0;
++  vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
++  (URL as unknown as Record<string, unknown>).createObjectURL = vi.fn(() => `blob:fake-${++urlCounter}`);
++  (URL as unknown as Record<string, unknown>).revokeObjectURL = vi.fn();
++  container = document.createElement('div');
++  document.body.appendChild(container);
++  root = createRoot(container);
++});
++
++afterEach(async () => {
++  await act(async () => root.unmount());
++  container.remove();
++  cam.uninstall();
++  vi.useRealTimers();
++  setVisibility('visible');
++  delete (URL as unknown as Record<string, unknown>).createObjectURL;
++  delete (URL as unknown as Record<string, unknown>).revokeObjectURL;
++});
++
++describe('CameraCapture: before the camera is started', () => {
++  it('does not touch the camera on mount; shows guidance, consent-style explanation and an explicit start button', async () => {
++    await render();
++    expect(cam.getUserMedia).not.toHaveBeenCalled();
++    expect(video()).toBeNull();
++    expect(button('Turn on camera')).toBeTruthy();
++    expect(text()).toContain('browser will ask for permission');
++    expect(text()).toContain('How to take your front photo');
++    expect(text()).toContain('2 to 3 metres');
++  });
++
++  it('shows side-view guidance for the side view', async () => {
++    await render({ view: 'side' });
++    expect(text()).toContain('How to take your side photo');
++    expect(text()).toContain('Turn 90 degrees');
++  });
++
++  it('warns up front (without prompting) when the browser is already blocking the camera', async () => {
++    cam.uninstall();
++    cam = installFakeCamera({ permissionState: 'denied' });
++    await render();
++    await flush();
++    expect(text()).toContain('currently blocking camera access');
++    expect(cam.getUserMedia).not.toHaveBeenCalled();
++  });
++
++  it('states honestly that automatic quality checks are not running', async () => {
++    await render();
++    expect(container.querySelector('[data-testid="quality-not-running"]')).toBeTruthy();
++    expect(text()).toContain('not running');
++    expect(text()).not.toMatch(/Looks OK|No problems were found/);
++  });
++
++  it('asks for the camera only after the click, and for video only', async () => {
++    await render();
++    await click(button('Turn on camera'));
++    expect(cam.getUserMedia).toHaveBeenCalledTimes(1);
++    expect(cam.getUserMedia.mock.calls[0][0]).toMatchObject({ audio: false });
++  });
++});
++
++describe('CameraCapture: permission and error states', () => {
++  it('shows a waiting state while the permission prompt is open', async () => {
++    cam.deferNext();
++    await render();
++    await click(button('Turn on camera'));
++    expect(text()).toContain('Waiting for camera permission');
++    expect(video()).toBeNull();
++  });
++
++  it('shows a clear alert when permission is denied, offers retry, and recovers when allowed', async () => {
++    cam.failNext(domError('NotAllowedError'));
++    await render();
++    await startCamera();
++    const alert = container.querySelector('[role="alert"]');
++    expect(alert?.textContent).toContain('Camera access was blocked');
++    expect(alert?.textContent).toContain('allow camera access');
++    expect(video()).toBeNull();
++    expect(button('Try again')).toBeTruthy();
++
++    await click(button('Try again'));
++    await flush();
++    expect(video()).not.toBeNull();
++    expect(container.querySelector('[role="alert"]')).toBeNull();
++  });
++
++  it('explains when no camera exists and points to manual entry', async () => {
++    cam.failNext(domError('NotFoundError'));
++    await render();
++    await startCamera();
++    expect(container.querySelector('[role="alert"]')?.textContent).toContain('No camera found');
++    expect(text()).toContain('add measurements by hand');
++  });
++
++  it('explains an unsupported browser and does not offer a pointless retry', async () => {
++    const restore = removeMediaDevices();
++    await render();
++    await click(button('Turn on camera'));
++    expect(container.querySelector('[role="alert"]')?.textContent).toContain('not supported');
++    expect(button('Try again')).toBeUndefined();
++    expect(button('Back')).toBeTruthy();
++    restore();
++  });
++
++  it('shows an error when the camera is busy, with retry', async () => {
++    cam.failNext(domError('NotReadableError'));
++    await render();
++    await startCamera();
++    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Camera could not be started');
++    expect(button('Try again')).toBeTruthy();
++  });
++
++  it('reports revocation while the camera is on: stream stopped and a specific message shown', async () => {
++    await render();
++    await startCamera();
++    await makeVideoReady();
++    cam.permission.state = 'denied';
++    await act(async () => {
++      cam.streams[0].tracks[0].emitEnded();
++      await new Promise<void>((r) => setTimeout(r, 0));
++    });
++    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Camera access was turned off');
++    expect(cam.streams[0].allStopped).toBe(true);
++    expect(video()).toBeNull();
++  });
++
++  it('reports an unplugged camera as a stop, not as a permission problem', async () => {
++    await render();
++    await startCamera();
++    cam.permission.state = 'granted';
++    await act(async () => {
++      cam.streams[0].tracks[0].emitEnded();
++      await new Promise<void>((r) => setTimeout(r, 0));
++    });
++    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Camera stopped unexpectedly');
++  });
++});
++
++describe('CameraCapture: live preview and controls', () => {
++  it('shows the preview, a camera-on indicator and an alignment guide that does not claim detection', async () => {
++    await render();
++    await startCamera();
++    const v = video()!;
++    expect(v).not.toBeNull();
++    expect(v.muted).toBe(true);
++    expect(v.getAttribute('playsinline')).not.toBeNull();
++    expect((v as unknown as { srcObject: unknown }).srcObject).toBe(cam.streams[0]);
++    expect(text()).toContain('Camera on');
++    expect(text()).toContain('No body detection is running');
++  });
++
++  it('keeps the shutter disabled until the video has a frame', async () => {
++    await render();
++    await startCamera();
++    expect(button('Take photo')!.disabled).toBe(true);
++    await makeVideoReady();
++    expect(button('Take photo')!.disabled).toBe(false);
++  });
++
++  it('never takes a photo by itself', async () => {
++    const toBlob = stubCanvas();
++    await render();
++    await startCamera();
++    await makeVideoReady();
++    await flush();
++    expect(toBlob).not.toHaveBeenCalled();
++    expect(onCaptured).not.toHaveBeenCalled();
++    expect(container.querySelector('img')).toBeNull();
++  });
++
++  it('mirrors the preview for selfie/unknown cameras but not for a rear camera', async () => {
++    await render();
++    await startCamera();
++    expect(video()!.className).toContain('-scale-x-100');
++
++    await act(async () => root.unmount());
++    cam.uninstall();
++    cam = installFakeCamera({ facingMode: 'environment' });
++    root = createRoot(container);
++    await render();
++    await startCamera();
++    expect(video()!.className).not.toContain('-scale-x-100');
++  });
++
++  it('shows Switch camera only when more than one camera exists', async () => {
++    await render();
++    await startCamera();
++    expect(button('Switch camera')).toBeUndefined();
++
++    await act(async () => root.unmount());
++    cam.uninstall();
++    cam = installFakeCamera({ devices: [{ deviceId: 'a', label: 'A' }, { deviceId: 'b', label: 'B' }] });
++    root = createRoot(container);
++    await render();
++    await startCamera();
++    expect(button('Switch camera')).toBeTruthy();
++  });
++
++  it('switching cameras releases the old stream and shows the new one', async () => {
++    cam.uninstall();
++    cam = installFakeCamera({ devices: [{ deviceId: 'a', label: 'A' }, { deviceId: 'b', label: 'B' }] });
++    await render();
++    await startCamera();
++    await click(button('Switch camera'));
++    await flush();
++    expect(cam.streams).toHaveLength(2);
++    expect(cam.streams[0].allStopped).toBe(true);
++    expect(cam.streams[1].allStopped).toBe(false);
++    expect(video()).not.toBeNull();
++  });
++
++  it('the timer and shutter controls are native, labelled, keyboard-reachable elements', async () => {
++    await render();
++    await startCamera();
++    const select = container.querySelector('select#capture-timer') as HTMLSelectElement;
++    expect(select).toBeTruthy();
++    expect(container.querySelector('label[for="capture-timer"]')).toBeTruthy();
++    expect(button('Take photo')!.tagName).toBe('BUTTON');
++    expect(container.querySelector('video')!.getAttribute('aria-label')).toBe('Live camera preview');
++  });
++});
++
++describe('CameraCapture: releasing the camera', () => {
++  it('Cancel stops every track and calls onCancel', async () => {
++    await render();
++    await startCamera();
++    await click(container.querySelector('button[aria-label^="Cancel"]'));
++    expect(cam.streams[0].allStopped).toBe(true);
++    expect(onCancel).toHaveBeenCalledTimes(1);
++  });
++
++  it('Escape cancels and releases the camera', async () => {
++    await render();
++    await startCamera();
++    await act(async () => {
++      container.querySelector('section')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
++    });
++    expect(cam.streams[0].allStopped).toBe(true);
++    expect(onCancel).toHaveBeenCalledTimes(1);
++  });
++
++  it('unmounting while the camera is live releases it', async () => {
++    await render();
++    await startCamera();
++    expect(cam.streams[0].allStopped).toBe(false);
++    await act(async () => root.unmount());
++    expect(cam.streams[0].allStopped).toBe(true);
++    root = createRoot(container); // keep afterEach symmetrical
++  });
++
++  it('unmounting while the permission prompt is open releases a stream that arrives later', async () => {
++    const pending = cam.deferNext();
++    await render();
++    await click(button('Turn on camera'));
++    await act(async () => root.unmount());
++    await act(async () => {
++      pending.resolve();
++      await new Promise<void>((r) => setTimeout(r, 0));
++    });
++    expect(cam.streams).toHaveLength(1);
++    expect(cam.streams[0].allStopped).toBe(true);
++    root = createRoot(container);
++  });
++
++  it('hiding the tab switches the camera off and says why; it does not restart by itself', async () => {
++    await render();
++    await startCamera();
++    await act(async () => setVisibility('hidden'));
++    expect(cam.streams[0].allStopped).toBe(true);
++    expect(video()).toBeNull();
++    await act(async () => setVisibility('visible'));
++    expect(text()).toContain('switched off because you left this tab');
++    expect(cam.getUserMedia).toHaveBeenCalledTimes(1); // no silent restart
++    expect(button('Turn on camera')).toBeTruthy();
++  });
++
++  it('hiding the tab while the prompt is open cancels it and releases a late stream', async () => {
++    const pending = cam.deferNext();
++    await render();
++    await click(button('Turn on camera'));
++    await act(async () => setVisibility('hidden'));
++    await act(async () => {
++      pending.resolve();
++      await new Promise<void>((r) => setTimeout(r, 0));
++    });
++    expect(cam.streams[0].allStopped).toBe(true);
++  });
++
++  it('hiding the tab when the camera was never started does nothing', async () => {
++    await render();
++    await act(async () => setVisibility('hidden'));
++    expect(text()).not.toContain('switched off because you left');
++  });
++});
++
++describe('CameraCapture: capture, review and retake', () => {
++  it('captures a frame, switches the camera off, and shows it for review before anything is accepted', async () => {
++    stubCanvas();
++    await render();
++    await startCamera();
++    await makeVideoReady();
++    await click(button('Take photo'));
++    await flush();
++
++    const img = container.querySelector('img');
++    expect(img).toBeTruthy();
++    expect(img!.getAttribute('src')).toMatch(/^blob:fake-/);
++    expect(cam.streams[0].allStopped).toBe(true); // camera off after the shot
++    expect(video()).toBeNull();
++    expect(onCaptured).not.toHaveBeenCalled(); // not accepted yet
++    expect(text()).toContain('not saved or uploaded');
++  });
++
++  it('"Use this photo" hands over the in-memory photo with its view and size', async () => {
++    stubCanvas();
++    await render({ view: 'side' });
++    await startCamera();
++    await makeVideoReady(720, 1280);
++    await click(button('Take photo'));
++    await flush();
++    await click(button('Use this photo'));
++    expect(onCaptured).toHaveBeenCalledTimes(1);
++    const photo = onCaptured.mock.calls[0][0];
++    expect(photo).toMatchObject({ view: 'side', mimeType: 'image/jpeg', width: 720, height: 1280 });
++    expect(photo.blob).toBeInstanceOf(Blob);
++  });
++
++  it('Retake discards the photo, revokes its preview URL and starts a fresh stream', async () => {
++    stubCanvas();
++    await render();
++    await startCamera();
++    await makeVideoReady();
++    await click(button('Take photo'));
++    await flush();
++    expect(container.querySelector('img')).toBeTruthy();
++
++    await click(button('Retake'));
++    await flush();
++    expect(container.querySelector('img')).toBeNull();
++    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake-1');
++    expect(cam.streams).toHaveLength(2);
++    expect(cam.streams[1].allStopped).toBe(false);
++    expect(video()).not.toBeNull();
++    expect(onCaptured).not.toHaveBeenCalled();
++  });
++
++  it('revokes the preview URL when leaving the screen', async () => {
++    stubCanvas();
++    await render();
++    await startCamera();
++    await makeVideoReady();
++    await click(button('Take photo'));
++    await flush();
++    await act(async () => root.unmount());
++    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake-1');
++    root = createRoot(container);
++  });
++
++  it('shows an error and stays live when the frame cannot be captured; no fake photo appears', async () => {
++    stubCanvas({ context: false });
++    await render();
++    await startCamera();
++    await makeVideoReady();
++    await click(button('Take photo'));
++    await flush();
++    expect(container.querySelector('[role="alert"]')?.textContent).toContain('could not prepare the photo');
++    expect(container.querySelector('img')).toBeNull();
++    expect(video()).not.toBeNull();
++    expect(cam.streams[0].allStopped).toBe(false);
++  });
++});
++
++describe('CameraCapture: self-timer', () => {
++  const setupTimer = async (seconds: string) => {
++    vi.useFakeTimers();
++    stubCanvas();
++    await render();
++    await click(button('Turn on camera'));
++    await act(async () => {
++      await vi.advanceTimersByTimeAsync(0);
++    });
++    await makeVideoReady();
++    const select = container.querySelector('select#capture-timer') as HTMLSelectElement;
++    await act(async () => {
++      select.value = seconds;
++      select.dispatchEvent(new Event('change', { bubbles: true }));
++    });
++  };
++  const tick = (ms: number) =>
++    act(async () => {
++      await vi.advanceTimersByTimeAsync(ms);
++    });
++
++  it('counts down, then takes the photo', async () => {
++    await setupTimer('3');
++    await click(button('Start 3s timer'));
++    expect(container.querySelector('[data-testid="countdown"]')?.textContent).toBe('3');
++    await tick(1000);
++    expect(container.querySelector('[data-testid="countdown"]')?.textContent).toBe('2');
++    expect(container.querySelector('img')).toBeNull();
++    // One second per act(): React only re-renders (and schedules the next timeout) when an act scope exits.
++    await tick(1000);
++    await tick(1000); // countdown reaches 0 and the capture starts
++    await tick(0); //    let the async capture settle
++    expect(container.querySelector('img')).toBeTruthy();
++    expect(cam.streams[0].allStopped).toBe(true);
++  });
++
++  it('pressing the button again cancels the countdown and no photo is taken', async () => {
++    await setupTimer('3');
++    await click(button('Start 3s timer'));
++    await click(button('Cancel timer'));
++    expect(container.querySelector('[data-testid="countdown"]')).toBeNull();
++    await tick(5000);
++    expect(container.querySelector('img')).toBeNull();
++    expect(video()).not.toBeNull();
++  });
++
++  it('leaving the screen mid-countdown releases the camera and never takes the photo', async () => {
++    await setupTimer('5');
++    await click(button('Start 5s timer'));
++    await tick(1000);
++    const toBlob = HTMLCanvasElement.prototype.toBlob as unknown as ReturnType<typeof vi.fn>;
++    await act(async () => root.unmount());
++    await tick(10000);
++    expect(cam.streams[0].allStopped).toBe(true);
++    expect(toBlob).not.toHaveBeenCalled();
++    root = createRoot(container);
++  });
++
++  it('the camera stopping mid-countdown cancels the countdown', async () => {
++    await setupTimer('5');
++    await click(button('Start 5s timer'));
++    await act(async () => setVisibility('hidden'));
++    expect(container.querySelector('[data-testid="countdown"]')).toBeNull();
++    await tick(10000);
++    expect(container.querySelector('img')).toBeNull();
++  });
++});
++
++describe('CameraCapture: privacy', () => {
++  it('capture, retake and accept make no network requests and write nothing to browser storage', async () => {
++    stubCanvas();
++    localStorage.clear();
++    sessionStorage.clear();
++    const fetchSpy = vi.fn();
++    vi.stubGlobal('fetch', fetchSpy);
++    const beacon = vi.fn();
++    Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: beacon });
++    const xhrOpen = vi.spyOn(XMLHttpRequest.prototype, 'open');
++    const setItem = vi.spyOn(Storage.prototype, 'setItem');
++    const idbOpen = vi.spyOn(indexedDB ?? ({} as IDBFactory), 'open').mockImplementation(() => {
++      throw new Error('IndexedDB must not be used in Phase 2B');
++    });
++
++    await render();
++    await startCamera();
++    await makeVideoReady();
++    await click(button('Take photo'));
++    await flush();
++    await click(button('Retake'));
++    await flush();
++    await makeVideoReady();
++    await click(button('Take photo'));
++    await flush();
++    await click(button('Use this photo'));
++
++    expect(fetchSpy).not.toHaveBeenCalled();
++    expect(beacon).not.toHaveBeenCalled();
++    expect(xhrOpen).not.toHaveBeenCalled();
++    expect(setItem).not.toHaveBeenCalled();
++    expect(idbOpen).not.toHaveBeenCalled();
++    expect(localStorage.length).toBe(0);
++    expect(sessionStorage.length).toBe(0);
++    vi.unstubAllGlobals();
++    delete (navigator as unknown as Record<string, unknown>).sendBeacon;
++  });
++});
+diff --git a/src/components/bodyscan/CameraCapture.tsx b/src/components/bodyscan/CameraCapture.tsx
+new file mode 100644
+index 0000000..1dedf66
+--- /dev/null
++++ b/src/components/bodyscan/CameraCapture.tsx
+@@ -0,0 +1,418 @@
++import React, { useCallback, useEffect, useRef, useState } from 'react';
++import { Camera, CameraOff, Check, LoaderCircle, RotateCcw, ShieldCheck, SwitchCamera, Timer, X } from 'lucide-react';
++import type { NewScanPhoto, ScanView } from '../../types/bodyScan';
++import { queryCameraPermission, type PermissionQueryResult } from '../../services/camera';
++import { FrameCaptureError, captureFrame } from '../../services/frameCapture';
++import type { CaptureQualityAssessment } from '../../utils/captureQuality';
++import { CAPTURE_GUIDANCE } from './captureGuidance';
++import { CaptureQualityPanel } from './CaptureQualityPanel';
++import { useCamera } from './useCamera';
++import { useObjectUrl } from './useObjectUrl';
++
++interface CameraCaptureProps {
++  view: ScanView;
++  /** Called when the person accepts the photo. The photo is in memory only; the caller decides what to do (this phase: nothing persistent). */
++  onCaptured: (photo: NewScanPhoto) => void;
++  /** Called after the camera has been released. */
++  onCancel: () => void;
++  /**
++   * A real quality assessment, when a later phase can produce one. Phase 2B passes
++   * nothing, and the panel then states that automatic checks are not running.
++   */
++  qualityAssessment?: CaptureQualityAssessment | null;
++}
++
++type Phase = 'intro' | 'requesting' | 'live' | 'problem' | 'review';
++type TimerOption = 0 | 3 | 5 | 10;
++
++const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-400';
++const primaryBtn = `touch-press inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-lime-400 hover:bg-lime-300 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed text-black font-bold text-sm rounded-xl transition-colors ${focusRing}`;
++const secondaryBtn = `touch-press inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 disabled:opacity-50 text-zinc-200 rounded-xl text-xs font-semibold ${focusRing}`;
++
++export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, onCancel, qualityAssessment = null }) => {
++  const guidance = CAPTURE_GUIDANCE[view];
++  const cam = useCamera();
++  const { start, stop, switchCamera } = cam;
++
++  const [photo, setPhoto] = useState<NewScanPhoto | null>(null);
++  const [videoReady, setVideoReady] = useState(false);
++  const [captureError, setCaptureError] = useState<string | null>(null);
++  const [timerSeconds, setTimerSeconds] = useState<TimerOption>(0);
++  const [countdown, setCountdown] = useState<number | null>(null);
++  const [knownPermission, setKnownPermission] = useState<PermissionQueryResult>('unknown');
++
++  const videoRef = useRef<HTMLVideoElement>(null);
++  const headingRef = useRef<HTMLHeadingElement>(null);
++  const mountedRef = useRef(false);
++  const previewUrl = useObjectUrl(photo?.blob ?? null);
++
++  useEffect(() => {
++    mountedRef.current = true;
++    return () => {
++      mountedRef.current = false;
++    };
++  }, []);
++
++  const phase: Phase = photo
++    ? 'review'
++    : cam.status === 'granted'
++      ? 'live'
++      : cam.status === 'requesting'
++        ? 'requesting'
++        : cam.status === 'not_requested'
++          ? 'intro'
++          : 'problem';
++
++  // Read (never request) the current permission so the intro can warn if the browser is already blocking the camera.
++  useEffect(() => {
++    let cancelled = false;
++    void queryCameraPermission().then((p) => {
++      if (!cancelled) setKnownPermission(p);
++    });
++    return () => {
++      cancelled = true;
++    };
++  }, []);
++
++  // Attach / detach the live stream. The track release itself is owned by the camera controller.
++  useEffect(() => {
++    const video = videoRef.current;
++    setVideoReady(false);
++    if (!video) return;
++    video.srcObject = cam.stream;
++    if (cam.stream) {
++      const playing = video.play?.();
++      if (playing && typeof playing.catch === 'function') playing.catch(() => undefined);
++    }
++    return () => {
++      video.srcObject = null;
++    };
++  }, [cam.stream]);
++
++  // Move keyboard / screen-reader focus to the new step heading when the step changes.
++  const firstPhase = useRef(true);
++  useEffect(() => {
++    if (firstPhase.current) {
++      firstPhase.current = false;
++      return;
++    }
++    headingRef.current?.focus();
++  }, [phase]);
++
++  // A running countdown must not outlive the camera.
++  useEffect(() => {
++    if (cam.status !== 'granted') setCountdown(null);
++  }, [cam.status]);
++
++  const takePhoto = useCallback(async () => {
++    const video = videoRef.current;
++    if (!video) return;
++    setCaptureError(null);
++    try {
++      const taken = await captureFrame(video, view);
++      if (!mountedRef.current) return; // left the screen while encoding: discard
++      setPhoto(taken);
++      stop(); // camera off as soon as the photo exists
++    } catch (err) {
++      if (!mountedRef.current) return;
++      setCaptureError(err instanceof FrameCaptureError ? err.message : 'The photo could not be taken. Please try again.');
++    }
++  }, [view, stop]);
++
++  // Self-timer tick. Cleanup clears the timeout so nothing fires after unmount or cancel.
++  useEffect(() => {
++    if (countdown === null) return;
++    if (countdown <= 0) {
++      setCountdown(null);
++      void takePhoto();
++      return;
++    }
++    const id = setTimeout(() => setCountdown((c) => (c === null ? null : c - 1)), 1000);
++    return () => clearTimeout(id);
++  }, [countdown, takePhoto]);
++
++  const handleShutter = () => {
++    if (countdown !== null) {
++      setCountdown(null); // second press cancels the timer
++      return;
++    }
++    if (timerSeconds > 0) setCountdown(timerSeconds);
++    else void takePhoto();
++  };
++
++  const handleCancel = () => {
++    setCountdown(null);
++    stop();
++    onCancel();
++  };
++
++  const handleRetake = () => {
++    setPhoto(null);
++    setCaptureError(null);
++    void start();
++  };
++
++  const canShoot = phase === 'live' && videoReady;
++  const mirrored = cam.facing !== 'environment';
++  const failure = cam.failure;
++  const canRetry = !!failure && failure.code !== 'unsupported' && failure.code !== 'insecure_context';
++
++  const heading =
++    phase === 'review'
++      ? `Review your ${guidance.label.toLowerCase()} photo`
++      : phase === 'live'
++        ? `${guidance.title}: camera on`
++        : phase === 'problem'
++          ? (failure?.title ?? 'Camera problem')
++          : phase === 'requesting'
++            ? 'Waiting for camera permission'
++            : guidance.title;
++
++  const announcement =
++    phase === 'live'
++      ? videoReady
++        ? 'Camera is on and ready.'
++        : 'Camera is on. Preparing preview.'
++      : phase === 'review'
++        ? 'Photo taken. Camera is off.'
++        : phase === 'problem'
++          ? `${failure?.title ?? 'Camera problem'}. Camera is off.`
++          : phase === 'requesting'
++            ? 'Waiting for camera permission.'
++            : 'Camera is off.';
++
++  return (
++    <section
++      aria-labelledby="camera-capture-heading"
++      className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-4 sm:p-5 lg:p-7 shadow-xl space-y-5"
++      onKeyDown={(e) => {
++        if (e.key === 'Escape') handleCancel();
++      }}
++    >
++      <p className="sr-only" role="status" aria-live="polite">
++        {announcement}
++      </p>
++
++      <div className="flex items-start justify-between gap-3">
++        <div>
++          <div className="text-lime-400 text-xs font-mono font-semibold uppercase tracking-wider mb-1">
++            Photo {guidance.stepNumber} of 2 · {guidance.label} view
++          </div>
++          <h2
++            id="camera-capture-heading"
++            ref={headingRef}
++            tabIndex={-1}
++            className="text-lg sm:text-xl font-bold text-zinc-100 outline-none"
++          >
++            {heading}
++          </h2>
++        </div>
++        <button type="button" onClick={handleCancel} className={secondaryBtn} aria-label="Cancel and turn the camera off">
++          <X className="w-4 h-4" aria-hidden="true" />
++          <span className="hidden sm:inline">Cancel</span>
++        </button>
++      </div>
++
++      <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
++        {/* Stage */}
++        <div className="space-y-3 min-w-0">
++          <div className="relative w-full overflow-hidden rounded-2xl border border-zinc-800 bg-black min-h-[16rem]">
++            {phase === 'live' && cam.stream && (
++              <>
++                <video
++                  ref={videoRef}
++                  autoPlay
++                  playsInline
++                  muted
++                  aria-label="Live camera preview"
++                  onLoadedData={() => setVideoReady(true)}
++                  onPlaying={() => setVideoReady(true)}
++                  className={`block w-full max-h-[70vh] object-contain bg-black ${mirrored ? '-scale-x-100' : ''}`}
++                />
++                <svg
++                  aria-hidden="true"
++                  viewBox="0 0 100 150"
++                  preserveAspectRatio="xMidYMid meet"
++                  className="pointer-events-none absolute inset-0 h-full w-full text-lime-400/70"
++                >
++                  <rect x="12" y="6" width="76" height="138" rx="4" fill="none" stroke="currentColor" strokeWidth="0.6" strokeDasharray="3 2" />
++                  <ellipse cx="50" cy="22" rx="7" ry="9" fill="none" stroke="currentColor" strokeWidth="0.6" />
++                  <path d="M36 38 H64 L68 86 H32 Z M40 86 V138 M60 86 V138" fill="none" stroke="currentColor" strokeWidth="0.6" />
++                </svg>
++                <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-zinc-100">
++                  <span className="h-2 w-2 rounded-full bg-rose-500 motion-safe:animate-pulse" aria-hidden="true" />
++                  Camera on
++                </div>
++                <div className="absolute inset-x-0 bottom-2 px-3 text-center text-[11px] text-zinc-300">
++                  Alignment guide only. No body detection is running.
++                </div>
++                {countdown !== null && (
++                  <div
++                    role="status"
++                    aria-live="assertive"
++                    className="absolute inset-0 flex items-center justify-center bg-black/40 text-7xl font-black text-lime-400"
++                    data-testid="countdown"
++                  >
++                    {countdown}
++                  </div>
++                )}
++              </>
++            )}
++
++            {phase === 'review' && previewUrl && (
++              <img
++                src={previewUrl}
++                alt={`Your ${guidance.label.toLowerCase()} photo, for review. It exists only in this tab.`}
++                className="block w-full max-h-[70vh] object-contain bg-black"
++              />
++            )}
++
++            {phase === 'requesting' && (
++              <div className="flex min-h-[16rem] flex-col items-center justify-center gap-3 p-6 text-center text-zinc-300">
++                <LoaderCircle className="h-8 w-8 motion-safe:animate-spin text-lime-400" aria-hidden="true" />
++                <p className="text-sm">Waiting for camera permission…</p>
++                <p className="text-xs text-zinc-500">Choose “Allow” in your browser’s prompt to continue.</p>
++              </div>
++            )}
++
++            {phase === 'intro' && (
++              <div className="flex min-h-[16rem] flex-col items-center justify-center gap-4 p-6 text-center">
++                <Camera className="h-10 w-10 text-lime-400" aria-hidden="true" />
++                {cam.notice === 'page_hidden' && (
++                  <p role="status" className="max-w-sm rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
++                    The camera was switched off because you left this tab or app. Turn it back on when you are ready.
++                  </p>
++                )}
++                {knownPermission === 'denied' && (
++                  <p className="max-w-sm rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
++                    Your browser is currently blocking camera access for this site. You will need to allow it in your
++                    browser or device settings before the camera can start.
++                  </p>
++                )}
++                <p className="max-w-sm text-xs leading-relaxed text-zinc-300">
++                  Turning on the camera shows a live preview so you can line up your {guidance.label.toLowerCase()} photo. Your
++                  browser will ask for permission first.
++                </p>
++                <button type="button" onClick={() => void start()} className={primaryBtn}>
++                  <Camera className="h-4 w-4" aria-hidden="true" />
++                  Turn on camera
++                </button>
++              </div>
++            )}
++
++            {phase === 'problem' && failure && (
++              <div role="alert" className="flex min-h-[16rem] flex-col items-center justify-center gap-3 p-6 text-center">
++                <CameraOff className="h-9 w-9 text-rose-400" aria-hidden="true" />
++                <p className="text-sm font-semibold text-zinc-100">{failure.title}</p>
++                <p className="max-w-md text-xs leading-relaxed text-zinc-300">{failure.message}</p>
++                {failure.hint && <p className="max-w-md text-[11px] leading-relaxed text-zinc-500">{failure.hint}</p>}
++                <p className="max-w-md text-[11px] text-zinc-500">You can still add measurements by hand from Body Metrics.</p>
++                <div className="flex flex-wrap justify-center gap-2 pt-1">
++                  {canRetry && (
++                    <button type="button" onClick={() => void start()} className={primaryBtn}>
++                      Try again
++                    </button>
++                  )}
++                  <button type="button" onClick={handleCancel} className={secondaryBtn}>
++                    Back
++                  </button>
++                </div>
++              </div>
++            )}
++          </div>
++
++          {captureError && (
++            <p role="alert" className="text-xs text-rose-400">
++              {captureError}
++            </p>
++          )}
++
++          {/* Controls */}
++          {phase === 'live' && (
++            <div className="flex flex-wrap items-center justify-between gap-3">
++              <div className="flex items-center gap-2">
++                <label className="flex items-center gap-2 text-xs text-zinc-400" htmlFor="capture-timer">
++                  <Timer className="h-4 w-4" aria-hidden="true" />
++                  Self-timer
++                </label>
++                <select
++                  id="capture-timer"
++                  value={timerSeconds}
++                  disabled={countdown !== null}
++                  onChange={(e) => setTimerSeconds(Number(e.target.value) as TimerOption)}
++                  className={`rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-2 text-xs text-zinc-200 ${focusRing}`}
++                >
++                  <option value={0}>Off</option>
++                  <option value={3}>3 seconds</option>
++                  <option value={5}>5 seconds</option>
++                  <option value={10}>10 seconds</option>
++                </select>
++              </div>
++
++              <div className="flex items-center gap-2">
++                {cam.canSwitch && (
++                  <button type="button" onClick={() => void switchCamera()} className={secondaryBtn} aria-label="Switch camera">
++                    <SwitchCamera className="h-4 w-4" aria-hidden="true" />
++                    <span className="hidden sm:inline">Switch camera</span>
++                  </button>
++                )}
++                <button
++                  type="button"
++                  onClick={handleShutter}
++                  disabled={!canShoot}
++                  className={primaryBtn}
++                >
++                  <Camera className="h-4 w-4" aria-hidden="true" />
++                  {countdown !== null ? 'Cancel timer' : timerSeconds > 0 ? `Start ${timerSeconds}s timer` : 'Take photo'}
++                </button>
++              </div>
++            </div>
++          )}
++
++          {phase === 'review' && (
++            <div className="space-y-3">
++              <p className="text-xs leading-relaxed text-zinc-400">
++                Check that your whole body is visible from head to feet. The photo is shown as taken, so it may look flipped
++                compared with the live preview. It exists only in this tab and is not saved or uploaded.
++              </p>
++              <div className="flex flex-wrap gap-2">
++                <button type="button" onClick={handleRetake} className={secondaryBtn}>
++                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
++                  Retake
++                </button>
++                <button type="button" onClick={() => photo && onCaptured(photo)} className={primaryBtn}>
++                  <Check className="h-4 w-4" aria-hidden="true" />
++                  Use this photo
++                </button>
++              </div>
++            </div>
++          )}
++        </div>
++
++        {/* Guidance + quality */}
++        <div className="space-y-4 min-w-0">
++          <section aria-labelledby="capture-guidance-heading" className="space-y-2">
++            <h3 id="capture-guidance-heading" className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-300">
++              How to take your {guidance.label.toLowerCase()} photo
++            </h3>
++            <ol className="list-decimal space-y-1.5 pl-5 text-xs leading-relaxed text-zinc-300 marker:text-lime-400">
++              {guidance.instructions.map((line) => (
++                <li key={line}>{line}</li>
++              ))}
++            </ol>
++          </section>
++
++          <CaptureQualityPanel assessment={qualityAssessment} />
++
++          <p className="flex items-start gap-2 text-[11px] leading-relaxed text-zinc-500">
++            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-lime-400" aria-hidden="true" />
++            <span>
++              Frames stay on this device. Nothing is uploaded, recorded or saved here, and the camera switches off when you
++              take the photo, cancel, or leave this screen.
++            </span>
++          </p>
++        </div>
++      </div>
++    </section>
++  );
++};
+diff --git a/src/components/bodyscan/CaptureQualityPanel.test.tsx b/src/components/bodyscan/CaptureQualityPanel.test.tsx
+new file mode 100644
+index 0000000..c53cc43
+--- /dev/null
++++ b/src/components/bodyscan/CaptureQualityPanel.test.tsx
+@@ -0,0 +1,102 @@
++import React, { act } from 'react';
++import { createRoot, Root } from 'react-dom/client';
++import { afterEach, beforeEach, describe, expect, it } from 'vitest';
++import { CaptureQualityPanel } from './CaptureQualityPanel';
++import { assessCaptureQuality, type CaptureQualityAssessment } from '../../utils/captureQuality';
++import { makeFrontPose } from '../../utils/syntheticPose.testutil';
++
++(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
++
++let container: HTMLDivElement;
++let root: Root;
++const render = async (assessment?: CaptureQualityAssessment | null) => {
++  await act(async () => {
++    root.render(<CaptureQualityPanel assessment={assessment} />);
++  });
++};
++const rows = () => Array.from(container.querySelectorAll<HTMLElement>('li[data-check]'));
++
++beforeEach(() => {
++  container = document.createElement('div');
++  document.body.appendChild(container);
++  root = createRoot(container);
++});
++afterEach(async () => {
++  await act(async () => root.unmount());
++  container.remove();
++});
++
++describe('CaptureQualityPanel: no inputs available (Phase 2B)', () => {
++  it('says checks are not running and lists all seven as Not checked, with no pass/fail wording', async () => {
++    await render();
++    const t = container.textContent ?? '';
++    expect(container.querySelector('[data-testid="quality-not-running"]')).toBeTruthy();
++    expect((t.match(/Not checked/g) ?? []).length).toBe(7);
++    expect(t).not.toMatch(/Looks OK|Problem|Could be better|No problems were found/);
++  });
++
++  it('treats null the same as undefined', async () => {
++    await render(null);
++    expect(container.querySelector('[data-testid="quality-not-running"]')).toBeTruthy();
++  });
++
++  it('an assessment in which NOTHING was evaluated is still shown as not running (never as a pass)', async () => {
++    const empty: CaptureQualityAssessment = {
++      status: 'pass',
++      complete: false,
++      feedback: [],
++      notEvaluated: ['landmarks_visible', 'in_frame', 'centered', 'body_height_fraction', 'brightness', 'sharpness', 'stillness'],
++      checks: ['landmarks_visible', 'in_frame', 'centered', 'body_height_fraction', 'brightness', 'sharpness', 'stillness'].map((id) => ({
++        id: id as never,
++        status: 'not_evaluated' as const,
++        message: 'no input',
++      })),
++    };
++    await render(empty);
++    expect(container.querySelector('[data-testid="quality-not-running"]')).toBeTruthy();
++    expect(container.textContent).not.toContain('No problems were found');
++  });
++});
++
++describe('CaptureQualityPanel: when a later phase supplies real inputs', () => {
++  // The numbers below are SYNTHETIC test inputs, not camera or pose-model output.
++  it('shows a complete, passing assessment without a partial-result caveat', async () => {
++    const a = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose(), brightness: 0.5, sharpness: 200, motion: 0.002 });
++    await render(a);
++    expect(container.querySelector('[data-testid="quality-not-running"]')).toBeNull();
++    const summary = container.querySelector('[data-testid="quality-summary"]')!.textContent!;
++    expect(summary).toContain('No problems were found by the checks that ran');
++    expect(summary).not.toContain('could not be run');
++    expect(summary).toContain('not a guarantee');
++    expect(rows()).toHaveLength(7);
++    expect(rows().every((r) => r.dataset.status === 'pass')).toBe(true);
++  });
++
++  it('flags a partial result and labels unevaluated checks Not checked instead of passing them', async () => {
++    const a = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose(), brightness: 0.5 }); // sharpness & motion missing
++    await render(a);
++    const summary = container.querySelector('[data-testid="quality-summary"]')!.textContent!;
++    expect(summary).toContain('2 of 7 checks could not be run');
++    const byId = (id: string) => rows().find((r) => r.dataset.check === id)!;
++    expect(byId('sharpness').dataset.status).toBe('not_evaluated');
++    expect(byId('sharpness').textContent).toContain('Not checked');
++    expect(byId('brightness').textContent).toContain('Looks OK');
++  });
++
++  it('shows a failing check in words (not colour alone) together with the advice', async () => {
++    const a = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose(), brightness: 0.05, sharpness: 200, motion: 0.002 });
++    await render(a);
++    const row = rows().find((r) => r.dataset.check === 'brightness')!;
++    expect(row.dataset.status).toBe('fail');
++    expect(row.textContent).toContain('Problem');
++    expect(a.feedback.length).toBeGreaterThan(0);
++    expect(row.textContent).toContain(a.checks.find((c) => c.id === 'brightness')!.advice!);
++    expect(container.querySelector('[data-testid="quality-summary"]')!.textContent).toContain('found a problem');
++  });
++
++  it('decorative status icons are hidden from assistive technology', async () => {
++    const a = assessCaptureQuality({ view: 'front', landmarks: makeFrontPose(), brightness: 0.5, sharpness: 200, motion: 0.002 });
++    await render(a);
++    expect(Array.from(container.querySelectorAll('svg')).every((s) => s.getAttribute('aria-hidden') === 'true')).toBe(true);
++  });
++});
+diff --git a/src/components/bodyscan/CaptureQualityPanel.tsx b/src/components/bodyscan/CaptureQualityPanel.tsx
+new file mode 100644
+index 0000000..7311875
+--- /dev/null
++++ b/src/components/bodyscan/CaptureQualityPanel.tsx
+@@ -0,0 +1,112 @@
++import React from 'react';
++import { CircleAlert, CircleCheck, CircleDashed, TriangleAlert } from 'lucide-react';
++import type { CaptureQualityAssessment, QualityCheckId, QualityCheckStatus } from '../../utils/captureQuality';
++
++/**
++ * Presents a CaptureQualityAssessment (Phase 2A) honestly.
++ *
++ * In Phase 2B nothing computes brightness, sharpness, stillness or landmarks, so
++ * the camera screen passes NO assessment and this panel says the checks are not
++ * running. It never shows a pass, a fail or a score for a check that did not
++ * run. When a later phase supplies real inputs it simply passes the assessment.
++ */
++
++const CHECK_LABELS: Record<QualityCheckId, string> = {
++  landmarks_visible: 'Body landmarks visible',
++  in_frame: 'Whole body in frame',
++  centered: 'Centred in frame',
++  body_height_fraction: 'Distance from camera',
++  brightness: 'Lighting',
++  sharpness: 'Sharpness',
++  stillness: 'Holding still',
++};
++
++/** Fixed order so the "not running" list does not depend on any computed result. */
++const ALL_CHECKS: QualityCheckId[] = [
++  'landmarks_visible',
++  'in_frame',
++  'centered',
++  'body_height_fraction',
++  'brightness',
++  'sharpness',
++  'stillness',
++];
++
++const STATUS_TEXT: Record<QualityCheckStatus, string> = {
++  pass: 'Looks OK',
++  warning: 'Could be better',
++  fail: 'Problem',
++  not_evaluated: 'Not checked',
++};
++
++const StatusIcon: React.FC<{ status: QualityCheckStatus }> = ({ status }) => {
++  const cls = 'w-4 h-4 shrink-0 mt-0.5';
++  if (status === 'pass') return <CircleCheck className={`${cls} text-lime-400`} aria-hidden="true" />;
++  if (status === 'warning') return <TriangleAlert className={`${cls} text-amber-400`} aria-hidden="true" />;
++  if (status === 'fail') return <CircleAlert className={`${cls} text-rose-400`} aria-hidden="true" />;
++  return <CircleDashed className={`${cls} text-zinc-500`} aria-hidden="true" />;
++};
++
++interface CaptureQualityPanelProps {
++  /** Real result from the capture pipeline. Omit (or pass null) when no checks are running. */
++  assessment?: CaptureQualityAssessment | null;
++}
++
++export const CaptureQualityPanel: React.FC<CaptureQualityPanelProps> = ({ assessment }) => {
++  const anyEvaluated = !!assessment && assessment.checks.some((c) => c.status !== 'not_evaluated');
++
++  return (
++    <section aria-labelledby="capture-quality-heading" className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
++      <h3 id="capture-quality-heading" className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-300">
++        Photo quality checks
++      </h3>
++
++      {!anyEvaluated && (
++        <>
++          <p className="text-xs text-zinc-400 leading-relaxed" data-testid="quality-not-running">
++            Automatic quality checks are <strong className="text-zinc-200">not running</strong> in this version. Nothing is
++            measuring your lighting, sharpness, framing or movement, so judge the preview yourself using the guidance
++            above.
++          </p>
++          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
++            {ALL_CHECKS.map((id) => (
++              <li key={id} className="flex items-start gap-2 text-xs text-zinc-500">
++                <StatusIcon status="not_evaluated" />
++                <span>
++                  {CHECK_LABELS[id]}: <span className="text-zinc-400">{STATUS_TEXT.not_evaluated}</span>
++                </span>
++              </li>
++            ))}
++          </ul>
++        </>
++      )}
++
++      {anyEvaluated && assessment && (
++        <>
++          <p className="text-xs text-zinc-300 leading-relaxed" data-testid="quality-summary">
++            {assessment.status === 'fail' && 'One or more checks found a problem. '}
++            {assessment.status === 'warning' && 'Some checks suggest improvements. '}
++            {assessment.status === 'pass' && 'No problems were found by the checks that ran. '}
++            {!assessment.complete &&
++              `${assessment.notEvaluated.length} of ${assessment.checks.length} checks could not be run, so this is a partial result. `}
++            These are rough guides, not a guarantee of a good photo.
++          </p>
++          <ul className="space-y-2">
++            {assessment.checks.map((c) => (
++              <li key={c.id} className="flex items-start gap-2 text-xs" data-check={c.id} data-status={c.status}>
++                <StatusIcon status={c.status} />
++                <span className="text-zinc-300">
++                  <span className="font-semibold text-zinc-100">{CHECK_LABELS[c.id]}</span>
++                  {': '}
++                  <span className="text-zinc-400">{STATUS_TEXT[c.status]}</span>
++                  {c.status !== 'not_evaluated' && c.message ? <span className="text-zinc-400">{`. ${c.message}`}</span> : null}
++                  {c.advice ? <span className="block text-zinc-500">{c.advice}</span> : null}
++                </span>
++              </li>
++            ))}
++          </ul>
++        </>
++      )}
++    </section>
++  );
++};
+diff --git a/src/components/bodyscan/CaptureSession.tsx b/src/components/bodyscan/CaptureSession.tsx
+new file mode 100644
+index 0000000..4b440de
+--- /dev/null
++++ b/src/components/bodyscan/CaptureSession.tsx
+@@ -0,0 +1,124 @@
++import React, { useState } from 'react';
++import { Camera, CircleCheck, CircleDashed, Info, Trash2 } from 'lucide-react';
++import type { NewScanPhoto, ScanView } from '../../types/bodyScan';
++import { CAPTURE_GUIDANCE } from './captureGuidance';
++import { CameraCapture } from './CameraCapture';
++import { useObjectUrl } from './useObjectUrl';
++
++const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-400';
++const VIEWS: ScanView[] = ['front', 'side'];
++
++const PhotoThumb: React.FC<{ photo: NewScanPhoto }> = ({ photo }) => {
++  const url = useObjectUrl(photo.blob);
++  if (!url) return null;
++  return (
++    <img
++      src={url}
++      alt={`Temporary ${photo.view} photo`}
++      className="h-24 w-auto rounded-lg border border-zinc-800 bg-black object-contain"
++    />
++  );
++};
++
++/**
++ * Phase 2B capture flow: front photo, then side photo.
++ *
++ * Photos live only in this component's React state. They are not written to
++ * IndexedDB, localStorage or any server, and are dropped when the person
++ * discards them or leaves the Body Scan screen. Taking both photos does NOT
++ * complete a scan: there is no pose analysis or measurement yet.
++ */
++export const CaptureSession: React.FC = () => {
++  const [active, setActive] = useState<ScanView | null>(null);
++  const [photos, setPhotos] = useState<Partial<Record<ScanView, NewScanPhoto>>>({});
++
++  if (active) {
++    return (
++      <CameraCapture
++        key={active}
++        view={active}
++        onCaptured={(photo) => {
++          setPhotos((prev) => ({ ...prev, [active]: photo }));
++          setActive(null);
++        }}
++        onCancel={() => setActive(null)}
++      />
++    );
++  }
++
++  const taken = VIEWS.filter((v) => photos[v]).length;
++
++  return (
++    <section aria-labelledby="capture-session-heading" className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 shadow-xl space-y-5">
++      <div>
++        <div className="flex items-center gap-2 text-lime-400 text-xs font-mono font-semibold uppercase tracking-wider mb-1">
++          <Camera className="w-4 h-4" aria-hidden="true" />
++          <span>Guided photos (preview)</span>
++        </div>
++        <h2 id="capture-session-heading" className="text-xl font-bold text-zinc-100">
++          Take your front and side photos
++        </h2>
++      </div>
++
++      <p className="flex items-start gap-2 text-xs leading-relaxed text-zinc-400">
++        <Info className="mt-0.5 h-4 w-4 shrink-0 text-lime-400" aria-hidden="true" />
++        <span>
++          Photo capture is available as a preview. Pose analysis, measurements and saving are not available yet, so taking
++          these photos does not complete a scan. Photos are kept only in this tab and are not saved or uploaded, even if you
++          allowed photo storage.
++        </span>
++      </p>
++
++      <ul className="grid gap-3 sm:grid-cols-2">
++        {VIEWS.map((view) => {
++          const g = CAPTURE_GUIDANCE[view];
++          const photo = photos[view];
++          return (
++            <li key={view} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
++              <div className="flex items-center justify-between gap-2">
++                <div className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
++                  {photo ? (
++                    <CircleCheck className="h-4 w-4 text-lime-400" aria-hidden="true" />
++                  ) : (
++                    <CircleDashed className="h-4 w-4 text-zinc-500" aria-hidden="true" />
++                  )}
++                  {g.title}
++                </div>
++                <span className="text-[11px] text-zinc-500">{photo ? 'Taken (temporary)' : 'Not taken'}</span>
++              </div>
++              {photo && <PhotoThumb photo={photo} />}
++              <button
++                type="button"
++                onClick={() => setActive(view)}
++                className={`touch-press w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${focusRing} ${
++                  photo
++                    ? 'bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-200'
++                    : 'bg-lime-400 hover:bg-lime-300 text-black'
++                }`}
++              >
++                {photo ? `Retake ${g.label.toLowerCase()} photo` : `Take ${g.label.toLowerCase()} photo`}
++              </button>
++            </li>
++          );
++        })}
++      </ul>
++
++      {taken === 2 && (
++        <p role="status" className="text-xs text-zinc-300">
++          Both temporary photos are ready. Nothing further happens with them in this version.
++        </p>
++      )}
++
++      {taken > 0 && (
++        <button
++          type="button"
++          onClick={() => setPhotos({})}
++          className={`touch-press inline-flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800 hover:border-rose-500/50 text-zinc-300 rounded-xl text-xs font-semibold ${focusRing}`}
++        >
++          <Trash2 className="h-4 w-4" aria-hidden="true" />
++          Discard these photos
++        </button>
++      )}
++    </section>
++  );
++};
+diff --git a/src/components/bodyscan/captureGuidance.ts b/src/components/bodyscan/captureGuidance.ts
+new file mode 100644
+index 0000000..604e3df
+--- /dev/null
++++ b/src/components/bodyscan/captureGuidance.ts
+@@ -0,0 +1,35 @@
++import type { ScanView } from '../../types/bodyScan';
++
++export interface ViewGuidance {
++  title: string;
++  /** Short label, e.g. for step lists. */
++  label: string;
++  stepNumber: 1 | 2;
++  instructions: string[];
++}
++
++/** General framing advice. It describes how to take a consistent photo; it is not a medical or fitness assessment. */
++export const CAPTURE_GUIDANCE: Record<ScanView, ViewGuidance> = {
++  front: {
++    title: 'Front photo',
++    label: 'Front',
++    stepNumber: 1,
++    instructions: [
++      'Prop your device upright on something stable, about 2 to 3 metres away, with the lens roughly at chest to hip height.',
++      'Stand facing the camera with your whole body in view, head to feet, with a little space around you.',
++      'Feet about shoulder-width apart, arms slightly away from your sides, relaxed and standing tall.',
++      'Wear fitted clothing, use a plain background and have the light in front of you rather than behind.',
++    ],
++  },
++  side: {
++    title: 'Side photo',
++    label: 'Side',
++    stepNumber: 2,
++    instructions: [
++      'Keep the device at the same distance and height as the front photo.',
++      'Turn 90 degrees so one side faces the camera. Use the same side each time you scan.',
++      'Stand tall with arms hanging naturally and look straight ahead, not at the screen.',
++      'Keep your whole body in view, head to feet, in the same clothing and lighting as the front photo.',
++    ],
++  },
++};
+diff --git a/src/components/bodyscan/useCamera.ts b/src/components/bodyscan/useCamera.ts
+new file mode 100644
+index 0000000..251a1a4
+--- /dev/null
++++ b/src/components/bodyscan/useCamera.ts
+@@ -0,0 +1,49 @@
++import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
++import { CameraController, type CameraNotice, type CameraState, type StartOptions } from '../../services/camera';
++
++export interface UseCamera extends CameraState {
++  /** Must be called from a user action (button click). */
++  start: (options?: StartOptions) => Promise<void>;
++  stop: (notice?: CameraNotice | null) => void;
++  switchCamera: () => Promise<void>;
++}
++
++/**
++ * React binding for CameraController.
++ *
++ * Releases the camera when the component unmounts, and also when the page is
++ * hidden (tab switched, app backgrounded, page being navigated away), so the
++ * camera is never left running where the person cannot see it.
++ */
++export function useCamera(): UseCamera {
++  const [controller] = useState(() => new CameraController());
++  const state = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
++
++  useEffect(() => {
++    const stopIfActive = () => {
++      const { status } = controller.getState();
++      if (status === 'granted' || status === 'requesting') controller.stop('page_hidden');
++    };
++    const onVisibility = () => {
++      if (document.visibilityState === 'hidden') stopIfActive();
++    };
++    document.addEventListener('visibilitychange', onVisibility);
++    window.addEventListener('pagehide', stopIfActive);
++    return () => {
++      document.removeEventListener('visibilitychange', onVisibility);
++      window.removeEventListener('pagehide', stopIfActive);
++      controller.stop(); // unmount: release the camera and cancel any pending permission request
++    };
++  }, [controller]);
++
++  const actions = useMemo(
++    () => ({
++      start: (options?: StartOptions) => controller.start(options),
++      stop: (notice?: CameraNotice | null) => controller.stop(notice ?? null),
++      switchCamera: () => controller.switchCamera(),
++    }),
++    [controller]
++  );
++
++  return { ...state, ...actions };
++}
+diff --git a/src/components/bodyscan/useObjectUrl.ts b/src/components/bodyscan/useObjectUrl.ts
+new file mode 100644
+index 0000000..5952413
+--- /dev/null
++++ b/src/components/bodyscan/useObjectUrl.ts
+@@ -0,0 +1,20 @@
++import { useEffect, useState } from 'react';
++
++/**
++ * Turns an in-memory Blob into a temporary object URL for <img>, and revokes it
++ * when the blob changes or the component unmounts. The URL is only valid inside
++ * this tab; nothing is written anywhere.
++ */
++export function useObjectUrl(blob: Blob | null): string | null {
++  const [url, setUrl] = useState<string | null>(null);
++  useEffect(() => {
++    if (!blob) {
++      setUrl(null);
++      return;
++    }
++    const objectUrl = URL.createObjectURL(blob);
++    setUrl(objectUrl);
++    return () => URL.revokeObjectURL(objectUrl);
++  }, [blob]);
++  return url;
++}
+diff --git a/src/services/camera.test.ts b/src/services/camera.test.ts
+new file mode 100644
+index 0000000..aab4093
+--- /dev/null
++++ b/src/services/camera.test.ts
+@@ -0,0 +1,422 @@
++import { afterEach, beforeEach, describe, expect, it } from 'vitest';
++import {
++  CameraController,
++  classifyCameraError,
++  getCameraEnvironmentFailure,
++  stopStream,
++  type CameraFailureCode,
++} from './camera';
++import {
++  FakeStream,
++  FakeTrack,
++  domError,
++  installFakeCamera,
++  removeMediaDevices,
++  setSecureContext,
++  type FakeCamera,
++} from './fakeMedia.testutil';
++
++const flush = () => new Promise<void>((r) => setTimeout(r, 0));
++
++let cam: FakeCamera;
++beforeEach(() => {
++  cam = installFakeCamera();
++});
++afterEach(() => cam.uninstall());
++
++describe('classifyCameraError', () => {
++  const cases: Array<[string, CameraFailureCode]> = [
++    ['NotAllowedError', 'permission_denied'],
++    ['PermissionDeniedError', 'permission_denied'],
++    ['SecurityError', 'permission_denied'],
++    ['NotFoundError', 'no_camera'],
++    ['DevicesNotFoundError', 'no_camera'],
++    ['NotReadableError', 'in_use'],
++    ['TrackStartError', 'in_use'],
++    ['AbortError', 'in_use'],
++    ['SomethingElse', 'unknown'],
++  ];
++  it.each(cases)('%s -> %s', (name, code) => {
++    expect(classifyCameraError(domError(name)).code).toBe(code);
++  });
++  it('never throws on non-error values and falls back to unknown', () => {
++    for (const v of [null, undefined, 42, 'boom', {}, { name: 5 }]) {
++      expect(classifyCameraError(v).code).toBe('unknown');
++    }
++  });
++  it('gives every failure a title and an actionable message', () => {
++    for (const [name] of cases) {
++      const f = classifyCameraError(domError(name));
++      expect(f.title.length).toBeGreaterThan(5);
++      expect(f.message.length).toBeGreaterThan(20);
++    }
++  });
++});
++
++describe('environment checks', () => {
++  it('reports unsupported when mediaDevices is missing', () => {
++    const restore = removeMediaDevices();
++    expect(getCameraEnvironmentFailure()?.code).toBe('unsupported');
++    restore();
++  });
++  it('reports insecure_context on non-secure pages', () => {
++    const restore = setSecureContext(false);
++    expect(getCameraEnvironmentFailure()?.code).toBe('insecure_context');
++    restore();
++  });
++  it('reports nothing when the camera API is usable', () => {
++    expect(getCameraEnvironmentFailure()).toBeNull();
++  });
++});
++
++describe('CameraController: permission states', () => {
++  it('starts as not_requested and does NOT touch the camera until start() is called', () => {
++    const c = new CameraController();
++    expect(c.getState()).toMatchObject({ status: 'not_requested', stream: null, failure: null });
++    expect(cam.getUserMedia).not.toHaveBeenCalled();
++  });
++
++  it('goes requesting -> granted and asks for video only (never audio)', async () => {
++    const c = new CameraController();
++    const seen: string[] = [];
++    c.subscribe(() => seen.push(c.getState().status));
++    await c.start();
++    expect(seen).toContain('requesting');
++    expect(c.getState().status).toBe('granted');
++    expect(c.getState().stream).not.toBeNull();
++    expect(cam.getUserMedia).toHaveBeenCalledTimes(1);
++    expect(cam.getUserMedia.mock.calls[0][0]).toMatchObject({ audio: false });
++    expect(cam.getUserMedia.mock.calls[0][0].video).toBeTruthy();
++  });
++
++  it('maps a refused prompt to denied with no stream', async () => {
++    const c = new CameraController();
++    cam.failNext(domError('NotAllowedError'));
++    await c.start();
++    expect(c.getState()).toMatchObject({ status: 'denied', stream: null });
++    expect(c.getState().failure?.code).toBe('permission_denied');
++  });
++
++  it('maps a missing camera to unavailable', async () => {
++    const c = new CameraController();
++    cam.failNext(domError('NotFoundError'));
++    await c.start();
++    expect(c.getState().status).toBe('unavailable');
++    expect(c.getState().failure?.code).toBe('no_camera');
++  });
++
++  it('maps a busy camera to error', async () => {
++    const c = new CameraController();
++    cam.failNext(domError('NotReadableError'));
++    await c.start();
++    expect(c.getState().status).toBe('error');
++    expect(c.getState().failure?.code).toBe('in_use');
++  });
++
++  it('reports unavailable without calling getUserMedia when the API is missing', async () => {
++    const restore = removeMediaDevices();
++    const c = new CameraController();
++    await c.start();
++    expect(c.getState()).toMatchObject({ status: 'unavailable' });
++    expect(c.getState().failure?.code).toBe('unsupported');
++    restore();
++  });
++
++  it('reports unavailable on insecure pages without prompting', async () => {
++    const restore = setSecureContext(false);
++    const c = new CameraController();
++    await c.start();
++    expect(c.getState().failure?.code).toBe('insecure_context');
++    expect(cam.getUserMedia).not.toHaveBeenCalled();
++    restore();
++  });
++
++  it('can be retried after a denial', async () => {
++    const c = new CameraController();
++    cam.failNext(domError('NotAllowedError'));
++    await c.start();
++    await c.start();
++    expect(c.getState().status).toBe('granted');
++    expect(c.getState().failure).toBeNull();
++  });
++
++  it('retries once with relaxed constraints when the preferred ones are overconstrained', async () => {
++    const c = new CameraController();
++    cam.failNext(domError('OverconstrainedError'));
++    await c.start({ deviceId: 'stale-id' });
++    expect(cam.getUserMedia).toHaveBeenCalledTimes(2);
++    expect(cam.getUserMedia.mock.calls[1][0]).toEqual({ video: true, audio: false });
++    expect(c.getState().status).toBe('granted');
++  });
++});
++
++describe('CameraController: lifecycle cleanup', () => {
++  it('stop() releases every track and returns to not_requested', async () => {
++    const c = new CameraController();
++    await c.start();
++    const s = cam.streams[0];
++    expect(s.allStopped).toBe(false);
++    c.stop();
++    expect(s.allStopped).toBe(true);
++    expect(c.getState()).toMatchObject({ status: 'not_requested', stream: null });
++  });
++
++  it('stop() is idempotent and safe before any start', () => {
++    const c = new CameraController();
++    expect(() => {
++      c.stop();
++      c.stop();
++    }).not.toThrow();
++    expect(c.getState().status).toBe('not_requested');
++  });
++
++  it('stop() after a failure clears the failure (cancel from an error screen)', async () => {
++    const c = new CameraController();
++    cam.failNext(domError('NotAllowedError'));
++    await c.start();
++    c.stop();
++    expect(c.getState()).toMatchObject({ status: 'not_requested', failure: null });
++  });
++
++  it('stop(notice) records why the app switched the camera off', async () => {
++    const c = new CameraController();
++    await c.start();
++    c.stop('page_hidden');
++    expect(c.getState()).toMatchObject({ status: 'not_requested', notice: 'page_hidden' });
++    await c.start();
++    expect(c.getState().notice).toBeNull();
++  });
++
++  it('stops a stream that arrives AFTER stop() (user left while the permission prompt was open)', async () => {
++    const c = new CameraController();
++    const pending = cam.deferNext();
++    const started = c.start();
++    expect(c.getState().status).toBe('requesting');
++    c.stop();
++    pending.resolve();
++    await started;
++    expect(cam.streams).toHaveLength(1);
++    expect(cam.streams[0].allStopped).toBe(true);
++    expect(c.getState()).toMatchObject({ status: 'not_requested', stream: null });
++  });
++
++  it('ignores a late DENIAL after stop() instead of showing an error to someone who left', async () => {
++    const c = new CameraController();
++    const pending = cam.deferNext();
++    const started = c.start();
++    c.stop();
++    pending.reject(domError('NotAllowedError'));
++    await started;
++    expect(c.getState()).toMatchObject({ status: 'not_requested', failure: null });
++  });
++
++  it('a second start() supersedes the first: the first stream is stopped, only the second is live', async () => {
++    const c = new CameraController();
++    const first = cam.deferNext();
++    const p1 = c.start();
++    const p2 = c.start(); // second call uses the default immediate implementation
++    first.resolve();
++    await Promise.all([p1, p2]);
++    expect(cam.streams).toHaveLength(2);
++    // Creation order differs from call order (the first request was held open), so identify streams by identity.
++    const live = cam.streams.find((s) => s.asMediaStream() === c.getState().stream)!;
++    const superseded = cam.streams.find((s) => s !== live)!;
++    expect(live).toBeDefined();
++    expect(superseded.allStopped).toBe(true);
++    expect(live.allStopped).toBe(false);
++    expect(c.getState().status).toBe('granted');
++  });
++
++  it('start() while already streaming stops the old stream before opening a new one', async () => {
++    const c = new CameraController();
++    await c.start();
++    const s1 = cam.streams[0];
++    let s1StoppedBeforeNextRequest = false;
++    cam.getUserMedia.mockImplementationOnce(async () => {
++      s1StoppedBeforeNextRequest = s1.allStopped;
++      const s = new FakeStream([new FakeTrack('video')]);
++      cam.streams.push(s);
++      return s.asMediaStream();
++    });
++    await c.start();
++    expect(s1StoppedBeforeNextRequest).toBe(true);
++  });
++
++  it('removes its track listeners when stopped', async () => {
++    const c = new CameraController();
++    await c.start();
++    const track = cam.streams[0].tracks[0];
++    expect(track.listenerCount('ended')).toBe(1);
++    c.stop();
++    expect(track.listenerCount('ended')).toBe(0);
++  });
++
++  it('can be restarted after stop()', async () => {
++    const c = new CameraController();
++    await c.start();
++    c.stop();
++    await c.start();
++    expect(c.getState().status).toBe('granted');
++    expect(cam.streams[1].allStopped).toBe(false);
++  });
++
++  it('stopStream tolerates null and tracks that throw', () => {
++    expect(() => stopStream(null)).not.toThrow();
++    const bad = new FakeTrack();
++    bad.stop.mockImplementation(() => {
++      throw new Error('boom');
++    });
++    const good = new FakeTrack();
++    expect(() => stopStream(new FakeStream([bad, good]).asMediaStream())).not.toThrow();
++    expect(good.stopped).toBe(true);
++  });
++});
++
++describe('CameraController: revocation and unexpected stops', () => {
++  it('a track ending while permission is now denied is reported as revoked, and everything is stopped', async () => {
++    const c = new CameraController();
++    await c.start();
++    const s = cam.streams[0];
++    cam.permission.state = 'denied';
++    s.tracks[0].emitEnded();
++    await flush();
++    expect(c.getState()).toMatchObject({ status: 'denied', stream: null });
++    expect(c.getState().failure?.code).toBe('permission_revoked');
++    expect(s.allStopped).toBe(true);
++  });
++
++  it('a track ending for another reason (unplugged) is an error, not a permission problem', async () => {
++    const c = new CameraController();
++    await c.start();
++    cam.permission.state = 'granted';
++    cam.streams[0].tracks[0].emitEnded();
++    await flush();
++    expect(c.getState().status).toBe('error');
++    expect(c.getState().failure?.code).toBe('track_ended');
++  });
++
++  it('where the Permissions API cannot query the camera, an ended track is a generic stop (no false "revoked" claim)', async () => {
++    cam.uninstall();
++    cam = installFakeCamera({ permissionsApiThrows: true });
++    const c = new CameraController();
++    await c.start();
++    cam.streams[0].tracks[0].emitEnded();
++    await flush();
++    expect(c.getState().failure?.code).toBe('track_ended');
++  });
++
++  it('permission flipping to denied while the track is still alive stops the camera', async () => {
++    const c = new CameraController();
++    await c.start();
++    await flush();
++    const s = cam.streams[0];
++    cam.permission.change('denied');
++    expect(c.getState()).toMatchObject({ status: 'denied', stream: null });
++    expect(c.getState().failure?.code).toBe('permission_revoked');
++    expect(s.allStopped).toBe(true);
++  });
++
++  it('removes the permission listener on stop()', async () => {
++    const c = new CameraController();
++    await c.start();
++    await flush();
++    expect(cam.permission.listenerCount).toBe(1);
++    c.stop();
++    expect(cam.permission.listenerCount).toBe(0);
++  });
++
++  it('an ended event from an OLD stream does not disturb a newer one', async () => {
++    const c = new CameraController();
++    await c.start();
++    const old = cam.streams[0];
++    await c.start();
++    old.tracks[0].emitEnded(); // no listeners remain, so nothing should happen
++    await flush();
++    expect(c.getState().status).toBe('granted');
++    expect(cam.streams[1].allStopped).toBe(false);
++  });
++});
++
++describe('CameraController: switching cameras', () => {
++  beforeEach(() => {
++    cam.uninstall();
++    cam = installFakeCamera({
++      devices: [
++        { deviceId: 'front', label: 'Front' },
++        { deviceId: 'back', label: 'Back' },
++      ],
++    });
++  });
++
++  it('reports canSwitch only when more than one video input exists', async () => {
++    const c = new CameraController();
++    await c.start();
++    expect(c.getState().canSwitch).toBe(true);
++
++    cam.uninstall();
++    cam = installFakeCamera({ devices: [{ deviceId: 'only', label: 'Only' }] });
++    const single = new CameraController();
++    await single.start();
++    expect(single.getState().canSwitch).toBe(false);
++  });
++
++  it('switchCamera stops the current stream BEFORE requesting the next device', async () => {
++    const c = new CameraController();
++    await c.start();
++    const first = cam.streams[0];
++    let firstStoppedAtSwitch = false;
++    cam.getUserMedia.mockImplementationOnce(async () => {
++      firstStoppedAtSwitch = first.allStopped;
++      const s = new FakeStream([new FakeTrack('video', { deviceId: 'back' })]);
++      cam.streams.push(s);
++      return s.asMediaStream();
++    });
++    await c.switchCamera();
++    expect(firstStoppedAtSwitch).toBe(true);
++    expect(c.getState().status).toBe('granted');
++  });
++
++  it('requests a different deviceId than the one in use', async () => {
++    const c = new CameraController();
++    await c.start();
++    await c.switchCamera();
++    const lastCall = cam.getUserMedia.mock.calls.at(-1)![0] as MediaStreamConstraints;
++    expect((lastCall.video as MediaTrackConstraints).deviceId).toEqual({ exact: 'back' });
++  });
++
++  it('a failed switch leaves no stream running and reports the error', async () => {
++    const c = new CameraController();
++    await c.start();
++    const first = cam.streams[0];
++    cam.failNext(domError('NotReadableError'));
++    await c.switchCamera();
++    expect(first.allStopped).toBe(true);
++    expect(c.getState()).toMatchObject({ status: 'error', stream: null });
++  });
++
++  it('is a no-op with a single camera', async () => {
++    cam.uninstall();
++    cam = installFakeCamera({ devices: [{ deviceId: 'only', label: 'Only' }] });
++    const c = new CameraController();
++    await c.start();
++    await c.switchCamera();
++    expect(cam.getUserMedia).toHaveBeenCalledTimes(1);
++    expect(cam.streams[0].allStopped).toBe(false);
++  });
++});
++
++describe('CameraController: facing', () => {
++  it('reads facingMode from the track settings, otherwise unknown', async () => {
++    cam.uninstall();
++    cam = installFakeCamera({ facingMode: 'environment' });
++    const a = new CameraController();
++    await a.start();
++    expect(a.getState().facing).toBe('environment');
++
++    cam.uninstall();
++    cam = installFakeCamera();
++    const b = new CameraController();
++    await b.start();
++    expect(b.getState().facing).toBe('unknown');
++  });
++});
+diff --git a/src/services/camera.ts b/src/services/camera.ts
+new file mode 100644
+index 0000000..611b28e
+--- /dev/null
++++ b/src/services/camera.ts
+@@ -0,0 +1,376 @@
++/**
++ * Camera service for Body Scan.
++ *
++ * Framework-free (no React). Owns the MediaStream lifecycle so that camera
++ * tracks are always released, including when a permission prompt is still
++ * pending at the moment the user leaves.
++ *
++ * PRIVACY
++ * - Never starts on its own. `start()` is only called from a user action.
++ * - Video only (`audio: false`). The microphone is never requested.
++ * - Frames are never read, copied, uploaded or logged here. The stream is only
++ *   handed to a <video> element for live preview.
++ * - Errors are classified into user-facing messages; raw errors are not logged.
++ */
++
++export type CameraStatus =
++  | 'not_requested' // camera is off and nothing has been asked of the browser
++  | 'requesting' //    getUserMedia is pending (permission prompt may be showing)
++  | 'granted' //       a live stream is running
++  | 'denied' //        permission refused, blocked by policy, or revoked
++  | 'unavailable' //   no camera / unsupported browser / insecure context
++  | 'error'; //        camera exists but could not be started or stopped unexpectedly
++
++export type CameraFailureCode =
++  | 'permission_denied'
++  | 'permission_revoked'
++  | 'insecure_context'
++  | 'unsupported'
++  | 'no_camera'
++  | 'in_use'
++  | 'track_ended'
++  | 'unknown';
++
++export interface CameraFailure {
++  code: CameraFailureCode;
++  /** Short heading. */
++  title: string;
++  /** What happened and what the user can do. */
++  message: string;
++  /** Extra hint, shown in smaller text. */
++  hint?: string;
++}
++
++/** Why a camera that was running has been switched off by the app (not a failure). */
++export type CameraNotice = 'page_hidden';
++
++export type CameraFacing = 'user' | 'environment' | 'unknown';
++
++export interface CameraState {
++  status: CameraStatus;
++  stream: MediaStream | null;
++  failure: CameraFailure | null;
++  notice: CameraNotice | null;
++  facing: CameraFacing;
++  /** True once granted and the device reports more than one video input. */
++  canSwitch: boolean;
++}
++
++export interface StartOptions {
++  /** Preferred camera direction on phones. Default 'user' (front camera, so the person can see themselves). */
++  facingMode?: 'user' | 'environment';
++  /** Specific camera, used by switchCamera(). */
++  deviceId?: string;
++}
++
++export const INITIAL_CAMERA_STATE: CameraState = {
++  status: 'not_requested',
++  stream: null,
++  failure: null,
++  notice: null,
++  facing: 'unknown',
++  canSwitch: false,
++};
++
++// ---------------------------------------------------------------------------
++// Messages & classification
++// ---------------------------------------------------------------------------
++
++const FAILURES: Record<CameraFailureCode, Omit<CameraFailure, 'code'>> = {
++  permission_denied: {
++    title: 'Camera access was blocked',
++    message:
++      'Iron Log cannot use your camera because permission was not granted. To take Body Scan photos, allow camera access for this site in your browser or device settings, then try again.',
++    hint: 'If you are viewing Iron Log inside an embedded preview, the page hosting it must also allow camera access.',
++  },
++  permission_revoked: {
++    title: 'Camera access was turned off',
++    message:
++      'Camera permission was removed while the camera was on, so it has been switched off. Allow camera access for this site in your browser or device settings to continue.',
++  },
++  insecure_context: {
++    title: 'Camera needs a secure connection',
++    message:
++      'Browsers only allow camera access on secure (HTTPS) pages. Open Iron Log over HTTPS, or from localhost during development.',
++  },
++  unsupported: {
++    title: 'Camera is not supported here',
++    message:
++      'This browser does not support camera access. Try an up-to-date version of Chrome, Safari, Edge or Firefox.',
++  },
++  no_camera: {
++    title: 'No camera found',
++    message:
++      'No camera was found on this device. Connect a camera and try again, or use a device that has one. You can still enter measurements manually.',
++  },
++  in_use: {
++    title: 'Camera could not be started',
++    message:
++      'The camera did not start. It may be in use by another app or browser tab. Close anything else using the camera and try again.',
++  },
++  track_ended: {
++    title: 'Camera stopped unexpectedly',
++    message:
++      'The camera stopped, for example because it was disconnected or another app took it over. Check the camera and try again.',
++  },
++  unknown: {
++    title: 'Something went wrong',
++    message: 'The camera could not be started. Please try again.',
++  },
++};
++
++export function buildFailure(code: CameraFailureCode): CameraFailure {
++  return { code, ...FAILURES[code] };
++}
++
++const failureStatus = (code: CameraFailureCode): CameraStatus => {
++  switch (code) {
++    case 'permission_denied':
++    case 'permission_revoked':
++      return 'denied';
++    case 'insecure_context':
++    case 'unsupported':
++    case 'no_camera':
++      return 'unavailable';
++    default:
++      return 'error';
++  }
++};
++
++const errorName = (err: unknown): string =>
++  typeof err === 'object' && err !== null && typeof (err as { name?: unknown }).name === 'string'
++    ? (err as { name: string }).name
++    : '';
++
++/** Maps a getUserMedia rejection to a failure. Never returns null; unknown errors become `unknown`. */
++export function classifyCameraError(err: unknown): CameraFailure {
++  switch (errorName(err)) {
++    case 'NotAllowedError':
++    case 'PermissionDeniedError':
++    case 'SecurityError':
++      return buildFailure('permission_denied');
++    case 'NotFoundError':
++    case 'DevicesNotFoundError':
++      return buildFailure('no_camera');
++    case 'NotReadableError':
++    case 'TrackStartError':
++    case 'AbortError':
++      return buildFailure('in_use');
++    default:
++      return buildFailure('unknown');
++  }
++}
++
++const isOverconstrained = (err: unknown): boolean =>
++  errorName(err) === 'OverconstrainedError' || errorName(err) === 'ConstraintNotSatisfiedError';
++
++// ---------------------------------------------------------------------------
++// Environment helpers
++// ---------------------------------------------------------------------------
++
++/** Returns a failure if the camera cannot even be attempted in this environment, else null. */
++export function getCameraEnvironmentFailure(): CameraFailure | null {
++  if (typeof window !== 'undefined' && window.isSecureContext === false) return buildFailure('insecure_context');
++  if (typeof navigator === 'undefined' || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
++    return buildFailure('unsupported');
++  }
++  return null;
++}
++
++export type PermissionQueryResult = 'granted' | 'denied' | 'prompt' | 'unknown';
++
++/** Reads the camera permission without prompting. 'unknown' where the Permissions API cannot query the camera (e.g. Safari). */
++export async function queryCameraPermission(): Promise<PermissionQueryResult> {
++  try {
++    const status = await navigator.permissions.query({ name: 'camera' as PermissionName });
++    return status.state;
++  } catch {
++    return 'unknown';
++  }
++}
++
++export function stopStream(stream: MediaStream | null | undefined): void {
++  if (!stream) return;
++  for (const track of stream.getTracks()) {
++    try {
++      track.stop();
++    } catch {
++      /* stopping must never throw into the caller */
++    }
++  }
++}
++
++async function countVideoInputs(): Promise<number> {
++  try {
++    const devices = await navigator.mediaDevices.enumerateDevices();
++    return devices.filter((d) => d.kind === 'videoinput').length;
++  } catch {
++    return 0;
++  }
++}
++
++function facingOf(stream: MediaStream): CameraFacing {
++  const facing = stream.getVideoTracks()[0]?.getSettings?.().facingMode;
++  return facing === 'user' || facing === 'environment' ? facing : 'unknown';
++}
++
++function buildConstraints(opts: StartOptions): MediaStreamConstraints {
++  const video: MediaTrackConstraints = { width: { ideal: 1280 }, height: { ideal: 720 } };
++  if (opts.deviceId) video.deviceId = { exact: opts.deviceId };
++  else video.facingMode = { ideal: opts.facingMode ?? 'user' };
++  return { video, audio: false };
++}
++
++// ---------------------------------------------------------------------------
++// Controller
++// ---------------------------------------------------------------------------
++
++type Listener = () => void;
++
++/**
++ * Owns one camera session at a time.
++ *
++ * Guarantees:
++ * - Every stream it opens is stopped: on stop(), when replaced by a new
++ *   start(), when its track ends, when permission is revoked, and if it
++ *   arrives after the session was cancelled (late-resolving permission prompt).
++ * - After stop() the controller is idle and can be started again.
++ */
++export class CameraController {
++  private state: CameraState = INITIAL_CAMERA_STATE;
++  private listeners = new Set<Listener>();
++  /** Incremented on every start()/stop(); an async step whose token is stale discards its result. */
++  private token = 0;
++  private stream: MediaStream | null = null;
++  private detachWatchers: (() => void) | null = null;
++
++  subscribe = (listener: Listener): (() => void) => {
++    this.listeners.add(listener);
++    return () => this.listeners.delete(listener);
++  };
++
++  getState = (): CameraState => this.state;
++
++  private set(next: Partial<CameraState>): void {
++    this.state = { ...this.state, ...next };
++    for (const l of Array.from(this.listeners)) l();
++  }
++
++  /** Stops the active stream (if any) and removes watchers. Does not change status. */
++  private releaseStream(): void {
++    this.detachWatchers?.();
++    this.detachWatchers = null;
++    stopStream(this.stream);
++    this.stream = null;
++  }
++
++  /** Must be called from a user action. Replaces any running or pending session. */
++  async start(opts: StartOptions = {}): Promise<void> {
++    const myToken = ++this.token;
++    this.releaseStream();
++
++    const envFailure = getCameraEnvironmentFailure();
++    if (envFailure) {
++      this.set({ status: failureStatus(envFailure.code), stream: null, failure: envFailure, notice: null, canSwitch: false });
++      return;
++    }
++
++    this.set({ status: 'requesting', stream: null, failure: null, notice: null, canSwitch: false });
++
++    let stream: MediaStream;
++    try {
++      try {
++        stream = await navigator.mediaDevices.getUserMedia(buildConstraints(opts));
++      } catch (err) {
++        // A stale deviceId or unsupported resolution must not block the camera entirely.
++        if (!isOverconstrained(err) || myToken !== this.token) throw err;
++        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
++      }
++    } catch (err) {
++      if (myToken !== this.token) return; // cancelled; nothing to release, nothing to report
++      const failure = classifyCameraError(err);
++      this.set({ status: failureStatus(failure.code), stream: null, failure, canSwitch: false });
++      return;
++    }
++
++    if (myToken !== this.token) {
++      // The user left / cancelled while the browser prompt was open. Do not leak the camera.
++      stopStream(stream);
++      return;
++    }
++
++    this.stream = stream;
++    this.attachWatchers(stream, myToken);
++    this.set({ status: 'granted', stream, failure: null, notice: null, facing: facingOf(stream), canSwitch: false });
++
++    const inputs = await countVideoInputs();
++    if (myToken === this.token) this.set({ canSwitch: inputs > 1 });
++  }
++
++  /** Cycles to the next video input. No-op unless more than one exists. */
++  async switchCamera(): Promise<void> {
++    const devices = (await navigator.mediaDevices.enumerateDevices().catch(() => [])).filter(
++      (d) => d.kind === 'videoinput' && d.deviceId
++    );
++    if (devices.length < 2) return;
++    const currentId = this.stream?.getVideoTracks()[0]?.getSettings?.().deviceId;
++    const index = devices.findIndex((d) => d.deviceId === currentId);
++    const next = devices[(index + 1) % devices.length];
++    // start() releases the current stream first; many phones cannot open two cameras at once.
++    await this.start({ deviceId: next.deviceId });
++  }
++
++  /** Switches the camera off. `notice` explains an app-initiated stop to the user. Safe to call repeatedly. */
++  stop(notice: CameraNotice | null = null): void {
++    this.token++; // cancels any pending start()
++    this.releaseStream();
++    if (this.state.status !== 'not_requested' || this.state.stream || this.state.notice !== notice) {
++      this.set({ ...INITIAL_CAMERA_STATE, notice });
++    }
++  }
++
++  private attachWatchers(stream: MediaStream, myToken: number): void {
++    const cleanups: Array<() => void> = [];
++    let active = true; // false once these watchers have been detached
++
++    // Track ended by the browser/OS: permission revoked, device unplugged, taken by another app.
++    // (Calling track.stop() ourselves does not fire 'ended'.)
++    const onEnded = () => {
++      if (myToken !== this.token) return;
++      this.releaseStream();
++      void queryCameraPermission().then((permission) => {
++        if (myToken !== this.token) return;
++        const code: CameraFailureCode = permission === 'denied' ? 'permission_revoked' : 'track_ended';
++        const failure = buildFailure(code);
++        this.set({ status: failureStatus(code), stream: null, failure, canSwitch: false });
++      });
++    };
++    for (const track of stream.getTracks()) {
++      track.addEventListener('ended', onEnded);
++      cleanups.push(() => track.removeEventListener('ended', onEnded));
++    }
++
++    // Permission changed to 'denied' while running (some browsers keep the track alive).
++    void (async () => {
++      try {
++        const status = await navigator.permissions.query({ name: 'camera' as PermissionName });
++        if (!active || myToken !== this.token) return;
++        const onChange = () => {
++          if (!active || myToken !== this.token || status.state !== 'denied') return;
++          this.releaseStream();
++          const failure = buildFailure('permission_revoked');
++          this.set({ status: 'denied', stream: null, failure, canSwitch: false });
++        };
++        status.addEventListener('change', onChange);
++        cleanups.push(() => status.removeEventListener('change', onChange));
++      } catch {
++        /* Permissions API not available for 'camera' here; track 'ended' still covers revocation in most browsers. */
++      }
++    })();
++
++    this.detachWatchers = () => {
++      active = false;
++      for (const c of cleanups.splice(0)) c();
++    };
++  }
++}
+diff --git a/src/services/fakeMedia.testutil.ts b/src/services/fakeMedia.testutil.ts
+new file mode 100644
+index 0000000..71b5b7a
+--- /dev/null
++++ b/src/services/fakeMedia.testutil.ts
+@@ -0,0 +1,197 @@
++/**
++ * Test-only fakes for the browser camera APIs (jsdom has none).
++ *
++ * These let tests verify lifecycle behaviour: which tracks were stopped, in
++ * what order, and what was requested from getUserMedia. They say NOTHING about
++ * how real browsers or devices behave; that still needs manual testing.
++ */
++
++import { vi } from 'vitest';
++
++type Handler = (e: Event) => void;
++
++export class FakeTrack {
++  stopped = false;
++  private handlers = new Map<string, Set<Handler>>();
++  stop = vi.fn(() => {
++    this.stopped = true; // like real tracks, stop() does not fire 'ended'
++  });
++  constructor(
++    readonly kind: 'video' | 'audio' = 'video',
++    private settings: MediaTrackSettings = {}
++  ) {}
++  getSettings = () => this.settings;
++  addEventListener = (type: string, fn: Handler) => {
++    if (!this.handlers.has(type)) this.handlers.set(type, new Set());
++    this.handlers.get(type)!.add(fn);
++  };
++  removeEventListener = (type: string, fn: Handler) => {
++    this.handlers.get(type)?.delete(fn);
++  };
++  listenerCount(type: string): number {
++    return this.handlers.get(type)?.size ?? 0;
++  }
++  /** Simulates the browser/OS ending the track (revoked permission, unplugged, taken by another app). */
++  emitEnded(): void {
++    this.stopped = true;
++    for (const h of Array.from(this.handlers.get('ended') ?? [])) h(new Event('ended'));
++  }
++}
++
++export class FakeStream {
++  constructor(readonly tracks: FakeTrack[]) {}
++  getTracks = () => this.tracks;
++  getVideoTracks = () => this.tracks.filter((t) => t.kind === 'video');
++  getAudioTracks = () => this.tracks.filter((t) => t.kind === 'audio');
++  /** True when every track has been stopped. */
++  get allStopped(): boolean {
++    return this.tracks.every((t) => t.stopped);
++  }
++  asMediaStream(): MediaStream {
++    return this as unknown as MediaStream;
++  }
++}
++
++export const domError = (name: string, message = name): DOMException => new DOMException(message, name);
++
++export interface FakeDevice {
++  deviceId: string;
++  label?: string;
++}
++
++class FakePermissionStatus {
++  private handlers = new Set<Handler>();
++  constructor(public state: PermissionState) {}
++  addEventListener = (_type: string, fn: Handler) => void this.handlers.add(fn);
++  removeEventListener = (_type: string, fn: Handler) => void this.handlers.delete(fn);
++  get listenerCount(): number {
++    return this.handlers.size;
++  }
++  change(state: PermissionState): void {
++    this.state = state;
++    for (const h of Array.from(this.handlers)) h(new Event('change'));
++  }
++}
++
++export interface Deferred {
++  resolve: (stream?: FakeStream) => void;
++  reject: (err: unknown) => void;
++}
++
++export interface FakeCamera {
++  getUserMedia: ReturnType<typeof vi.fn>;
++  /** Every stream handed out, in order. */
++  streams: FakeStream[];
++  permission: FakePermissionStatus;
++  /** Makes the NEXT getUserMedia call wait until the test resolves or rejects it (simulates an open permission prompt). */
++  deferNext(): Deferred;
++  /** Makes the NEXT getUserMedia call reject. */
++  failNext(err: unknown): void;
++  uninstall(): void;
++}
++
++export interface FakeCameraOptions {
++  devices?: FakeDevice[];
++  facingMode?: 'user' | 'environment';
++  permissionState?: PermissionState;
++  /** Simulate browsers where permissions.query({name:'camera'}) throws (e.g. Safari). */
++  permissionsApiThrows?: boolean;
++}
++
++/** Installs fake navigator.mediaDevices / navigator.permissions. Call uninstall() in afterEach. */
++export function installFakeCamera(options: FakeCameraOptions = {}): FakeCamera {
++  const devices = options.devices ?? [{ deviceId: 'cam-1', label: 'Front camera' }];
++  const permission = new FakePermissionStatus(options.permissionState ?? 'prompt');
++  const streams: FakeStream[] = [];
++  const queue: Array<() => Promise<FakeStream>> = [];
++
++  const makeStream = (constraints?: MediaStreamConstraints): FakeStream => {
++    const exact = (constraints?.video as MediaTrackConstraints | undefined)?.deviceId as ConstrainDOMStringParameters | undefined;
++    const deviceId = (exact?.exact as string | undefined) ?? devices[0]?.deviceId ?? 'cam-1';
++    const s = new FakeStream([new FakeTrack('video', { deviceId, facingMode: options.facingMode })]);
++    streams.push(s);
++    return s;
++  };
++
++  const getUserMedia = vi.fn(async (constraints?: MediaStreamConstraints) => {
++    const next = queue.shift();
++    return (next ? await next() : makeStream(constraints)).asMediaStream();
++  });
++
++  const original = {
++    mediaDevices: Object.getOwnPropertyDescriptor(navigator, 'mediaDevices'),
++    permissions: Object.getOwnPropertyDescriptor(navigator, 'permissions'),
++  };
++  Object.defineProperty(navigator, 'mediaDevices', {
++    configurable: true,
++    value: {
++      getUserMedia,
++      enumerateDevices: vi.fn(async () => devices.map((d) => ({ kind: 'videoinput', deviceId: d.deviceId, label: d.label ?? '' }))),
++    },
++  });
++  Object.defineProperty(navigator, 'permissions', {
++    configurable: true,
++    value: {
++      query: vi.fn(async () => {
++        if (options.permissionsApiThrows) throw new TypeError('camera is not a valid permission name');
++        return permission;
++      }),
++    },
++  });
++
++  return {
++    getUserMedia,
++    streams,
++    permission,
++    deferNext() {
++      // Bound when getUserMedia is actually called (synchronously inside start()), so call after starting.
++      const d: Deferred = {
++        resolve: () => {
++          throw new Error('getUserMedia has not been called yet');
++        },
++        reject: () => {
++          throw new Error('getUserMedia has not been called yet');
++        },
++      };
++      queue.push(
++        () =>
++          new Promise<FakeStream>((res, rej) => {
++            d.resolve = (s) => res(s ?? makeStream());
++            d.reject = rej;
++          })
++      );
++      return d;
++    },
++    failNext(err: unknown) {
++      queue.push(async () => {
++        throw err;
++      });
++    },
++    uninstall() {
++      for (const key of ['mediaDevices', 'permissions'] as const) {
++        const d = original[key];
++        if (d) Object.defineProperty(navigator, key, d);
++        else delete (navigator as unknown as Record<string, unknown>)[key];
++      }
++    },
++  };
++}
++
++/** Removes mediaDevices entirely (unsupported browser). Pair with the uninstall of installFakeCamera, or call restore(). */
++export function removeMediaDevices(): () => void {
++  const original = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
++  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: undefined });
++  return () => {
++    if (original) Object.defineProperty(navigator, 'mediaDevices', original);
++    else delete (navigator as unknown as Record<string, unknown>).mediaDevices;
++  };
++}
++
++export function setSecureContext(value: boolean): () => void {
++  const original = Object.getOwnPropertyDescriptor(window, 'isSecureContext');
++  Object.defineProperty(window, 'isSecureContext', { configurable: true, value });
++  return () => {
++    if (original) Object.defineProperty(window, 'isSecureContext', original);
++    else delete (window as unknown as Record<string, unknown>).isSecureContext;
++  };
++}
+diff --git a/src/services/frameCapture.test.ts b/src/services/frameCapture.test.ts
+new file mode 100644
+index 0000000..4679fca
+--- /dev/null
++++ b/src/services/frameCapture.test.ts
+@@ -0,0 +1,124 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { FrameCaptureError, captureFrame, fitWithin } from './frameCapture';
++
++/** jsdom has no canvas; stub just enough to exercise our logic. */
++function stubCanvas(opts: { context?: boolean; blob?: Blob | null } = {}) {
++  const drawImage = vi.fn();
++  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
++    (() => (opts.context === false ? null : { drawImage })) as unknown as HTMLCanvasElement['getContext']
++  );
++  const toBlob = vi
++    .spyOn(HTMLCanvasElement.prototype, 'toBlob')
++    .mockImplementation(function (this: HTMLCanvasElement, cb: BlobCallback) {
++      cb(opts.blob === undefined ? new Blob(['x'], { type: 'image/jpeg' }) : opts.blob);
++    });
++  return { drawImage, toBlob };
++}
++
++function fakeVideo(width: number, height: number, readyState = 4): HTMLVideoElement {
++  const v = document.createElement('video');
++  Object.defineProperty(v, 'videoWidth', { value: width });
++  Object.defineProperty(v, 'videoHeight', { value: height });
++  Object.defineProperty(v, 'readyState', { value: readyState });
++  return v;
++}
++
++describe('fitWithin', () => {
++  it('keeps small frames as they are (never upscales)', () => {
++    expect(fitWithin(640, 480, 1920)).toEqual({ width: 640, height: 480 });
++  });
++  it('scales large frames down preserving aspect ratio', () => {
++    expect(fitWithin(3840, 2160, 1920)).toEqual({ width: 1920, height: 1080 });
++    expect(fitWithin(2160, 3840, 1920)).toEqual({ width: 1080, height: 1920 });
++  });
++  it('rejects invalid sizes', () => {
++    for (const [w, h, m] of [[0, 10, 100], [10, 0, 100], [NaN, 10, 100], [10, 10, 0], [-1, 10, 100]]) {
++      expect(fitWithin(w, h, m)).toBeNull();
++    }
++  });
++});
++
++describe('captureFrame', () => {
++  beforeEach(() => vi.restoreAllMocks());
++  afterEach(() => vi.restoreAllMocks());
++
++  it('draws the frame and returns a JPEG blob with its dimensions and view', async () => {
++    const { drawImage } = stubCanvas();
++    const video = fakeVideo(1280, 720);
++    const photo = await captureFrame(video, 'front');
++    expect(drawImage).toHaveBeenCalledWith(video, 0, 0, 1280, 720);
++    expect(photo).toMatchObject({ view: 'front', mimeType: 'image/jpeg', width: 1280, height: 720 });
++    expect(photo.blob).toBeInstanceOf(Blob);
++  });
++
++  it('downsizes frames larger than maxDimension', async () => {
++    stubCanvas();
++    const photo = await captureFrame(fakeVideo(3840, 2160), 'side', { maxDimension: 1000 });
++    expect(photo).toMatchObject({ view: 'side', width: 1000, height: 563 });
++  });
++
++  it('passes the requested JPEG quality to the encoder', async () => {
++    const { toBlob } = stubCanvas();
++    await captureFrame(fakeVideo(100, 100), 'front', { quality: 0.5 });
++    expect(toBlob.mock.calls[0][1]).toBe('image/jpeg');
++    expect(toBlob.mock.calls[0][2]).toBe(0.5);
++  });
++
++  it('draws the frame un-mirrored (no horizontal flip transform)', async () => {
++    const calls: string[] = [];
++    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((() => ({
++      drawImage: vi.fn(),
++      scale: () => calls.push('scale'),
++      translate: () => calls.push('translate'),
++      setTransform: () => calls.push('setTransform'),
++    })) as unknown as HTMLCanvasElement['getContext']);
++    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (cb: BlobCallback) {
++      cb(new Blob(['x']));
++    });
++    await captureFrame(fakeVideo(100, 100), 'front');
++    expect(calls).toEqual([]);
++  });
++
++  it('rejects with not_ready when the video has no frame yet (0x0)', async () => {
++    stubCanvas();
++    await expect(captureFrame(fakeVideo(0, 0), 'front')).rejects.toMatchObject({ code: 'not_ready' });
++  });
++
++  it('rejects with not_ready when the video has no current data', async () => {
++    stubCanvas();
++    await expect(captureFrame(fakeVideo(640, 480, 1), 'front')).rejects.toBeInstanceOf(FrameCaptureError);
++  });
++
++  it('rejects with canvas_unavailable when no 2d context can be created', async () => {
++    stubCanvas({ context: false });
++    await expect(captureFrame(fakeVideo(640, 480), 'front')).rejects.toMatchObject({ code: 'canvas_unavailable' });
++  });
++
++  it('rejects with encode_failed when the encoder returns no blob; never fabricates an image', async () => {
++    stubCanvas({ blob: null });
++    await expect(captureFrame(fakeVideo(640, 480), 'front')).rejects.toMatchObject({ code: 'encode_failed' });
++  });
++
++  it('makes no network requests and writes nothing to browser storage', async () => {
++    stubCanvas();
++    localStorage.clear();
++    sessionStorage.clear();
++    const fetchSpy = vi.fn();
++    vi.stubGlobal('fetch', fetchSpy);
++    const beacon = vi.fn();
++    Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: beacon });
++    const xhrOpen = vi.spyOn(XMLHttpRequest.prototype, 'open');
++    const setItem = vi.spyOn(Storage.prototype, 'setItem');
++
++    await captureFrame(fakeVideo(640, 480), 'front');
++
++    expect(fetchSpy).not.toHaveBeenCalled();
++    expect(beacon).not.toHaveBeenCalled();
++    expect(xhrOpen).not.toHaveBeenCalled();
++    expect(setItem).not.toHaveBeenCalled();
++    expect(localStorage.length).toBe(0);
++    expect(sessionStorage.length).toBe(0);
++    vi.unstubAllGlobals();
++    delete (navigator as unknown as Record<string, unknown>).sendBeacon;
++  });
++});
+diff --git a/src/services/frameCapture.ts b/src/services/frameCapture.ts
+new file mode 100644
+index 0000000..1d9a973
+--- /dev/null
++++ b/src/services/frameCapture.ts
+@@ -0,0 +1,78 @@
++/**
++ * Captures one still frame from a live <video> element.
++ *
++ * PRIVACY: the result is an in-memory Blob returned to the caller. This module
++ * performs no network requests, no storage writes and no logging.
++ *
++ * The image is NOT mirrored, even if the preview is. Pose models and later
++ * comparisons expect the true left/right of the person.
++ */
++
++import type { NewScanPhoto } from '../types/bodyScan';
++
++export type FrameCaptureErrorCode = 'not_ready' | 'canvas_unavailable' | 'encode_failed';
++
++export class FrameCaptureError extends Error {
++  readonly code: FrameCaptureErrorCode;
++  constructor(code: FrameCaptureErrorCode, message: string) {
++    super(message);
++    this.name = 'FrameCaptureError';
++    this.code = code;
++  }
++}
++
++export interface FrameCaptureOptions {
++  /** Longest side of the output in px; larger frames are scaled down. Default 1920. */
++  maxDimension?: number;
++  /** JPEG quality 0..1. Default 0.92. */
++  quality?: number;
++}
++
++export const DEFAULT_MAX_DIMENSION = 1920;
++export const DEFAULT_JPEG_QUALITY = 0.92;
++const MIME_TYPE = 'image/jpeg';
++
++/** Output size for a source frame, preserving aspect ratio and never upscaling. Returns null for invalid input. */
++export function fitWithin(width: number, height: number, maxDimension: number): { width: number; height: number } | null {
++  if (![width, height, maxDimension].every((n) => Number.isFinite(n) && n > 0)) return null;
++  const scale = Math.min(1, maxDimension / Math.max(width, height));
++  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
++}
++
++/** Takes a still of the video's current frame. Rejects with FrameCaptureError; never returns a placeholder image. */
++export function captureFrame(
++  video: HTMLVideoElement,
++  view: NewScanPhoto['view'],
++  options: FrameCaptureOptions = {}
++): Promise<NewScanPhoto> {
++  const size = fitWithin(video.videoWidth, video.videoHeight, options.maxDimension ?? DEFAULT_MAX_DIMENSION);
++  if (!size || video.readyState < 2 /* HAVE_CURRENT_DATA */) {
++    return Promise.reject(new FrameCaptureError('not_ready', 'The camera preview is not ready yet.'));
++  }
++
++  const canvas = document.createElement('canvas');
++  canvas.width = size.width;
++  canvas.height = size.height;
++  const ctx = canvas.getContext('2d');
++  if (!ctx) {
++    return Promise.reject(new FrameCaptureError('canvas_unavailable', 'This browser could not prepare the photo.'));
++  }
++  ctx.drawImage(video, 0, 0, size.width, size.height);
++
++  return new Promise<NewScanPhoto>((resolve, reject) => {
++    canvas.toBlob(
++      (blob) => {
++        // Release the pixel buffer promptly; the Blob holds its own copy.
++        canvas.width = 0;
++        canvas.height = 0;
++        if (!blob) {
++          reject(new FrameCaptureError('encode_failed', 'The photo could not be created. Please try again.'));
++          return;
++        }
++        resolve({ view, blob, mimeType: blob.type || MIME_TYPE, width: size.width, height: size.height });
++      },
++      MIME_TYPE,
++      options.quality ?? DEFAULT_JPEG_QUALITY
++    );
++  });
++}

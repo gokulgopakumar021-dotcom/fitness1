@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Scan, Info } from 'lucide-react';
+import { ArrowLeft, Scan } from 'lucide-react';
 import { BodyScanConsent } from '../../types/bodyScan';
 import { UserProfile } from '../../types';
 import { getBodyScanConsent } from '../../storage/bodyScanConsent';
 import { BODY_SCAN_MIN_AGE, getBodyScanGate } from '../../utils/bodyScanEligibility';
+import { CaptureSession } from './CaptureSession';
 import { ConsentStep } from './ConsentStep';
 import { PrivacyControls } from './PrivacyControls';
 
@@ -49,16 +50,7 @@ export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose }) 
 
       {gate.status === 'ready' && (
         <>
-          <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 shadow-xl space-y-2">
-            <div className="flex items-center gap-2 text-zinc-100 font-bold">
-              <Info className="w-4 h-4 text-lime-400" aria-hidden="true" />
-              Body Scan is being built in stages
-            </div>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Consent, local storage and deletion controls are ready. Camera capture and pose analysis are not
-              available yet, so no scans can be taken in this version.
-            </p>
-          </div>
+          <CaptureSession />
           <PrivacyControls consent={gate.consent} onConsentChange={setConsent} />
         </>
       )}
