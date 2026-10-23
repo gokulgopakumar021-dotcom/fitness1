@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: #000000;
+    color: #f4f4f5;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Nike Run Club athletic condensed typography */
+.font-nrc {
+  font-family: 'Barlow Condensed', -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: -0.03em;
+}
+
+/* Nike Volt Glow & Highlights */
+.glow-volt {
+  box-shadow: 0 0 25px rgba(206, 255, 0, 0.35);
+}
+
+.glow-crimson {
+  box-shadow: 0 0 25px rgba(255, 59, 48, 0.35);
+}
+
+/* Custom scrollbars for gym tables & logs */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+/* Touch active feedback */
+.touch-press {
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+.touch-press:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}

@@ -1,0 +1,1633 @@
+diff --git a/package.json b/package.json
+index c98a36f..cb627d0 100644
+--- a/package.json
++++ b/package.json
+@@ -9,29 +9,34 @@
+     "build": "vite build",
+     "preview": "vite preview",
+     "clean": "rm -rf dist server.js",
+-    "lint": "tsc --noEmit"
++    "lint": "tsc --noEmit",
++    "test": "vitest run",
++    "test:watch": "vitest"
+   },
+   "dependencies": {
+     "@google/genai": "^2.4.0",
+     "@tailwindcss/vite": "^4.3.3",
+     "@vitejs/plugin-react": "^6.1.1",
++    "dotenv": "^17.2.3",
++    "express": "^4.21.2",
+     "lucide-react": "^0.546.0",
++    "motion": "^12.23.24",
+     "react": "^19.0.1",
+     "react-dom": "^19.0.1",
+-    "vite": "^8.3.0",
+-    "express": "^4.21.2",
+-    "dotenv": "^17.2.3",
+-    "motion": "^12.23.24"
++    "vite": "^8.3.0"
+   },
+   "devDependencies": {
++    "@types/express": "^4.17.21",
+     "@types/node": "^22.14.0",
+     "@types/react": "^19.3.0",
+     "@types/react-dom": "^19.3.0",
+     "autoprefixer": "^10.4.21",
+-    "esbuild": "^0.25.0",
++    "esbuild": "^0.28.0",
++    "fake-indexeddb": "^6.2.6",
++    "jsdom": "^30.1.3",
+     "tailwindcss": "^4.3.3",
+     "tsx": "^4.21.0",
+     "typescript": "^7.0.2",
+-    "@types/express": "^4.17.21"
++    "vitest": "^5.0.5"
+   }
+ }
+diff --git a/src/components/body/BodyMetricsView.tsx b/src/components/body/BodyMetricsView.tsx
+index 31778e6..dca8a95 100644
+--- a/src/components/body/BodyMetricsView.tsx
++++ b/src/components/body/BodyMetricsView.tsx
+@@ -9,7 +9,8 @@ import {
+   TrendingUp,
+   Target,
+   Ruler,
+-  Info
++  Info,
++  Scan
+ } from 'lucide-react';
+ import { BodyMetricEntry, UserProfile } from '../../types';
+ import { db } from '../../storage/db';
+@@ -20,6 +21,7 @@ import {
+   getBMICategory
+ } from '../../utils/calculations';
+ import { LineChart } from '../common/Charts';
++import { BodyScanFlow } from '../bodyscan/BodyScanFlow';
+ 
+ interface BodyMetricsProps {
+   profile: UserProfile;
+@@ -31,6 +33,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
+   onProfileUpdated
+ }) => {
+   const [metrics, setMetrics] = useState<BodyMetricEntry[]>([]);
++  const [showBodyScan, setShowBodyScan] = useState<boolean>(false);
+ 
+   // Log new weight modal
+   const [isLogModalOpen, setIsLogModalOpen] = useState<boolean>(false);
+@@ -124,6 +127,10 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
+       label: `${m.waistCm} cm`
+     }));
+ 
++  if (showBodyScan) {
++    return <BodyScanFlow profile={profile} onClose={() => setShowBodyScan(false)} />;
++  }
++
+   return (
+     <div className="space-y-6 max-w-5xl mx-auto">
+       {/* Top Header Card */}
+@@ -142,16 +149,26 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
+             </p>
+           </div>
+ 
+-          <button
+-            onClick={() => {
+-              setLogWeight(profile.currentWeightKg);
+-              setIsLogModalOpen(true);
+-            }}
+-            className="touch-press px-5 py-2.5 bg-lime-400 hover:bg-lime-300 text-black font-bold text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-2 transition-colors shrink-0"
+-          >
+-            <Plus className="w-4 h-4 stroke-[3]" />
+-            <span>Log Daily Weight</span>
+-          </button>
++          <div className="flex flex-wrap items-center gap-2 shrink-0">
++            <button
++              type="button"
++              onClick={() => setShowBodyScan(true)}
++              className="touch-press px-4 py-2.5 bg-zinc-900 border border-zinc-700 hover:border-lime-400/60 text-zinc-100 font-bold text-xs sm:text-sm rounded-xl flex items-center gap-2 transition-colors"
++            >
++              <Scan className="w-4 h-4" aria-hidden="true" />
++              <span>Body Scan</span>
++            </button>
++            <button
++              onClick={() => {
++                setLogWeight(profile.currentWeightKg);
++                setIsLogModalOpen(true);
++              }}
++              className="touch-press px-5 py-2.5 bg-lime-400 hover:bg-lime-300 text-black font-bold text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-2 transition-colors"
++            >
++              <Plus className="w-4 h-4 stroke-[3]" />
++              <span>Log Daily Weight</span>
++            </button>
++          </div>
+         </div>
+ 
+         {/* Primary Metrics Grid */}
+diff --git a/src/components/bodyscan/BodyScanFlow.test.tsx b/src/components/bodyscan/BodyScanFlow.test.tsx
+new file mode 100644
+index 0000000..bcbfe9f
+--- /dev/null
++++ b/src/components/bodyscan/BodyScanFlow.test.tsx
+@@ -0,0 +1,70 @@
++import 'fake-indexeddb/auto';
++import React, { act } from 'react';
++import { createRoot, Root } from 'react-dom/client';
++import { afterEach, beforeEach, describe, expect, it } from 'vitest';
++import { BodyScanFlow } from './BodyScanFlow';
++import { DEFAULT_PROFILE } from '../../storage/db';
++import { getBodyScanConsent } from '../../storage/bodyScanConsent';
++import { UserProfile } from '../../types';
++
++(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
++
++let container: HTMLDivElement;
++let root: Root;
++
++const render = async (profile: UserProfile) => {
++  await act(async () => {
++    root.render(<BodyScanFlow profile={profile} onClose={() => {}} />);
++  });
++};
++const click = async (el: Element) => {
++  await act(async () => {
++    (el as HTMLElement).click();
++  });
++};
++const byText = (tag: string, text: string) =>
++  Array.from(container.querySelectorAll(tag)).find((e) => e.textContent?.includes(text)) as HTMLElement;
++
++beforeEach(() => {
++  localStorage.clear();
++  container = document.createElement('div');
++  document.body.appendChild(container);
++  root = createRoot(container);
++});
++afterEach(async () => {
++  await act(async () => root.unmount());
++  container.remove();
++});
++
++describe('BodyScanFlow', () => {
++  it('blocks users whose profile age is under 18 and shows no consent form', async () => {
++    await render({ ...DEFAULT_PROFILE, age: 16 });
++    expect(container.textContent).toContain('Body Scan is for adults');
++    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
++  });
++
++  it('requires both confirmations before Continue is enabled; photo storage defaults to off', async () => {
++    await render({ ...DEFAULT_PROFILE, age: 30 });
++    const boxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
++    expect(boxes).toHaveLength(3);
++    expect(boxes[2].checked).toBe(false); // photo storage opt-in
++    const cont = byText('button', 'Continue') as HTMLButtonElement;
++    expect(cont.disabled).toBe(true);
++    await click(boxes[0]);
++    expect(cont.disabled).toBe(true);
++    await click(boxes[1]);
++    expect(cont.disabled).toBe(false);
++  });
++
++  it('records consent with photo storage off, then shows privacy controls', async () => {
++    await render({ ...DEFAULT_PROFILE, age: 30 });
++    const boxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
++    await click(boxes[0]);
++    await click(boxes[1]);
++    await click(byText('button', 'Continue'));
++    expect(getBodyScanConsent()).toMatchObject({ ageConfirmed18Plus: true, photoStorage: false });
++    expect(container.textContent).toContain('Privacy & data');
++    expect(container.textContent).toContain('Camera capture and pose analysis are not');
++    expect(byText('button', 'Withdraw consent and delete all Body Scan data')).toBeTruthy();
++  });
++});
+diff --git a/src/components/bodyscan/BodyScanFlow.tsx b/src/components/bodyscan/BodyScanFlow.tsx
+new file mode 100644
+index 0000000..28af39d
+--- /dev/null
++++ b/src/components/bodyscan/BodyScanFlow.tsx
+@@ -0,0 +1,67 @@
++import React, { useState } from 'react';
++import { ArrowLeft, Scan, Info } from 'lucide-react';
++import { BodyScanConsent } from '../../types/bodyScan';
++import { UserProfile } from '../../types';
++import { getBodyScanConsent } from '../../storage/bodyScanConsent';
++import { BODY_SCAN_MIN_AGE, getBodyScanGate } from '../../utils/bodyScanEligibility';
++import { ConsentStep } from './ConsentStep';
++import { PrivacyControls } from './PrivacyControls';
++
++interface BodyScanFlowProps {
++  profile: UserProfile;
++  onClose: () => void;
++}
++
++/** Body Scan sub-flow, rendered inside the Body tab (no separate nav tab). */
++export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose }) => {
++  const [consent, setConsent] = useState<BodyScanConsent | null>(() => getBodyScanConsent());
++  const gate = getBodyScanGate(profile.age, consent);
++
++  return (
++    <div className="space-y-6 max-w-5xl mx-auto">
++      <div className="flex items-center justify-between gap-3">
++        <button
++          type="button"
++          onClick={onClose}
++          className="touch-press flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 rounded-xl text-xs font-semibold"
++        >
++          <ArrowLeft className="w-4 h-4" aria-hidden="true" />
++          Back to Body Metrics
++        </button>
++        <div className="flex items-center gap-2 text-lime-400 text-xs font-mono font-semibold uppercase tracking-wider">
++          <Scan className="w-4 h-4" aria-hidden="true" />
++          <span>Body Scan</span>
++        </div>
++      </div>
++
++      {gate.status === 'blocked_underage' && (
++        <div role="alert" className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 space-y-2">
++          <h2 className="text-lg font-bold text-zinc-100">Body Scan is for adults</h2>
++          <p className="text-xs text-zinc-400 leading-relaxed">
++            Body Scan is available to users aged {BODY_SCAN_MIN_AGE} and over. Your profile age is below{' '}
++            {BODY_SCAN_MIN_AGE}. If that is a mistake, you can correct it in Settings. The rest of Iron Log is
++            unaffected.
++          </p>
++        </div>
++      )}
++
++      {gate.status === 'needs_consent' && <ConsentStep onAccepted={setConsent} />}
++
++      {gate.status === 'ready' && (
++        <>
++          <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 shadow-xl space-y-2">
++            <div className="flex items-center gap-2 text-zinc-100 font-bold">
++              <Info className="w-4 h-4 text-lime-400" aria-hidden="true" />
++              Body Scan is being built in stages
++            </div>
++            <p className="text-xs text-zinc-400 leading-relaxed">
++              Consent, local storage and deletion controls are ready. Camera capture and pose analysis are not
++              available yet, so no scans can be taken in this version.
++            </p>
++          </div>
++          <PrivacyControls consent={gate.consent} onConsentChange={setConsent} />
++        </>
++      )}
++    </div>
++  );
++};
+diff --git a/src/components/bodyscan/ConsentStep.tsx b/src/components/bodyscan/ConsentStep.tsx
+new file mode 100644
+index 0000000..8da0c37
+--- /dev/null
++++ b/src/components/bodyscan/ConsentStep.tsx
+@@ -0,0 +1,125 @@
++import React, { useState } from 'react';
++import { ShieldCheck, Camera, Lock, Info } from 'lucide-react';
++import { BodyScanConsent } from '../../types/bodyScan';
++import { acceptBodyScanConsent } from '../../storage/bodyScanConsent';
++import { BODY_SCAN_MIN_AGE } from '../../utils/bodyScanEligibility';
++
++interface ConsentStepProps {
++  onAccepted: (consent: BodyScanConsent) => void;
++}
++
++export const ConsentStep: React.FC<ConsentStepProps> = ({ onAccepted }) => {
++  const [ageConfirmed, setAgeConfirmed] = useState(false);
++  const [limitsAcknowledged, setLimitsAcknowledged] = useState(false);
++  const [photoStorage, setPhotoStorage] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++
++  const canContinue = ageConfirmed && limitsAcknowledged;
++
++  const handleContinue = () => {
++    try {
++      onAccepted(
++        acceptBodyScanConsent({
++          ageConfirmed18Plus: ageConfirmed,
++          limitsAcknowledged,
++          photoStorage,
++        })
++      );
++    } catch {
++      setError('Could not save your choices on this device. Please try again.');
++    }
++  };
++
++  return (
++    <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 shadow-xl space-y-5">
++      <div>
++        <div className="flex items-center gap-2 text-lime-400 text-xs font-mono font-semibold uppercase tracking-wider mb-1">
++          <ShieldCheck className="w-4 h-4" aria-hidden="true" />
++          <span>Before you start</span>
++        </div>
++        <h2 className="text-xl font-bold text-zinc-100">Body Scan &amp; your privacy</h2>
++        <p className="text-xs text-zinc-400 mt-1">
++          Body Scan helps you track posture and proportions over time with guided front and side photos.
++        </p>
++      </div>
++
++      <ul className="space-y-3 text-xs text-zinc-300">
++        <li className="flex gap-3">
++          <Camera className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
++          <span>
++            <strong className="text-zinc-100">Camera access.</strong> Your browser will ask for permission when you
++            start a scan. The camera is used only to take your body photos and is switched off when you leave the scan.
++          </span>
++        </li>
++        <li className="flex gap-3">
++          <Lock className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
++          <span>
++            <strong className="text-zinc-100">Stays on your device.</strong> Body Scan is built to analyse photos on
++            your device. It does not upload photos to Iron Log servers, AI services or analytics.
++          </span>
++        </li>
++        <li className="flex gap-3">
++          <Info className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" aria-hidden="true" />
++          <span>
++            <strong className="text-zinc-100">What it cannot do.</strong> Photos cannot tell you your body-fat
++            percentage, muscle mass, weight or circumferences, and cannot predict how you will look in future. Those
++            stay manual entries. Anything estimated from a photo is approximate and labelled as such.
++          </span>
++        </li>
++      </ul>
++
++      <div className="space-y-3 pt-4 border-t border-zinc-800/80">
++        <label className="flex items-start gap-3 text-xs text-zinc-200 cursor-pointer">
++          <input
++            type="checkbox"
++            checked={ageConfirmed}
++            onChange={(e) => setAgeConfirmed(e.target.checked)}
++            className="mt-0.5 w-4 h-4 accent-lime-400"
++          />
++          <span>I am {BODY_SCAN_MIN_AGE} years old or older. (Required)</span>
++        </label>
++
++        <label className="flex items-start gap-3 text-xs text-zinc-200 cursor-pointer">
++          <input
++            type="checkbox"
++            checked={limitsAcknowledged}
++            onChange={(e) => setLimitsAcknowledged(e.target.checked)}
++            className="mt-0.5 w-4 h-4 accent-lime-400"
++          />
++          <span>I understand how Body Scan works and what it cannot measure. (Required)</span>
++        </label>
++
++        <label className="flex items-start gap-3 text-xs text-zinc-200 cursor-pointer">
++          <input
++            type="checkbox"
++            checked={photoStorage}
++            onChange={(e) => setPhotoStorage(e.target.checked)}
++            className="mt-0.5 w-4 h-4 accent-lime-400"
++          />
++          <span>
++            Save my photos on this device so I can compare them later.{' '}
++            <span className="text-zinc-500">
++              (Optional, off by default. Without this, only measurements are kept. You can change this or delete
++              photos at any time.)
++            </span>
++          </span>
++        </label>
++      </div>
++
++      {error && (
++        <p role="alert" className="text-xs text-rose-400">
++          {error}
++        </p>
++      )}
++
++      <button
++        type="button"
++        onClick={handleContinue}
++        disabled={!canContinue}
++        className="touch-press w-full sm:w-auto px-5 py-2.5 bg-lime-400 hover:bg-lime-300 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed text-black font-bold text-sm rounded-xl transition-colors"
++      >
++        Continue
++      </button>
++    </div>
++  );
++};
+diff --git a/src/components/bodyscan/PrivacyControls.tsx b/src/components/bodyscan/PrivacyControls.tsx
+new file mode 100644
+index 0000000..0e6e6bc
+--- /dev/null
++++ b/src/components/bodyscan/PrivacyControls.tsx
+@@ -0,0 +1,232 @@
++import React, { useCallback, useEffect, useState } from 'react';
++import { Trash2, ShieldCheck } from 'lucide-react';
++import { BodyScanConsent, BodyScanStorageSummary } from '../../types/bodyScan';
++import { setPhotoStorageConsent } from '../../storage/bodyScanConsent';
++import {
++  deleteAllPhotos,
++  deleteAllScans,
++  eraseAllBodyScanData,
++  getStorageSummary,
++} from '../../storage/bodyScanStore';
++
++type PendingAction = 'photos' | 'history' | 'withdraw' | null;
++
++interface PrivacyControlsProps {
++  consent: BodyScanConsent;
++  onConsentChange: (consent: BodyScanConsent | null) => void;
++}
++
++function formatBytes(bytes: number): string {
++  if (bytes < 1024) return `${bytes} B`;
++  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
++  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
++}
++
++const ACTIONS: Record<Exclude<PendingAction, null>, { label: string; confirm: string }> = {
++  photos: {
++    label: 'Delete all saved photos',
++    confirm: 'Permanently delete every saved body photo? Your scan records and measurements are kept.',
++  },
++  history: {
++    label: 'Delete all scan history',
++    confirm: 'Permanently delete all scan records, measurements, pose data and photos? This cannot be undone.',
++  },
++  withdraw: {
++    label: 'Withdraw consent and delete all Body Scan data',
++    confirm:
++      'Permanently delete all Body Scan data and withdraw your consent? You will need to give consent again to use Body Scan.',
++  },
++};
++
++export const PrivacyControls: React.FC<PrivacyControlsProps> = ({ consent, onConsentChange }) => {
++  const [summary, setSummary] = useState<BodyScanStorageSummary | null>(null);
++  const [summaryError, setSummaryError] = useState<string | null>(null);
++  const [pending, setPending] = useState<PendingAction>(null);
++  const [offerDeletePhotos, setOfferDeletePhotos] = useState(false);
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++  const [status, setStatus] = useState<string | null>(null);
++
++  const refresh = useCallback(async () => {
++    try {
++      setSummary(await getStorageSummary());
++      setSummaryError(null);
++    } catch {
++      setSummary(null);
++      setSummaryError('Stored Body Scan data could not be read in this browser.');
++    }
++  }, []);
++
++  useEffect(() => {
++    void refresh();
++  }, [refresh]);
++
++  const run = async (work: () => Promise<void>, doneMessage: string) => {
++    setBusy(true);
++    setError(null);
++    setStatus(null);
++    try {
++      await work();
++      setStatus(doneMessage);
++    } catch (e) {
++      setError(e instanceof Error ? e.message : 'Something went wrong. Nothing was reported as deleted.');
++    } finally {
++      setBusy(false);
++      setPending(null);
++      await refresh();
++    }
++  };
++
++  const handleTogglePhotoStorage = (enabled: boolean) => {
++    setError(null);
++    setStatus(null);
++    try {
++      onConsentChange(setPhotoStorageConsent(enabled));
++      setOfferDeletePhotos(!enabled && (summary?.photoCount ?? 0) > 0);
++    } catch {
++      setError('Could not save this choice on this device.');
++    }
++  };
++
++  const handleConfirm = () => {
++    if (pending === 'photos') {
++      void run(deleteAllPhotos, 'All saved photos were deleted.');
++    } else if (pending === 'history') {
++      void run(deleteAllScans, 'All scan history and photos were deleted.');
++    } else if (pending === 'withdraw') {
++      void run(async () => {
++        await eraseAllBodyScanData();
++        onConsentChange(null);
++      }, 'All Body Scan data was deleted and consent withdrawn.');
++    }
++  };
++
++  return (
++    <section
++      aria-labelledby="bodyscan-privacy-heading"
++      className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 shadow-xl space-y-5"
++    >
++      <div className="flex items-center gap-2 text-lime-400 text-xs font-mono font-semibold uppercase tracking-wider">
++        <ShieldCheck className="w-4 h-4" aria-hidden="true" />
++        <h2 id="bodyscan-privacy-heading">Privacy &amp; data</h2>
++      </div>
++
++      <div className="grid grid-cols-3 gap-3" aria-live="polite">
++        {[
++          ['Scans', summary ? String(summary.scanCount) : '—'],
++          ['Photos', summary ? String(summary.photoCount) : '—'],
++          ['Photo size', summary ? formatBytes(summary.photoBytes) : '—'],
++        ].map(([label, value]) => (
++          <div key={label} className="p-3 bg-zinc-900/70 border border-zinc-800/80 rounded-xl">
++            <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">{label}</div>
++            <div className="text-lg font-mono font-extrabold text-zinc-100">{value}</div>
++          </div>
++        ))}
++      </div>
++      {summaryError && (
++        <p role="alert" className="text-xs text-amber-400">
++          {summaryError}
++        </p>
++      )}
++
++      <label className="flex items-start gap-3 text-xs text-zinc-200 cursor-pointer">
++        <input
++          type="checkbox"
++          checked={consent.photoStorage}
++          onChange={(e) => handleTogglePhotoStorage(e.target.checked)}
++          disabled={busy}
++          className="mt-0.5 w-4 h-4 accent-lime-400"
++        />
++        <span>
++          Save my photos on this device
++          <span className="block text-zinc-500">
++            Off by default. When off, new scans keep measurements only. Data is stored in this browser and is
++            not included in backups or exports.
++          </span>
++        </span>
++      </label>
++
++      {offerDeletePhotos && !pending && (
++        <div className="p-3 bg-zinc-900/70 border border-zinc-800 rounded-xl text-xs text-zinc-300 space-y-2">
++          <p>
++            Photo saving is now off. {summary?.photoCount} photo{summary?.photoCount === 1 ? '' : 's'} already saved
++            remain on this device until you delete them.
++          </p>
++          <div className="flex gap-2">
++            <button
++              type="button"
++              onClick={() => {
++                setOfferDeletePhotos(false);
++                setPending('photos');
++              }}
++              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-xs"
++            >
++              Delete saved photos
++            </button>
++            <button
++              type="button"
++              onClick={() => setOfferDeletePhotos(false)}
++              className="px-3 py-1.5 bg-zinc-800 text-zinc-300 rounded-lg text-xs"
++            >
++              Keep them
++            </button>
++          </div>
++        </div>
++      )}
++
++      <div className="space-y-2 pt-4 border-t border-zinc-800/80">
++        {(Object.keys(ACTIONS) as Exclude<PendingAction, null>[]).map((key) => (
++          <button
++            key={key}
++            type="button"
++            onClick={() => {
++              setStatus(null);
++              setError(null);
++              setPending(key);
++            }}
++            disabled={busy}
++            className="w-full sm:w-auto flex items-center gap-2 px-4 py-2 bg-rose-950/40 border border-rose-900/60 text-rose-400 hover:bg-rose-900/40 disabled:opacity-50 font-semibold rounded-xl text-xs transition-colors"
++          >
++            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
++            {ACTIONS[key].label}
++          </button>
++        ))}
++      </div>
++
++      {pending && (
++        <div role="alertdialog" aria-label="Confirm deletion" className="p-4 bg-[#12161c] border border-rose-900/60 rounded-xl space-y-3">
++          <p className="text-xs text-zinc-300 leading-relaxed">{ACTIONS[pending].confirm}</p>
++          <div className="flex gap-2">
++            <button
++              type="button"
++              onClick={() => setPending(null)}
++              disabled={busy}
++              className="px-3 py-1.5 bg-zinc-800 text-zinc-300 rounded-lg text-xs"
++            >
++              Cancel
++            </button>
++            <button
++              type="button"
++              onClick={handleConfirm}
++              disabled={busy}
++              className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-60 text-white font-bold rounded-lg text-xs"
++            >
++              {busy ? 'Deleting…' : 'Yes, delete'}
++            </button>
++          </div>
++        </div>
++      )}
++
++      {error && (
++        <p role="alert" className="text-xs text-rose-400">
++          {error}
++        </p>
++      )}
++      {status && (
++        <p role="status" className="text-xs text-lime-400">
++          {status}
++        </p>
++      )}
++    </section>
++  );
++};
+diff --git a/src/components/settings/SettingsView.tsx b/src/components/settings/SettingsView.tsx
+index ed18af2..307e60f 100644
+--- a/src/components/settings/SettingsView.tsx
++++ b/src/components/settings/SettingsView.tsx
+@@ -23,6 +23,7 @@ import {
+ } from '../../types';
+ import { db } from '../../storage/db';
+ import { runAllAutomatedTests, TestResult } from '../../utils/testSuite';
++import { resetAllAppData } from '../../storage/resetAll';
+ 
+ interface SettingsProps {
+   profile: UserProfile;
+@@ -48,6 +49,8 @@ export const SettingsView: React.FC<SettingsProps> = ({
+ 
+   // Reset confirmation
+   const [showResetModal, setShowResetModal] = useState<boolean>(false);
++  const [isResetting, setIsResetting] = useState<boolean>(false);
++  const [resetError, setResetError] = useState<string | null>(null);
+ 
+   // Automated Tests Runner state
+   const [testResults, setTestResults] = useState<TestResult[] | null>(null);
+@@ -130,11 +133,23 @@ export const SettingsView: React.FC<SettingsProps> = ({
+     reader.readAsText(file);
+   };
+ 
+-  const handleResetEverything = () => {
+-    db.resetAllData();
++  const handleResetEverything = async () => {
++    setIsResetting(true);
++    setResetError(null);
++    try {
++      // Also erases Body Scan data (IndexedDB), which localStorage.clear() cannot reach.
++      await resetAllAppData();
++    } catch (e) {
++      setResetError(
++        `${e instanceof Error ? e.message : 'Body Scan data could not be deleted.'} Nothing was reset.`
++      );
++      setIsResetting(false);
++      return;
++    }
+     const cleanProfile = db.getProfile();
+     setFormData(cleanProfile);
+     onProfileUpdated(cleanProfile);
++    setIsResetting(false);
+     setShowResetModal(false);
+   };
+ 
+@@ -640,20 +655,30 @@ export const SettingsView: React.FC<SettingsProps> = ({
+               <h3 className="font-bold text-zinc-100 text-base">Reset Entire Database?</h3>
+             </div>
+             <p className="text-xs text-zinc-400 leading-relaxed">
+-              This will permanently delete all your logged workouts, body weight history, nutrition records, and custom routines.
++              This will permanently delete all your logged workouts, body weight history, nutrition records, custom routines, and any Body Scan records, photos and consent saved on this device.
+             </p>
++            {resetError && (
++              <p role="alert" className="text-xs text-rose-400">
++                {resetError}
++              </p>
++            )}
+             <div className="flex items-center justify-end gap-2 pt-2">
+               <button
+-                onClick={() => setShowResetModal(false)}
++                onClick={() => {
++                  setResetError(null);
++                  setShowResetModal(false);
++                }}
++                disabled={isResetting}
+                 className="px-3 py-1.5 bg-zinc-800 text-zinc-300 rounded-lg text-xs"
+               >
+                 Cancel
+               </button>
+               <button
+                 onClick={handleResetEverything}
+-                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-xs"
++                disabled={isResetting}
++                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-60 text-white font-bold rounded-lg text-xs"
+               >
+-                Yes, Delete All
++                {isResetting ? 'Deleting…' : 'Yes, Delete All'}
+               </button>
+             </div>
+           </div>
+diff --git a/src/storage/bodyScanConsent.test.ts b/src/storage/bodyScanConsent.test.ts
+new file mode 100644
+index 0000000..2608f14
+--- /dev/null
++++ b/src/storage/bodyScanConsent.test.ts
+@@ -0,0 +1,57 @@
++import { beforeEach, describe, expect, it } from 'vitest';
++import {
++  acceptBodyScanConsent,
++  BODY_SCAN_CONSENT_KEY,
++  clearBodyScanConsent,
++  getBodyScanConsent,
++  setPhotoStorageConsent,
++} from './bodyScanConsent';
++
++beforeEach(() => localStorage.clear());
++
++describe('body scan consent', () => {
++  it('has no consent by default', () => {
++    expect(getBodyScanConsent()).toBeNull();
++  });
++
++  it('stores photos only when explicitly enabled (default off)', () => {
++    const c = acceptBodyScanConsent({ ageConfirmed18Plus: true, limitsAcknowledged: true, photoStorage: false });
++    expect(c.photoStorage).toBe(false);
++    expect(getBodyScanConsent()?.photoStorage).toBe(false);
++  });
++
++  it('refuses to record consent without both confirmations', () => {
++    expect(() =>
++      acceptBodyScanConsent({ ageConfirmed18Plus: false, limitsAcknowledged: true, photoStorage: false })
++    ).toThrow();
++    expect(() =>
++      acceptBodyScanConsent({ ageConfirmed18Plus: true, limitsAcknowledged: false, photoStorage: false })
++    ).toThrow();
++    expect(getBodyScanConsent()).toBeNull();
++  });
++
++  it('toggles photo storage only after consent exists', () => {
++    expect(() => setPhotoStorageConsent(true)).toThrow();
++    acceptBodyScanConsent({ ageConfirmed18Plus: true, limitsAcknowledged: true, photoStorage: false });
++    expect(setPhotoStorageConsent(true).photoStorage).toBe(true);
++    expect(setPhotoStorageConsent(false).photoStorage).toBe(false);
++  });
++
++  it('treats corrupt or tampered records as no consent / no photo storage', () => {
++    localStorage.setItem(BODY_SCAN_CONSENT_KEY, '{not json');
++    expect(getBodyScanConsent()).toBeNull();
++    localStorage.setItem(BODY_SCAN_CONSENT_KEY, JSON.stringify({ version: 1, ageConfirmed18Plus: false, limitsAcknowledged: true }));
++    expect(getBodyScanConsent()).toBeNull();
++    localStorage.setItem(
++      BODY_SCAN_CONSENT_KEY,
++      JSON.stringify({ version: 1, ageConfirmed18Plus: true, limitsAcknowledged: true, photoStorage: 'yes' })
++    );
++    expect(getBodyScanConsent()?.photoStorage).toBe(false);
++  });
++
++  it('clears consent', () => {
++    acceptBodyScanConsent({ ageConfirmed18Plus: true, limitsAcknowledged: true, photoStorage: true });
++    clearBodyScanConsent();
++    expect(getBodyScanConsent()).toBeNull();
++  });
++});
+diff --git a/src/storage/bodyScanConsent.ts b/src/storage/bodyScanConsent.ts
+new file mode 100644
+index 0000000..dda8f03
+--- /dev/null
++++ b/src/storage/bodyScanConsent.ts
+@@ -0,0 +1,79 @@
++import { BODY_SCAN_CONSENT_VERSION, BodyScanConsent } from '../types/bodyScan';
++
++/** Contains no images, only the user's consent choices. */
++export const BODY_SCAN_CONSENT_KEY = 'ironlog_bodyscan_consent_v1';
++
++export function getBodyScanConsent(): BodyScanConsent | null {
++  try {
++    const raw = localStorage.getItem(BODY_SCAN_CONSENT_KEY);
++    if (!raw) return null;
++    const parsed = JSON.parse(raw);
++    if (
++      parsed &&
++      typeof parsed === 'object' &&
++      parsed.version === BODY_SCAN_CONSENT_VERSION &&
++      parsed.ageConfirmed18Plus === true &&
++      parsed.limitsAcknowledged === true
++    ) {
++      return {
++        version: parsed.version,
++        ageConfirmed18Plus: true,
++        limitsAcknowledged: true,
++        // Anything other than an explicit true means photos are NOT stored.
++        photoStorage: parsed.photoStorage === true,
++        acceptedAt: typeof parsed.acceptedAt === 'string' ? parsed.acceptedAt : '',
++        photoStorageUpdatedAt:
++          typeof parsed.photoStorageUpdatedAt === 'string' ? parsed.photoStorageUpdatedAt : undefined,
++      };
++    }
++  } catch (e) {
++    console.error('Failed reading body scan consent');
++  }
++  return null;
++}
++
++export interface AcceptConsentInput {
++  ageConfirmed18Plus: boolean;
++  limitsAcknowledged: boolean;
++  photoStorage: boolean;
++}
++
++/**
++ * Records consent. Throws if the mandatory confirmations are missing, so a UI
++ * bug cannot silently record consent that was never given.
++ */
++export function acceptBodyScanConsent(input: AcceptConsentInput): BodyScanConsent {
++  if (!input.ageConfirmed18Plus || !input.limitsAcknowledged) {
++    throw new Error('Age confirmation and acknowledgement of limits are required.');
++  }
++  const now = new Date().toISOString();
++  const consent: BodyScanConsent = {
++    version: BODY_SCAN_CONSENT_VERSION,
++    ageConfirmed18Plus: true,
++    limitsAcknowledged: true,
++    photoStorage: input.photoStorage === true,
++    acceptedAt: now,
++    photoStorageUpdatedAt: now,
++  };
++  localStorage.setItem(BODY_SCAN_CONSENT_KEY, JSON.stringify(consent));
++  return consent;
++}
++
++/** Changes only the photo-storage opt-in. Requires existing valid consent. */
++export function setPhotoStorageConsent(enabled: boolean): BodyScanConsent {
++  const current = getBodyScanConsent();
++  if (!current) {
++    throw new Error('Body Scan consent has not been given.');
++  }
++  const updated: BodyScanConsent = {
++    ...current,
++    photoStorage: enabled === true,
++    photoStorageUpdatedAt: new Date().toISOString(),
++  };
++  localStorage.setItem(BODY_SCAN_CONSENT_KEY, JSON.stringify(updated));
++  return updated;
++}
++
++export function clearBodyScanConsent(): void {
++  localStorage.removeItem(BODY_SCAN_CONSENT_KEY);
++}
+diff --git a/src/storage/bodyScanStore.test.ts b/src/storage/bodyScanStore.test.ts
+new file mode 100644
+index 0000000..58d38e4
+--- /dev/null
++++ b/src/storage/bodyScanStore.test.ts
+@@ -0,0 +1,169 @@
++import 'fake-indexeddb/auto';
++import { Blob as NodeBlob } from 'node:buffer';
++import { beforeEach, describe, expect, it } from 'vitest';
++import { BodyScanRecord, NewScanPhoto } from '../types/bodyScan';
++import { acceptBodyScanConsent, getBodyScanConsent } from './bodyScanConsent';
++import {
++  BODY_SCAN_DB_NAME,
++  BodyScanConsentRequiredError,
++  BodyScanDeleteBlockedError,
++  deleteAllPhotos,
++  deleteAllScans,
++  deleteBodyScanDatabase,
++  deleteScan,
++  deleteScanPhotos,
++  eraseAllBodyScanData,
++  getScan,
++  getScanPhoto,
++  getStorageSummary,
++  listScans,
++  PhotoStorageNotConsentedError,
++  saveScan,
++} from './bodyScanStore';
++
++function scan(id: string, date: string): BodyScanRecord {
++  return {
++    id,
++    date,
++    createdAt: `${date}T08:00:00.000Z`,
++    views: { front: { quality: { level: 'good', issues: [] } } },
++    measurements: [{ key: 'waist_circumference', value: 82, unit: 'cm', source: 'manual' }],
++  };
++}
++
++function photo(view: 'front' | 'side', bytes = 10): NewScanPhoto {
++  return { view, // Node's Blob: jsdom's Blob is not structured-cloneable by fake-indexeddb (test-env limitation only;
++    // real browsers store Blobs natively).
++    blob: new NodeBlob([new Uint8Array(bytes)], { type: 'image/jpeg' }) as unknown as Blob, mimeType: 'image/jpeg', width: 3, height: 4 };
++}
++
++async function dbNames(): Promise<string[]> {
++  return (await indexedDB.databases()).map((d) => d.name ?? '');
++}
++
++beforeEach(async () => {
++  localStorage.clear();
++  await deleteBodyScanDatabase();
++});
++
++const consentNoPhotos = () =>
++  acceptBodyScanConsent({ ageConfirmed18Plus: true, limitsAcknowledged: true, photoStorage: false });
++const consentWithPhotos = () =>
++  acceptBodyScanConsent({ ageConfirmed18Plus: true, limitsAcknowledged: true, photoStorage: true });
++
++describe('consent enforcement', () => {
++  it('refuses to save anything without consent', async () => {
++    await expect(saveScan(scan('a', '2026-10-01'))).rejects.toBeInstanceOf(BodyScanConsentRequiredError);
++    expect(await dbNames()).not.toContain(BODY_SCAN_DB_NAME);
++  });
++
++  it('saves measurements without photos when photo storage is off', async () => {
++    consentNoPhotos();
++    await saveScan(scan('a', '2026-10-01'));
++    expect((await getScan('a'))?.measurements[0].value).toBe(82);
++    expect((await getStorageSummary()).photoCount).toBe(0);
++  });
++
++  it('rejects photos when photo storage is off and writes nothing', async () => {
++    consentNoPhotos();
++    await expect(saveScan(scan('a', '2026-10-01'), { front: photo('front') })).rejects.toBeInstanceOf(
++      PhotoStorageNotConsentedError
++    );
++    expect(await listScans()).toHaveLength(0);
++    expect((await getStorageSummary()).photoCount).toBe(0);
++  });
++});
++
++describe('saving and reading', () => {
++  beforeEach(() => {
++    consentWithPhotos();
++  });
++
++  it('stores photos and links them from the scan', async () => {
++    const saved = await saveScan(scan('a', '2026-10-01'), { front: photo('front', 25), side: photo('side', 5) });
++    expect(saved.views.front?.photoId).toBeTruthy();
++    expect(saved.views.side?.photoId).toBeTruthy();
++    const front = await getScanPhoto('a', 'front');
++    expect(front?.blob.size).toBe(25);
++    expect(front?.mimeType).toBe('image/jpeg');
++    const summary = await getStorageSummary();
++    expect(summary).toEqual({ scanCount: 1, photoCount: 2, photoBytes: 30 });
++  });
++
++  it('lists scans oldest first', async () => {
++    await saveScan(scan('b', '2026-10-10'));
++    await saveScan(scan('a', '2026-10-01'));
++    expect((await listScans()).map((s) => s.id)).toEqual(['a', 'b']);
++  });
++
++  it('keeps a valid photo reference on update and drops a dangling one', async () => {
++    const saved = await saveScan(scan('a', '2026-10-01'), { front: photo('front') });
++    const updated = await saveScan({ ...saved, notes: 'edited' });
++    expect(updated.views.front?.photoId).toBe(saved.views.front?.photoId);
++
++    const dangling: BodyScanRecord = {
++      ...scan('c', '2026-10-02'),
++      views: { side: { photoId: 'c:side' } },
++    };
++    const clean = await saveScan(dangling);
++    expect(clean.views.side?.photoId).toBeUndefined();
++  });
++});
++
++describe('deletion', () => {
++  beforeEach(async () => {
++    consentWithPhotos();
++    await saveScan(scan('a', '2026-10-01'), { front: photo('front'), side: photo('side') });
++    await saveScan(scan('b', '2026-10-02'), { front: photo('front') });
++  });
++
++  it('deleteScan removes the record and only its photos', async () => {
++    await deleteScan('a');
++    expect(await getScan('a')).toBeUndefined();
++    expect(await getScanPhoto('a', 'front')).toBeUndefined();
++    expect(await getScanPhoto('a', 'side')).toBeUndefined();
++    expect(await getScanPhoto('b', 'front')).toBeDefined();
++    expect((await getStorageSummary()).photoCount).toBe(1);
++  });
++
++  it('deleteScanPhotos keeps measurements but removes photos and references', async () => {
++    await deleteScanPhotos('a');
++    const a = await getScan('a');
++    expect(a?.measurements).toHaveLength(1);
++    expect(a?.views.front?.photoId).toBeUndefined();
++    expect(a?.views.side?.photoId).toBeUndefined();
++    expect(await getScanPhoto('a', 'front')).toBeUndefined();
++    expect(await getScanPhoto('b', 'front')).toBeDefined();
++  });
++
++  it('deleteAllPhotos keeps all scan records', async () => {
++    await deleteAllPhotos();
++    expect(await listScans()).toHaveLength(2);
++    expect((await listScans()).every((s) => !s.views.front?.photoId && !s.views.side?.photoId)).toBe(true);
++    expect((await getStorageSummary()).photoCount).toBe(0);
++  });
++
++  it('deleteAllScans removes records and photos', async () => {
++    await deleteAllScans();
++    expect(await getStorageSummary()).toEqual({ scanCount: 0, photoCount: 0, photoBytes: 0 });
++  });
++
++  it('eraseAllBodyScanData deletes the database and the consent record', async () => {
++    await eraseAllBodyScanData();
++    expect(await dbNames()).not.toContain(BODY_SCAN_DB_NAME);
++    expect(getBodyScanConsent()).toBeNull();
++    // Reopening yields an empty store.
++    consentNoPhotos();
++    expect(await listScans()).toHaveLength(0);
++  });
++
++  it('reports a blocked delete instead of claiming success', async () => {
++    const held = await new Promise<IDBDatabase>((resolve, reject) => {
++      const r = indexedDB.open(BODY_SCAN_DB_NAME);
++      r.onsuccess = () => resolve(r.result); // deliberately no onversionchange handler
++      r.onerror = () => reject(r.error);
++    });
++    await expect(deleteBodyScanDatabase()).rejects.toBeInstanceOf(BodyScanDeleteBlockedError);
++    held.close();
++  });
++});
+diff --git a/src/storage/bodyScanStore.ts b/src/storage/bodyScanStore.ts
+new file mode 100644
+index 0000000..c8c9122
+--- /dev/null
++++ b/src/storage/bodyScanStore.ts
+@@ -0,0 +1,283 @@
++import {
++  BodyScanRecord,
++  BodyScanStorageSummary,
++  NewScanPhoto,
++  ScanView,
++  StoredScanPhoto,
++} from '../types/bodyScan';
++import { clearBodyScanConsent, getBodyScanConsent } from './bodyScanConsent';
++
++/**
++ * On-device Body Scan storage (IndexedDB). Photos are Blobs and cannot live in
++ * localStorage. Nothing here talks to a network. Intentionally separate from
++ * db.ts: Body Scan data is never part of the JSON/CSV backups.
++ */
++
++export const BODY_SCAN_DB_NAME = 'ironlog_bodyscan';
++const DB_VERSION = 1;
++const SCANS = 'scans';
++const PHOTOS = 'photos';
++
++export class BodyScanStorageUnavailableError extends Error {
++  constructor() {
++    super('Local storage for Body Scan is not available in this browser.');
++    this.name = 'BodyScanStorageUnavailableError';
++  }
++}
++export class BodyScanConsentRequiredError extends Error {
++  constructor() {
++    super('Body Scan consent is required before saving scan data.');
++    this.name = 'BodyScanConsentRequiredError';
++  }
++}
++export class PhotoStorageNotConsentedError extends Error {
++  constructor() {
++    super('Photo storage has not been enabled by the user.');
++    this.name = 'PhotoStorageNotConsentedError';
++  }
++}
++export class BodyScanDeleteBlockedError extends Error {
++  constructor() {
++    super('Deletion is blocked by another open Iron Log tab. Close other tabs and try again.');
++    this.name = 'BodyScanDeleteBlockedError';
++  }
++}
++
++function isAvailable(): boolean {
++  return typeof indexedDB !== 'undefined' && indexedDB !== null;
++}
++
++function openDb(): Promise<IDBDatabase> {
++  return new Promise((resolve, reject) => {
++    if (!isAvailable()) {
++      reject(new BodyScanStorageUnavailableError());
++      return;
++    }
++    const req = indexedDB.open(BODY_SCAN_DB_NAME, DB_VERSION);
++    req.onupgradeneeded = () => {
++      const db = req.result;
++      if (!db.objectStoreNames.contains(SCANS)) {
++        const scans = db.createObjectStore(SCANS, { keyPath: 'id' });
++        scans.createIndex('by_date', 'date');
++      }
++      if (!db.objectStoreNames.contains(PHOTOS)) {
++        const photos = db.createObjectStore(PHOTOS, { keyPath: 'id' });
++        photos.createIndex('by_scan', 'scanId');
++      }
++    };
++    req.onsuccess = () => {
++      const db = req.result;
++      // Let deleteDatabase() from another tab proceed instead of being blocked.
++      db.onversionchange = () => db.close();
++      resolve(db);
++    };
++    req.onerror = () => reject(req.error ?? new BodyScanStorageUnavailableError());
++    req.onblocked = () => reject(new BodyScanStorageUnavailableError());
++  });
++}
++
++function reqToPromise<T>(req: IDBRequest<T>): Promise<T> {
++  return new Promise((resolve, reject) => {
++    req.onsuccess = () => resolve(req.result);
++    req.onerror = () => reject(req.error);
++  });
++}
++
++/**
++ * Runs `work` inside one transaction. `work` must only await IndexedDB
++ * requests (otherwise the transaction auto-commits early). The promise
++ * resolves with work's result only after the transaction has committed.
++ */
++async function withTx<T>(
++  stores: string[],
++  mode: IDBTransactionMode,
++  work: (tx: IDBTransaction) => Promise<T>
++): Promise<T> {
++  const db = await openDb();
++  try {
++    return await new Promise<T>((resolve, reject) => {
++      const tx = db.transaction(stores, mode);
++      let result: T;
++      let hasResult = false;
++      tx.oncomplete = () => (hasResult ? resolve(result) : reject(new Error('Transaction ended without a result')));
++      tx.onerror = () => reject(tx.error);
++      tx.onabort = () => reject(tx.error ?? new Error('Transaction aborted'));
++      work(tx).then(
++        (r) => {
++          result = r;
++          hasResult = true;
++        },
++        (err) => {
++          try {
++            tx.abort();
++          } catch {
++            /* already finished */
++          }
++          reject(err);
++        }
++      );
++    });
++  } finally {
++    db.close();
++  }
++}
++
++function photoIdFor(scanId: string, view: ScanView): string {
++  return `${scanId}:${view}`;
++}
++
++function stripPhotoIds(scan: BodyScanRecord): BodyScanRecord {
++  const views: BodyScanRecord['views'] = {};
++  (Object.keys(scan.views) as ScanView[]).forEach((v) => {
++    const data = scan.views[v];
++    if (data) {
++      const { photoId: _removed, ...rest } = data;
++      views[v] = rest;
++    }
++  });
++  return { ...scan, views };
++}
++
++/**
++ * Saves a scan. Requires valid consent. Photos are only written when the user
++ * has explicitly opted in to photo storage; otherwise this throws and nothing
++ * is written. Existing photo references are kept only if the photo still exists.
++ */
++export async function saveScan(
++  scan: BodyScanRecord,
++  photos: Partial<Record<ScanView, NewScanPhoto>> = {}
++): Promise<BodyScanRecord> {
++  const consent = getBodyScanConsent();
++  if (!consent) throw new BodyScanConsentRequiredError();
++  const photoEntries = (Object.entries(photos) as [ScanView, NewScanPhoto | undefined][]).filter(
++    (e): e is [ScanView, NewScanPhoto] => !!e[1]
++  );
++  if (photoEntries.length > 0 && !consent.photoStorage) {
++    throw new PhotoStorageNotConsentedError();
++  }
++
++  return withTx([SCANS, PHOTOS], 'readwrite', async (tx) => {
++    const photoStore = tx.objectStore(PHOTOS);
++    const scanStore = tx.objectStore(SCANS);
++    const now = new Date().toISOString();
++    const next: BodyScanRecord = { ...scan, views: { ...scan.views } };
++
++    // Drop references to photos that no longer exist.
++    for (const v of Object.keys(next.views) as ScanView[]) {
++      const data = next.views[v];
++      if (data?.photoId) {
++        const existing = await reqToPromise(photoStore.get(data.photoId));
++        if (!existing) {
++          const { photoId: _gone, ...rest } = data;
++          next.views[v] = rest;
++        }
++      }
++    }
++
++    for (const [view, photo] of photoEntries) {
++      const id = photoIdFor(scan.id, view);
++      const record: StoredScanPhoto = { ...photo, id, scanId: scan.id, view, createdAt: now };
++      await reqToPromise(photoStore.put(record));
++      next.views[view] = { ...(next.views[view] ?? {}), photoId: id };
++    }
++
++    await reqToPromise(scanStore.put(next));
++    return next;
++  });
++}
++
++export async function getScan(id: string): Promise<BodyScanRecord | undefined> {
++  return withTx([SCANS], 'readonly', (tx) => reqToPromise(tx.objectStore(SCANS).get(id)));
++}
++
++/** All scans, oldest first. */
++export async function listScans(): Promise<BodyScanRecord[]> {
++  const all = await withTx([SCANS], 'readonly', (tx) =>
++    reqToPromise(tx.objectStore(SCANS).getAll() as IDBRequest<BodyScanRecord[]>)
++  );
++  return all.sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt));
++}
++
++export async function getScanPhoto(scanId: string, view: ScanView): Promise<StoredScanPhoto | undefined> {
++  return withTx([PHOTOS], 'readonly', (tx) => reqToPromise(tx.objectStore(PHOTOS).get(photoIdFor(scanId, view))));
++}
++
++/** Deletes one scan and all of its photos. */
++export async function deleteScan(id: string): Promise<void> {
++  await withTx([SCANS, PHOTOS], 'readwrite', async (tx) => {
++    const photoStore = tx.objectStore(PHOTOS);
++    const keys = await reqToPromise(photoStore.index('by_scan').getAllKeys(id));
++    for (const k of keys) await reqToPromise(photoStore.delete(k));
++    await reqToPromise(tx.objectStore(SCANS).delete(id));
++  });
++}
++
++/** Deletes the photos of one scan but keeps its measurements. */
++export async function deleteScanPhotos(id: string): Promise<void> {
++  await withTx([SCANS, PHOTOS], 'readwrite', async (tx) => {
++    const photoStore = tx.objectStore(PHOTOS);
++    const keys = await reqToPromise(photoStore.index('by_scan').getAllKeys(id));
++    for (const k of keys) await reqToPromise(photoStore.delete(k));
++    const scanStore = tx.objectStore(SCANS);
++    const scan = await reqToPromise(scanStore.get(id) as IDBRequest<BodyScanRecord | undefined>);
++    if (scan) await reqToPromise(scanStore.put(stripPhotoIds(scan)));
++  });
++}
++
++/** Deletes every stored photo; scan records and measurements are kept. */
++export async function deleteAllPhotos(): Promise<void> {
++  await withTx([SCANS, PHOTOS], 'readwrite', async (tx) => {
++    await reqToPromise(tx.objectStore(PHOTOS).clear());
++    const scanStore = tx.objectStore(SCANS);
++    const scans = await reqToPromise(scanStore.getAll() as IDBRequest<BodyScanRecord[]>);
++    for (const s of scans) await reqToPromise(scanStore.put(stripPhotoIds(s)));
++  });
++}
++
++/** Deletes all scan records (measurements, landmarks) and all photos. */
++export async function deleteAllScans(): Promise<void> {
++  await withTx([SCANS, PHOTOS], 'readwrite', async (tx) => {
++    await reqToPromise(tx.objectStore(PHOTOS).clear());
++    await reqToPromise(tx.objectStore(SCANS).clear());
++  });
++}
++
++export async function getStorageSummary(): Promise<BodyScanStorageSummary> {
++  if (!isAvailable()) return { scanCount: 0, photoCount: 0, photoBytes: 0 };
++  return withTx([SCANS, PHOTOS], 'readonly', async (tx) => {
++    const scanCount = await reqToPromise(tx.objectStore(SCANS).count());
++    const photos = await reqToPromise(tx.objectStore(PHOTOS).getAll() as IDBRequest<StoredScanPhoto[]>);
++    return {
++      scanCount,
++      photoCount: photos.length,
++      photoBytes: photos.reduce((sum, p) => sum + (p.blob?.size ?? 0), 0),
++    };
++  });
++}
++
++/**
++ * Removes the entire Body Scan database. Resolves only when the browser has
++ * actually deleted it. Rejects (and the caller must NOT claim success) if
++ * another tab is holding the database open or the delete fails.
++ */
++export function deleteBodyScanDatabase(): Promise<void> {
++  return new Promise((resolve, reject) => {
++    if (!isAvailable()) {
++      resolve(); // nothing can have been stored
++      return;
++    }
++    const req = indexedDB.deleteDatabase(BODY_SCAN_DB_NAME);
++    req.onsuccess = () => resolve();
++    req.onerror = () => reject(req.error ?? new Error('Failed to delete Body Scan data'));
++    req.onblocked = () => reject(new BodyScanDeleteBlockedError());
++  });
++}
++
++/**
++ * Permanently erases ALL Body Scan data: database (scans, landmarks, photos)
++ * and the consent record. Used by "Withdraw consent" and Reset All Data.
++ */
++export async function eraseAllBodyScanData(): Promise<void> {
++  await deleteBodyScanDatabase();
++  clearBodyScanConsent();
++}
+diff --git a/src/storage/resetAll.test.ts b/src/storage/resetAll.test.ts
+new file mode 100644
+index 0000000..d2c8a11
+--- /dev/null
++++ b/src/storage/resetAll.test.ts
+@@ -0,0 +1,67 @@
++import 'fake-indexeddb/auto';
++import { Blob as NodeBlob } from 'node:buffer';
++import { beforeEach, describe, expect, it } from 'vitest';
++import { acceptBodyScanConsent, getBodyScanConsent } from './bodyScanConsent';
++import { BODY_SCAN_DB_NAME, BodyScanDeleteBlockedError, deleteBodyScanDatabase, getStorageSummary, saveScan } from './bodyScanStore';
++import { db, DEFAULT_PROFILE } from './db';
++import { resetAllAppData } from './resetAll';
++
++async function seed() {
++  db.saveProfile({ ...DEFAULT_PROFILE, name: 'Seeded User' });
++  acceptBodyScanConsent({ ageConfirmed18Plus: true, limitsAcknowledged: true, photoStorage: true });
++  await saveScan(
++    {
++      id: 's1',
++      date: '2026-10-01',
++      createdAt: '2026-10-01T08:00:00.000Z',
++      views: {},
++      measurements: [{ key: 'waist_circumference', value: 80, unit: 'cm', source: 'manual' }],
++    },
++    {
++      front: {
++        view: 'front',
++        blob: new NodeBlob([new Uint8Array(8)], { type: 'image/jpeg' }) as unknown as Blob,
++        mimeType: 'image/jpeg',
++        width: 1,
++        height: 1,
++      },
++    }
++  );
++}
++
++beforeEach(async () => {
++  localStorage.clear();
++  await deleteBodyScanDatabase();
++});
++
++describe('Reset All Data integration', () => {
++  it('erases Body Scan scans, photos and consent along with the rest of the app data', async () => {
++    await seed();
++    expect((await getStorageSummary()).photoCount).toBe(1);
++
++    await resetAllAppData();
++
++    expect((await indexedDB.databases()).map((d) => d.name)).not.toContain(BODY_SCAN_DB_NAME);
++    expect(getBodyScanConsent()).toBeNull();
++    expect(db.getProfile().name).toBe('');
++  });
++
++  it('does not reset anything else, and rejects, if Body Scan data could not be deleted', async () => {
++    await seed();
++    const held = await new Promise<IDBDatabase>((resolve, reject) => {
++      const r = indexedDB.open(BODY_SCAN_DB_NAME);
++      r.onsuccess = () => resolve(r.result);
++      r.onerror = () => reject(r.error);
++    });
++    await expect(resetAllAppData()).rejects.toBeInstanceOf(BodyScanDeleteBlockedError);
++    expect(db.getProfile().name).toBe('Seeded User');
++    expect(getBodyScanConsent()).not.toBeNull();
++    held.close();
++  });
++
++  it('keeps Body Scan data out of the JSON backup export', async () => {
++    await seed();
++    const json = db.exportFullBackupJSON();
++    expect(json).not.toMatch(/bodyscan|waist_circumference|s1:front/i);
++  });
++});
+diff --git a/src/storage/resetAll.ts b/src/storage/resetAll.ts
+new file mode 100644
+index 0000000..29ab346
+--- /dev/null
++++ b/src/storage/resetAll.ts
+@@ -0,0 +1,13 @@
++import { db } from './db';
++import { eraseAllBodyScanData } from './bodyScanStore';
++
++/**
++ * Full "Reset All Data". Body Scan data lives in IndexedDB, which
++ * db.resetAllData() (localStorage.clear()) does not touch, so it is erased
++ * first. If that fails the rejection propagates and the rest of the data is
++ * left untouched, so the UI never reports a reset that did not fully happen.
++ */
++export async function resetAllAppData(): Promise<void> {
++  await eraseAllBodyScanData();
++  db.resetAllData();
++}
+diff --git a/src/types/bodyScan.ts b/src/types/bodyScan.ts
+new file mode 100644
+index 0000000..600130b
+--- /dev/null
++++ b/src/types/bodyScan.ts
+@@ -0,0 +1,105 @@
++/**
++ * Body Scan domain types.
++ *
++ * Body images and pose data are sensitive personal data. Everything here is
++ * stored on-device only (IndexedDB, see src/storage/bodyScanStore.ts).
++ * Nothing in these types is ever sent to a server or AI service.
++ */
++
++export type ScanView = 'front' | 'side';
++
++/** Where a number came from. The UI must always show this next to the value. */
++export type MeasurementSource =
++  | 'manual' //     typed in by the user
++  | 'landmark' //   derived directly from detected pose landmarks
++  | 'calculated'; // derived from known inputs plus documented assumptions
++
++export type MeasurementConfidence = 'low' | 'medium' | 'high';
++
++export type MeasurementUnit = 'cm' | 'kg' | '%' | 'ratio' | 'deg';
++
++export interface ScanMeasurement {
++  /** Stable key, e.g. 'shoulder_hip_ratio' or 'waist_circumference'. */
++  key: string;
++  value: number;
++  unit: MeasurementUnit;
++  source: MeasurementSource;
++  /** Only meaningful for landmark/calculated values. */
++  confidence?: MeasurementConfidence;
++  /** Short plain-language caveat shown with the value. */
++  note?: string;
++}
++
++/** Normalised pose landmark (0..1 in image space), as produced by the pose model. */
++export interface LandmarkPoint {
++  x: number;
++  y: number;
++  z?: number;
++  visibility?: number;
++}
++
++export type CaptureQualityLevel = 'good' | 'fair' | 'poor';
++
++export interface CaptureQualityReport {
++  level: CaptureQualityLevel;
++  /** Human-readable issues, e.g. "Feet are cut off". Empty when level is good. */
++  issues: string[];
++}
++
++export interface ScanViewData {
++  /** Landmarks are derived data and are deleted together with the scan. */
++  landmarks?: LandmarkPoint[];
++  quality?: CaptureQualityReport;
++  /** Id of the stored photo in the `photos` store. Present only if the user consented to photo storage. */
++  photoId?: string;
++}
++
++export interface BodyScanRecord {
++  id: string;
++  /** ISO timestamp of record creation. */
++  createdAt: string;
++  /** Local calendar date, YYYY-MM-DD. */
++  date: string;
++  views: Partial<Record<ScanView, ScanViewData>>;
++  measurements: ScanMeasurement[];
++  notes?: string;
++}
++
++/** A stored photo. The blob never leaves the device. */
++export interface StoredScanPhoto {
++  id: string;
++  scanId: string;
++  view: ScanView;
++  blob: Blob;
++  mimeType: string;
++  width: number;
++  height: number;
++  createdAt: string;
++}
++
++export type NewScanPhoto = Omit<StoredScanPhoto, 'id' | 'scanId' | 'createdAt'>;
++
++export interface BodyScanStorageSummary {
++  scanCount: number;
++  photoCount: number;
++  /** Sum of photo blob sizes in bytes. */
++  photoBytes: number;
++}
++
++export const BODY_SCAN_CONSENT_VERSION = 1;
++
++/**
++ * The user's Body Scan consent. Stored in localStorage (contains no images).
++ * `photoStorage` is false unless the user explicitly turns it on.
++ */
++export interface BodyScanConsent {
++  version: number;
++  /** User explicitly confirmed they are 18 or older. */
++  ageConfirmed18Plus: boolean;
++  /** User acknowledged how Body Scan works and its limits. */
++  limitsAcknowledged: boolean;
++  /** Explicit opt-in to keep photos on this device. Default false. */
++  photoStorage: boolean;
++  acceptedAt: string;
++  photoStorageUpdatedAt?: string;
++}
+diff --git a/src/utils/bodyScanEligibility.test.ts b/src/utils/bodyScanEligibility.test.ts
+new file mode 100644
+index 0000000..0534917
+--- /dev/null
++++ b/src/utils/bodyScanEligibility.test.ts
+@@ -0,0 +1,32 @@
++import { describe, expect, it } from 'vitest';
++import { getBodyScanGate } from './bodyScanEligibility';
++import { BodyScanConsent } from '../types/bodyScan';
++
++const consent: BodyScanConsent = {
++  version: 1,
++  ageConfirmed18Plus: true,
++  limitsAcknowledged: true,
++  photoStorage: false,
++  acceptedAt: '2026-10-23T00:00:00.000Z',
++};
++
++describe('getBodyScanGate', () => {
++  it('blocks profiles under 18 even with a consent record', () => {
++    expect(getBodyScanGate(17, consent).status).toBe('blocked_underage');
++    expect(getBodyScanGate(0, null).status).toBe('blocked_underage');
++  });
++  it('allows exactly 18', () => {
++    expect(getBodyScanGate(18, consent).status).toBe('ready');
++  });
++  it('requires consent even for adult profiles (profile age alone never grants access)', () => {
++    expect(getBodyScanGate(30, null).status).toBe('needs_consent');
++  });
++  it('requires the explicit 18+ confirmation inside the consent record', () => {
++    expect(getBodyScanGate(30, { ...consent, ageConfirmed18Plus: false }).status).toBe('needs_consent');
++  });
++  it('does not block on a missing or non-finite age, but still needs consent', () => {
++    expect(getBodyScanGate(undefined, null).status).toBe('needs_consent');
++    expect(getBodyScanGate(Number.NaN, null).status).toBe('needs_consent');
++    expect(getBodyScanGate(Number.NaN, consent).status).toBe('ready');
++  });
++});
+diff --git a/src/utils/bodyScanEligibility.ts b/src/utils/bodyScanEligibility.ts
+new file mode 100644
+index 0000000..81e3833
+--- /dev/null
++++ b/src/utils/bodyScanEligibility.ts
+@@ -0,0 +1,28 @@
++import { BodyScanConsent } from '../types/bodyScan';
++
++export const BODY_SCAN_MIN_AGE = 18;
++
++export type BodyScanGate =
++  | { status: 'blocked_underage' } // profile age is a number below 18; cannot be overridden by a checkbox
++  | { status: 'needs_consent' } //    no valid consent record yet (includes the 18+ confirmation)
++  | { status: 'ready'; consent: BodyScanConsent };
++
++/**
++ * Body Scan is for users 18 and over. Other Iron Log features are unaffected.
++ *
++ * The profile age is only a self-entered number (the default profile ships with
++ * a placeholder), so it can block but never grants access: an explicit 18+
++ * confirmation in the consent record is always required as well.
++ */
++export function getBodyScanGate(
++  profileAge: number | undefined,
++  consent: BodyScanConsent | null
++): BodyScanGate {
++  if (typeof profileAge === 'number' && Number.isFinite(profileAge) && profileAge < BODY_SCAN_MIN_AGE) {
++    return { status: 'blocked_underage' };
++  }
++  if (!consent || !consent.ageConfirmed18Plus || !consent.limitsAcknowledged) {
++    return { status: 'needs_consent' };
++  }
++  return { status: 'ready', consent };
++}
+diff --git a/vitest.config.ts b/vitest.config.ts
+new file mode 100644
+index 0000000..37d8008
+--- /dev/null
++++ b/vitest.config.ts
+@@ -0,0 +1,16 @@
++import path from 'path';
++import { defineConfig } from 'vitest/config';
++
++// Kept separate from vite.config.ts, which must not be modified (AI Studio HMR note).
++export default defineConfig({
++  resolve: {
++    alias: {
++      '@': path.resolve(import.meta.dirname, '.'),
++    },
++  },
++  test: {
++    environment: 'jsdom',
++    include: ['src/**/*.test.{ts,tsx}'],
++    restoreMocks: true,
++  },
++});
