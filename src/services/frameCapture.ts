@@ -57,22 +57,38 @@ export function captureFrame(
   if (!ctx) {
     return Promise.reject(new FrameCaptureError('canvas_unavailable', 'This browser could not prepare the photo.'));
   }
-  ctx.drawImage(video, 0, 0, size.width, size.height);
+  // Release the pixel buffer promptly; any resulting Blob holds its own copy.
+  const releaseCanvas = () => {
+    canvas.width = 0;
+    canvas.height = 0;
+  };
+  const encodeFailed = () => new FrameCaptureError('encode_failed', 'The photo could not be created. Please try again.');
+
+  // drawImage can throw (e.g. a video that lost its frame). Report it as a rejection, never as a synchronous throw.
+  try {
+    ctx.drawImage(video, 0, 0, size.width, size.height);
+  } catch {
+    releaseCanvas();
+    return Promise.reject(encodeFailed());
+  }
 
   return new Promise<NewScanPhoto>((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        // Release the pixel buffer promptly; the Blob holds its own copy.
-        canvas.width = 0;
-        canvas.height = 0;
-        if (!blob) {
-          reject(new FrameCaptureError('encode_failed', 'The photo could not be created. Please try again.'));
-          return;
-        }
-        resolve({ view, blob, mimeType: blob.type || MIME_TYPE, width: size.width, height: size.height });
-      },
-      MIME_TYPE,
-      options.quality ?? DEFAULT_JPEG_QUALITY
-    );
+    try {
+      canvas.toBlob(
+        (blob) => {
+          releaseCanvas();
+          if (!blob) {
+            reject(encodeFailed());
+            return;
+          }
+          resolve({ view, blob, mimeType: blob.type || MIME_TYPE, width: size.width, height: size.height });
+        },
+        MIME_TYPE,
+        options.quality ?? DEFAULT_JPEG_QUALITY
+      );
+    } catch {
+      releaseCanvas();
+      reject(encodeFailed());
+    }
   });
 }

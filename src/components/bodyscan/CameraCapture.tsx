@@ -40,10 +40,12 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
   const [timerSeconds, setTimerSeconds] = useState<TimerOption>(0);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [knownPermission, setKnownPermission] = useState<PermissionQueryResult>('unknown');
+  const [capturing, setCapturing] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const mountedRef = useRef(false);
+  const capturingRef = useRef(false); // synchronous guard: state updates are too late for a fast double press
   const previewUrl = useObjectUrl(photo?.blob ?? null);
 
   useEffect(() => {
@@ -106,7 +108,9 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
 
   const takePhoto = useCallback(async () => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || capturingRef.current) return; // one capture at a time
+    capturingRef.current = true;
+    setCapturing(true);
     setCaptureError(null);
     try {
       const taken = await captureFrame(video, view);
@@ -116,6 +120,9 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
     } catch (err) {
       if (!mountedRef.current) return;
       setCaptureError(err instanceof FrameCaptureError ? err.message : 'The photo could not be taken. Please try again.');
+    } finally {
+      capturingRef.current = false;
+      if (mountedRef.current) setCapturing(false);
     }
   }, [view, stop]);
 
@@ -152,7 +159,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
     void start();
   };
 
-  const canShoot = phase === 'live' && videoReady;
+  const canShoot = phase === 'live' && videoReady && !capturing;
   const mirrored = cam.facing !== 'environment';
   const failure = cam.failure;
   const canRetry = !!failure && failure.code !== 'unsupported' && failure.code !== 'insecure_context';
@@ -186,7 +193,8 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
       aria-labelledby="camera-capture-heading"
       className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-4 sm:p-5 lg:p-7 shadow-xl space-y-5"
       onKeyDown={(e) => {
-        if (e.key === 'Escape') handleCancel();
+        // Escape inside the timer dropdown closes the dropdown; it must not also cancel the capture.
+        if (e.key === 'Escape' && !e.defaultPrevented && !(e.target instanceof HTMLSelectElement)) handleCancel();
       }}
     >
       <p className="sr-only" role="status" aria-live="polite">

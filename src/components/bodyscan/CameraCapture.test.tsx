@@ -555,3 +555,43 @@ describe('CameraCapture: privacy', () => {
     delete (navigator as unknown as Record<string, unknown>).sendBeacon;
   });
 });
+
+describe('CameraCapture: hardening', () => {
+  it('a second press while a photo is still being encoded does not start a second capture', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      (() => ({ drawImage: vi.fn() })) as unknown as HTMLCanvasElement['getContext']
+    );
+    const pending: BlobCallback[] = [];
+    const toBlob = vi
+      .spyOn(HTMLCanvasElement.prototype, 'toBlob')
+      .mockImplementation(function (this: HTMLCanvasElement, cb: BlobCallback) {
+        pending.push(cb);
+      });
+    await render();
+    await startCamera();
+    await makeVideoReady();
+    const shutter = button('Take photo')!;
+    await click(shutter);
+    expect(shutter.disabled).toBe(true); // cannot be pressed again while encoding
+    await act(async () => shutter.click());
+    expect(toBlob).toHaveBeenCalledTimes(1);
+
+    await act(async () => pending[0](new Blob(['jpeg'], { type: 'image/jpeg' })));
+    await flush();
+    expect(container.querySelectorAll('img')).toHaveLength(1);
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+    expect(cam.streams[0].allStopped).toBe(true);
+  });
+
+  it('Escape pressed inside the self-timer dropdown only closes the dropdown; it does not cancel the capture', async () => {
+    await render();
+    await startCamera();
+    const select = container.querySelector('select')!;
+    await act(async () => {
+      select.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(cam.streams[0].allStopped).toBe(false);
+    expect(video()).not.toBeNull();
+  });
+});

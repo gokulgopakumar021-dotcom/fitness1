@@ -16,6 +16,8 @@ interface BodyScanFlowProps {
 /** Body Scan sub-flow, rendered inside the Body tab (no separate nav tab). */
 export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose }) => {
   const [consent, setConsent] = useState<BodyScanConsent | null>(() => getBodyScanConsent());
+  // Bumping this remounts CaptureSession, which drops every temporary in-memory photo and revokes its preview URL.
+  const [photoSessionId, setPhotoSessionId] = useState(0);
   const gate = getBodyScanGate(profile.age, consent);
 
   return (
@@ -50,8 +52,12 @@ export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose }) 
 
       {gate.status === 'ready' && (
         <>
-          <CaptureSession />
-          <PrivacyControls consent={gate.consent} onConsentChange={setConsent} />
+          <CaptureSession key={photoSessionId} />
+          <PrivacyControls
+            consent={gate.consent}
+            onConsentChange={setConsent}
+            onDiscardTemporaryPhotos={() => setPhotoSessionId((n) => n + 1)}
+          />
         </>
       )}
     </div>

@@ -216,3 +216,48 @@ describe('BodyScanFlow: photo-storage opt-in does not enable persistence in Phas
     expect(await listScans()).toEqual([]);
   });
 });
+
+describe('BodyScanFlow: deletion controls also clear temporary photos held in memory', () => {
+  const takeAndAcceptFront = async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      (() => ({ drawImage: vi.fn() })) as unknown as HTMLCanvasElement['getContext']
+    );
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (this: HTMLCanvasElement, cb: BlobCallback) {
+      cb(new Blob(['jpeg'], { type: 'image/jpeg' }));
+    });
+    await giveConsent();
+    await click(byText('button', 'Take front photo'));
+    await click(byText('button', 'Turn on camera'));
+    await flush();
+    const v = container.querySelector('video')!;
+    Object.defineProperty(v, 'videoWidth', { configurable: true, value: 720 });
+    Object.defineProperty(v, 'videoHeight', { configurable: true, value: 1280 });
+    Object.defineProperty(v, 'readyState', { configurable: true, value: 4 });
+    await act(async () => {
+      v.dispatchEvent(new Event('loadeddata'));
+    });
+    await click(byText('button', 'Take photo'));
+    await flush();
+    await click(byText('button', 'Use this photo'));
+    expect(container.textContent).toContain('Taken (temporary)');
+  };
+
+  for (const label of ['Delete all scan history', 'Delete all saved photos', 'Withdraw consent and delete all Body Scan data']) {
+    it(`"${label}" leaves no temporary photo behind and revokes its preview URL`, async () => {
+      await takeAndAcceptFront();
+      await click(byText('button', label));
+      await click(byText('button', 'Yes, delete'));
+      await flush();
+      expect(container.textContent).not.toContain('Taken (temporary)');
+      expect(container.querySelector('img[alt^="Temporary"]')).toBeNull();
+      expect(URL.revokeObjectURL).toHaveBeenCalled();
+    });
+  }
+
+  it('cancelling the confirmation keeps the temporary photo', async () => {
+    await takeAndAcceptFront();
+    await click(byText('button', 'Delete all scan history'));
+    await click(byText('button', 'Cancel'));
+    expect(container.textContent).toContain('Taken (temporary)');
+  });
+});

@@ -14,6 +14,8 @@ type PendingAction = 'photos' | 'history' | 'withdraw' | null;
 interface PrivacyControlsProps {
   consent: BodyScanConsent;
   onConsentChange: (consent: BodyScanConsent | null) => void;
+  /** Drops temporary photos held in memory by the capture screen. Called whenever the person confirms a deletion. */
+  onDiscardTemporaryPhotos: () => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -25,11 +27,13 @@ function formatBytes(bytes: number): string {
 const ACTIONS: Record<Exclude<PendingAction, null>, { label: string; confirm: string }> = {
   photos: {
     label: 'Delete all saved photos',
-    confirm: 'Permanently delete every saved body photo? Your scan records and measurements are kept.',
+    confirm:
+      'Permanently delete every saved body photo? Any temporary photos taken in this tab are discarded too. Your scan records and measurements are kept.',
   },
   history: {
     label: 'Delete all scan history',
-    confirm: 'Permanently delete all scan records, measurements, pose data and photos? This cannot be undone.',
+    confirm:
+      'Permanently delete all scan records, measurements, pose data and photos, including any temporary photos taken in this tab? This cannot be undone.',
   },
   withdraw: {
     label: 'Withdraw consent and delete all Body Scan data',
@@ -38,7 +42,7 @@ const ACTIONS: Record<Exclude<PendingAction, null>, { label: string; confirm: st
   },
 };
 
-export const PrivacyControls: React.FC<PrivacyControlsProps> = ({ consent, onConsentChange }) => {
+export const PrivacyControls: React.FC<PrivacyControlsProps> = ({ consent, onConsentChange, onDiscardTemporaryPhotos }) => {
   const [summary, setSummary] = useState<BodyScanStorageSummary | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction>(null);
@@ -89,6 +93,9 @@ export const PrivacyControls: React.FC<PrivacyControlsProps> = ({ consent, onCon
   };
 
   const handleConfirm = () => {
+    // Temporary photos exist only in this tab's memory, so discarding them cannot fail. Do it first so that a
+    // deletion the person asked for never leaves a photo on screen, even if clearing stored data then errors.
+    if (pending) onDiscardTemporaryPhotos();
     if (pending === 'photos') {
       void run(deleteAllPhotos, 'All saved photos were deleted.');
     } else if (pending === 'history') {

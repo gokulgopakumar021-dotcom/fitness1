@@ -122,3 +122,19 @@ describe('captureFrame', () => {
     delete (navigator as unknown as Record<string, unknown>).sendBeacon;
   });
 });
+
+describe('captureFrame: draw failures', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('turns a drawImage failure into a FrameCaptureError rejection instead of throwing synchronously', async () => {
+    const { drawImage } = stubCanvas();
+    drawImage.mockImplementation(() => {
+      throw new DOMException('The image argument is a canvas element with a width or height of 0.', 'InvalidStateError');
+    });
+    let result: Promise<unknown> | undefined;
+    expect(() => {
+      result = captureFrame(fakeVideo(640, 480), 'front');
+    }).not.toThrow();
+    await expect(result).rejects.toMatchObject({ name: 'FrameCaptureError', code: 'encode_failed' });
+  });
+});

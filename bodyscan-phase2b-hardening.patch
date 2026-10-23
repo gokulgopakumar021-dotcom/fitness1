@@ -1,0 +1,372 @@
+diff --git a/src/components/bodyscan/BodyScanFlow.test.tsx b/src/components/bodyscan/BodyScanFlow.test.tsx
+index 7415fc4..5ae689e 100644
+--- a/src/components/bodyscan/BodyScanFlow.test.tsx
++++ b/src/components/bodyscan/BodyScanFlow.test.tsx
+@@ -216,3 +216,48 @@ describe('BodyScanFlow: photo-storage opt-in does not enable persistence in Phas
+     expect(await listScans()).toEqual([]);
+   });
+ });
++
++describe('BodyScanFlow: deletion controls also clear temporary photos held in memory', () => {
++  const takeAndAcceptFront = async () => {
++    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
++      (() => ({ drawImage: vi.fn() })) as unknown as HTMLCanvasElement['getContext']
++    );
++    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (this: HTMLCanvasElement, cb: BlobCallback) {
++      cb(new Blob(['jpeg'], { type: 'image/jpeg' }));
++    });
++    await giveConsent();
++    await click(byText('button', 'Take front photo'));
++    await click(byText('button', 'Turn on camera'));
++    await flush();
++    const v = container.querySelector('video')!;
++    Object.defineProperty(v, 'videoWidth', { configurable: true, value: 720 });
++    Object.defineProperty(v, 'videoHeight', { configurable: true, value: 1280 });
++    Object.defineProperty(v, 'readyState', { configurable: true, value: 4 });
++    await act(async () => {
++      v.dispatchEvent(new Event('loadeddata'));
++    });
++    await click(byText('button', 'Take photo'));
++    await flush();
++    await click(byText('button', 'Use this photo'));
++    expect(container.textContent).toContain('Taken (temporary)');
++  };
++
++  for (const label of ['Delete all scan history', 'Delete all saved photos', 'Withdraw consent and delete all Body Scan data']) {
++    it(`"${label}" leaves no temporary photo behind and revokes its preview URL`, async () => {
++      await takeAndAcceptFront();
++      await click(byText('button', label));
++      await click(byText('button', 'Yes, delete'));
++      await flush();
++      expect(container.textContent).not.toContain('Taken (temporary)');
++      expect(container.querySelector('img[alt^="Temporary"]')).toBeNull();
++      expect(URL.revokeObjectURL).toHaveBeenCalled();
++    });
++  }
++
++  it('cancelling the confirmation keeps the temporary photo', async () => {
++    await takeAndAcceptFront();
++    await click(byText('button', 'Delete all scan history'));
++    await click(byText('button', 'Cancel'));
++    expect(container.textContent).toContain('Taken (temporary)');
++  });
++});
+diff --git a/src/components/bodyscan/BodyScanFlow.tsx b/src/components/bodyscan/BodyScanFlow.tsx
+index 354dd8a..b2a2f5a 100644
+--- a/src/components/bodyscan/BodyScanFlow.tsx
++++ b/src/components/bodyscan/BodyScanFlow.tsx
+@@ -16,6 +16,8 @@ interface BodyScanFlowProps {
+ /** Body Scan sub-flow, rendered inside the Body tab (no separate nav tab). */
+ export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose }) => {
+   const [consent, setConsent] = useState<BodyScanConsent | null>(() => getBodyScanConsent());
++  // Bumping this remounts CaptureSession, which drops every temporary in-memory photo and revokes its preview URL.
++  const [photoSessionId, setPhotoSessionId] = useState(0);
+   const gate = getBodyScanGate(profile.age, consent);
+ 
+   return (
+@@ -50,8 +52,12 @@ export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose })
+ 
+       {gate.status === 'ready' && (
+         <>
+-          <CaptureSession />
+-          <PrivacyControls consent={gate.consent} onConsentChange={setConsent} />
++          <CaptureSession key={photoSessionId} />
++          <PrivacyControls
++            consent={gate.consent}
++            onConsentChange={setConsent}
++            onDiscardTemporaryPhotos={() => setPhotoSessionId((n) => n + 1)}
++          />
+         </>
+       )}
+     </div>
+diff --git a/src/components/bodyscan/CameraCapture.test.tsx b/src/components/bodyscan/CameraCapture.test.tsx
+index ef1cf31..5dc4c01 100644
+--- a/src/components/bodyscan/CameraCapture.test.tsx
++++ b/src/components/bodyscan/CameraCapture.test.tsx
+@@ -555,3 +555,43 @@ describe('CameraCapture: privacy', () => {
+     delete (navigator as unknown as Record<string, unknown>).sendBeacon;
+   });
+ });
++
++describe('CameraCapture: hardening', () => {
++  it('a second press while a photo is still being encoded does not start a second capture', async () => {
++    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
++      (() => ({ drawImage: vi.fn() })) as unknown as HTMLCanvasElement['getContext']
++    );
++    const pending: BlobCallback[] = [];
++    const toBlob = vi
++      .spyOn(HTMLCanvasElement.prototype, 'toBlob')
++      .mockImplementation(function (this: HTMLCanvasElement, cb: BlobCallback) {
++        pending.push(cb);
++      });
++    await render();
++    await startCamera();
++    await makeVideoReady();
++    const shutter = button('Take photo')!;
++    await click(shutter);
++    expect(shutter.disabled).toBe(true); // cannot be pressed again while encoding
++    await act(async () => shutter.click());
++    expect(toBlob).toHaveBeenCalledTimes(1);
++
++    await act(async () => pending[0](new Blob(['jpeg'], { type: 'image/jpeg' })));
++    await flush();
++    expect(container.querySelectorAll('img')).toHaveLength(1);
++    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
++    expect(cam.streams[0].allStopped).toBe(true);
++  });
++
++  it('Escape pressed inside the self-timer dropdown only closes the dropdown; it does not cancel the capture', async () => {
++    await render();
++    await startCamera();
++    const select = container.querySelector('select')!;
++    await act(async () => {
++      select.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
++    });
++    expect(onCancel).not.toHaveBeenCalled();
++    expect(cam.streams[0].allStopped).toBe(false);
++    expect(video()).not.toBeNull();
++  });
++});
+diff --git a/src/components/bodyscan/CameraCapture.tsx b/src/components/bodyscan/CameraCapture.tsx
+index 1dedf66..7a68e83 100644
+--- a/src/components/bodyscan/CameraCapture.tsx
++++ b/src/components/bodyscan/CameraCapture.tsx
+@@ -40,10 +40,12 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured,
+   const [timerSeconds, setTimerSeconds] = useState<TimerOption>(0);
+   const [countdown, setCountdown] = useState<number | null>(null);
+   const [knownPermission, setKnownPermission] = useState<PermissionQueryResult>('unknown');
++  const [capturing, setCapturing] = useState(false);
+ 
+   const videoRef = useRef<HTMLVideoElement>(null);
+   const headingRef = useRef<HTMLHeadingElement>(null);
+   const mountedRef = useRef(false);
++  const capturingRef = useRef(false); // synchronous guard: state updates are too late for a fast double press
+   const previewUrl = useObjectUrl(photo?.blob ?? null);
+ 
+   useEffect(() => {
+@@ -106,7 +108,9 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured,
+ 
+   const takePhoto = useCallback(async () => {
+     const video = videoRef.current;
+-    if (!video) return;
++    if (!video || capturingRef.current) return; // one capture at a time
++    capturingRef.current = true;
++    setCapturing(true);
+     setCaptureError(null);
+     try {
+       const taken = await captureFrame(video, view);
+@@ -116,6 +120,9 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured,
+     } catch (err) {
+       if (!mountedRef.current) return;
+       setCaptureError(err instanceof FrameCaptureError ? err.message : 'The photo could not be taken. Please try again.');
++    } finally {
++      capturingRef.current = false;
++      if (mountedRef.current) setCapturing(false);
+     }
+   }, [view, stop]);
+ 
+@@ -152,7 +159,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured,
+     void start();
+   };
+ 
+-  const canShoot = phase === 'live' && videoReady;
++  const canShoot = phase === 'live' && videoReady && !capturing;
+   const mirrored = cam.facing !== 'environment';
+   const failure = cam.failure;
+   const canRetry = !!failure && failure.code !== 'unsupported' && failure.code !== 'insecure_context';
+@@ -186,7 +193,8 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured,
+       aria-labelledby="camera-capture-heading"
+       className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-4 sm:p-5 lg:p-7 shadow-xl space-y-5"
+       onKeyDown={(e) => {
+-        if (e.key === 'Escape') handleCancel();
++        // Escape inside the timer dropdown closes the dropdown; it must not also cancel the capture.
++        if (e.key === 'Escape' && !e.defaultPrevented && !(e.target instanceof HTMLSelectElement)) handleCancel();
+       }}
+     >
+       <p className="sr-only" role="status" aria-live="polite">
+diff --git a/src/components/bodyscan/PrivacyControls.tsx b/src/components/bodyscan/PrivacyControls.tsx
+index 0e6e6bc..08704f5 100644
+--- a/src/components/bodyscan/PrivacyControls.tsx
++++ b/src/components/bodyscan/PrivacyControls.tsx
+@@ -14,6 +14,8 @@ type PendingAction = 'photos' | 'history' | 'withdraw' | null;
+ interface PrivacyControlsProps {
+   consent: BodyScanConsent;
+   onConsentChange: (consent: BodyScanConsent | null) => void;
++  /** Drops temporary photos held in memory by the capture screen. Called whenever the person confirms a deletion. */
++  onDiscardTemporaryPhotos: () => void;
+ }
+ 
+ function formatBytes(bytes: number): string {
+@@ -25,11 +27,13 @@ function formatBytes(bytes: number): string {
+ const ACTIONS: Record<Exclude<PendingAction, null>, { label: string; confirm: string }> = {
+   photos: {
+     label: 'Delete all saved photos',
+-    confirm: 'Permanently delete every saved body photo? Your scan records and measurements are kept.',
++    confirm:
++      'Permanently delete every saved body photo? Any temporary photos taken in this tab are discarded too. Your scan records and measurements are kept.',
+   },
+   history: {
+     label: 'Delete all scan history',
+-    confirm: 'Permanently delete all scan records, measurements, pose data and photos? This cannot be undone.',
++    confirm:
++      'Permanently delete all scan records, measurements, pose data and photos, including any temporary photos taken in this tab? This cannot be undone.',
+   },
+   withdraw: {
+     label: 'Withdraw consent and delete all Body Scan data',
+@@ -38,7 +42,7 @@ const ACTIONS: Record<Exclude<PendingAction, null>, { label: string; confirm: st
+   },
+ };
+ 
+-export const PrivacyControls: React.FC<PrivacyControlsProps> = ({ consent, onConsentChange }) => {
++export const PrivacyControls: React.FC<PrivacyControlsProps> = ({ consent, onConsentChange, onDiscardTemporaryPhotos }) => {
+   const [summary, setSummary] = useState<BodyScanStorageSummary | null>(null);
+   const [summaryError, setSummaryError] = useState<string | null>(null);
+   const [pending, setPending] = useState<PendingAction>(null);
+@@ -89,6 +93,9 @@ export const PrivacyControls: React.FC<PrivacyControlsProps> = ({ consent, onCon
+   };
+ 
+   const handleConfirm = () => {
++    // Temporary photos exist only in this tab's memory, so discarding them cannot fail. Do it first so that a
++    // deletion the person asked for never leaves a photo on screen, even if clearing stored data then errors.
++    if (pending) onDiscardTemporaryPhotos();
+     if (pending === 'photos') {
+       void run(deleteAllPhotos, 'All saved photos were deleted.');
+     } else if (pending === 'history') {
+diff --git a/src/services/camera.test.ts b/src/services/camera.test.ts
+index aab4093..4d41097 100644
+--- a/src/services/camera.test.ts
++++ b/src/services/camera.test.ts
+@@ -394,6 +394,31 @@ describe('CameraController: switching cameras', () => {
+     expect(c.getState()).toMatchObject({ status: 'error', stream: null });
+   });
+ 
++  it('stop() while a switch is still looking up devices does NOT reopen the camera afterwards', async () => {
++    const c = new CameraController();
++    await c.start();
++    const first = cam.streams[0];
++    const pendingSwitch = c.switchCamera(); // enumerateDevices() is still pending here
++    c.stop(); // the person left the screen
++    await pendingSwitch;
++    await flush();
++    expect(cam.getUserMedia).toHaveBeenCalledTimes(1); // no second camera request
++    expect(cam.streams).toHaveLength(1);
++    expect(first.allStopped).toBe(true);
++    expect(c.getState()).toMatchObject({ status: 'not_requested', stream: null });
++  });
++
++  it('switchCamera() with no running camera does nothing (never turns the camera on by itself)', async () => {
++    const c = new CameraController();
++    await c.switchCamera();
++    expect(cam.getUserMedia).not.toHaveBeenCalled();
++    await c.start();
++    c.stop();
++    await c.switchCamera();
++    expect(cam.getUserMedia).toHaveBeenCalledTimes(1);
++    expect(c.getState().status).toBe('not_requested');
++  });
++
+   it('is a no-op with a single camera', async () => {
+     cam.uninstall();
+     cam = installFakeCamera({ devices: [{ deviceId: 'only', label: 'Only' }] });
+diff --git a/src/services/camera.ts b/src/services/camera.ts
+index 611b28e..d4e428a 100644
+--- a/src/services/camera.ts
++++ b/src/services/camera.ts
+@@ -309,9 +309,15 @@ export class CameraController {
+ 
+   /** Cycles to the next video input. No-op unless more than one exists. */
+   async switchCamera(): Promise<void> {
++    // Only a camera that is already running can be switched. Never turns the camera on by itself.
++    if (this.state.status !== 'granted' || !this.stream) return;
++    const myToken = this.token;
+     const devices = (await navigator.mediaDevices.enumerateDevices().catch(() => [])).filter(
+       (d) => d.kind === 'videoinput' && d.deviceId
+     );
++    // stop() (unmount, cancel, hidden tab) or another start() ran while devices were being listed:
++    // do not reopen the camera for a session that no longer exists.
++    if (myToken !== this.token) return;
+     if (devices.length < 2) return;
+     const currentId = this.stream?.getVideoTracks()[0]?.getSettings?.().deviceId;
+     const index = devices.findIndex((d) => d.deviceId === currentId);
+diff --git a/src/services/frameCapture.test.ts b/src/services/frameCapture.test.ts
+index 4679fca..a85eb23 100644
+--- a/src/services/frameCapture.test.ts
++++ b/src/services/frameCapture.test.ts
+@@ -122,3 +122,19 @@ describe('captureFrame', () => {
+     delete (navigator as unknown as Record<string, unknown>).sendBeacon;
+   });
+ });
++
++describe('captureFrame: draw failures', () => {
++  afterEach(() => vi.restoreAllMocks());
++
++  it('turns a drawImage failure into a FrameCaptureError rejection instead of throwing synchronously', async () => {
++    const { drawImage } = stubCanvas();
++    drawImage.mockImplementation(() => {
++      throw new DOMException('The image argument is a canvas element with a width or height of 0.', 'InvalidStateError');
++    });
++    let result: Promise<unknown> | undefined;
++    expect(() => {
++      result = captureFrame(fakeVideo(640, 480), 'front');
++    }).not.toThrow();
++    await expect(result).rejects.toMatchObject({ name: 'FrameCaptureError', code: 'encode_failed' });
++  });
++});
+diff --git a/src/services/frameCapture.ts b/src/services/frameCapture.ts
+index 1d9a973..8f5ab35 100644
+--- a/src/services/frameCapture.ts
++++ b/src/services/frameCapture.ts
+@@ -57,22 +57,38 @@ export function captureFrame(
+   if (!ctx) {
+     return Promise.reject(new FrameCaptureError('canvas_unavailable', 'This browser could not prepare the photo.'));
+   }
+-  ctx.drawImage(video, 0, 0, size.width, size.height);
++  // Release the pixel buffer promptly; any resulting Blob holds its own copy.
++  const releaseCanvas = () => {
++    canvas.width = 0;
++    canvas.height = 0;
++  };
++  const encodeFailed = () => new FrameCaptureError('encode_failed', 'The photo could not be created. Please try again.');
++
++  // drawImage can throw (e.g. a video that lost its frame). Report it as a rejection, never as a synchronous throw.
++  try {
++    ctx.drawImage(video, 0, 0, size.width, size.height);
++  } catch {
++    releaseCanvas();
++    return Promise.reject(encodeFailed());
++  }
+ 
+   return new Promise<NewScanPhoto>((resolve, reject) => {
+-    canvas.toBlob(
+-      (blob) => {
+-        // Release the pixel buffer promptly; the Blob holds its own copy.
+-        canvas.width = 0;
+-        canvas.height = 0;
+-        if (!blob) {
+-          reject(new FrameCaptureError('encode_failed', 'The photo could not be created. Please try again.'));
+-          return;
+-        }
+-        resolve({ view, blob, mimeType: blob.type || MIME_TYPE, width: size.width, height: size.height });
+-      },
+-      MIME_TYPE,
+-      options.quality ?? DEFAULT_JPEG_QUALITY
+-    );
++    try {
++      canvas.toBlob(
++        (blob) => {
++          releaseCanvas();
++          if (!blob) {
++            reject(encodeFailed());
++            return;
++          }
++          resolve({ view, blob, mimeType: blob.type || MIME_TYPE, width: size.width, height: size.height });
++        },
++        MIME_TYPE,
++        options.quality ?? DEFAULT_JPEG_QUALITY
++      );
++    } catch {
++      releaseCanvas();
++      reject(encodeFailed());
++    }
+   });
+ }

@@ -309,9 +309,15 @@ export class CameraController {
 
   /** Cycles to the next video input. No-op unless more than one exists. */
   async switchCamera(): Promise<void> {
+    // Only a camera that is already running can be switched. Never turns the camera on by itself.
+    if (this.state.status !== 'granted' || !this.stream) return;
+    const myToken = this.token;
     const devices = (await navigator.mediaDevices.enumerateDevices().catch(() => [])).filter(
       (d) => d.kind === 'videoinput' && d.deviceId
     );
+    // stop() (unmount, cancel, hidden tab) or another start() ran while devices were being listed:
+    // do not reopen the camera for a session that no longer exists.
+    if (myToken !== this.token) return;
     if (devices.length < 2) return;
     const currentId = this.stream?.getVideoTracks()[0]?.getSettings?.().deviceId;
     const index = devices.findIndex((d) => d.deviceId === currentId);

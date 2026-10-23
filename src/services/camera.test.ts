@@ -394,6 +394,31 @@ describe('CameraController: switching cameras', () => {
     expect(c.getState()).toMatchObject({ status: 'error', stream: null });
   });
 
+  it('stop() while a switch is still looking up devices does NOT reopen the camera afterwards', async () => {
+    const c = new CameraController();
+    await c.start();
+    const first = cam.streams[0];
+    const pendingSwitch = c.switchCamera(); // enumerateDevices() is still pending here
+    c.stop(); // the person left the screen
+    await pendingSwitch;
+    await flush();
+    expect(cam.getUserMedia).toHaveBeenCalledTimes(1); // no second camera request
+    expect(cam.streams).toHaveLength(1);
+    expect(first.allStopped).toBe(true);
+    expect(c.getState()).toMatchObject({ status: 'not_requested', stream: null });
+  });
+
+  it('switchCamera() with no running camera does nothing (never turns the camera on by itself)', async () => {
+    const c = new CameraController();
+    await c.switchCamera();
+    expect(cam.getUserMedia).not.toHaveBeenCalled();
+    await c.start();
+    c.stop();
+    await c.switchCamera();
+    expect(cam.getUserMedia).toHaveBeenCalledTimes(1);
+    expect(c.getState().status).toBe('not_requested');
+  });
+
   it('is a no-op with a single camera', async () => {
     cam.uninstall();
     cam = installFakeCamera({ devices: [{ deviceId: 'only', label: 'Only' }] });
