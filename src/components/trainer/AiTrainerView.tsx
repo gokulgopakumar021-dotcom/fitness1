@@ -15,13 +15,15 @@ import {
   Flame,
   Activity,
   Layers,
-  ChevronRight
+  ChevronRight,
+  ClipboardCheck
 } from 'lucide-react';
 import { UserProfile, WorkoutSession } from '../../types';
 import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
 import { ExercisePostureModal } from '../posture/ExercisePostureModal';
 import { DynamicWarmupModal } from './DynamicWarmupModal';
 import { DreamPhysiqueModal } from './DreamPhysiqueModal';
+import { AdaptiveReviewModal } from './AdaptiveReviewModal';
 import { NavTab } from '../layout/Navbar';
 
 interface ChatMessage {
@@ -73,6 +75,7 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
   const [postureModalExercise, setPostureModalExercise] = useState<string | null>(null);
   const [isWarmupModalOpen, setIsWarmupModalOpen] = useState<boolean>(false);
   const [isDreamPhysiqueModalOpen, setIsDreamPhysiqueModalOpen] = useState<boolean>(false);
+  const [isAdaptiveReviewOpen, setIsAdaptiveReviewOpen] = useState<boolean>(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -261,8 +264,16 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
       </div>
 
       {/* COACH TOOLKIT QUICK ACCESS */}
-      <div className="grid grid-cols-3 gap-2 shrink-0">
+      <div className="grid grid-cols-4 gap-2 shrink-0">
         {[
+          {
+            key: 'review',
+            icon: <ClipboardCheck className="w-4 h-4" />,
+            short: 'Review',
+            title: 'Adaptive training review',
+            sub: 'Evidence-based plan tweaks',
+            onClick: () => setIsAdaptiveReviewOpen(true)
+          },
           {
             key: 'warmup',
             icon: <Flame className="w-4 h-4" />,
@@ -453,6 +464,13 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
       />
 
       {/* AI DREAM PHYSIQUE VISUALIZER MODAL */}
+      <AdaptiveReviewModal
+        open={isAdaptiveReviewOpen}
+        onClose={() => setIsAdaptiveReviewOpen(false)}
+        profile={profile}
+        activeSession={activeSession}
+      />
+
       <DreamPhysiqueModal
         isOpen={isDreamPhysiqueModalOpen}
         onClose={() => setIsDreamPhysiqueModalOpen(false)}
