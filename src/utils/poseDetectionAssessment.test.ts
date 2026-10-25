@@ -188,3 +188,54 @@ describe('assessPoseDetection: front and side are assessed independently', () =>
     expect(a.landmarks).not.toBe(b.landmarks);
   });
 });
+
+// Boundary behaviour of the two PROVISIONAL Phase 2C rules. These tests pin what the rules do today;
+// they do not show the values are right. Calibration needs real photos (see docs/body-scan-pose-model.md).
+describe('assessPoseDetection: provisional rule boundaries', () => {
+  const low = { visibility: 0.1 };
+
+  it('treats a landmark at exactly the minimum visibility (0.5) as reliable, and just below it as not', () => {
+    const atMin = assessPoseDetection('front', ok(makeFrontPose({}, 0.5)));
+    expect(atMin.required).toEqual({ total: 9, reliable: 9 });
+    const below = assessPoseDetection('front', ok(makeFrontPose({}, 0.49)));
+    expect(below.required).toEqual({ total: 9, reliable: 0 });
+    expect(below.status).toBe('failed');
+  });
+
+  it('side view: 3 of 5 reliable is partial, 2 of 5 is failed (half rounded up)', () => {
+    const three = assessPoseDetection('side', ok(makeSidePose({ leftKnee: low, leftAnkle: low })));
+    expect(three.required).toEqual({ total: 5, reliable: 3 });
+    expect(three.status).toBe('partial');
+    const two = assessPoseDetection('side', ok(makeSidePose({ leftHip: low, leftKnee: low, leftAnkle: low })));
+    expect(two.required).toEqual({ total: 5, reliable: 2 });
+    expect(two.status).toBe('failed');
+    expect(two.failureReason).toBe('too_few_landmarks');
+  });
+
+  it('the collapsed-pose rule uses the vertical span of the reliable points, in image-height units', () => {
+    const flatten = (span: number) => {
+      const lm = makeFrontPose();
+      for (const i of Object.values(POSE_LANDMARK)) lm[i] = { x: 0.2 + (i % 5) * 0.1, y: 0.5, visibility: 0.99 };
+      lm[POSE_LANDMARK.leftAnkle] = { x: 0.57, y: 0.5 + span, visibility: 0.99 };
+      return assessPoseDetection('front', ok(lm));
+    };
+    expect(flatten(MIN_POSE_VERTICAL_SPAN * 0.8).failureReason).toBe('degenerate_pose'); // clearly below the span
+    expect(flatten(MIN_POSE_VERTICAL_SPAN * 1.2).failureReason).not.toBe('degenerate_pose'); // clearly above it
+  });
+
+  it('ignores unreliable points when measuring the span, so one wild low-visibility point cannot hide a collapse', () => {
+    const lm = makeFrontPose();
+    for (const i of Object.values(POSE_LANDMARK)) lm[i] = { x: 0.2 + (i % 5) * 0.1, y: 0.5, visibility: 0.99 };
+    lm[POSE_LANDMARK.rightAnkle] = { x: 0.43, y: 0.95, visibility: 0.2 }; // far away but not reliable
+    const o = assessPoseDetection('front', ok(lm));
+    expect(o.required).toEqual({ total: 9, reliable: 8 });
+    expect(o.failureReason).toBe('degenerate_pose');
+  });
+
+  it('a result with unusable (non-finite) coordinates is malformed upstream and never reaches the rules', () => {
+    const o = assessPoseDetection('front', { ok: false, reason: 'malformed' });
+    expect(o.status).toBe('failed');
+    expect(o.failureReason).toBe('malformed_result');
+    expect(o.landmarks).toBeNull();
+  });
+});

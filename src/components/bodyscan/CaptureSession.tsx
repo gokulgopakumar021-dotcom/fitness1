@@ -6,7 +6,7 @@ import { CAPTURE_GUIDANCE } from './captureGuidance';
 import { CameraCapture } from './CameraCapture';
 import { PoseDetectionPanel } from './PoseDetectionPanel';
 import { useObjectUrl } from './useObjectUrl';
-import { usePoseDetection } from './usePoseDetection';
+import { usePoseDetection, type DetectionState } from './usePoseDetection';
 
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-400';
 const VIEWS: ScanView[] = ['front', 'side'];
@@ -21,6 +21,28 @@ const PhotoThumb: React.FC<{ photo: NewScanPhoto }> = ({ photo }) => {
       className="h-24 w-auto rounded-lg border border-zinc-800 bg-black object-contain"
     />
   );
+};
+
+type SessionSummary = 'analysing' | 'all_usable' | 'needs_attention';
+
+/**
+ * What the footer says once both photos exist. Pose results are ADVISORY in this
+ * version: nothing is measured, scored or saved from them, so a failed or partial
+ * result never blocks the person from keeping, retaking or discarding photos.
+ * The footer must still not read as "all good" when a photo failed or has not
+ * been analysed successfully.
+ */
+export function summariseSession(states: Array<DetectionState | undefined>): SessionSummary {
+  if (states.some((s) => !s || s.phase === 'loading_model' || s.phase === 'detecting')) return 'analysing';
+  return states.every((s) => s?.phase === 'done' && s.outcome.status === 'usable') ? 'all_usable' : 'needs_attention';
+}
+
+const SUMMARY_COPY: Record<SessionSummary, string> = {
+  analysing: 'Both temporary photos are taken. They are being checked for body landmarks on this device.',
+  all_usable:
+    'Both temporary photos show a usable pose. In this version they are only checked for body landmarks on this device; nothing is measured, scored or saved.',
+  needs_attention:
+    'Both temporary photos are taken, but at least one could not be checked or needs another look (see the results above). You can retake any photo. These results are advisory: nothing is measured, scored or saved in this version.',
 };
 
 interface CaptureSessionProps {
@@ -60,6 +82,7 @@ export const CaptureSession: React.FC<CaptureSessionProps> = ({ createEngine = c
   }
 
   const taken = VIEWS.filter((v) => photos[v]).length;
+  const summary = summariseSession(VIEWS.map((v) => detection.states[v]));
 
   return (
     <section aria-labelledby="capture-session-heading" className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 shadow-xl space-y-5">
@@ -120,9 +143,8 @@ export const CaptureSession: React.FC<CaptureSessionProps> = ({ createEngine = c
       </ul>
 
       {taken === 2 && (
-        <p role="status" className="text-xs text-zinc-300">
-          Both temporary photos are ready. In this version they are only checked for body landmarks on this device; nothing is
-          measured, scored or saved.
+        <p role="status" className="text-xs text-zinc-300" data-testid="session-summary" data-summary={summary}>
+          {SUMMARY_COPY[summary]}
         </p>
       )}
 

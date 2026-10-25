@@ -98,6 +98,38 @@ third-party notices. The model card is at
 No request carries a photo, a frame or a landmark. The model is held in memory only and
 released after two minutes without use.
 
+## Validation behaviour in this version (advisory, not a gate)
+
+Pose results are **advisory**. Nothing is measured, scored or saved from them in this
+version, so a `partial` or `failed` result never blocks "Use this photo", retaking, or
+discarding. The result panel explains what was found and what to change, and the footer
+under the two photo cards (`summariseSession` in `CaptureSession.tsx`) reflects the real
+outcome: it says both photos show a usable pose only when both were `usable`, says
+photos are still being checked while an analysis runs, and otherwise says at least one
+needs another look. If a later phase starts measuring or saving from these landmarks, it
+should decide then whether to gate on `usable`.
+
+## Provisional thresholds
+
+These two rules were introduced in Phase 2C and are **not calibrated on real photos,
+people or devices**. Boundary tests in `poseDetectionAssessment.test.ts` pin today's
+behaviour only; they do not show the values are right.
+
+| Rule | Value | What it does | Limitation |
+| --- | --- | --- | --- |
+| `MIN_RELIABLE_FRACTION_FOR_PARTIAL` | 0.5 (half, rounded up) | Fewer reliable required landmarks than this fails the photo | Front needs 5 of 9, side 3 of 5. The model card reports accuracy gaps across skin tones and genders, so a fixed fraction may treat people unequally. |
+| `MIN_POSE_VERTICAL_SPAN` | 0.05 of image height | Reliable required points spanning less than this are treated as a collapsed pose | Only catches near-flat output; says nothing about a plausible but wrong pose |
+
+Still required before calling these settled: run the real model on a diverse set of front
+and side photos (different body types, skin tones, clothing, lighting, distances) on at
+least one iOS and one Android device, and record the outcomes.
+
+## Completion status
+
+Not complete. The model file has not been added: it could not be downloaded from the
+build environment, so its size, SHA-256 and licence notice are still unrecorded in the
+table above, and no real-model inference has been run.
+
 ## Known limitations
 - `detect()` is synchronous inside MediaPipe, so analysis runs on the main thread and the
   page can pause for a moment. The engine yields to the browser first so an "analysing"
