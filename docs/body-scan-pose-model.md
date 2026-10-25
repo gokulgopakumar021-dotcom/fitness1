@@ -73,11 +73,14 @@ message with a retry button, and the rest of Iron Log is unaffected.
 
 | Recorded value | |
 | --- | --- |
-| Downloaded on | _not yet recorded_ |
-| Size in bytes | _not yet recorded_ |
-| SHA-256 | _not yet recorded_ |
+| Downloaded on | _date not recorded_ |
+| Source URL | `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task` |
+| Size in bytes | 9398198 |
+| SHA-256 | `4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad` |
 
-> `latest` in the URL is a moving alias. Recording the SHA-256 is what pins the model.
+These values were reported by the maintainer after downloading the file with the source URL above. They were not independently re-downloaded or confirmed against Google's model card by whoever wrote this record. `scripts/fetch-pose-model.mjs` is pinned to this hash (`EXPECTED_SHA256`) and refuses any download that differs, and `src/services/poseModel.integrity.test.ts` checks the committed file against it.
+
+> `latest` in the URL is a moving alias. The SHA-256 is what pins the model: the fetch script rejects any other bytes.
 
 ### Redistribution
 The model card states Apache License 2.0. Apache-2.0 permits redistribution provided the
@@ -126,9 +129,12 @@ least one iOS and one Android device, and record the outcomes.
 
 ## Completion status
 
-Not complete. The model file has not been added: it could not be downloaded from the
-build environment, so its size, SHA-256 and licence notice are still unrecorded in the
-table above, and no real-model inference has been run.
+Not complete until the real-model checks below are done. The model file is committed and
+pinned (size and SHA-256 above; licence in `THIRD_PARTY_NOTICES.md` and
+`licenses/Apache-2.0.txt`), but no real-model inference, real-photo test, production-build
+serving check or browser network trace has been recorded yet. Still to record here: the
+outcome of real front and side photos, a DevTools network trace showing only same-origin
+requests, and testing on at least one iOS and one Android device.
 
 ## Known limitations
 - `detect()` is synchronous inside MediaPipe, so analysis runs on the main thread and the
