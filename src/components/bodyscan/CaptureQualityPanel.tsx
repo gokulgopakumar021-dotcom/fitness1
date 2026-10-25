@@ -11,7 +11,7 @@ import type { CaptureQualityAssessment, QualityCheckId, QualityCheckStatus } fro
  * run. When a later phase supplies real inputs it simply passes the assessment.
  */
 
-const CHECK_LABELS: Record<QualityCheckId, string> = {
+export const CHECK_LABELS: Record<QualityCheckId, string> = {
   landmarks_visible: 'Body landmarks visible',
   in_frame: 'Whole body in frame',
   centered: 'Centred in frame',
@@ -50,14 +50,19 @@ const StatusIcon: React.FC<{ status: QualityCheckStatus }> = ({ status }) => {
 interface CaptureQualityPanelProps {
   /** Real result from the capture pipeline. Omit (or pass null) when no checks are running. */
   assessment?: CaptureQualityAssessment | null;
+  /** Heading id, so several panels can share one screen without duplicate ids. */
+  headingId?: string;
 }
 
-export const CaptureQualityPanel: React.FC<CaptureQualityPanelProps> = ({ assessment }) => {
+export const CaptureQualityPanel: React.FC<CaptureQualityPanelProps> = ({
+  assessment,
+  headingId = 'capture-quality-heading',
+}) => {
   const anyEvaluated = !!assessment && assessment.checks.some((c) => c.status !== 'not_evaluated');
 
   return (
-    <section aria-labelledby="capture-quality-heading" className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
-      <h3 id="capture-quality-heading" className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-300">
+    <section aria-labelledby={headingId} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
+      <h3 id={headingId} className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-300">
         Photo quality checks
       </h3>
 

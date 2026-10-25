@@ -3,6 +3,7 @@ import { ArrowLeft, Scan } from 'lucide-react';
 import { BodyScanConsent } from '../../types/bodyScan';
 import { UserProfile } from '../../types';
 import { getBodyScanConsent } from '../../storage/bodyScanConsent';
+import type { PoseEngine } from '../../services/poseLandmarker';
 import { BODY_SCAN_MIN_AGE, getBodyScanGate } from '../../utils/bodyScanEligibility';
 import { CaptureSession } from './CaptureSession';
 import { ConsentStep } from './ConsentStep';
@@ -11,10 +12,12 @@ import { PrivacyControls } from './PrivacyControls';
 interface BodyScanFlowProps {
   profile: UserProfile;
   onClose: () => void;
+  /** Test seam: creates the pose engine. Production uses the real on-device engine. */
+  createEngine?: () => PoseEngine;
 }
 
 /** Body Scan sub-flow, rendered inside the Body tab (no separate nav tab). */
-export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose }) => {
+export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose, createEngine }) => {
   const [consent, setConsent] = useState<BodyScanConsent | null>(() => getBodyScanConsent());
   // Bumping this remounts CaptureSession, which drops every temporary in-memory photo and revokes its preview URL.
   const [photoSessionId, setPhotoSessionId] = useState(0);
@@ -52,7 +55,7 @@ export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose }) 
 
       {gate.status === 'ready' && (
         <>
-          <CaptureSession key={photoSessionId} />
+          <CaptureSession key={photoSessionId} createEngine={createEngine} />
           <PrivacyControls
             consent={gate.consent}
             onConsentChange={setConsent}

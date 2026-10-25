@@ -224,7 +224,7 @@ const SIDE_CHAINS: Record<'left' | 'right', readonly PoseLandmarkName[]> = {
   right: ['nose', 'rightShoulder', 'rightHip', 'rightKnee', 'rightAnkle'],
 };
 
-interface NamedRead {
+export interface NamedRead {
   name: PoseLandmarkName;
   read: LandmarkRead;
 }
@@ -237,8 +237,11 @@ function readAll(landmarks: LandmarkList, names: readonly PoseLandmarkName[], mi
  * Front view needs every required landmark. A side view only ever shows one
  * side of the body clearly, so it needs ONE complete side chain; the better of
  * the two is used (fewest unusable landmarks, then highest minimum visibility).
+ *
+ * Exported (behaviour unchanged) so pose-detection acceptance can count the
+ * same required landmarks these checks use instead of re-implementing the choice.
  */
-function selectRequiredReads(landmarks: LandmarkList, view: ScanView, minVis: number): NamedRead[] {
+export function selectRequiredReads(landmarks: LandmarkList, view: ScanView, minVis: number): NamedRead[] {
   if (view !== 'side') return readAll(landmarks, FRONT_REQUIRED, minVis);
   const left = readAll(landmarks, SIDE_CHAINS.left, minVis);
   const right = readAll(landmarks, SIDE_CHAINS.right, minVis);

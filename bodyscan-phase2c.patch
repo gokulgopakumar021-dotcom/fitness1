@@ -1,0 +1,3384 @@
+diff --git a/bun.lock b/bun.lock
+index 22ac4bc..ff9be74 100644
+--- a/bun.lock
++++ b/bun.lock
+@@ -6,6 +6,7 @@
+       "name": "react-example",
+       "dependencies": {
+         "@google/genai": "^2.4.0",
++        "@mediapipe/tasks-vision": "0.10.35",
+         "@tailwindcss/vite": "^4.3.3",
+         "@vitejs/plugin-react": "^6.1.1",
+         "dotenv": "^17.2.3",
+@@ -23,7 +24,9 @@
+         "@types/react": "^19.3.0",
+         "@types/react-dom": "^19.3.0",
+         "autoprefixer": "^10.4.21",
+-        "esbuild": "^0.25.0",
++        "esbuild": "^0.28.0",
++        "fake-indexeddb": "^6.2.6",
++        "jsdom": "^30.1.3",
+         "tailwindcss": "^4.3.3",
+         "tsx": "^4.21.0",
+         "typescript": "^7.0.2",
+@@ -32,57 +35,77 @@
+     },
+   },
+   "packages": {
+-    "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.25.12", "", { "os": "aix", "cpu": "ppc64" }, "sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA=="],
++    "@asamuzakjp/css-color": ["@asamuzakjp/css-color@7.1.9", "", { "dependencies": { "@csstools/css-calc": "^3.4.3", "@csstools/css-color-parser": "^4.2.6", "@csstools/css-parser-algorithms": "^4.0.2", "@csstools/css-tokenizer": "^4.0.2", "lru-cache": "^11.5.3" } }, "sha512-vZ6JQVq8Ivgz6b/IBlAf90wZviXdluY13cQOPO+nJHbmXwGrPl2GcpqUY7a55/8ZVdfONXpCFMpRijOBCHNlcQ=="],
+ 
+-    "@esbuild/android-arm": ["@esbuild/android-arm@0.25.12", "", { "os": "android", "cpu": "arm" }, "sha512-VJ+sKvNA/GE7Ccacc9Cha7bpS8nyzVv0jdVgwNDaR4gDMC/2TTRc33Ip8qrNYUcpkOHUT5OZ0bUcNNVZQ9RLlg=="],
++    "@asamuzakjp/dom-selector": ["@asamuzakjp/dom-selector@10.0.5", "", { "dependencies": { "bidi-js": "^1.1.0", "css-tree": "^3.2.1", "is-potential-custom-element-name": "^1.0.1", "lru-cache": "^11.5.3" } }, "sha512-EgmJ7oEaGQECTn3H3wmnQpEy4hKY66VvM7VQndwPIQob3p877BgbyOUE3EX0LgXQCciF2H8KMdR+RznqjMNOLw=="],
+ 
+-    "@esbuild/android-arm64": ["@esbuild/android-arm64@0.25.12", "", { "os": "android", "cpu": "arm64" }, "sha512-6AAmLG7zwD1Z159jCKPvAxZd4y/VTO0VkprYy+3N2FtJ8+BQWFXU+OxARIwA46c5tdD9SsKGZ/1ocqBS/gAKHg=="],
++    "@bramus/specificity": ["@bramus/specificity@2.4.3", "", { "dependencies": { "css-tree": "^3.2.1" }, "bin": { "specificity": "bin/cli.js" } }, "sha512-0GEz8qJWokkUVYQYRukmkSHIFNoBH8QTreeHrAFbvz1XFYc3Y+puhMs8PQ5x8GNugiC2l5jvDBXKLbBIByeSBw=="],
+ 
+-    "@esbuild/android-x64": ["@esbuild/android-x64@0.25.12", "", { "os": "android", "cpu": "x64" }, "sha512-5jbb+2hhDHx5phYR2By8GTWEzn6I9UqR11Kwf22iKbNpYrsmRB18aX/9ivc5cabcUiAT/wM+YIZ6SG9QO6a8kg=="],
++    "@csstools/color-helpers": ["@csstools/color-helpers@6.1.2", "", {}, "sha512-grhRy3OKmniaAEKXMjua5z/EODX0MSqBGjunw8+j/3HQjOnahs2AGhvEOIYVUWcU6ScApbhLhVrQTX8XqrMrow=="],
+ 
+-    "@esbuild/darwin-arm64": ["@esbuild/darwin-arm64@0.25.12", "", { "os": "darwin", "cpu": "arm64" }, "sha512-N3zl+lxHCifgIlcMUP5016ESkeQjLj/959RxxNYIthIg+CQHInujFuXeWbWMgnTo4cp5XVHqFPmpyu9J65C1Yg=="],
++    "@csstools/css-calc": ["@csstools/css-calc@3.4.3", "", { "peerDependencies": { "@csstools/css-parser-algorithms": "^4.0.2", "@csstools/css-tokenizer": "^4.0.2" } }, "sha512-iex20d8CHVkyvg6B7UKV7uHnI2Bqo9g+EFfT9E0y+GvTvhZ/DwONJ+9aKb1dlqm0ZiGsL5RXjp0fCoJYnkeDjA=="],
+ 
+-    "@esbuild/darwin-x64": ["@esbuild/darwin-x64@0.25.12", "", { "os": "darwin", "cpu": "x64" }, "sha512-HQ9ka4Kx21qHXwtlTUVbKJOAnmG1ipXhdWTmNXiPzPfWKpXqASVcWdnf2bnL73wgjNrFXAa3yYvBSd9pzfEIpA=="],
++    "@csstools/css-color-parser": ["@csstools/css-color-parser@4.2.6", "", { "dependencies": { "@csstools/color-helpers": "^6.1.2", "@csstools/css-calc": "^3.4.3" }, "peerDependencies": { "@csstools/css-parser-algorithms": "^4.0.2", "@csstools/css-tokenizer": "^4.0.2" } }, "sha512-iiPQ3iRWwnJkeEn6RIu6SJPr7hYrLz6XZ9s/QZl+2/LI5KQVjpl2fdmDSZKuD4xP6GMmMPgHFFXg6k1Wkz0Trg=="],
+ 
+-    "@esbuild/freebsd-arm64": ["@esbuild/freebsd-arm64@0.25.12", "", { "os": "freebsd", "cpu": "arm64" }, "sha512-gA0Bx759+7Jve03K1S0vkOu5Lg/85dou3EseOGUes8flVOGxbhDDh/iZaoek11Y8mtyKPGF3vP8XhnkDEAmzeg=="],
++    "@csstools/css-parser-algorithms": ["@csstools/css-parser-algorithms@4.0.2", "", { "peerDependencies": { "@csstools/css-tokenizer": "^4.0.2" } }, "sha512-40cSKyMvK+tq4qz6Awrlye2WGuOKt3FwPgtGg6KTfbHOWNw+Rk1rzbAtZnZ6IBhsY491HLRnDXwoyBAijmmILA=="],
+ 
+-    "@esbuild/freebsd-x64": ["@esbuild/freebsd-x64@0.25.12", "", { "os": "freebsd", "cpu": "x64" }, "sha512-TGbO26Yw2xsHzxtbVFGEXBFH0FRAP7gtcPE7P5yP7wGy7cXK2oO7RyOhL5NLiqTlBh47XhmIUXuGciXEqYFfBQ=="],
++    "@csstools/css-syntax-patches-for-csstree": ["@csstools/css-syntax-patches-for-csstree@1.1.15", "", { "peerDependencies": { "css-tree": "^3.2.1" }, "optionalPeers": ["css-tree"] }, "sha512-J0u7HkVl2nzSlhsiTOp4AmwcUQ3D+mGEEKfBy/7To5/y7F2OHwyLrXfrhR0SMgr4p5Lo+eaMVSeai24zUcBIxA=="],
+ 
+-    "@esbuild/linux-arm": ["@esbuild/linux-arm@0.25.12", "", { "os": "linux", "cpu": "arm" }, "sha512-lPDGyC1JPDou8kGcywY0YILzWlhhnRjdof3UlcoqYmS9El818LLfJJc3PXXgZHrHCAKs/Z2SeZtDJr5MrkxtOw=="],
++    "@csstools/css-tokenizer": ["@csstools/css-tokenizer@4.0.2", "", {}, "sha512-OoKoR0f76dCY666JlcbhmVTs2drYj1GUXZTYTcbUgJjh9Nv41aFfZ21bPQTERm5+L5cBDo466NltB2lplS5GBw=="],
+ 
+-    "@esbuild/linux-arm64": ["@esbuild/linux-arm64@0.25.12", "", { "os": "linux", "cpu": "arm64" }, "sha512-8bwX7a8FghIgrupcxb4aUmYDLp8pX06rGh5HqDT7bB+8Rdells6mHvrFHHW2JAOPZUbnjUpKTLg6ECyzvas2AQ=="],
++    "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.28.2", "", { "os": "aix", "cpu": "ppc64" }, "sha512-XExcO+dvLKvVtNTibSTBej1NCAbaGhWn9Ww1ZPx80qsahhPFe/8jgWP0IchNe0F3HwkU7n8ejhH8bjonqht8mQ=="],
+ 
+-    "@esbuild/linux-ia32": ["@esbuild/linux-ia32@0.25.12", "", { "os": "linux", "cpu": "ia32" }, "sha512-0y9KrdVnbMM2/vG8KfU0byhUN+EFCny9+8g202gYqSSVMonbsCfLjUO+rCci7pM0WBEtz+oK/PIwHkzxkyharA=="],
++    "@esbuild/android-arm": ["@esbuild/android-arm@0.28.2", "", { "os": "android", "cpu": "arm" }, "sha512-kXXoiPVVGQcnIYGOeaovwOURpniDBpSq4A03qkQ+BMQqtGG6HYap3xne9C1O1yo4TR3qxlCX5IqqmX6fFo2Lqg=="],
+ 
+-    "@esbuild/linux-loong64": ["@esbuild/linux-loong64@0.25.12", "", { "os": "linux", "cpu": "none" }, "sha512-h///Lr5a9rib/v1GGqXVGzjL4TMvVTv+s1DPoxQdz7l/AYv6LDSxdIwzxkrPW438oUXiDtwM10o9PmwS/6Z0Ng=="],
++    "@esbuild/android-arm64": ["@esbuild/android-arm64@0.28.2", "", { "os": "android", "cpu": "arm64" }, "sha512-5YfKeeI8qWfBZIX+u2xZC3Zlb3Os/gLS2sbEKM+I4ZOcsWmHS2WLysCcQZDAFRslDUU5Oiq44gf6PYN1vGwG5A=="],
+ 
+-    "@esbuild/linux-mips64el": ["@esbuild/linux-mips64el@0.25.12", "", { "os": "linux", "cpu": "none" }, "sha512-iyRrM1Pzy9GFMDLsXn1iHUm18nhKnNMWscjmp4+hpafcZjrr2WbT//d20xaGljXDBYHqRcl8HnxbX6uaA/eGVw=="],
++    "@esbuild/android-x64": ["@esbuild/android-x64@0.28.2", "", { "os": "android", "cpu": "x64" }, "sha512-O387ite7SzUyCcy3JQX4P4bLtEA7bLLkx+esve5JHnyYfNTxcVpXZo9jhdB0lTKN44gztELTdU7nS8Nr16Fs1Q=="],
+ 
+-    "@esbuild/linux-ppc64": ["@esbuild/linux-ppc64@0.25.12", "", { "os": "linux", "cpu": "ppc64" }, "sha512-9meM/lRXxMi5PSUqEXRCtVjEZBGwB7P/D4yT8UG/mwIdze2aV4Vo6U5gD3+RsoHXKkHCfSxZKzmDssVlRj1QQA=="],
++    "@esbuild/darwin-arm64": ["@esbuild/darwin-arm64@0.28.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-n4KqkOQrraxHJcgjM1RvwbigfQKIKJVpM7xp+KsxiyUSrRdIXnt73VhrPAx0fV44hgfmIVKjxMN9J1t5jySVkw=="],
+ 
+-    "@esbuild/linux-riscv64": ["@esbuild/linux-riscv64@0.25.12", "", { "os": "linux", "cpu": "none" }, "sha512-Zr7KR4hgKUpWAwb1f3o5ygT04MzqVrGEGXGLnj15YQDJErYu/BGg+wmFlIDOdJp0PmB0lLvxFIOXZgFRrdjR0w=="],
++    "@esbuild/darwin-x64": ["@esbuild/darwin-x64@0.28.2", "", { "os": "darwin", "cpu": "x64" }, "sha512-uq6suIWYP37qzGddBKPw5QEQPi6HiLGsO7UmkpfyaYNQ3D+rN6w6WfwH+nuqcGXWvawGwxOEroO4YGnFh95azw=="],
+ 
+-    "@esbuild/linux-s390x": ["@esbuild/linux-s390x@0.25.12", "", { "os": "linux", "cpu": "s390x" }, "sha512-MsKncOcgTNvdtiISc/jZs/Zf8d0cl/t3gYWX8J9ubBnVOwlk65UIEEvgBORTiljloIWnBzLs4qhzPkJcitIzIg=="],
++    "@esbuild/freebsd-arm64": ["@esbuild/freebsd-arm64@0.28.2", "", { "os": "freebsd", "cpu": "arm64" }, "sha512-n+I0BTSRIoy+d6RPKnEVwql5UwBJolytvY4mAOIEJorKlqgPII8ix6slVVrfZ5Tnj7glIZvloylbB/EJPMWEXw=="],
+ 
+-    "@esbuild/linux-x64": ["@esbuild/linux-x64@0.25.12", "", { "os": "linux", "cpu": "x64" }, "sha512-uqZMTLr/zR/ed4jIGnwSLkaHmPjOjJvnm6TVVitAa08SLS9Z0VM8wIRx7gWbJB5/J54YuIMInDquWyYvQLZkgw=="],
++    "@esbuild/freebsd-x64": ["@esbuild/freebsd-x64@0.28.2", "", { "os": "freebsd", "cpu": "x64" }, "sha512-78XJTJkvPs0kz2w61301PJjXl4g7q3JqiYMZ/M/yVI73EHBrCRTgkhu9oqG7vPqq+a/yadEW8aD+agKlk5xrmg=="],
+ 
+-    "@esbuild/netbsd-arm64": ["@esbuild/netbsd-arm64@0.25.12", "", { "os": "none", "cpu": "arm64" }, "sha512-xXwcTq4GhRM7J9A8Gv5boanHhRa/Q9KLVmcyXHCTaM4wKfIpWkdXiMog/KsnxzJ0A1+nD+zoecuzqPmCRyBGjg=="],
++    "@esbuild/linux-arm": ["@esbuild/linux-arm@0.28.2", "", { "os": "linux", "cpu": "arm" }, "sha512-XlDnu2q5yoqems+xay6wSAcg9DDD7K9RLKZEBOMZm3ckNpJBvOX20tSfby8KfrrhINDyv9V2YVZKY/SpoGJI8w=="],
+ 
+-    "@esbuild/netbsd-x64": ["@esbuild/netbsd-x64@0.25.12", "", { "os": "none", "cpu": "x64" }, "sha512-Ld5pTlzPy3YwGec4OuHh1aCVCRvOXdH8DgRjfDy/oumVovmuSzWfnSJg+VtakB9Cm0gxNO9BzWkj6mtO1FMXkQ=="],
++    "@esbuild/linux-arm64": ["@esbuild/linux-arm64@0.28.2", "", { "os": "linux", "cpu": "arm64" }, "sha512-pW4AC0P3it8c7do9MVM4p51FzHzdM/TZrerurgRcHJ2WTa1VQ1CIq18xncfpBJw4ojkiZZrKW2yIBWBP92j6Ug=="],
+ 
+-    "@esbuild/openbsd-arm64": ["@esbuild/openbsd-arm64@0.25.12", "", { "os": "openbsd", "cpu": "arm64" }, "sha512-fF96T6KsBo/pkQI950FARU9apGNTSlZGsv1jZBAlcLL1MLjLNIWPBkj5NlSz8aAzYKg+eNqknrUJ24QBybeR5A=="],
++    "@esbuild/linux-ia32": ["@esbuild/linux-ia32@0.28.2", "", { "os": "linux", "cpu": "ia32" }, "sha512-CYbnj78HsIeA+DhgUKgFCfvNsTHFhMMrinUrMZpDXJXKN8T3XViTZ/+wtHeVxEWY8ewSzTFN+nRmSwO2tZaLUQ=="],
+ 
+-    "@esbuild/openbsd-x64": ["@esbuild/openbsd-x64@0.25.12", "", { "os": "openbsd", "cpu": "x64" }, "sha512-MZyXUkZHjQxUvzK7rN8DJ3SRmrVrke8ZyRusHlP+kuwqTcfWLyqMOE3sScPPyeIXN/mDJIfGXvcMqCgYKekoQw=="],
++    "@esbuild/linux-loong64": ["@esbuild/linux-loong64@0.28.2", "", { "os": "linux", "cpu": "none" }, "sha512-buwkd8nsph4R+ajRvw0qM5Hja/TXQow3ptzWO2EbG/cqcIkHloRrdlBtQlshyYGTNFvfkfJ5tpPLVkY4DtsPfQ=="],
+ 
+-    "@esbuild/openharmony-arm64": ["@esbuild/openharmony-arm64@0.25.12", "", { "os": "none", "cpu": "arm64" }, "sha512-rm0YWsqUSRrjncSXGA7Zv78Nbnw4XL6/dzr20cyrQf7ZmRcsovpcRBdhD43Nuk3y7XIoW2OxMVvwuRvk9XdASg=="],
++    "@esbuild/linux-mips64el": ["@esbuild/linux-mips64el@0.28.2", "", { "os": "linux", "cpu": "none" }, "sha512-ZVykbDyk7519VwiNb9Lcj9m8XM6v5V9uKPvrEMkkEedVewf+0itkhahp4HDpgERXhwLRpWFypsGbG/J8s0QjJA=="],
+ 
+-    "@esbuild/sunos-x64": ["@esbuild/sunos-x64@0.25.12", "", { "os": "sunos", "cpu": "x64" }, "sha512-3wGSCDyuTHQUzt0nV7bocDy72r2lI33QL3gkDNGkod22EsYl04sMf0qLb8luNKTOmgF/eDEDP5BFNwoBKH441w=="],
++    "@esbuild/linux-ppc64": ["@esbuild/linux-ppc64@0.28.2", "", { "os": "linux", "cpu": "ppc64" }, "sha512-CAXl+Dtd9UUuJd8pKKdwh6MLm3MUMiqMPmhZ3tTSXPqfyQ3vDl6R5hZdZ/kYojK4ofXtdfSv1tFq8XzWx3heNQ=="],
+ 
+-    "@esbuild/win32-arm64": ["@esbuild/win32-arm64@0.25.12", "", { "os": "win32", "cpu": "arm64" }, "sha512-rMmLrur64A7+DKlnSuwqUdRKyd3UE7oPJZmnljqEptesKM8wx9J8gx5u0+9Pq0fQQW8vqeKebwNXdfOyP+8Bsg=="],
++    "@esbuild/linux-riscv64": ["@esbuild/linux-riscv64@0.28.2", "", { "os": "linux", "cpu": "none" }, "sha512-GeXCej4IQtU1B+QlDV8W/RRvbzI3O/Stss+/bCXv4lZls5WGRtu2a+3JkA3i4qIUlMXpcHebWpF8AkJhATowuA=="],
+ 
+-    "@esbuild/win32-ia32": ["@esbuild/win32-ia32@0.25.12", "", { "os": "win32", "cpu": "ia32" }, "sha512-HkqnmmBoCbCwxUKKNPBixiWDGCpQGVsrQfJoVGYLPT41XWF8lHuE5N6WhVia2n4o5QK5M4tYr21827fNhi4byQ=="],
++    "@esbuild/linux-s390x": ["@esbuild/linux-s390x@0.28.2", "", { "os": "linux", "cpu": "s390x" }, "sha512-3H1weTYZPxt/WOhByszQZybS9w5lKzUn1FDMsgEChbHWQwHYQQRfBxgCcZvPhjHfKyJjIievvMmEUawJrdY9Dg=="],
+ 
+-    "@esbuild/win32-x64": ["@esbuild/win32-x64@0.25.12", "", { "os": "win32", "cpu": "x64" }, "sha512-alJC0uCZpTFrSL0CCDjcgleBXPnCrEAhTBILpeAp7M/OFgoqtAetfBzX0xM00MUsVVPpVjlPuMbREqnZCXaTnA=="],
++    "@esbuild/linux-x64": ["@esbuild/linux-x64@0.28.2", "", { "os": "linux", "cpu": "x64" }, "sha512-4xTZr1FUmSoQW4XIWmit3tzQrUTZM+N3P0XV8xROKYF50XfI7xeO90+1bZvNwxIufQ9hDQVRJH5YhgPVF8A/HQ=="],
++
++    "@esbuild/netbsd-arm64": ["@esbuild/netbsd-arm64@0.28.2", "", { "os": "none", "cpu": "arm64" }, "sha512-sSATRjPeDBg3pdgHoQfoYBob11Kk1FGa9lui5RIHZCoCkJa9QKlvl3/vKz2usCmYYjs7ymJR/2Nnsqe+Hjt5nw=="],
++
++    "@esbuild/netbsd-x64": ["@esbuild/netbsd-x64@0.28.2", "", { "os": "none", "cpu": "x64" }, "sha512-lqnzCV+mM0gIADaKihiCg6ifgfU2L3h5E33rNQBN1Y4MaVGnzryzmvvf7UHxprpQdE8hpqLolJ9Rl+SkIRDpyw=="],
++
++    "@esbuild/openbsd-arm64": ["@esbuild/openbsd-arm64@0.28.2", "", { "os": "openbsd", "cpu": "arm64" }, "sha512-AL2qJILH7lNjrDmCQDvdxMfAUIv8KMNZOvrwAQ8i8//ntL9FflhOyMJ8OZSMBb8/AWXe3/5v5S20y3zCoZWKoQ=="],
++
++    "@esbuild/openbsd-x64": ["@esbuild/openbsd-x64@0.28.2", "", { "os": "openbsd", "cpu": "x64" }, "sha512-QtiuPytchRyC4rwUKhexJdQKvDuZ6hWloi3igqPQNUJCS1/v9EiO3UTOXR6A3FoMo4fnAKbWJdqaIwhOzh8qEw=="],
++
++    "@esbuild/openharmony-arm64": ["@esbuild/openharmony-arm64@0.28.2", "", { "os": "none", "cpu": "arm64" }, "sha512-WkhYDmpTjLvGlScA1rwjRUmhl4k8oXR3cIbtqWmELgU/dFeHHlEllxDvdWcNJV9rbzCexB5vz8gtNewWLgCT7Q=="],
++
++    "@esbuild/sunos-x64": ["@esbuild/sunos-x64@0.28.2", "", { "os": "sunos", "cpu": "x64" }, "sha512-GPMSkTOtMnv2U2F8gxe4Io6qmVs+YKyp832Etqqxr0hFngmXQ3rzwytelm3GIn7T4VviRUlf3sOgBOiTdvaf7g=="],
++
++    "@esbuild/win32-arm64": ["@esbuild/win32-arm64@0.28.2", "", { "os": "win32", "cpu": "arm64" }, "sha512-PIhhEkE9uPBleRBrQEJpUn7MBnibZzbGzYWPmY3x+YoVg/95zbjB4CxPPOQ8l5tYYM4mMaCthF8/1DIfBQQyWQ=="],
++
++    "@esbuild/win32-ia32": ["@esbuild/win32-ia32@0.28.2", "", { "os": "win32", "cpu": "ia32" }, "sha512-YmJbfTlvU7Sdn9BB+4PRES4oB6pxgS37MAONj+hBr/cpXS1aBPKXxNnDbu+QCWPj0o9dgyxeq79g6c5P8KeuYA=="],
++
++    "@esbuild/win32-x64": ["@esbuild/win32-x64@0.28.2", "", { "os": "win32", "cpu": "x64" }, "sha512-5ebpxr3nWMzrL/rnUI755Jkuee0bHL/Gq0WTF9lvcpv73wAp5eu8MfBUgWK9bhWvZjj7yX8etf/8tI8Ney695g=="],
++
++    "@exodus/bytes": ["@exodus/bytes@1.16.0", "", { "peerDependencies": { "@noble/hashes": "^1.8.0 || ^2.0.0" }, "optionalPeers": ["@noble/hashes"] }, "sha512-IcpW84uEn3N7ETtNZMlxKhfl6Pec8rUNGOTBtWbK1FKhJxIFAptZyVrvVRVBimAJxJCgc3PxepxkdWWG4DVzfA=="],
+ 
+     "@google/genai": ["@google/genai@2.31.0", "", { "dependencies": { "google-auth-library": "^10.3.0", "p-retry": "^4.6.2", "protobufjs": "^7.5.4", "ws": "^8.18.0" }, "peerDependencies": { "@modelcontextprotocol/sdk": "^1.25.2" }, "optionalPeers": ["@modelcontextprotocol/sdk"] }, "sha512-u1fw0qEiuWwNcjZixJFRfQF0awQnHb/rBBQUeiYGF+nmTXQCvcgpR2UMhKU9KNdnZdYhahY5jwS6nJ2V2tGtDA=="],
+ 
+@@ -96,6 +119,8 @@
+ 
+     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
+ 
++    "@mediapipe/tasks-vision": ["@mediapipe/tasks-vision@0.10.35", "", {}, "sha512-HOvadwVRE6JC+45nyYhmnywnr5h/J8KZvOeUNVOG9q/0875pZgItznFB9bRTvLc264YSJqiZ1NsIpCStJw/egg=="],
++
+     "@oxc-project/types": ["@oxc-project/types@0.155.0", "", {}, "sha512-SeE8JPwW1xs1tHeNycjUtUBdhorRa8o4jlvjwk49R7/Z291i+4DQa7JJIgOm/TaYQZx+QrPQbVJ/9c8dMIZN8Q=="],
+ 
+     "@protobufjs/aspromise": ["@protobufjs/aspromise@1.1.2", "", {}, "sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ=="],
+@@ -272,6 +297,8 @@
+ 
+     "baseline-browser-mapping": ["baseline-browser-mapping@2.11.32", "", { "bin": { "baseline-browser-mapping": "dist/cli.cjs" } }, "sha512-UvuxFU9P3hM29LrQdwu0cD6w6/+SFr+UlB9s/knI7+O2rK9xFxKUwSDWxGdbbqQ9/V7BJ5s0NI5nQAE4uJp3gQ=="],
+ 
++    "bidi-js": ["bidi-js@1.1.0", "", { "dependencies": { "require-from-string": "^2.0.2" } }, "sha512-fX1Onk0tdVPC7obPWB5EbJ1z7NVhLq4m2xZLq2YXBkxzMXIGRpNMU88n0EPgWseKl12J7zXs7qrDxPK4sRs2fg=="],
++
+     "bignumber.js": ["bignumber.js@9.3.1", "", {}, "sha512-Ko0uX15oIUS7wJ3Rb30Fs6SkVbLmPBAKdlm7q9+ak9bbIeFf0MwuBsQV6z7+X768/cHsfg+WlysDWJcmthjsjQ=="],
+ 
+     "body-parser": ["body-parser@1.20.9", "", { "dependencies": { "bytes": "~3.1.2", "content-type": "~1.0.5", "debug": "2.6.9", "depd": "2.0.0", "destroy": "~1.2.0", "http-errors": "~2.0.1", "iconv-lite": "~0.4.24", "on-finished": "~2.4.1", "qs": "~6.16.0", "raw-body": "~2.5.3", "type-is": "~1.6.18", "unpipe": "~1.0.0" } }, "sha512-FISIQxV5u91Y9gvuFq3q/tA/qTqLJn3AhRcEvyozyhJTh5OBFFtv827AdHU7Rbyct4r+Ba1/99oFa1Y3yuFsdw=="],
+@@ -298,12 +325,18 @@
+ 
+     "cookie-signature": ["cookie-signature@1.0.7", "", {}, "sha512-NXdYc3dLr47pBkpUCHtKSwIOQXLVn8dZEuywboCOJY/osA0wFSLlSawr3KN8qXJEyX66FcONTH8EIlVuK0yyFA=="],
+ 
++    "css-tree": ["css-tree@3.2.1", "", { "dependencies": { "mdn-data": "2.27.1", "source-map-js": "^1.2.1" } }, "sha512-X7sjQzceUhu1u7Y/ylrRZFU2FS6LRiFVp6rKLPg23y3x3c3DOKAwuXGDp+PAGjh6CSnCjYeAul8pcT8bAl+lSA=="],
++
+     "csstype": ["csstype@3.2.3", "", {}, "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ=="],
+ 
+     "data-uri-to-buffer": ["data-uri-to-buffer@4.0.1", "", {}, "sha512-0R9ikRb668HB7QDxT1vkpuUBtqc53YyAwMwGeUFKRojY/NWKvdZ+9UYtRfGmhqNbRkTSVpMbmyhXipFFv2cb/A=="],
+ 
++    "data-urls": ["data-urls@8.0.0", "", { "dependencies": { "whatwg-mimetype": "^5.0.0", "whatwg-url": "^17.1.2" } }, "sha512-JQUCCK+/CAGbGGx618PlFZMXH81Jtj7t73CHv9dd/zVWvxgGT2zLFRjnKb+Ng46GIwcy+f7f88qd4duqllK+WQ=="],
++
+     "debug": ["debug@2.6.9", "", { "dependencies": { "ms": "2.0.0" } }, "sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA=="],
+ 
++    "decimal.js": ["decimal.js@10.6.0", "", {}, "sha512-YpgQiITW3JXGntzdUmyUR1V812Hn8T1YVXhCu+wO3OpS4eU9l4YdD3qjyiKdV6mvV29zapkMeD390UVEf2lkUg=="],
++
+     "depd": ["depd@2.0.0", "", {}, "sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw=="],
+ 
+     "destroy": ["destroy@1.2.0", "", {}, "sha512-2sJGJTaXIIaR1w4iJSNoN0hnMY7Gpc/n8D4qSCJw8QqFWXf7cuAgnEHxBpweaVcPevC2l3KpjYCx3NypQQgaJg=="],
+@@ -324,6 +357,8 @@
+ 
+     "enhanced-resolve": ["enhanced-resolve@5.26.0", "", { "dependencies": { "graceful-fs": "^4.2.4", "tapable": "^2.3.3" } }, "sha512-9vhedylFonb2YGogzUKX6+Ja72gOJbN1QHAqdrvqLwhdl/QWbKopzoUC9EbQNVsAns/bx/4uyqalrQAoy1IByw=="],
+ 
++    "entities": ["entities@8.1.0", "", {}, "sha512-kxL7msIffSuh9aaFAMD7rxAIuTRMAHMeBtgHW2yUdWw732ZNh4MehkF2gdjvtdmikkaIP9bFDDJOPlsvm7avrA=="],
++
+     "es-define-property": ["es-define-property@1.0.1", "", {}, "sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g=="],
+ 
+     "es-errors": ["es-errors@1.3.0", "", {}, "sha512-Zf5H2Kxt2xjTvbJvP2ZWLEICxA6j+hAmMzIlypy4xcBg1vKVnx89Wy0GbS+kf5cwCVFFzdCFh2XSCFNULS6csw=="],
+@@ -332,7 +367,7 @@
+ 
+     "es-object-atoms": ["es-object-atoms@1.1.2", "", { "dependencies": { "es-errors": "^1.3.0" } }, "sha512-HWcBoN6NileqtSydK2FqHbS/LoDd2pqrnQHLyJzBj4kOp/ky2MWMN694xOfkK8/SnUsW2DH7EfyVlydKCsm1Zw=="],
+ 
+-    "esbuild": ["esbuild@0.25.12", "", { "optionalDependencies": { "@esbuild/aix-ppc64": "0.25.12", "@esbuild/android-arm": "0.25.12", "@esbuild/android-arm64": "0.25.12", "@esbuild/android-x64": "0.25.12", "@esbuild/darwin-arm64": "0.25.12", "@esbuild/darwin-x64": "0.25.12", "@esbuild/freebsd-arm64": "0.25.12", "@esbuild/freebsd-x64": "0.25.12", "@esbuild/linux-arm": "0.25.12", "@esbuild/linux-arm64": "0.25.12", "@esbuild/linux-ia32": "0.25.12", "@esbuild/linux-loong64": "0.25.12", "@esbuild/linux-mips64el": "0.25.12", "@esbuild/linux-ppc64": "0.25.12", "@esbuild/linux-riscv64": "0.25.12", "@esbuild/linux-s390x": "0.25.12", "@esbuild/linux-x64": "0.25.12", "@esbuild/netbsd-arm64": "0.25.12", "@esbuild/netbsd-x64": "0.25.12", "@esbuild/openbsd-arm64": "0.25.12", "@esbuild/openbsd-x64": "0.25.12", "@esbuild/openharmony-arm64": "0.25.12", "@esbuild/sunos-x64": "0.25.12", "@esbuild/win32-arm64": "0.25.12", "@esbuild/win32-ia32": "0.25.12", "@esbuild/win32-x64": "0.25.12" }, "bin": { "esbuild": "bin/esbuild" } }, "sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg=="],
++    "esbuild": ["esbuild@0.28.2", "", { "optionalDependencies": { "@esbuild/aix-ppc64": "0.28.2", "@esbuild/android-arm": "0.28.2", "@esbuild/android-arm64": "0.28.2", "@esbuild/android-x64": "0.28.2", "@esbuild/darwin-arm64": "0.28.2", "@esbuild/darwin-x64": "0.28.2", "@esbuild/freebsd-arm64": "0.28.2", "@esbuild/freebsd-x64": "0.28.2", "@esbuild/linux-arm": "0.28.2", "@esbuild/linux-arm64": "0.28.2", "@esbuild/linux-ia32": "0.28.2", "@esbuild/linux-loong64": "0.28.2", "@esbuild/linux-mips64el": "0.28.2", "@esbuild/linux-ppc64": "0.28.2", "@esbuild/linux-riscv64": "0.28.2", "@esbuild/linux-s390x": "0.28.2", "@esbuild/linux-x64": "0.28.2", "@esbuild/netbsd-arm64": "0.28.2", "@esbuild/netbsd-x64": "0.28.2", "@esbuild/openbsd-arm64": "0.28.2", "@esbuild/openbsd-x64": "0.28.2", "@esbuild/openharmony-arm64": "0.28.2", "@esbuild/sunos-x64": "0.28.2", "@esbuild/win32-arm64": "0.28.2", "@esbuild/win32-ia32": "0.28.2", "@esbuild/win32-x64": "0.28.2" }, "bin": { "esbuild": "bin/esbuild" } }, "sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA=="],
+ 
+     "escalade": ["escalade@3.2.0", "", {}, "sha512-WUj2qlxaQtO4g6Pq5c29GTcWGDyd8itL8zTlipgECz3JesAiiOKotd8JU6otB3PACgG6xkJUyVhboMS+bje/jA=="],
+ 
+@@ -348,6 +383,8 @@
+ 
+     "extend": ["extend@3.0.2", "", {}, "sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g=="],
+ 
++    "fake-indexeddb": ["fake-indexeddb@6.2.6", "", {}, "sha512-ihhmr0KoET51jT8R4YhbUYuLLvr1qqO6INISygtN16i8loR8kAxtAUr4+EKHTSMjL+lggaAn4OC7DRqzrNgnuQ=="],
++
+     "fdir": ["fdir@6.5.0", "", { "peerDependencies": { "picomatch": "^3 || ^4" }, "optionalPeers": ["picomatch"] }, "sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg=="],
+ 
+     "fetch-blob": ["fetch-blob@3.2.0", "", { "dependencies": { "node-domexception": "^1.0.0", "web-streams-polyfill": "^3.0.3" } }, "sha512-7yAQpD2UMJzLi1Dqv7qFYnPbaPx7ZfFK6PiIxQ4PfkGPyNyl2Ugx+a/umUonmKqjhM4DnfbMvdX6otXq83soQQ=="],
+@@ -388,6 +425,8 @@
+ 
+     "hasown": ["hasown@2.0.4", "", { "dependencies": { "function-bind": "^1.1.2" } }, "sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A=="],
+ 
++    "html-encoding-sniffer": ["html-encoding-sniffer@7.0.0", "", { "dependencies": { "@exodus/bytes": "^1.15.1" } }, "sha512-UikN5yr7xsCDAq87Or5or0PAlD3HJJOKVzM05az588WnpDJ4Ux7a2A53Qi6gofGg2/EtvF/H4hCi/TXfCW4Y6w=="],
++
+     "html5-qrcode": ["html5-qrcode@2.3.8", "", {}, "sha512-jsr4vafJhwoLVEDW3n1KvPnCCXWaQfRng0/EEYk1vNcQGcG/htAdhJX0be8YyqMoSz7+hZvOZSTAepsabiuhiQ=="],
+ 
+     "http-errors": ["http-errors@2.0.1", "", { "dependencies": { "depd": "~2.0.0", "inherits": "~2.0.4", "setprototypeof": "~1.2.0", "statuses": "~2.0.2", "toidentifier": "~1.0.1" } }, "sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ=="],
+@@ -400,8 +439,12 @@
+ 
+     "ipaddr.js": ["ipaddr.js@1.9.1", "", {}, "sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g=="],
+ 
++    "is-potential-custom-element-name": ["is-potential-custom-element-name@1.0.1", "", {}, "sha512-bCYeRA2rVibKZd+s2625gGnGF/t7DSqDs4dP7CrLA1m7jKWz6pps0LpYLJN8Q64HtmPKJ1hrN3nzPNKFEKOUiQ=="],
++
+     "jiti": ["jiti@2.7.0", "", { "bin": { "jiti": "lib/jiti-cli.mjs" } }, "sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ=="],
+ 
++    "jsdom": ["jsdom@30.1.3", "", { "dependencies": { "@asamuzakjp/css-color": "^7.1.3", "@asamuzakjp/dom-selector": "^10.0.3", "@bramus/specificity": "^2.4.2", "@csstools/css-syntax-patches-for-csstree": "^1.1.15", "@exodus/bytes": "^1.16.0", "css-tree": "^3.2.1", "data-urls": "^8.0.0", "decimal.js": "^10.6.0", "html-encoding-sniffer": "^7.0.0", "is-potential-custom-element-name": "^1.0.1", "lru-cache": "^11.5.3", "parse5": "^8.0.1", "saxes": "^6.0.0", "tough-cookie": "^6.0.2", "undici": "^8.12.1", "w3c-xmlserializer": "^6.0.0", "webidl-conversions": "^8.0.1", "whatwg-mimetype": "^5.0.0", "whatwg-url": "^17.2.0", "xml-name-validator": "^5.0.0" }, "peerDependencies": { "canvas": "^3.2.3" }, "optionalPeers": ["canvas"] }, "sha512-hQMUPvRgN7KxsfIytDQji7bimuJeRQa6Qo5+iuiZQk5CafeRxLIA10/cG5YCBFNpD9RO3oqIiN4CO1Y44kxqXg=="],
++
+     "json-bigint": ["json-bigint@1.0.0", "", { "dependencies": { "bignumber.js": "^9.0.0" } }, "sha512-SiPv/8VpZuWbvLSMtTDU8hEfrZWg/mH/nV/b4o0CYbSxu1UIQPLdwKOCIyLQX+VIPO5vrLX3i8qtqFyhdPSUSQ=="],
+ 
+     "jwa": ["jwa@2.0.1", "", { "dependencies": { "buffer-equal-constant-time": "^1.0.1", "ecdsa-sig-formatter": "1.0.11", "safe-buffer": "^5.0.1" } }, "sha512-hRF04fqJIP8Abbkq5NKGN0Bbr3JxlQ+qhZufXVr0DvujKy93ZCbXZMHDL4EOtodSbCWxOqR8MS1tXA5hwqCXDg=="],
+@@ -434,12 +477,16 @@
+ 
+     "long": ["long@5.3.2", "", {}, "sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA=="],
+ 
++    "lru-cache": ["lru-cache@11.5.3", "", {}, "sha512-U4N8FgzmWxc8k1VH8Kr6lQg18U7Fjvby6wXHVRX/ZZ7IwWbRMgrRbP0Wrb5q5NVinryp4SQampHKdvtecItxUg=="],
++
+     "lucide-react": ["lucide-react@0.546.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-Z94u6fKT43lKeYHiVyvyR8fT7pwCzDu7RyMPpTvh054+xahSgj4HFQ+NmflvzdXsoAjYGdCguGaFKYuvq0ThCQ=="],
+ 
+     "magic-string": ["magic-string@1.4.3", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.6.0" } }, "sha512-z12OxmaPGE0F4xlpGdjuAUckipLpQlTAuAmyGhNoD7ODpYUzvDfvtxUbjM/jwznyP178oju/KDdyi220wNJ0RQ=="],
+ 
+     "math-intrinsics": ["math-intrinsics@1.1.0", "", {}, "sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g=="],
+ 
++    "mdn-data": ["mdn-data@2.27.1", "", {}, "sha512-9Yubnt3e8A0OKwxYSXyhLymGW4sCufcLG6VdiDdUGVkPhpqLxlvP5vl1983gQjJl3tqbrM731mjaZaP68AgosQ=="],
++
+     "media-typer": ["media-typer@0.3.0", "", {}, "sha512-dq+qelQ9akHpcOl/gUVRTxVIOkAJ1wR3QAvb4RsVjS8oVoFjDGTc679wJYmUmknUF5HwMLOgb5O+a3KxfWapPQ=="],
+ 
+     "merge-descriptors": ["merge-descriptors@1.0.3", "", {}, "sha512-gaNvAS7TZ897/rVaZ0nMtAyxNyi/pdbjbAwUpFQpN70GqnVfOiXpeUUMKRBmzXaSQ8DdTX4/0ms62r2K+hE6mQ=="],
+@@ -478,6 +525,8 @@
+ 
+     "p-retry": ["p-retry@4.6.2", "", { "dependencies": { "@types/retry": "0.12.0", "retry": "^0.13.1" } }, "sha512-312Id396EbJdvRONlngUx0NydfrIQ5lsYu0znKVUzVvArzEIt08V1qhtyESbGVd1FGX7UKtiFp5uwKZdM8wIuQ=="],
+ 
++    "parse5": ["parse5@8.0.1", "", { "dependencies": { "entities": "^8.0.0" } }, "sha512-z1e/HMG90obSGeidlli3hj7cbocou0/wa5HacvI3ASx34PecNjNQeaHNo5WIZpWofN9kgkqV1q5YvXe3F0FoPw=="],
++
+     "parseurl": ["parseurl@1.3.3", "", {}, "sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ=="],
+ 
+     "path-to-regexp": ["path-to-regexp@0.1.13", "", {}, "sha512-A/AGNMFN3c8bOlvV9RreMdrv7jsmF9XIfDeCd87+I8RNg6s78BhJxMu69NEMHBSJFxKidViTEdruRwEk/WIKqA=="],
+@@ -494,6 +543,8 @@
+ 
+     "proxy-addr": ["proxy-addr@2.0.8", "", { "dependencies": { "forwarded": "0.2.0", "ipaddr.js": "1.9.1" } }, "sha512-5nnx0yGyVUcY6t9RnWcARWtwT9F1D8O9rt08htPvnd49W1IgZtmLkhu9WfMzQj1cFxjHIO6connUNVW5k7AVyQ=="],
+ 
++    "punycode": ["punycode@2.3.1", "", {}, "sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg=="],
++
+     "qs": ["qs@6.16.1", "", { "dependencies": { "es-define-property": "^1.0.1", "side-channel": "^1.1.1" } }, "sha512-5Px6J7rfHBAGUhNQ3es4YzcOdBBw0SDcVtThJml4RdnKw4tKs2epA0kPZ+K8X+WiHktT93RHVcQ/3ym5aTCgtg=="],
+ 
+     "range-parser": ["range-parser@1.2.1", "", {}, "sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg=="],
+@@ -504,6 +555,8 @@
+ 
+     "react-dom": ["react-dom@19.3.1", "", { "dependencies": { "scheduler": "^0.28.0" }, "peerDependencies": { "react": "^19.3.1" } }, "sha512-Y0bARz53lhEC1NMCASs0/j+faB/zqt3R8hpvg1e8+61ZVJ4UL0UdC4cBbXfZMcIuhrfgeILTLe+ZeBCavQPtKQ=="],
+ 
++    "require-from-string": ["require-from-string@2.0.2", "", {}, "sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw=="],
++
+     "retry": ["retry@0.13.1", "", {}, "sha512-XQBQ3I8W1Cge0Seh+6gjj03LbmRFWuoszgK9ooCpwYIrhhoO80pfq4cUkU5DkknwfOfFteRwlZ56PYOGYyFWdg=="],
+ 
+     "rolldown": ["rolldown@1.2.15", "", { "dependencies": { "@oxc-project/types": "=0.155.0", "@rolldown/pluginutils": "^1.0.0" }, "optionalDependencies": { "@rolldown/binding-android-arm-eabi": "1.2.15", "@rolldown/binding-android-arm64": "1.2.15", "@rolldown/binding-darwin-arm64": "1.2.15", "@rolldown/binding-darwin-x64": "1.2.15", "@rolldown/binding-freebsd-x64": "1.2.15", "@rolldown/binding-linux-arm-gnueabihf": "1.2.15", "@rolldown/binding-linux-arm64-gnu": "1.2.15", "@rolldown/binding-linux-arm64-musl": "1.2.15", "@rolldown/binding-linux-ppc64-gnu": "1.2.15", "@rolldown/binding-linux-s390x-gnu": "1.2.15", "@rolldown/binding-linux-x64-gnu": "1.2.15", "@rolldown/binding-linux-x64-musl": "1.2.15", "@rolldown/binding-openharmony-arm64": "1.2.15", "@rolldown/binding-win32-arm64-msvc": "1.2.15", "@rolldown/binding-win32-x64-msvc": "1.2.15" }, "bin": { "rolldown": "./bin/cli.mjs" } }, "sha512-6odND+fel5zVw3I4Yc2e69gvguDnX0CAAGiNDZSq4ik5WUcaLrkD2GLuog0XcODbor31hZ5ayEMgVDno+KPV5g=="],
+@@ -512,6 +565,8 @@
+ 
+     "safer-buffer": ["safer-buffer@2.1.2", "", {}, "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg=="],
+ 
++    "saxes": ["saxes@6.0.0", "", { "dependencies": { "xmlchars": "^2.2.0" } }, "sha512-xAg7SOnEhrm5zI3puOOKyy1OMcMlIJZYNJY7xLBwSze0UjhPLnWfj2GF2EpT0jmzaJKIWKHLsaSSajf35bcYnA=="],
++
+     "scheduler": ["scheduler@0.28.0", "", {}, "sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw=="],
+ 
+     "send": ["send@0.19.2", "", { "dependencies": { "debug": "2.6.9", "depd": "2.0.0", "destroy": "1.2.0", "encodeurl": "~2.0.0", "escape-html": "~1.0.3", "etag": "~1.8.1", "fresh": "~0.5.2", "http-errors": "~2.0.1", "mime": "1.6.0", "ms": "2.1.3", "on-finished": "~2.4.1", "range-parser": "~1.2.1", "statuses": "~2.0.2" } }, "sha512-VMbMxbDeehAxpOtWJXlcUS5E8iXh6QmN+BkRX1GARS3wRaXEEgzCcB10gTQazO42tpNIya8xIyNx8fll1OFPrg=="],
+@@ -544,8 +599,16 @@
+ 
+     "tinyglobby": ["tinyglobby@0.2.17", "", { "dependencies": { "fdir": "^6.5.0", "picomatch": "^4.0.4" } }, "sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g=="],
+ 
++    "tldts": ["tldts@7.4.19", "", { "dependencies": { "tldts-core": "^7.4.19" }, "bin": { "tldts": "bin/cli.js" } }, "sha512-48dH6aSpQnpbzDUc4vIQZ1VjB8tkK+e8c1yx05/SZK+rkssgjEOlxDd/yU8/a4vGYQ9vRgJr9dwMq9TJ0b3X2Q=="],
++
++    "tldts-core": ["tldts-core@7.4.19", "", {}, "sha512-goNXV6Ho9TIOfpJZanTd6CKG5DyYgYAL+k+22T0SLh8l6+KHIfBUPFuePuSZv05UttIaaLmI9tb7TmGIdK5AkQ=="],
++
+     "toidentifier": ["toidentifier@1.0.1", "", {}, "sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA=="],
+ 
++    "tough-cookie": ["tough-cookie@6.0.2", "", { "dependencies": { "tldts": "^7.0.5" } }, "sha512-exgYmnmL/sJpR3upZfXG5PoatXQii55xAiXGXzY+sROLZ/Y+SLcp9PgJNI9Vz37HpQ74WvDcLT8eqm+kV3FzrA=="],
++
++    "tr46": ["tr46@7.0.0", "", { "dependencies": { "punycode": "^2.3.1" } }, "sha512-BcDSDW+SIGWVOns1Zm6Yg91q9AEj7eaID0QDY9oIqJD1A8dscNwMcl9Sms2DeuWCNov1X0/oXanHGYQBSLwZsg=="],
++
+     "tslib": ["tslib@2.8.1", "", {}, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
+ 
+     "tsx": ["tsx@4.23.15", "", { "dependencies": { "esbuild": "~0.28.0" }, "optionalDependencies": { "fsevents": "~2.3.3" }, "bin": { "tsx": "dist/cli.mjs" } }, "sha512-Yiex1Ovn8z2xPpOWckIiysV1SSyRMY9BkLF++q0yKiDxCqRhosKfMg3janKkiLBwZ5c/YryloKwGZcrEmtwxKw=="],
+@@ -554,6 +617,8 @@
+ 
+     "typescript": ["typescript@7.0.2", "", { "optionalDependencies": { "@typescript/typescript-aix-ppc64": "7.0.2", "@typescript/typescript-darwin-arm64": "7.0.2", "@typescript/typescript-darwin-x64": "7.0.2", "@typescript/typescript-freebsd-arm64": "7.0.2", "@typescript/typescript-freebsd-x64": "7.0.2", "@typescript/typescript-linux-arm": "7.0.2", "@typescript/typescript-linux-arm64": "7.0.2", "@typescript/typescript-linux-loong64": "7.0.2", "@typescript/typescript-linux-mips64el": "7.0.2", "@typescript/typescript-linux-ppc64": "7.0.2", "@typescript/typescript-linux-riscv64": "7.0.2", "@typescript/typescript-linux-s390x": "7.0.2", "@typescript/typescript-linux-x64": "7.0.2", "@typescript/typescript-netbsd-arm64": "7.0.2", "@typescript/typescript-netbsd-x64": "7.0.2", "@typescript/typescript-openbsd-arm64": "7.0.2", "@typescript/typescript-openbsd-x64": "7.0.2", "@typescript/typescript-sunos-x64": "7.0.2", "@typescript/typescript-win32-arm64": "7.0.2", "@typescript/typescript-win32-x64": "7.0.2" }, "bin": { "tsc": "bin/tsc" } }, "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA=="],
+ 
++    "undici": ["undici@8.12.3", "", {}, "sha512-+fdndUTwBP86cVjihTp21hZHo7d6oj1c/47XPA3lL8mM0XHs+C4EkcjmgRsFnFk2f/UONGDy9ItBItmXsLOQHw=="],
++
+     "undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
+ 
+     "unpipe": ["unpipe@1.0.0", "", {}, "sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ=="],
+@@ -568,12 +633,24 @@
+ 
+     "vitest": ["vitest@5.0.5", "", { "dependencies": { "@types/chai": "^5.2.2", "@vitest/mocker": "5.0.5", "chai": "^6.3.0", "es-module-lexer": "^2.3.2", "expect-type": "^1.4.0", "magic-string": "^1.4.3", "obug": "^3.0.0", "picomatch": "^4.0.7", "std-env": "^4.3.0", "tinybench": "^6.2.2", "tinyexec": "^1.3.1", "tinyglobby": "^0.2.17", "why-is-node-running": "3.2.1" }, "peerDependencies": { "@edge-runtime/vm": "*", "@opentelemetry/api": "^1.9.0", "@types/node": "^22.0.0 || >=24.0.0", "@vitest/browser-playwright": "5.0.5", "@vitest/browser-preview": "5.0.5", "@vitest/browser-webdriverio": "^5.0.0-beta.5 || >=5.0.0", "@vitest/coverage-istanbul": "5.0.5", "@vitest/coverage-v8": "5.0.5", "@vitest/ui": "5.0.5", "happy-dom": "*", "jsdom": "*", "vite": "^6.4.0 || ^7.0.0 || ^8.0.0" }, "optionalPeers": ["@edge-runtime/vm", "@opentelemetry/api", "@types/node", "@vitest/browser-playwright", "@vitest/browser-preview", "@vitest/browser-webdriverio", "@vitest/coverage-istanbul", "@vitest/coverage-v8", "@vitest/ui", "happy-dom", "jsdom"], "bin": { "vitest": "./vitest.mjs" } }, "sha512-cPODOMF8YnkiiYtDdHo6n4wWmBrOBBbOIYH2d33M4l3CdNn72h+qMmO6uXffUN6A5AZFXNND/d+krS9mgkXRfg=="],
+ 
++    "w3c-xmlserializer": ["w3c-xmlserializer@6.0.0", "", { "dependencies": { "xml-name-validator": "^5.0.0" } }, "sha512-4Nsy8K5Tr6SPDH9jhKJOHf7ChDrc1zufZTVSF7x72hwuEXBqxqk9G6cK+K2NRUtB3iELRJqjXb4JPDMBjMTl2Q=="],
++
+     "web-streams-polyfill": ["web-streams-polyfill@3.3.3", "", {}, "sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw=="],
+ 
++    "webidl-conversions": ["webidl-conversions@8.0.1", "", {}, "sha512-BMhLD/Sw+GbJC21C/UgyaZX41nPt8bUTg+jWyDeg7e7YN4xOM05YPSIXceACnXVtqyEw/LMClUQMtMZ+PGGpqQ=="],
++
++    "whatwg-mimetype": ["whatwg-mimetype@5.0.0", "", {}, "sha512-sXcNcHOC51uPGF0P/D4NVtrkjSU2fNsm9iog4ZvZJsL3rjoDAzXZhkm2MWt1y+PUdggKAYVoMAIYcs78wJ51Cw=="],
++
++    "whatwg-url": ["whatwg-url@17.3.0", "", { "dependencies": { "@exodus/bytes": "^1.16.0", "tr46": "^7.0.0", "webidl-conversions": "^8.0.1" } }, "sha512-KwOAJrpf+GTgBvcBQJcP38sMF0DsQKdwtG+TxM2pW44P6E5k0hDbWrDmyuJDIF0Uef0aQq0ZoJs+5oI+k8ddhg=="],
++
+     "why-is-node-running": ["why-is-node-running@3.2.1", "", { "bin": { "why-is-node-running": "cli.js" } }, "sha512-Tb2FUhB4vUsGQlfSquQLYkApkuPAFQXGFzxWKHHumVz2dK+X1RUm/HnID4+TfIGYJ1kTcwOaCk/buYCEJr6YjQ=="],
+ 
+     "ws": ["ws@8.22.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg=="],
+ 
++    "xml-name-validator": ["xml-name-validator@5.0.0", "", {}, "sha512-EvGK8EJ3DhaHfbRlETOWAS5pO9MZITeauHKJyb8wyajUfQUenkIg2MvLDTZ4T/TgIcm3HU0TFBgWWboAZ30UHg=="],
++
++    "xmlchars": ["xmlchars@2.2.0", "", {}, "sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw=="],
++
+     "@tailwindcss/node/lightningcss": ["lightningcss@1.32.0", "", { "dependencies": { "detect-libc": "^2.0.3" }, "optionalDependencies": { "lightningcss-android-arm64": "1.32.0", "lightningcss-darwin-arm64": "1.32.0", "lightningcss-darwin-x64": "1.32.0", "lightningcss-freebsd-x64": "1.32.0", "lightningcss-linux-arm-gnueabihf": "1.32.0", "lightningcss-linux-arm64-gnu": "1.32.0", "lightningcss-linux-arm64-musl": "1.32.0", "lightningcss-linux-x64-gnu": "1.32.0", "lightningcss-linux-x64-musl": "1.32.0", "lightningcss-win32-arm64-msvc": "1.32.0", "lightningcss-win32-x64-msvc": "1.32.0" } }, "sha512-NXYBzinNrblfraPGyrbPoD19C1h9lfI/1mzgWYvXUTe414Gz/X1FD2XBZSZM7rRTrMA8JL3OtAaGifrIKhQ5yQ=="],
+ 
+     "@tailwindcss/node/magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
+@@ -608,8 +685,6 @@
+ 
+     "send/ms": ["ms@2.1.3", "", {}, "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="],
+ 
+-    "tsx/esbuild": ["esbuild@0.28.2", "", { "optionalDependencies": { "@esbuild/aix-ppc64": "0.28.2", "@esbuild/android-arm": "0.28.2", "@esbuild/android-arm64": "0.28.2", "@esbuild/android-x64": "0.28.2", "@esbuild/darwin-arm64": "0.28.2", "@esbuild/darwin-x64": "0.28.2", "@esbuild/freebsd-arm64": "0.28.2", "@esbuild/freebsd-x64": "0.28.2", "@esbuild/linux-arm": "0.28.2", "@esbuild/linux-arm64": "0.28.2", "@esbuild/linux-ia32": "0.28.2", "@esbuild/linux-loong64": "0.28.2", "@esbuild/linux-mips64el": "0.28.2", "@esbuild/linux-ppc64": "0.28.2", "@esbuild/linux-riscv64": "0.28.2", "@esbuild/linux-s390x": "0.28.2", "@esbuild/linux-x64": "0.28.2", "@esbuild/netbsd-arm64": "0.28.2", "@esbuild/netbsd-x64": "0.28.2", "@esbuild/openbsd-arm64": "0.28.2", "@esbuild/openbsd-x64": "0.28.2", "@esbuild/openharmony-arm64": "0.28.2", "@esbuild/sunos-x64": "0.28.2", "@esbuild/win32-arm64": "0.28.2", "@esbuild/win32-ia32": "0.28.2", "@esbuild/win32-x64": "0.28.2" }, "bin": { "esbuild": "bin/esbuild" } }, "sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA=="],
+-
+     "@tailwindcss/node/lightningcss/lightningcss-android-arm64": ["lightningcss-android-arm64@1.32.0", "", { "os": "android", "cpu": "arm64" }, "sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg=="],
+ 
+     "@tailwindcss/node/lightningcss/lightningcss-darwin-arm64": ["lightningcss-darwin-arm64@1.32.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-RzeG9Ju5bag2Bv1/lwlVJvBE3q6TtXskdZLLCyfg5pt+HLz9BqlICO7LZM7VHNTTn/5PRhHFBSjk5lc4cmscPQ=="],
+@@ -645,57 +720,5 @@
+     "https-proxy-agent/debug/ms": ["ms@2.1.3", "", {}, "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="],
+ 
+     "protobufjs/@types/node/undici-types": ["undici-types@8.9.0", "", {}, "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg=="],
+-
+-    "tsx/esbuild/@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.28.2", "", { "os": "aix", "cpu": "ppc64" }, "sha512-XExcO+dvLKvVtNTibSTBej1NCAbaGhWn9Ww1ZPx80qsahhPFe/8jgWP0IchNe0F3HwkU7n8ejhH8bjonqht8mQ=="],
+-
+-    "tsx/esbuild/@esbuild/android-arm": ["@esbuild/android-arm@0.28.2", "", { "os": "android", "cpu": "arm" }, "sha512-kXXoiPVVGQcnIYGOeaovwOURpniDBpSq4A03qkQ+BMQqtGG6HYap3xne9C1O1yo4TR3qxlCX5IqqmX6fFo2Lqg=="],
+-
+-    "tsx/esbuild/@esbuild/android-arm64": ["@esbuild/android-arm64@0.28.2", "", { "os": "android", "cpu": "arm64" }, "sha512-5YfKeeI8qWfBZIX+u2xZC3Zlb3Os/gLS2sbEKM+I4ZOcsWmHS2WLysCcQZDAFRslDUU5Oiq44gf6PYN1vGwG5A=="],
+-
+-    "tsx/esbuild/@esbuild/android-x64": ["@esbuild/android-x64@0.28.2", "", { "os": "android", "cpu": "x64" }, "sha512-O387ite7SzUyCcy3JQX4P4bLtEA7bLLkx+esve5JHnyYfNTxcVpXZo9jhdB0lTKN44gztELTdU7nS8Nr16Fs1Q=="],
+-
+-    "tsx/esbuild/@esbuild/darwin-arm64": ["@esbuild/darwin-arm64@0.28.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-n4KqkOQrraxHJcgjM1RvwbigfQKIKJVpM7xp+KsxiyUSrRdIXnt73VhrPAx0fV44hgfmIVKjxMN9J1t5jySVkw=="],
+-
+-    "tsx/esbuild/@esbuild/darwin-x64": ["@esbuild/darwin-x64@0.28.2", "", { "os": "darwin", "cpu": "x64" }, "sha512-uq6suIWYP37qzGddBKPw5QEQPi6HiLGsO7UmkpfyaYNQ3D+rN6w6WfwH+nuqcGXWvawGwxOEroO4YGnFh95azw=="],
+-
+-    "tsx/esbuild/@esbuild/freebsd-arm64": ["@esbuild/freebsd-arm64@0.28.2", "", { "os": "freebsd", "cpu": "arm64" }, "sha512-n+I0BTSRIoy+d6RPKnEVwql5UwBJolytvY4mAOIEJorKlqgPII8ix6slVVrfZ5Tnj7glIZvloylbB/EJPMWEXw=="],
+-
+-    "tsx/esbuild/@esbuild/freebsd-x64": ["@esbuild/freebsd-x64@0.28.2", "", { "os": "freebsd", "cpu": "x64" }, "sha512-78XJTJkvPs0kz2w61301PJjXl4g7q3JqiYMZ/M/yVI73EHBrCRTgkhu9oqG7vPqq+a/yadEW8aD+agKlk5xrmg=="],
+-
+-    "tsx/esbuild/@esbuild/linux-arm": ["@esbuild/linux-arm@0.28.2", "", { "os": "linux", "cpu": "arm" }, "sha512-XlDnu2q5yoqems+xay6wSAcg9DDD7K9RLKZEBOMZm3ckNpJBvOX20tSfby8KfrrhINDyv9V2YVZKY/SpoGJI8w=="],
+-
+-    "tsx/esbuild/@esbuild/linux-arm64": ["@esbuild/linux-arm64@0.28.2", "", { "os": "linux", "cpu": "arm64" }, "sha512-pW4AC0P3it8c7do9MVM4p51FzHzdM/TZrerurgRcHJ2WTa1VQ1CIq18xncfpBJw4ojkiZZrKW2yIBWBP92j6Ug=="],
+-
+-    "tsx/esbuild/@esbuild/linux-ia32": ["@esbuild/linux-ia32@0.28.2", "", { "os": "linux", "cpu": "ia32" }, "sha512-CYbnj78HsIeA+DhgUKgFCfvNsTHFhMMrinUrMZpDXJXKN8T3XViTZ/+wtHeVxEWY8ewSzTFN+nRmSwO2tZaLUQ=="],
+-
+-    "tsx/esbuild/@esbuild/linux-loong64": ["@esbuild/linux-loong64@0.28.2", "", { "os": "linux", "cpu": "none" }, "sha512-buwkd8nsph4R+ajRvw0qM5Hja/TXQow3ptzWO2EbG/cqcIkHloRrdlBtQlshyYGTNFvfkfJ5tpPLVkY4DtsPfQ=="],
+-
+-    "tsx/esbuild/@esbuild/linux-mips64el": ["@esbuild/linux-mips64el@0.28.2", "", { "os": "linux", "cpu": "none" }, "sha512-ZVykbDyk7519VwiNb9Lcj9m8XM6v5V9uKPvrEMkkEedVewf+0itkhahp4HDpgERXhwLRpWFypsGbG/J8s0QjJA=="],
+-
+-    "tsx/esbuild/@esbuild/linux-ppc64": ["@esbuild/linux-ppc64@0.28.2", "", { "os": "linux", "cpu": "ppc64" }, "sha512-CAXl+Dtd9UUuJd8pKKdwh6MLm3MUMiqMPmhZ3tTSXPqfyQ3vDl6R5hZdZ/kYojK4ofXtdfSv1tFq8XzWx3heNQ=="],
+-
+-    "tsx/esbuild/@esbuild/linux-riscv64": ["@esbuild/linux-riscv64@0.28.2", "", { "os": "linux", "cpu": "none" }, "sha512-GeXCej4IQtU1B+QlDV8W/RRvbzI3O/Stss+/bCXv4lZls5WGRtu2a+3JkA3i4qIUlMXpcHebWpF8AkJhATowuA=="],
+-
+-    "tsx/esbuild/@esbuild/linux-s390x": ["@esbuild/linux-s390x@0.28.2", "", { "os": "linux", "cpu": "s390x" }, "sha512-3H1weTYZPxt/WOhByszQZybS9w5lKzUn1FDMsgEChbHWQwHYQQRfBxgCcZvPhjHfKyJjIievvMmEUawJrdY9Dg=="],
+-
+-    "tsx/esbuild/@esbuild/linux-x64": ["@esbuild/linux-x64@0.28.2", "", { "os": "linux", "cpu": "x64" }, "sha512-4xTZr1FUmSoQW4XIWmit3tzQrUTZM+N3P0XV8xROKYF50XfI7xeO90+1bZvNwxIufQ9hDQVRJH5YhgPVF8A/HQ=="],
+-
+-    "tsx/esbuild/@esbuild/netbsd-arm64": ["@esbuild/netbsd-arm64@0.28.2", "", { "os": "none", "cpu": "arm64" }, "sha512-sSATRjPeDBg3pdgHoQfoYBob11Kk1FGa9lui5RIHZCoCkJa9QKlvl3/vKz2usCmYYjs7ymJR/2Nnsqe+Hjt5nw=="],
+-
+-    "tsx/esbuild/@esbuild/netbsd-x64": ["@esbuild/netbsd-x64@0.28.2", "", { "os": "none", "cpu": "x64" }, "sha512-lqnzCV+mM0gIADaKihiCg6ifgfU2L3h5E33rNQBN1Y4MaVGnzryzmvvf7UHxprpQdE8hpqLolJ9Rl+SkIRDpyw=="],
+-
+-    "tsx/esbuild/@esbuild/openbsd-arm64": ["@esbuild/openbsd-arm64@0.28.2", "", { "os": "openbsd", "cpu": "arm64" }, "sha512-AL2qJILH7lNjrDmCQDvdxMfAUIv8KMNZOvrwAQ8i8//ntL9FflhOyMJ8OZSMBb8/AWXe3/5v5S20y3zCoZWKoQ=="],
+-
+-    "tsx/esbuild/@esbuild/openbsd-x64": ["@esbuild/openbsd-x64@0.28.2", "", { "os": "openbsd", "cpu": "x64" }, "sha512-QtiuPytchRyC4rwUKhexJdQKvDuZ6hWloi3igqPQNUJCS1/v9EiO3UTOXR6A3FoMo4fnAKbWJdqaIwhOzh8qEw=="],
+-
+-    "tsx/esbuild/@esbuild/openharmony-arm64": ["@esbuild/openharmony-arm64@0.28.2", "", { "os": "none", "cpu": "arm64" }, "sha512-WkhYDmpTjLvGlScA1rwjRUmhl4k8oXR3cIbtqWmELgU/dFeHHlEllxDvdWcNJV9rbzCexB5vz8gtNewWLgCT7Q=="],
+-
+-    "tsx/esbuild/@esbuild/sunos-x64": ["@esbuild/sunos-x64@0.28.2", "", { "os": "sunos", "cpu": "x64" }, "sha512-GPMSkTOtMnv2U2F8gxe4Io6qmVs+YKyp832Etqqxr0hFngmXQ3rzwytelm3GIn7T4VviRUlf3sOgBOiTdvaf7g=="],
+-
+-    "tsx/esbuild/@esbuild/win32-arm64": ["@esbuild/win32-arm64@0.28.2", "", { "os": "win32", "cpu": "arm64" }, "sha512-PIhhEkE9uPBleRBrQEJpUn7MBnibZzbGzYWPmY3x+YoVg/95zbjB4CxPPOQ8l5tYYM4mMaCthF8/1DIfBQQyWQ=="],
+-
+-    "tsx/esbuild/@esbuild/win32-ia32": ["@esbuild/win32-ia32@0.28.2", "", { "os": "win32", "cpu": "ia32" }, "sha512-YmJbfTlvU7Sdn9BB+4PRES4oB6pxgS37MAONj+hBr/cpXS1aBPKXxNnDbu+QCWPj0o9dgyxeq79g6c5P8KeuYA=="],
+-
+-    "tsx/esbuild/@esbuild/win32-x64": ["@esbuild/win32-x64@0.28.2", "", { "os": "win32", "cpu": "x64" }, "sha512-5ebpxr3nWMzrL/rnUI755Jkuee0bHL/Gq0WTF9lvcpv73wAp5eu8MfBUgWK9bhWvZjj7yX8etf/8tI8Ney695g=="],
+   }
+ }
+diff --git a/docs/body-scan-pose-model.md b/docs/body-scan-pose-model.md
+new file mode 100644
+index 0000000..071f54d
+--- /dev/null
++++ b/docs/body-scan-pose-model.md
+@@ -0,0 +1,112 @@
++# Body Scan: on-device pose model (Phase 2C)
++
++Body Scan finds body landmarks in a photo **inside the browser**. Photos, frames and
++landmarks are never uploaded. This file records exactly what is used, where it comes
++from, and what has and has not been verified.
++
++## What is used
++
++| Item | Value |
++| --- | --- |
++| Runtime package | `@mediapipe/tasks-vision` **0.10.35**, pinned exactly (no `^`) |
++| Runtime licence | Apache-2.0 (from the package metadata) |
++| Model bundle | `pose_landmarker_full.task`, float16 ("Full" variant of BlazePose GHUM 3D) |
++| Model licence | Apache License 2.0, as stated on Google's model card (see below) |
++| Mode | `IMAGE` (one still photo at a time), `numPoses: 1`, CPU delegate, no segmentation masks |
++| Served from | This app's own origin: `/models/pose_landmarker_full.task` (`public/models/`) |
++| WASM runtime | Bundled by Vite as hashed files under `/assets/` (own origin, no CDN) |
++
++### Why Full (not Lite or Heavy)
++Inference runs once per accepted photo, so speed matters little. Google's model card
++reports 2D accuracy (PDJ) of Lite 87.0%, Full 91.8%, Heavy 94.2%, and a smaller
++skin-tone gap for Full than for Lite. Heavy is much larger to download. The variant is a
++single constant (`POSE_MODEL_VARIANT` in `src/services/poseLandmarker.ts`) if this is
++revisited.
++
++### Model-card limits that matter here
++Google's card states the model is intended for entertainment and similar uses, **not
++life-critical decisions**; it tracks one person; it is sensitive to face position, scale
++and lighting; Z (depth) is not metric. Accuracy differs across regions, skin tones and
++genders (the card reports the gaps). That is why Body Scan reports only whether
++landmarks were found and whether the framing looks usable, and makes no body-composition
++or health claims.
++
++## Why 0.10.35 and not a newer 1.x release
++
++`@mediapipe/tasks-vision` **1.0.0 through 1.1.1** contain a usage-logging client that is
++created with every task and posts to `https://odml.pa.googleapis.com/v1/log` (task type,
++running mode, coarse OS family, library version and timing statistics; it flushes every
++60 seconds and when the task is closed). I found no image or landmark fields in it, but
++this was read from minified code and not observed at runtime, and I found no option to
++turn it off. Because Body Scan must call `close()` to release resources, using 1.x would
++cause a network request to Google, which conflicts with the "no third-party requests"
++rule.
++
++Versions **0.10.21 and 0.10.32 to 0.10.35** contain no such endpoint (audited in the
++JavaScript bundle; the WASM binaries contain only protobuf type names). 0.10.35 is the
++newest of them. `src/services/poseLandmarker.privacy.test.ts` fails if the dependency is
++unpinned or changed to a version that has not been audited, or if the installed bundle
++contains a network endpoint.
++
++### To upgrade MediaPipe
++1. Download the new tarball (`npm pack @mediapipe/tasks-vision@<version>`) and extract it.
++2. Search `vision_bundle.mjs` and the `wasm/*.js` loaders for `https://`, `fetch(`,
++   `XMLHttpRequest`, `sendBeacon`, `WebSocket`, and for any logging client.
++3. Check `strings` on the `.wasm` files for URLs.
++4. Only then add the version to `AUDITED_VERSIONS` in the privacy test and bump the pin.
++
++## Getting the model file into the repository
++
++The model is **not** downloaded by the app at runtime and **not** fetched at build time.
++It is a file in `public/models/`, copied into the build like any static asset.
++
++1. On a machine with normal internet access run `npm run fetch:pose-model`. It downloads
++   from Google's official bucket, refuses anything that looks like a web page, and prints
++   the byte size and SHA-256.
++   Source URL:
++   `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task`
++2. Record the values below, then commit the `.task` file together with this record.
++3. For repeatable checks use `npm run fetch:pose-model -- --expect <sha256>`.
++
++Until the file is present the app shows a clear "pose model file is not available"
++message with a retry button, and the rest of Iron Log is unaffected.
++
++| Recorded value | |
++| --- | --- |
++| Downloaded on | _not yet recorded_ |
++| Size in bytes | _not yet recorded_ |
++| SHA-256 | _not yet recorded_ |
++
++> `latest` in the URL is a moving alias. Recording the SHA-256 is what pins the model.
++
++### Redistribution
++The model card states Apache License 2.0. Apache-2.0 permits redistribution provided the
++licence text and notices travel with the work. When the `.task` file is committed, also
++keep a copy of the Apache-2.0 licence (https://www.apache.org/licenses/LICENSE-2.0) and
++credit "MediaPipe Pose Landmarker (BlazePose GHUM 3D), Google, Apache-2.0" in the app's
++third-party notices. The model card is at
++`https://storage.googleapis.com/mediapipe-assets/Model%20Card%20BlazePose%20GHUM%203D.pdf`.
++
++## Network behaviour (what the browser requests)
++
++| Request | When | Where | Contains |
++| --- | --- | --- | --- |
++| `GET /models/pose_landmarker_full.task` | first photo analysis in a session | own origin | nothing (plain GET, no body) |
++| `GET /assets/vision_bundle-*.js` | same moment (lazy chunk) | own origin | nothing |
++| `GET /assets/vision_wasm_*internal-*.{js,wasm}` | same moment | own origin | nothing |
++
++No request carries a photo, a frame or a landmark. The model is held in memory only and
++released after two minutes without use.
++
++## Known limitations
++- `detect()` is synchronous inside MediaPipe, so analysis runs on the main thread and the
++  page can pause for a moment. The engine yields to the browser first so an "analysing"
++  message can appear. Moving it to a Web Worker is a sensible later change but needs
++  testing on real devices.
++- Nothing here has been run against the real model on a real photo or device in the
++  development sandbox: the model file could not be downloaded there. All automated
++  tests use a fake engine and synthetic landmarks.
++- The acceptance rules (at least half of the required points reliable; collapsed-pose
++  check) are new Phase 2C heuristics and are not calibrated on real users.
++- The runtime and model are about 22 MB (SIMD) before compression on first use; browsers
++  cache them afterwards.
+diff --git a/package.json b/package.json
+index cb627d0..1927dc2 100644
+--- a/package.json
++++ b/package.json
+@@ -11,14 +11,17 @@
+     "clean": "rm -rf dist server.js",
+     "lint": "tsc --noEmit",
+     "test": "vitest run",
+-    "test:watch": "vitest"
++    "test:watch": "vitest",
++    "fetch:pose-model": "node scripts/fetch-pose-model.mjs"
+   },
+   "dependencies": {
+     "@google/genai": "^2.4.0",
++    "@mediapipe/tasks-vision": "0.10.35",
+     "@tailwindcss/vite": "^4.3.3",
+     "@vitejs/plugin-react": "^6.1.1",
+     "dotenv": "^17.2.3",
+     "express": "^4.21.2",
++    "html5-qrcode": "^2.3.8",
+     "lucide-react": "^0.546.0",
+     "motion": "^12.23.24",
+     "react": "^19.0.1",
+diff --git a/public/models/.gitkeep b/public/models/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/scripts/fetch-pose-model.mjs b/scripts/fetch-pose-model.mjs
+new file mode 100644
+index 0000000..1aac9ec
+--- /dev/null
++++ b/scripts/fetch-pose-model.mjs
+@@ -0,0 +1,60 @@
++#!/usr/bin/env node
++/**
++ * Downloads the MediaPipe Pose Landmarker model into public/models/ so the app can
++ * serve it from its own origin. Run once on a machine with normal internet access:
++ *
++ *   npm run fetch:pose-model
++ *   npm run fetch:pose-model -- --expect <sha256>     # verify against a recorded hash
++ *
++ * This is a developer tool. The app itself never downloads from this URL; at
++ * runtime it only fetches /models/pose_landmarker_full.task from its own origin.
++ * See docs/body-scan-pose-model.md for provenance, licence and what to record.
++ */
++import { createHash } from 'node:crypto';
++import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
++import { dirname, join } from 'node:path';
++import { fileURLToPath } from 'node:url';
++
++const VARIANT = 'pose_landmarker_full';
++const SOURCE = `https://storage.googleapis.com/mediapipe-models/pose_landmarker/${VARIANT}/float16/latest/${VARIANT}.task`;
++const MIN_BYTES = 100_000; // keep in sync with MIN_MODEL_BYTES in src/services/poseLandmarker.ts
++
++const root = join(dirname(fileURLToPath(import.meta.url)), '..');
++const dest = join(root, 'public', 'models', `${VARIANT}.task`);
++const argIndex = process.argv.indexOf('--expect');
++const expected = argIndex > -1 ? process.argv[argIndex + 1]?.toLowerCase() : undefined;
++
++let res;
++try {
++  res = await fetch(SOURCE, { redirect: 'follow' });
++} catch (err) {
++  console.error(`Could not reach ${SOURCE}`);
++  console.error(`(${err?.cause?.code ?? err?.message ?? 'network error'}). Check your internet connection or proxy settings.`);
++  process.exit(1);
++}
++if (!res.ok) {
++  console.error(`Download failed: HTTP ${res.status} from ${SOURCE}`);
++  process.exit(1);
++}
++const bytes = new Uint8Array(await res.arrayBuffer());
++if (bytes.length < MIN_BYTES || bytes[0] === 0x3c /* '<' = a web page */) {
++  console.error('Downloaded file does not look like a model bundle; refusing to write it.');
++  process.exit(1);
++}
++const sha256 = createHash('sha256').update(bytes).digest('hex');
++if (expected && expected !== sha256) {
++  console.error(`SHA-256 mismatch.\n  expected ${expected}\n  actual   ${sha256}\nNothing was written.`);
++  process.exit(1);
++}
++
++await mkdir(dirname(dest), { recursive: true });
++const tmp = `${dest}.part`;
++await writeFile(tmp, bytes);
++await rm(dest, { force: true });
++await rename(tmp, dest);
++
++console.log(`Wrote ${dest}`);
++console.log(`  source : ${SOURCE}`);
++console.log(`  bytes  : ${bytes.length}`);
++console.log(`  sha256 : ${sha256}`);
++console.log('Record the bytes and sha256 in docs/body-scan-pose-model.md before committing the file.');
+diff --git a/src/components/bodyscan/BodyScanFlow.tsx b/src/components/bodyscan/BodyScanFlow.tsx
+index b2a2f5a..27d6f47 100644
+--- a/src/components/bodyscan/BodyScanFlow.tsx
++++ b/src/components/bodyscan/BodyScanFlow.tsx
+@@ -3,6 +3,7 @@ import { ArrowLeft, Scan } from 'lucide-react';
+ import { BodyScanConsent } from '../../types/bodyScan';
+ import { UserProfile } from '../../types';
+ import { getBodyScanConsent } from '../../storage/bodyScanConsent';
++import type { PoseEngine } from '../../services/poseLandmarker';
+ import { BODY_SCAN_MIN_AGE, getBodyScanGate } from '../../utils/bodyScanEligibility';
+ import { CaptureSession } from './CaptureSession';
+ import { ConsentStep } from './ConsentStep';
+@@ -11,10 +12,12 @@ import { PrivacyControls } from './PrivacyControls';
+ interface BodyScanFlowProps {
+   profile: UserProfile;
+   onClose: () => void;
++  /** Test seam: creates the pose engine. Production uses the real on-device engine. */
++  createEngine?: () => PoseEngine;
+ }
+ 
+ /** Body Scan sub-flow, rendered inside the Body tab (no separate nav tab). */
+-export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose }) => {
++export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose, createEngine }) => {
+   const [consent, setConsent] = useState<BodyScanConsent | null>(() => getBodyScanConsent());
+   // Bumping this remounts CaptureSession, which drops every temporary in-memory photo and revokes its preview URL.
+   const [photoSessionId, setPhotoSessionId] = useState(0);
+@@ -52,7 +55,7 @@ export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose })
+ 
+       {gate.status === 'ready' && (
+         <>
+-          <CaptureSession key={photoSessionId} />
++          <CaptureSession key={photoSessionId} createEngine={createEngine} />
+           <PrivacyControls
+             consent={gate.consent}
+             onConsentChange={setConsent}
+diff --git a/src/components/bodyscan/CaptureQualityPanel.tsx b/src/components/bodyscan/CaptureQualityPanel.tsx
+index 7311875..a44ffe8 100644
+--- a/src/components/bodyscan/CaptureQualityPanel.tsx
++++ b/src/components/bodyscan/CaptureQualityPanel.tsx
+@@ -11,7 +11,7 @@ import type { CaptureQualityAssessment, QualityCheckId, QualityCheckStatus } fro
+  * run. When a later phase supplies real inputs it simply passes the assessment.
+  */
+ 
+-const CHECK_LABELS: Record<QualityCheckId, string> = {
++export const CHECK_LABELS: Record<QualityCheckId, string> = {
+   landmarks_visible: 'Body landmarks visible',
+   in_frame: 'Whole body in frame',
+   centered: 'Centred in frame',
+@@ -50,14 +50,19 @@ const StatusIcon: React.FC<{ status: QualityCheckStatus }> = ({ status }) => {
+ interface CaptureQualityPanelProps {
+   /** Real result from the capture pipeline. Omit (or pass null) when no checks are running. */
+   assessment?: CaptureQualityAssessment | null;
++  /** Heading id, so several panels can share one screen without duplicate ids. */
++  headingId?: string;
+ }
+ 
+-export const CaptureQualityPanel: React.FC<CaptureQualityPanelProps> = ({ assessment }) => {
++export const CaptureQualityPanel: React.FC<CaptureQualityPanelProps> = ({
++  assessment,
++  headingId = 'capture-quality-heading',
++}) => {
+   const anyEvaluated = !!assessment && assessment.checks.some((c) => c.status !== 'not_evaluated');
+ 
+   return (
+-    <section aria-labelledby="capture-quality-heading" className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
+-      <h3 id="capture-quality-heading" className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-300">
++    <section aria-labelledby={headingId} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
++      <h3 id={headingId} className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-300">
+         Photo quality checks
+       </h3>
+ 
+diff --git a/src/components/bodyscan/CaptureSession.tsx b/src/components/bodyscan/CaptureSession.tsx
+index 4b440de..3fa34fc 100644
+--- a/src/components/bodyscan/CaptureSession.tsx
++++ b/src/components/bodyscan/CaptureSession.tsx
+@@ -1,9 +1,12 @@
+ import React, { useState } from 'react';
+ import { Camera, CircleCheck, CircleDashed, Info, Trash2 } from 'lucide-react';
+ import type { NewScanPhoto, ScanView } from '../../types/bodyScan';
++import { createPoseEngine, type PoseEngine } from '../../services/poseLandmarker';
+ import { CAPTURE_GUIDANCE } from './captureGuidance';
+ import { CameraCapture } from './CameraCapture';
++import { PoseDetectionPanel } from './PoseDetectionPanel';
+ import { useObjectUrl } from './useObjectUrl';
++import { usePoseDetection } from './usePoseDetection';
+ 
+ const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-400';
+ const VIEWS: ScanView[] = ['front', 'side'];
+@@ -20,17 +23,25 @@ const PhotoThumb: React.FC<{ photo: NewScanPhoto }> = ({ photo }) => {
+   );
+ };
+ 
++interface CaptureSessionProps {
++  /** Test seam: creates the pose engine. Production uses the real on-device engine. */
++  createEngine?: () => PoseEngine;
++}
++
+ /**
+- * Phase 2B capture flow: front photo, then side photo.
++ * Capture flow: front photo, then side photo. Phase 2C adds on-device pose
++ * detection for each accepted photo.
+  *
+- * Photos live only in this component's React state. They are not written to
+- * IndexedDB, localStorage or any server, and are dropped when the person
+- * discards them or leaves the Body Scan screen. Taking both photos does NOT
+- * complete a scan: there is no pose analysis or measurement yet.
++ * Photos and detected landmarks live only in this component's React state. They
++ * are not written to IndexedDB, localStorage or any server, and are dropped when
++ * the person discards them or leaves the Body Scan screen. Each view is analysed
++ * on its own; taking both photos does NOT complete a scan: nothing is measured,
++ * scored or saved yet.
+  */
+-export const CaptureSession: React.FC = () => {
++export const CaptureSession: React.FC<CaptureSessionProps> = ({ createEngine = createPoseEngine }) => {
+   const [active, setActive] = useState<ScanView | null>(null);
+   const [photos, setPhotos] = useState<Partial<Record<ScanView, NewScanPhoto>>>({});
++  const detection = usePoseDetection(createEngine);
+ 
+   if (active) {
+     return (
+@@ -38,8 +49,10 @@ export const CaptureSession: React.FC = () => {
+         key={active}
+         view={active}
+         onCaptured={(photo) => {
+-          setPhotos((prev) => ({ ...prev, [active]: photo }));
++          const view = active;
++          setPhotos((prev) => ({ ...prev, [view]: photo }));
+           setActive(null);
++          detection.run(view, photo.blob); // on-device only; replaces any earlier analysis for this view
+         }}
+         onCancel={() => setActive(null)}
+       />
+@@ -63,9 +76,9 @@ export const CaptureSession: React.FC = () => {
+       <p className="flex items-start gap-2 text-xs leading-relaxed text-zinc-400">
+         <Info className="mt-0.5 h-4 w-4 shrink-0 text-lime-400" aria-hidden="true" />
+         <span>
+-          Photo capture is available as a preview. Pose analysis, measurements and saving are not available yet, so taking
+-          these photos does not complete a scan. Photos are kept only in this tab and are not saved or uploaded, even if you
+-          allowed photo storage.
++          Photo capture is available as a preview. After you accept a photo, Iron Log looks for body landmarks in it on this
++          device only. Measurements and saving are not available yet, so taking these photos does not complete a scan. Photos
++          and detected landmarks are kept only in this tab and are not saved or uploaded, even if you allowed photo storage.
+         </span>
+       </p>
+ 
+@@ -73,6 +86,8 @@ export const CaptureSession: React.FC = () => {
+         {VIEWS.map((view) => {
+           const g = CAPTURE_GUIDANCE[view];
+           const photo = photos[view];
++          const state = detection.states[view];
++          const needsRetake = state?.phase === 'error' || (state?.phase === 'done' && state.outcome.status !== 'usable');
+           return (
+             <li key={view} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
+               <div className="flex items-center justify-between gap-2">
+@@ -87,11 +102,12 @@ export const CaptureSession: React.FC = () => {
+                 <span className="text-[11px] text-zinc-500">{photo ? 'Taken (temporary)' : 'Not taken'}</span>
+               </div>
+               {photo && <PhotoThumb photo={photo} />}
++              {photo && <PoseDetectionPanel view={view} state={state} onRetry={() => detection.run(view, photo.blob)} />}
+               <button
+                 type="button"
+                 onClick={() => setActive(view)}
+                 className={`touch-press w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${focusRing} ${
+-                  photo
++                  photo && !needsRetake
+                     ? 'bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-200'
+                     : 'bg-lime-400 hover:bg-lime-300 text-black'
+                 }`}
+@@ -105,14 +121,18 @@ export const CaptureSession: React.FC = () => {
+ 
+       {taken === 2 && (
+         <p role="status" className="text-xs text-zinc-300">
+-          Both temporary photos are ready. Nothing further happens with them in this version.
++          Both temporary photos are ready. In this version they are only checked for body landmarks on this device; nothing is
++          measured, scored or saved.
+         </p>
+       )}
+ 
+       {taken > 0 && (
+         <button
+           type="button"
+-          onClick={() => setPhotos({})}
++          onClick={() => {
++            detection.clearAll(); // cancels any analysis in flight and forgets its landmarks
++            setPhotos({});
++          }}
+           className={`touch-press inline-flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800 hover:border-rose-500/50 text-zinc-300 rounded-xl text-xs font-semibold ${focusRing}`}
+         >
+           <Trash2 className="h-4 w-4" aria-hidden="true" />
+diff --git a/src/components/bodyscan/PoseDetection.test.tsx b/src/components/bodyscan/PoseDetection.test.tsx
+new file mode 100644
+index 0000000..9c2ec2e
+--- /dev/null
++++ b/src/components/bodyscan/PoseDetection.test.tsx
+@@ -0,0 +1,514 @@
++import 'fake-indexeddb/auto';
++import React, { act } from 'react';
++import { createRoot, Root } from 'react-dom/client';
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { BodyScanFlow } from './BodyScanFlow';
++import { DEFAULT_PROFILE } from '../../storage/db';
++import { getBodyScanConsent } from '../../storage/bodyScanConsent';
++import { getStorageSummary, listScans } from '../../storage/bodyScanStore';
++import { installFakeCamera, type FakeCamera } from '../../services/fakeMedia.testutil';
++import { PoseEngineError } from '../../services/poseLandmarker';
++import { adapted, createFakePoseEngine, defer, type FakeEngine } from '../../services/fakePose.testutil';
++import type { PoseAdaptResult } from '../../utils/poseResultAdapter';
++import { makeFrontPose, makeSidePose } from '../../utils/syntheticPose.testutil';
++import type { UserProfile } from '../../types';
++
++(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
++
++// Every landmark below is SYNTHETIC test data. None of it is output from a real model or a real person.
++
++let container: HTMLDivElement;
++let root: Root;
++let cam: FakeCamera;
++let engine: FakeEngine;
++let createEngine: ReturnType<typeof vi.fn<() => FakeEngine>>;
++let blobCounter = 0;
++
++const render = async (profile: UserProfile) => {
++  await act(async () => {
++    root.render(<BodyScanFlow profile={profile} onClose={() => {}} createEngine={createEngine} />);
++  });
++};
++const click = async (el: Element | undefined) => {
++  if (!el) throw new Error('element not found');
++  await act(async () => {
++    (el as HTMLElement).click();
++  });
++};
++const byText = (tag: string, text: string) =>
++  Array.from(container.querySelectorAll(tag)).find((e) => e.textContent?.includes(text)) as HTMLElement | undefined;
++const flush = () =>
++  act(async () => {
++    await new Promise<void>((r) => setTimeout(r, 0));
++  });
++const result = (view: 'front' | 'side') => container.querySelector<HTMLElement>(`[data-testid="pose-result-${view}"]`);
++
++const giveConsent = async (age = 30) => {
++  await render({ ...DEFAULT_PROFILE, age });
++  const boxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
++  await click(boxes[0]);
++  await click(boxes[1]);
++  await click(byText('button', 'Continue'));
++};
++
++/** Takes a photo for `view` through the real camera UI (with fake media) and accepts it. */
++const takeAndAccept = async (view: 'front' | 'side', verb: 'Take' | 'Retake' = 'Take') => {
++  await click(byText('button', `${verb} ${view} photo`));
++  await click(byText('button', 'Turn on camera'));
++  await flush();
++  const v = container.querySelector('video')!;
++  Object.defineProperty(v, 'videoWidth', { configurable: true, value: 720 });
++  Object.defineProperty(v, 'videoHeight', { configurable: true, value: 1280 });
++  Object.defineProperty(v, 'readyState', { configurable: true, value: 4 });
++  await act(async () => {
++    v.dispatchEvent(new Event('loadeddata'));
++  });
++  await click(byText('button', 'Take photo'));
++  await flush();
++  await click(byText('button', 'Use this photo'));
++  await flush();
++};
++
++const ok = (lm = makeFrontPose()): PoseAdaptResult => adapted(lm);
++
++beforeEach(() => {
++  cam = installFakeCamera();
++  vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
++  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
++    (() => ({ drawImage: vi.fn() })) as unknown as HTMLCanvasElement['getContext']
++  );
++  // A different blob per capture, so tests can tell which photo was analysed.
++  vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (this: HTMLCanvasElement, cb: BlobCallback) {
++    cb(new Blob([`jpeg-${++blobCounter}`], { type: 'image/jpeg' }));
++  });
++  (URL as unknown as Record<string, unknown>).createObjectURL = vi.fn(() => 'blob:fake');
++  (URL as unknown as Record<string, unknown>).revokeObjectURL = vi.fn();
++  localStorage.clear();
++  blobCounter = 0;
++  engine = createFakePoseEngine();
++  createEngine = vi.fn(() => engine);
++  container = document.createElement('div');
++  document.body.appendChild(container);
++  root = createRoot(container);
++});
++afterEach(async () => {
++  await act(async () => root.unmount());
++  container.remove();
++  cam.uninstall();
++  delete (URL as unknown as Record<string, unknown>).createObjectURL;
++  delete (URL as unknown as Record<string, unknown>).revokeObjectURL;
++});
++
++describe('pose detection is lazy and respects the consent and 18+ gates', () => {
++  it('creates no engine (and loads no model) before a photo has been accepted', async () => {
++    await render({ ...DEFAULT_PROFILE, age: 30 }); // consent screen
++    expect(createEngine).not.toHaveBeenCalled();
++    await giveConsent();
++    expect(createEngine).not.toHaveBeenCalled(); // privacy controls + photo list
++    await click(byText('button', 'Take front photo'));
++    await click(byText('button', 'Turn on camera'));
++    await flush();
++    expect(createEngine).not.toHaveBeenCalled(); // live camera preview, photo not yet accepted
++  });
++
++  it('never creates an engine for an under-18 profile, even though the flow component mounts', async () => {
++    await render({ ...DEFAULT_PROFILE, age: 16 });
++    expect(container.textContent).toContain('Body Scan is for adults');
++    expect(createEngine).not.toHaveBeenCalled();
++    expect(byText('button', 'Take front photo')).toBeUndefined();
++  });
++
++  it('never creates an engine before consent, and the consent form is unchanged', async () => {
++    await render({ ...DEFAULT_PROFILE, age: 30 });
++    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(3);
++    expect((container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[2]).checked).toBe(false); // photo storage still opt-in
++    expect((byText('button', 'Continue') as HTMLButtonElement).disabled).toBe(true);
++    expect(createEngine).not.toHaveBeenCalled();
++  });
++});
++
++describe('successful detection', () => {
++  it('analyses the ACCEPTED photo on this device, and shows a result that does not overclaim', async () => {
++    engine = createFakePoseEngine([ok()]);
++    await giveConsent();
++    await takeAndAccept('front');
++
++    expect(createEngine).toHaveBeenCalledTimes(1);
++    expect(engine.load).toHaveBeenCalledTimes(1);
++    expect(engine.detect).toHaveBeenCalledTimes(1);
++    const analysed = engine.detect.mock.calls[0][0] as Blob;
++    expect(analysed).toBeInstanceOf(Blob);
++    expect(await analysed.text()).toBe('jpeg-1');
++
++    const panel = result('front')!;
++    expect(panel.dataset.status).toBe('usable');
++    expect(panel.textContent).toContain('Body pose detected');
++    expect(panel.textContent).toContain('9 of 9 required body points');
++    // The three checks nobody ran are named, not shown as passes.
++    expect(panel.textContent).toContain('Not checked in this version: lighting, sharpness, holding still');
++    expect(panel.textContent).toContain('does not measure or assess your body');
++    // No scan / measurement / health claims.
++    expect(container.textContent).not.toMatch(/scan (is )?complete|body fat|muscle mass|\bkg\b|circumference|score|posture is|analysis complete/i);
++  });
++
++  it('shows loading, then detecting, then the result', async () => {
++    const load = defer<void>();
++    const detect = defer<PoseAdaptResult>();
++    engine.load.mockImplementationOnce(() => load.promise);
++    engine.detect.mockImplementationOnce(() => detect.promise);
++    await giveConsent();
++    await takeAndAccept('front');
++    expect(container.textContent).toContain('Preparing on-device pose detection');
++    expect(container.textContent).toContain('The photo is not uploaded');
++    await act(async () => load.resolve());
++    expect(container.textContent).toContain('Looking for body landmarks in your front photo on this device');
++    await act(async () => detect.resolve(ok()));
++    expect(result('front')?.dataset.status).toBe('usable');
++    expect(container.textContent).not.toContain('Looking for body landmarks');
++  });
++});
++
++describe('failed, partial and malformed outcomes', () => {
++  it('no landmarks detected -> failed panel with advice and a prominent retake', async () => {
++    engine = createFakePoseEngine([{ ok: false, reason: 'no_pose' }]);
++    await giveConsent();
++    await takeAndAccept('front');
++    const panel = result('front')!;
++    expect(panel.dataset.status).toBe('failed');
++    expect(panel.textContent).toContain('No body was detected in this photo');
++    expect(panel.textContent).toMatch(/retake the photo/i);
++    expect(byText('button', 'Retake front photo')).toBeTruthy();
++    expect(byText('button', 'Retake front photo')!.className).toContain('bg-lime-400'); // primary: this is the next step
++  });
++
++  it('partial pose (legs out of frame) -> partial panel naming the problem, retake offered', async () => {
++    const cutOff = makeFrontPose({ leftAnkle: { y: 1.05, visibility: 0.2 }, rightAnkle: { y: 1.05, visibility: 0.2 } });
++    engine = createFakePoseEngine([ok(cutOff)]);
++    await giveConsent();
++    await takeAndAccept('front');
++    const panel = result('front')!;
++    expect(panel.dataset.status).toBe('partial');
++    expect(panel.textContent).toContain('Body pose only partly detected');
++    expect(panel.textContent).toContain('7 of 9 required body points');
++    expect(panel.textContent).toMatch(/Not clearly visible: .*ankle/i);
++    expect(byText('button', 'Retake front photo')!.className).toContain('bg-lime-400');
++  });
++
++  it('low-confidence landmarks everywhere -> failed, not accepted just because the model returned an array', async () => {
++    const lowEverywhere = makeFrontPose({}, 0.1);
++    engine = createFakePoseEngine([ok(lowEverywhere)]);
++    await giveConsent();
++    await takeAndAccept('front');
++    expect(result('front')!.dataset.status).toBe('failed');
++    expect(result('front')!.textContent).toContain('Not enough of your body could be located');
++  });
++
++  it('malformed inference result -> failed with an in-place retry that reuses the photo', async () => {
++    engine = createFakePoseEngine([{ ok: false, reason: 'malformed' }, ok()]);
++    await giveConsent();
++    await takeAndAccept('front');
++    expect(result('front')!.textContent).toContain('The pose result could not be read');
++    const getUserMediaCalls = cam.getUserMedia.mock.calls.length;
++    await click(byText('button', 'Try front analysis again'));
++    await flush();
++    expect(result('front')!.dataset.status).toBe('usable');
++    expect(cam.getUserMedia.mock.calls.length).toBe(getUserMediaCalls); // no new camera permission request
++  });
++});
++
++describe('model / engine errors and retry without the camera', () => {
++  const failWith = (code: ConstructorParameters<typeof PoseEngineError>[0]) =>
++    engine.load.mockRejectedValueOnce(new PoseEngineError(code, 'x'));
++
++  it('model not deployed -> clear message and Try again; retry re-runs on the SAME photo and does not ask for the camera', async () => {
++    failWith('model_missing');
++    engine.detect.mockResolvedValueOnce(ok());
++    await giveConsent();
++    await takeAndAccept('front');
++
++    const alert = container.querySelector('[role="alert"]');
++    expect(alert?.textContent).toContain('pose model file is not available');
++    expect(alert?.textContent).toContain('Your photo is still here');
++    expect(container.querySelector('img[alt^="Temporary front photo"]')).toBeTruthy(); // photo kept
++    expect(engine.detect).not.toHaveBeenCalled();
++    const getUserMediaCalls = cam.getUserMedia.mock.calls.length;
++
++    await click(byText('button', 'Try front analysis again'));
++    await flush();
++    expect(engine.load).toHaveBeenCalledTimes(2);
++    expect(engine.detect).toHaveBeenCalledTimes(1);
++    expect(result('front')!.dataset.status).toBe('usable');
++    expect(cam.getUserMedia.mock.calls.length).toBe(getUserMediaCalls);
++    expect(container.textContent).not.toContain('Turn on camera');
++  });
++
++  it('download / runtime / init failures each show a retryable error', async () => {
++    for (const code of ['model_download_failed', 'runtime_load_failed', 'init_failed', 'model_invalid'] as const) {
++      await act(async () => root.unmount());
++      root = createRoot(container);
++      localStorage.clear(); // consent is persisted: start every iteration at the consent screen
++      engine = createFakePoseEngine();
++      createEngine.mockImplementation(() => engine);
++      failWith(code);
++      await giveConsent();
++      await takeAndAccept('front');
++      expect(container.querySelector('[role="alert"]'), code).toBeTruthy();
++      expect(byText('button', 'Try front analysis again'), code).toBeTruthy();
++    }
++  });
++
++  it('unsupported browser -> says so and does not offer a pointless retry; the rest of the app is unaffected', async () => {
++    failWith('unsupported');
++    await giveConsent();
++    await takeAndAccept('front');
++    const alert = container.querySelector('[role="alert"]')!;
++    expect(alert.textContent).toContain('cannot run pose detection');
++    expect(byText('button', 'Try front analysis again')).toBeUndefined();
++    expect(byText('button', 'Retake front photo')).toBeTruthy();
++    expect(byText('button', 'Back to Body Metrics')).toBeTruthy();
++  });
++
++  it('inference failure -> retryable error', async () => {
++    engine.detect.mockRejectedValueOnce(new PoseEngineError('inference_failed', 'x')).mockResolvedValueOnce(ok());
++    await giveConsent();
++    await takeAndAccept('front');
++    expect(container.querySelector('[role="alert"]')?.textContent).toContain('hit an error');
++    await click(byText('button', 'Try front analysis again'));
++    await flush();
++    expect(result('front')!.dataset.status).toBe('usable');
++  });
++
++  it('an unexpected non-engine exception is treated as an inference failure, not a crash', async () => {
++    engine.detect.mockRejectedValueOnce(new Error('SECRET internals'));
++    await giveConsent();
++    await takeAndAccept('front');
++    const alert = container.querySelector('[role="alert"]')!;
++    expect(alert.textContent).toContain('hit an error');
++    expect(alert.textContent).not.toContain('SECRET');
++  });
++});
++
++describe('retake', () => {
++  it('retaking runs a fresh analysis on the NEW photo and replaces the old result', async () => {
++    engine = createFakePoseEngine([{ ok: false, reason: 'no_pose' }, ok()]);
++    await giveConsent();
++    await takeAndAccept('front');
++    expect(result('front')!.dataset.status).toBe('failed');
++
++    await takeAndAccept('front', 'Retake');
++    expect(engine.detect).toHaveBeenCalledTimes(2);
++    expect(await (engine.detect.mock.calls[0][0] as Blob).text()).toBe('jpeg-1');
++    expect(await (engine.detect.mock.calls[1][0] as Blob).text()).toBe('jpeg-2');
++    expect(result('front')!.dataset.status).toBe('usable');
++    expect(createEngine).toHaveBeenCalledTimes(1); // the engine is reused, not rebuilt
++  });
++
++  it('a slow result for the OLD photo can never overwrite the new one (rapid retake)', async () => {
++    const first = defer<PoseAdaptResult>();
++    engine.detect.mockImplementationOnce(() => first.promise).mockResolvedValueOnce(ok());
++    await giveConsent();
++    await takeAndAccept('front'); // run 1 is now stuck in detect()
++    const firstSignal = engine.detect.mock.calls[0][1] as AbortSignal;
++    await takeAndAccept('front', 'Retake'); // run 2 finishes straight away
++    expect(firstSignal.aborted).toBe(true); // run 1 was cancelled when the photo was replaced
++    expect(result('front')!.dataset.status).toBe('usable');
++
++    await act(async () => first.resolve({ ok: false, reason: 'no_pose' })); // run 1 finally answers
++    expect(result('front')!.dataset.status).toBe('usable'); // unchanged
++  });
++});
++
++describe('front and side stay separate', () => {
++  it('analyses each view on its own photo and keeps separate results', async () => {
++    engine = createFakePoseEngine([ok(makeFrontPose()), { ok: false, reason: 'no_pose' }]);
++    await giveConsent();
++    await takeAndAccept('front');
++    await takeAndAccept('side');
++
++    expect(engine.detect).toHaveBeenCalledTimes(2);
++    expect(await (engine.detect.mock.calls[0][0] as Blob).text()).toBe('jpeg-1'); // front photo
++    expect(await (engine.detect.mock.calls[1][0] as Blob).text()).toBe('jpeg-2'); // side photo
++    expect(result('front')!.dataset.status).toBe('usable');
++    expect(result('side')!.dataset.status).toBe('failed');
++    expect(result('front')!.closest('li')!.textContent).toContain('Front photo');
++    expect(result('side')!.closest('li')!.textContent).toContain('Side photo');
++    expect(result('side')!.closest('li')!.textContent).not.toContain('Body pose detected'); // front's result did not leak in
++    expect(createEngine).toHaveBeenCalledTimes(1); // one shared engine, two independent analyses
++  });
++
++  it('judges a side photo against the side rule (one complete side chain), not the front rule', async () => {
++    engine = createFakePoseEngine([ok(makeFrontPose()), ok(makeSidePose())]);
++    await giveConsent();
++    await takeAndAccept('front');
++    await takeAndAccept('side');
++    expect(result('front')!.textContent).toContain('9 of 9 required');
++    expect(result('side')!.dataset.status).toBe('usable');
++    expect(result('side')!.textContent).toContain('5 of 5 required');
++  });
++
++  it('retaking one view does not disturb, re-run or cancel the other', async () => {
++    engine = createFakePoseEngine([ok(makeFrontPose()), { ok: false, reason: 'no_pose' }, ok(makeSidePose())]);
++    await giveConsent();
++    await takeAndAccept('front');
++    await takeAndAccept('side');
++    expect(result('side')!.dataset.status).toBe('failed');
++    const frontBefore = result('front')!.textContent;
++
++    await takeAndAccept('side', 'Retake');
++    expect(engine.detect).toHaveBeenCalledTimes(3);
++    expect(result('side')!.dataset.status).toBe('usable');
++    expect(result('front')!.dataset.status).toBe('usable');
++    expect(result('front')!.textContent).toBe(frontBefore);
++  });
++
++  it('a failing view can be retried independently', async () => {
++    engine = createFakePoseEngine([ok(makeFrontPose())]);
++    engine.detect.mockResolvedValueOnce(ok(makeFrontPose())).mockRejectedValueOnce(new PoseEngineError('inference_failed', 'x')).mockResolvedValueOnce(ok(makeSidePose()));
++    await giveConsent();
++    await takeAndAccept('front');
++    await takeAndAccept('side');
++    expect(result('front')!.dataset.status).toBe('usable');
++    expect(container.querySelector('[role="alert"]')).toBeTruthy();
++    await click(byText('button', 'Try side analysis again'));
++    await flush();
++    expect(result('side')!.dataset.status).toBe('usable');
++    expect(engine.detect).toHaveBeenCalledTimes(3);
++  });
++});
++
++describe('cleanup, cancellation and disposal', () => {
++  it('leaving Body Scan while analysing cancels the run, disposes the engine and updates no state afterwards', async () => {
++    const pending = defer<PoseAdaptResult>();
++    engine.detect.mockImplementationOnce(() => pending.promise);
++    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
++    await giveConsent();
++    await takeAndAccept('front');
++    const signal = engine.detect.mock.calls[0][1] as AbortSignal;
++    expect(signal.aborted).toBe(false);
++
++    await act(async () => root.unmount());
++    expect(signal.aborted).toBe(true);
++    expect(engine.dispose).toHaveBeenCalledTimes(1);
++
++    await act(async () => pending.resolve(ok())); // answer arrives after unmount
++    await flush();
++    expect(errors).not.toHaveBeenCalled(); // no "state update on unmounted component" or act warnings
++    root = createRoot(container);
++  });
++
++  it('leaving during model loading cancels the load and disposes the engine', async () => {
++    const gate = defer<void>();
++    engine.load.mockImplementationOnce(() => gate.promise);
++    await giveConsent();
++    await takeAndAccept('front');
++    const signal = engine.load.mock.calls[0][0] as AbortSignal;
++    await act(async () => root.unmount());
++    expect(signal.aborted).toBe(true);
++    expect(engine.dispose).toHaveBeenCalledTimes(1);
++    await act(async () => gate.resolve());
++    expect(engine.detect).not.toHaveBeenCalled(); // never starts inference after leaving
++    root = createRoot(container);
++  });
++
++  it('"Discard these photos" cancels analysis in flight and forgets the results', async () => {
++    const pending = defer<PoseAdaptResult>();
++    engine.detect.mockImplementationOnce(() => pending.promise);
++    await giveConsent();
++    await takeAndAccept('front');
++    const signal = engine.detect.mock.calls[0][1] as AbortSignal;
++    await click(byText('button', 'Discard these photos'));
++    expect(signal.aborted).toBe(true);
++    await act(async () => pending.resolve(ok()));
++    expect(result('front')).toBeNull();
++    expect(container.textContent).toContain('Not taken');
++    expect(container.textContent).not.toContain('Body pose detected');
++  });
++
++  it('the camera is released before analysis even starts, and analysis never reopens it', async () => {
++    const pending = defer<PoseAdaptResult>();
++    engine.detect.mockImplementationOnce(() => pending.promise);
++    await giveConsent();
++    await takeAndAccept('front');
++    expect(cam.streams.every((s) => s.allStopped)).toBe(true);
++    await act(async () => pending.resolve(ok()));
++    expect(cam.getUserMedia).toHaveBeenCalledTimes(1);
++    expect(cam.streams.every((s) => s.allStopped)).toBe(true);
++  });
++
++  for (const label of ['Delete all scan history', 'Delete all saved photos', 'Withdraw consent and delete all Body Scan data']) {
++    it(`"${label}" drops the detection results and disposes the engine along with the photos`, async () => {
++      engine = createFakePoseEngine([ok()]);
++      await giveConsent();
++      await takeAndAccept('front');
++      expect(result('front')).toBeTruthy();
++      await click(byText('button', label));
++      await click(byText('button', 'Yes, delete'));
++      await flush();
++      expect(result('front')).toBeNull();
++      expect(container.querySelector('img[alt^="Temporary"]')).toBeNull();
++      expect(engine.dispose).toHaveBeenCalled();
++    });
++  }
++
++  it('cancelling a deletion confirmation keeps the photo and its result', async () => {
++    engine = createFakePoseEngine([ok()]);
++    await giveConsent();
++    await takeAndAccept('front');
++    await click(byText('button', 'Delete all scan history'));
++    await click(byText('button', 'Cancel'));
++    expect(result('front')).toBeTruthy();
++    expect(engine.dispose).not.toHaveBeenCalled();
++  });
++});
++
++describe('no persistence and no network', () => {
++  it('detection writes nothing to localStorage, IndexedDB or the network, even with photo storage consented', async () => {
++    const fetchSpy = vi.fn(async () => new Response('{}'));
++    vi.stubGlobal('fetch', fetchSpy);
++    const beacon = vi.fn(() => true);
++    Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: beacon });
++    try {
++      engine = createFakePoseEngine([ok(makeFrontPose()), ok(makeSidePose())]);
++      await render({ ...DEFAULT_PROFILE, age: 30 });
++      const boxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
++      await click(boxes[0]);
++      await click(boxes[1]);
++      await click(boxes[2]); // opt in to photo storage
++      await click(byText('button', 'Continue'));
++      expect(getBodyScanConsent()).toMatchObject({ photoStorage: true });
++      const keysBefore = Object.keys(localStorage).sort();
++
++      await takeAndAccept('front');
++      await takeAndAccept('side');
++      expect(result('front')!.dataset.status).toBe('usable');
++      expect(result('side')!.dataset.status).toBe('usable');
++
++      expect(Object.keys(localStorage).sort()).toEqual(keysBefore);
++      expect(JSON.stringify({ ...localStorage })).not.toMatch(/landmark|visibility|jpeg/i);
++      expect(await getStorageSummary()).toMatchObject({ scanCount: 0, photoCount: 0, photoBytes: 0 });
++      expect(await listScans()).toEqual([]);
++      expect(fetchSpy).not.toHaveBeenCalled();
++      expect(beacon).not.toHaveBeenCalled();
++    } finally {
++      vi.unstubAllGlobals();
++      delete (navigator as unknown as Record<string, unknown>).sendBeacon;
++    }
++  });
++
++  it('the page copy says photos and landmarks stay on this device and are not saved or uploaded', async () => {
++    await giveConsent();
++    expect(container.textContent).toContain('on this device only');
++    expect(container.textContent).toContain('not saved or uploaded, even if you allowed photo storage');
++    expect(container.textContent).toContain('does not complete a scan');
++  });
++});
++
++describe('existing behaviour preserved', () => {
++  it('a photo is still accepted and shown as temporary when detection fails; nothing blocks the existing flow', async () => {
++    engine.load.mockRejectedValueOnce(new PoseEngineError('model_missing', 'x'));
++    await giveConsent();
++    await takeAndAccept('front');
++    expect(container.textContent).toContain('Taken (temporary)');
++    expect(byText('button', 'Discard these photos')).toBeTruthy();
++  });
++});
+diff --git a/src/components/bodyscan/PoseDetectionPanel.tsx b/src/components/bodyscan/PoseDetectionPanel.tsx
+new file mode 100644
+index 0000000..a2df9cd
+--- /dev/null
++++ b/src/components/bodyscan/PoseDetectionPanel.tsx
+@@ -0,0 +1,131 @@
++import React from 'react';
++import { CircleAlert, CircleCheck, LoaderCircle, RotateCcw, TriangleAlert } from 'lucide-react';
++import type { ScanView } from '../../types/bodyScan';
++import { CAPTURE_GUIDANCE } from './captureGuidance';
++import { CHECK_LABELS, CaptureQualityPanel } from './CaptureQualityPanel';
++import type { DetectionState } from './usePoseDetection';
++
++const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-400';
++const secondaryBtn = `touch-press inline-flex items-center justify-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-200 rounded-xl text-xs font-semibold ${focusRing}`;
++
++interface PoseDetectionPanelProps {
++  view: ScanView;
++  /** Undefined until a photo has been accepted for this view. */
++  state: DetectionState | undefined;
++  /** Re-runs the analysis on the photo already held in memory. Never touches the camera. */
++  onRetry: () => void;
++}
++
++/**
++ * Shows what on-device pose detection found for ONE view's photo.
++ *
++ * Wording rules: this reports whether body landmarks were found and whether the
++ * framing looks usable. It never says anything is measured, scored or saved, and
++ * it always names the quality checks that were not run (lighting, sharpness,
++ * holding still) instead of implying they passed.
++ */
++export const PoseDetectionPanel: React.FC<PoseDetectionPanelProps> = ({ view, state, onRetry }) => {
++  if (!state) return null;
++  const label = CAPTURE_GUIDANCE[view].label.toLowerCase();
++
++  if (state.phase === 'loading_model' || state.phase === 'detecting') {
++    return (
++      <div role="status" className="flex items-start gap-2 rounded-lg border border-zinc-800 bg-black/30 p-3 text-xs text-zinc-300">
++        <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 motion-safe:animate-spin text-lime-400" aria-hidden="true" />
++        <span>
++          {state.phase === 'loading_model'
++            ? 'Preparing on-device pose detection… The first time, this downloads the pose model to this browser.'
++            : `Looking for body landmarks in your ${label} photo on this device…`}
++          <span className="block text-zinc-500">The photo is not uploaded.</span>
++        </span>
++      </div>
++    );
++  }
++
++  if (state.phase === 'error') {
++    return (
++      <div role="alert" className="space-y-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-100">
++        <p className="flex items-start gap-2">
++          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" aria-hidden="true" />
++          <span>{state.message}</span>
++        </p>
++        {state.retryable ? (
++          <>
++            <p className="text-rose-200/80">Your photo is still here, so you can try again without turning the camera on.</p>
++            <button type="button" onClick={onRetry} className={secondaryBtn}>
++              <RotateCcw className="h-4 w-4" aria-hidden="true" />
++              {`Try ${label} analysis again`}
++            </button>
++          </>
++        ) : (
++          <p className="text-rose-200/80">You can keep or discard this photo, but it cannot be analysed in this browser.</p>
++        )}
++      </div>
++    );
++  }
++
++  const { outcome } = state;
++  const tone =
++    outcome.status === 'usable'
++      ? { box: 'border-lime-400/30 bg-lime-400/5 text-zinc-100', icon: <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-lime-400" aria-hidden="true" /> }
++      : outcome.status === 'partial'
++        ? { box: 'border-amber-500/30 bg-amber-500/10 text-amber-100', icon: <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" /> }
++        : { box: 'border-rose-500/30 bg-rose-500/10 text-rose-100', icon: <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" aria-hidden="true" /> };
++
++  const notChecked = (outcome.assessment?.checks ?? []).filter((c) => c.status === 'not_evaluated').map((c) => CHECK_LABELS[c.id]);
++
++  return (
++    <div role="status" className={`space-y-2 rounded-lg border p-3 text-xs ${tone.box}`} data-testid={`pose-result-${view}`} data-status={outcome.status}>
++      <p className="flex items-start gap-2 font-semibold">
++        {tone.icon}
++        <span>{outcome.headline}</span>
++      </p>
++
++      {outcome.required && (
++        <p className="text-zinc-300">
++          {`${outcome.required.reliable} of ${outcome.required.total} required body points were clearly visible in this ${label} photo.`}
++        </p>
++      )}
++
++      {outcome.details.length > 0 && (
++        <ul className="list-disc space-y-0.5 pl-5 text-zinc-300">
++          {outcome.details.map((d) => (
++            <li key={d}>{d}</li>
++          ))}
++        </ul>
++      )}
++
++      {outcome.status !== 'usable' && outcome.advice.length > 0 && (
++        <ul className="list-disc space-y-0.5 pl-5 text-zinc-200">
++          {outcome.advice.map((a) => (
++            <li key={a}>{a}</li>
++          ))}
++        </ul>
++      )}
++
++      {notChecked.length > 0 && (
++        <p className="text-zinc-400">{`Not checked in this version: ${notChecked.join(', ').toLowerCase()}.`}</p>
++      )}
++
++      <p className="text-zinc-500">
++        Pose detection only finds body landmarks in this photo. It does not measure or assess your body, and nothing is saved.
++      </p>
++
++      {outcome.assessment && (
++        <details open={outcome.status !== 'usable'} className="rounded-lg">
++          <summary className={`cursor-pointer text-zinc-300 ${focusRing}`}>Photo quality checks</summary>
++          <div className="pt-2">
++            <CaptureQualityPanel assessment={outcome.assessment} headingId={`pose-quality-heading-${view}`} />
++          </div>
++        </details>
++      )}
++
++      {outcome.failureReason === 'malformed_result' && (
++        <button type="button" onClick={onRetry} className={secondaryBtn}>
++          <RotateCcw className="h-4 w-4" aria-hidden="true" />
++          {`Try ${label} analysis again`}
++        </button>
++      )}
++    </div>
++  );
++};
+diff --git a/src/components/bodyscan/usePoseDetection.ts b/src/components/bodyscan/usePoseDetection.ts
+new file mode 100644
+index 0000000..f516539
+--- /dev/null
++++ b/src/components/bodyscan/usePoseDetection.ts
+@@ -0,0 +1,135 @@
++import { useCallback, useEffect, useRef, useState } from 'react';
++import type { ScanView } from '../../types/bodyScan';
++import { PoseEngineError, type PoseEngine, type PoseEngineErrorCode } from '../../services/poseLandmarker';
++import { assessPoseDetection, type PoseDetectionOutcome } from '../../utils/poseDetectionAssessment';
++
++/**
++ * Pose-detection state for the front and side photos, kept strictly apart: each
++ * view has its own state, its own cancellable run and its own landmarks. Nothing
++ * here merges or compares the two views.
++ *
++ * The engine is created lazily on the first accepted photo (so nothing loads
++ * before the person actually uses Body Scan) and is disposed when the owning
++ * component unmounts. Runs are cancelled on unmount, on retake, and on discard;
++ * a result that arrives after that is dropped and never touches state.
++ *
++ * Landmarks live only in this hook's React state. They are not persisted,
++ * logged or sent anywhere.
++ */
++
++export type DetectionState =
++  | { phase: 'loading_model' }
++  | { phase: 'detecting' }
++  | { phase: 'done'; outcome: PoseDetectionOutcome }
++  | { phase: 'error'; code: PoseEngineErrorCode; message: string; retryable: boolean };
++
++export type DetectionStates = Partial<Record<ScanView, DetectionState>>;
++
++const ERROR_COPY: Record<PoseEngineErrorCode, { message: string; retryable: boolean }> = {
++  unsupported: {
++    message: 'This browser cannot run pose detection on your device, so this photo cannot be analysed here.',
++    retryable: false,
++  },
++  runtime_load_failed: {
++    message: 'The pose detection engine could not be loaded. Check your connection and try again.',
++    retryable: true,
++  },
++  model_missing: {
++    message: 'The pose model file is not available in this version of the app, so photos cannot be analysed yet.',
++    retryable: true,
++  },
++  model_download_failed: {
++    message: 'The pose model could not be downloaded. Check your connection and try again.',
++    retryable: true,
++  },
++  model_invalid: { message: 'The pose model file looks incomplete, so photos cannot be analysed.', retryable: true },
++  init_failed: { message: 'The pose model could not be started on this device.', retryable: true },
++  image_decode_failed: { message: 'This photo could not be read for analysis. Try again, or retake it.', retryable: true },
++  inference_failed: { message: 'Pose detection hit an error on this photo. Try again, or retake it.', retryable: true },
++  cancelled: { message: 'Pose detection was cancelled.', retryable: true },
++  disposed: { message: 'Pose detection was stopped.', retryable: true },
++};
++
++interface Run {
++  id: number;
++  controller: AbortController;
++}
++
++export function usePoseDetection(createEngine: () => PoseEngine) {
++  const [states, setStates] = useState<DetectionStates>({});
++  const engineRef = useRef<PoseEngine | null>(null);
++  const runsRef = useRef<Partial<Record<ScanView, Run>>>({});
++  const nextId = useRef(0);
++  const mountedRef = useRef(true);
++
++  useEffect(() => {
++    mountedRef.current = true;
++    const runs = runsRef.current;
++    return () => {
++      mountedRef.current = false;
++      for (const view of Object.keys(runs) as ScanView[]) {
++        runs[view]?.controller.abort();
++        delete runs[view];
++      }
++      engineRef.current?.dispose();
++      engineRef.current = null;
++    };
++  }, []);
++
++  const getEngine = useCallback((): PoseEngine => {
++    if (!engineRef.current || engineRef.current.status === 'disposed') engineRef.current = createEngine();
++    return engineRef.current;
++  }, [createEngine]);
++
++  /** Analyses `blob` as the photo for `view`. Replaces and cancels any earlier run for that view. */
++  const run = useCallback(
++    (view: ScanView, blob: Blob) => {
++      runsRef.current[view]?.controller.abort();
++      const controller = new AbortController();
++      const id = ++nextId.current;
++      runsRef.current[view] = { id, controller };
++      const isCurrent = () => mountedRef.current && !controller.signal.aborted && runsRef.current[view]?.id === id;
++      const set = (state: DetectionState) => setStates((prev) => ({ ...prev, [view]: state }));
++
++      set({ phase: 'loading_model' });
++      void (async () => {
++        try {
++          const engine = getEngine();
++          await engine.load(controller.signal);
++          if (!isCurrent()) return;
++          set({ phase: 'detecting' });
++          const adapted = await engine.detect(blob, controller.signal);
++          if (!isCurrent()) return;
++          set({ phase: 'done', outcome: assessPoseDetection(view, adapted) });
++        } catch (err) {
++          if (!isCurrent()) return;
++          const code: PoseEngineErrorCode = err instanceof PoseEngineError ? err.code : 'inference_failed';
++          if (code === 'cancelled' || code === 'disposed') return;
++          set({ phase: 'error', code, ...ERROR_COPY[code] });
++        }
++      })();
++    },
++    [getEngine]
++  );
++
++  /** Cancels any run for `view` and forgets its result. */
++  const clear = useCallback((view: ScanView) => {
++    runsRef.current[view]?.controller.abort();
++    delete runsRef.current[view];
++    setStates((prev) => {
++      if (!(view in prev)) return prev;
++      const { [view]: _removed, ...rest } = prev;
++      return rest;
++    });
++  }, []);
++
++  const clearAll = useCallback(() => {
++    for (const view of Object.keys(runsRef.current) as ScanView[]) {
++      runsRef.current[view]?.controller.abort();
++      delete runsRef.current[view];
++    }
++    setStates({});
++  }, []);
++
++  return { states, run, clear, clearAll };
++}
+diff --git a/src/services/fakePose.testutil.ts b/src/services/fakePose.testutil.ts
+new file mode 100644
+index 0000000..556224d
+--- /dev/null
++++ b/src/services/fakePose.testutil.ts
+@@ -0,0 +1,114 @@
++/**
++ * Test-only fakes for on-device pose detection. NEVER import this from
++ * production code: it fabricates landmarks and an engine that "detects" them.
++ *
++ * These let tests check lifecycle and state handling (loading, retry, cancel,
++ * dispose, front/side separation). They say NOTHING about how the real MediaPipe
++ * model behaves on real photos or devices; that needs manual testing.
++ */
++
++import { vi, type Mock } from 'vitest';
++import type { LandmarkPoint } from '../types/bodyScan';
++import { adaptPoseLandmarkerResult, type PoseAdaptResult } from '../utils/poseResultAdapter';
++import { PoseEngineError, type DecodedImage, type LandmarkerLike, type PoseEngine, type PoseRuntime } from './poseLandmarker';
++
++export interface Deferred<T> {
++  promise: Promise<T>;
++  resolve: (value: T) => void;
++  reject: (reason: unknown) => void;
++}
++
++export function defer<T = void>(): Deferred<T> {
++  let resolve!: (value: T) => void;
++  let reject!: (reason: unknown) => void;
++  const promise = new Promise<T>((res, rej) => {
++    resolve = res;
++    reject = rej;
++  });
++  return { promise, resolve, reject };
++}
++
++/** A native-shaped Pose Landmarker result built from synthetic landmarks. `close` is a spy. */
++export function makeNativeResult(landmarks: readonly LandmarkPoint[] | null) {
++  return {
++    landmarks: landmarks ? [landmarks.map((p) => ({ z: 0, ...p }))] : [],
++    worldLandmarks: landmarks ? [landmarks.map(() => ({ x: 0, y: 0, z: 0, visibility: 1 }))] : [],
++    close: vi.fn(),
++  };
++}
++
++/** Adapted (app-format) result from synthetic landmarks, as the real engine would return it. */
++export const adapted = (landmarks: readonly LandmarkPoint[] | null): PoseAdaptResult =>
++  adaptPoseLandmarkerResult(makeNativeResult(landmarks));
++
++export interface FakeLandmarker extends LandmarkerLike {
++  detect: Mock;
++  close: Mock;
++}
++
++/** With no argument the landmarker finds nobody. An explicit `undefined` / `null` is returned as-is, to test garbage output. */
++export function makeFakeLandmarker(...args: [result?: unknown]): FakeLandmarker {
++  const result = args.length === 0 ? makeNativeResult(null) : args[0];
++  return { detect: vi.fn(() => result), close: vi.fn() } as FakeLandmarker;
++}
++
++export interface FakeRuntime extends PoseRuntime {
++  createLandmarker: Mock;
++}
++
++export function makeFakeRuntime(landmarker: LandmarkerLike = makeFakeLandmarker()): FakeRuntime {
++  return { createLandmarker: vi.fn(async () => landmarker) };
++}
++
++/** A fake decoded image whose release is observable. */
++export function makeFakeDecode() {
++  const released: unknown[] = [];
++  const decodeImage = vi.fn(async (blob: Blob): Promise<DecodedImage> => {
++    const source = { fakeImageFor: blob };
++    return { source, release: () => void released.push(source) };
++  });
++  return { decodeImage, released };
++}
++
++/** A Response-like object for the model fetch. */
++export function modelResponse(bytes: number | Uint8Array, init: { status?: number; contentType?: string } = {}): Response {
++  const body = typeof bytes === 'number' ? new Uint8Array(bytes).fill(0x50) : bytes; // 'P': not '<'
++  return new Response(body as unknown as BodyInit, {
++    status: init.status ?? 200,
++    headers: { 'content-type': init.contentType ?? 'application/octet-stream' },
++  });
++}
++
++export interface FakeEngine extends PoseEngine {
++  load: Mock;
++  detect: Mock;
++  dispose: Mock;
++}
++
++/**
++ * A scriptable stand-in for the pose engine. By default load() resolves at once
++ * and detect() resolves with the next queued result (or `no_pose`), honouring
++ * the AbortSignal like the real engine. Override with mockImplementationOnce.
++ */
++export function createFakePoseEngine(queuedResults: PoseAdaptResult[] = []): FakeEngine {
++  const queue = [...queuedResults];
++  let disposed = false;
++  const engine = {
++    get status() {
++      return disposed ? ('disposed' as const) : ('ready' as const);
++    },
++    load: vi.fn(async (signal?: AbortSignal) => {
++      if (disposed) throw new PoseEngineError('disposed', 'Pose detection was stopped.');
++      if (signal?.aborted) throw new PoseEngineError('cancelled', 'Pose detection was cancelled.');
++    }),
++    detect: vi.fn(async (_blob: Blob, signal?: AbortSignal): Promise<PoseAdaptResult> => {
++      if (disposed) throw new PoseEngineError('disposed', 'Pose detection was stopped.');
++      if (signal?.aborted) throw new PoseEngineError('cancelled', 'Pose detection was cancelled.');
++      return queue.shift() ?? { ok: false, reason: 'no_pose' };
++    }),
++    dispose: vi.fn(() => {
++      disposed = true;
++    }),
++  };
++  return engine as FakeEngine;
++}
+diff --git a/src/services/poseLandmarker.privacy.test.ts b/src/services/poseLandmarker.privacy.test.ts
+new file mode 100644
+index 0000000..2b457a9
+--- /dev/null
++++ b/src/services/poseLandmarker.privacy.test.ts
+@@ -0,0 +1,160 @@
++import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
++import { join } from 'node:path';
++import { describe, expect, it } from 'vitest';
++
++/**
++ * Privacy guards for Phase 2C. These read real files (package.json, the installed
++ * MediaPipe bundle, the Body Scan sources) so a later change that adds telemetry,
++ * a network call, storage or a console log fails here instead of shipping.
++ */
++
++const ROOT = process.cwd();
++const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
++
++/** Versions whose JavaScript bundle and WASM were audited for network endpoints. See docs/body-scan-pose-model.md. */
++const AUDITED_VERSIONS = ['0.10.35'];
++
++describe('MediaPipe dependency is pinned to an audited, endpoint-free version', () => {
++  it('package.json pins an exact audited version (no ^, ~, range, tag or nightly)', () => {
++    const pkg = JSON.parse(read('package.json')) as { dependencies: Record<string, string> };
++    const range = pkg.dependencies['@mediapipe/tasks-vision'];
++    expect(range).toBeDefined();
++    expect(range).toMatch(/^\d+\.\d+\.\d+$/);
++    expect(AUDITED_VERSIONS).toContain(range);
++  });
++
++  it('the installed package is that exact version', () => {
++    const installed = JSON.parse(read('node_modules/@mediapipe/tasks-vision/package.json')) as { version: string; license: string };
++    expect(AUDITED_VERSIONS).toContain(installed.version);
++    expect(installed.license).toBe('Apache-2.0');
++  });
++
++  it('bun.lock (the repo lockfile) resolves MediaPipe to the same exact version', () => {
++    const pinned = (JSON.parse(read('package.json')) as { dependencies: Record<string, string> }).dependencies['@mediapipe/tasks-vision'];
++    const bunLock = read('bun.lock');
++    expect(bunLock).toContain(`"@mediapipe/tasks-vision": ["@mediapipe/tasks-vision@${pinned}"`);
++    expect(bunLock).toContain(`"@mediapipe/tasks-vision": "${pinned}"`); // workspace entry is exact too, not a range
++  });
++
++  it('an npm lockfile, if one is ever added back, agrees with the pin', () => {
++    if (!existsSync(join(ROOT, 'package-lock.json'))) return;
++    const lock = JSON.parse(read('package-lock.json')) as { packages: Record<string, { version?: string }> };
++    expect(lock.packages['node_modules/@mediapipe/tasks-vision']?.version).toBe(
++      (JSON.parse(read('package.json')) as { dependencies: Record<string, string> }).dependencies['@mediapipe/tasks-vision']
++    );
++  });
++
++  it('the installed JavaScript bundle contains no URL, logging endpoint or beacon', () => {
++    const bundle = read('node_modules/@mediapipe/tasks-vision/vision_bundle.mjs');
++    const urls = [...bundle.matchAll(/https?:\/\/[A-Za-z0-9._~:/?#@!$&%+,;=-]+/g)].map((m) => m[0]);
++    // Allowed: protobuf type URLs ("type.googleapis.com/<proto name>") are identifiers, not requests.
++    const real = urls.filter((u) => !/^https?:\/\/type\.googleapis\.com\//.test(u));
++    expect(real).toEqual([]);
++    expect(bundle).not.toContain('odml.pa.googleapis.com');
++    expect(bundle).not.toMatch(/sendBeacon|XMLHttpRequest|WebSocket|EventSource/);
++  });
++
++  it('the WASM loader scripts make no calls to external hosts', () => {
++    for (const f of ['vision_wasm_internal.js', 'vision_wasm_nosimd_internal.js']) {
++      const src = read(`node_modules/@mediapipe/tasks-vision/wasm/${f}`);
++      expect(src, f).not.toMatch(/odml\.pa\.googleapis|clearcut|play\.google|sendBeacon/);
++    }
++  });
++});
++
++/** Production Body Scan files introduced or changed in Phase 2C. */
++const PHASE_2C_SOURCES = [
++  'src/services/poseLandmarker.ts',
++  'src/utils/poseResultAdapter.ts',
++  'src/utils/poseDetectionAssessment.ts',
++  'src/components/bodyscan/usePoseDetection.ts',
++  'src/components/bodyscan/PoseDetectionPanel.tsx',
++  'src/components/bodyscan/CaptureSession.tsx',
++];
++
++const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
++
++describe('Phase 2C source code never persists, logs or transmits photos or landmarks', () => {
++  for (const file of PHASE_2C_SOURCES) {
++    it(`${file}: no storage, logging, beacon, socket or data-URL encoding`, () => {
++      const code = stripComments(read(file));
++      expect(code).not.toMatch(/\blocalStorage\b|\bsessionStorage\b|\bindexedDB\b|\bcaches\b\.|document\.cookie/);
++      expect(code).not.toMatch(/\bconsole\.(log|info|warn|error|debug|trace)\b/);
++      expect(code).not.toMatch(/sendBeacon|XMLHttpRequest|WebSocket|EventSource|FileReader|toDataURL|navigator\.share/);
++      expect(code).not.toMatch(/bodyScanStore|savePhoto|addPhoto|putPhoto/); // no route into the photo store
++    });
++  }
++
++  it('the only network call in the pose code is the same-origin model GET', () => {
++    const calls: string[] = [];
++    for (const file of PHASE_2C_SOURCES) {
++      const code = stripComments(read(file));
++      for (const m of code.matchAll(/\bfetch\s*\(/g)) calls.push(`${file}@${m.index}`);
++    }
++    expect(calls).toHaveLength(1);
++    expect(calls[0].startsWith('src/services/poseLandmarker.ts')).toBe(true);
++    const engine = stripComments(read('src/services/poseLandmarker.ts'));
++    expect(engine).toContain("credentials: 'same-origin'"); // no cookies / no cross-site
++    expect(engine).not.toMatch(/method:\s*['"](POST|PUT|PATCH)/i);
++    expect(engine).not.toMatch(/\bbody\s*:/);
++  });
++
++  it('the model URL is built only from this app’s base path and a fixed file name', () => {
++    const engine = stripComments(read('src/services/poseLandmarker.ts'));
++    expect(engine).not.toMatch(/https?:\/\//); // no absolute URL anywhere in the engine
++    expect(engine).toMatch(/BASE_URL\}models\/\$\{POSE_MODEL_FILE\}/);
++  });
++
++  it('nothing outside the engine imports MediaPipe, and the engine only imports it lazily', () => {
++    const offenders: string[] = [];
++    const walk = (dir: string) => {
++      for (const name of readdirSync(join(ROOT, dir))) {
++        const rel = `${dir}/${name}`;
++        if (statSync(join(ROOT, rel)).isDirectory()) walk(rel);
++        else if (/\.(ts|tsx)$/.test(name) && !/\.test\./.test(name) && rel !== 'src/services/poseLandmarker.ts') {
++          if (/@mediapipe\//.test(read(rel))) offenders.push(rel);
++        }
++      }
++    };
++    walk('src');
++    expect(offenders).toEqual([]);
++    const engine = stripComments(read('src/services/poseLandmarker.ts'));
++    expect(engine).not.toMatch(/^\s*import[^(\n]*from\s+['"]@mediapipe/m); // no static import: stays out of the initial bundle
++    expect(engine).toMatch(/await import\('@mediapipe\/tasks-vision'\)/);
++  });
++
++  it('test-only fakes are never imported by production code', () => {
++    const offenders: string[] = [];
++    const walk = (dir: string) => {
++      for (const name of readdirSync(join(ROOT, dir))) {
++        const rel = `${dir}/${name}`;
++        if (statSync(join(ROOT, rel)).isDirectory()) walk(rel);
++        else if (/\.(ts|tsx)$/.test(name) && !/\.test\.|\.testutil\./.test(name)) {
++          if (/\.testutil['"]/.test(read(rel))) offenders.push(rel);
++        }
++      }
++    };
++    walk('src');
++    expect(offenders).toEqual([]);
++  });
++});
++
++describe('model placement', () => {
++  it('public/models holds only the model bundle and its placeholder (never photos or landmark data)', () => {
++    const allowed = /^(\.gitkeep|pose_landmarker_(lite|full|heavy)\.task(\.sha256)?)$/;
++    for (const name of readdirSync(join(ROOT, 'public/models'))) expect(name).toMatch(allowed);
++  });
++
++  it('no other Phase 2C file ships a binary model, image or landmark dump in src/', () => {
++    const bad: string[] = [];
++    const walk = (dir: string) => {
++      for (const name of readdirSync(join(ROOT, dir))) {
++        const rel = `${dir}/${name}`;
++        if (statSync(join(ROOT, rel)).isDirectory()) walk(rel);
++        else if (/\.(task|tflite|onnx|pb|bin)$/.test(name)) bad.push(rel);
++      }
++    };
++    walk('src');
++    expect(bad).toEqual([]);
++  });
++});
+diff --git a/src/services/poseLandmarker.test.ts b/src/services/poseLandmarker.test.ts
+new file mode 100644
+index 0000000..e3884fc
+--- /dev/null
++++ b/src/services/poseLandmarker.test.ts
+@@ -0,0 +1,509 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { makeFrontPose } from '../utils/syntheticPose.testutil';
++import {
++  IDLE_RELEASE_MS,
++  MIN_MODEL_BYTES,
++  POSE_MODEL_FILE,
++  PoseEngineError,
++  createPoseEngine,
++  defaultModelUrl,
++  type PoseEngineDeps,
++  type PoseEngineErrorCode,
++} from './poseLandmarker';
++import {
++  defer,
++  makeFakeDecode,
++  makeFakeLandmarker,
++  makeFakeRuntime,
++  makeNativeResult,
++  modelResponse,
++  type FakeLandmarker,
++} from './fakePose.testutil';
++
++const BLOB = new Blob(['not-a-real-photo'], { type: 'image/jpeg' });
++const MODEL_URL = '/models/test-model.task';
++
++/** Engine wired to fakes. Every dependency is replaceable per test. */
++function build(
++  opts: { native?: unknown; landmarker?: FakeLandmarker; deps?: Partial<PoseEngineDeps>; fetchModel?: PoseEngineDeps['fetchModel'] } = {}
++) {
++  // `'native' in opts` (not `??`): undefined / null are legitimate "garbage" outputs the tests want to pass through.
++  const landmarker = opts.landmarker ?? makeFakeLandmarker('native' in opts ? opts.native : makeNativeResult(makeFrontPose()));
++  const runtime = makeFakeRuntime(landmarker);
++  const loadRuntime = vi.fn(async () => runtime);
++  const fetchModel = vi.fn(opts.fetchModel ?? (async () => modelResponse(MIN_MODEL_BYTES + 50)));
++  const decode = makeFakeDecode();
++  const engine = createPoseEngine({
++    modelUrl: MODEL_URL,
++    loadRuntime,
++    fetchModel,
++    decodeImage: decode.decodeImage,
++    yieldToUi: async () => {},
++    ...opts.deps,
++  });
++  return { engine, landmarker, runtime, loadRuntime, fetchModel, decode };
++}
++
++const codeOf = async (p: Promise<unknown>): Promise<PoseEngineErrorCode | 'no error'> => {
++  try {
++    await p;
++    return 'no error';
++  } catch (err) {
++    if (err instanceof PoseEngineError) return err.code;
++    throw err;
++  }
++};
++
++afterEach(() => {
++  vi.useRealTimers();
++  vi.unstubAllGlobals();
++});
++
++describe('model location', () => {
++  it('serves the model from this app (honouring Vite base) and names the chosen variant', () => {
++    expect(defaultModelUrl().endsWith(`models/${POSE_MODEL_FILE}`)).toBe(true);
++    expect(POSE_MODEL_FILE).toBe('pose_landmarker_full.task');
++    expect(new URL(defaultModelUrl(), location.href).origin).toBe(location.origin);
++  });
++
++  it('refuses a model URL on another origin at construction (never a third-party host)', () => {
++    expect(() => createPoseEngine({ modelUrl: 'https://cdn.example.com/pose.task' })).toThrow(RangeError);
++    expect(() => createPoseEngine({ modelUrl: '//cdn.example.com/pose.task' })).toThrow(RangeError);
++    expect(() => createPoseEngine({ modelUrl: '/models/pose.task' })).not.toThrow();
++    expect(() => createPoseEngine({ modelUrl: `${location.origin}/models/pose.task` })).not.toThrow();
++  });
++});
++
++describe('initialization', () => {
++  it('is lazy: constructing the engine loads and fetches nothing', () => {
++    const { engine, loadRuntime, fetchModel } = build();
++    expect(engine.status).toBe('idle');
++    expect(loadRuntime).not.toHaveBeenCalled();
++    expect(fetchModel).not.toHaveBeenCalled();
++  });
++
++  it('loads the runtime, fetches the model with a plain same-origin GET (no body), creates one landmarker', async () => {
++    const { engine, runtime, loadRuntime, fetchModel } = build();
++    await engine.load();
++    expect(engine.status).toBe('ready');
++    expect(loadRuntime).toHaveBeenCalledTimes(1);
++    expect(fetchModel).toHaveBeenCalledTimes(1);
++    const [url, init] = fetchModel.mock.calls[0];
++    expect(url).toBe(MODEL_URL);
++    expect(init).toMatchObject({ credentials: 'same-origin' });
++    expect(init).not.toHaveProperty('body');
++    expect(init).not.toHaveProperty('method'); // default GET
++    expect(runtime.createLandmarker).toHaveBeenCalledTimes(1);
++    const bytes = runtime.createLandmarker.mock.calls[0][0] as Uint8Array;
++    expect(bytes).toBeInstanceOf(Uint8Array);
++    expect(bytes.byteLength).toBe(MIN_MODEL_BYTES + 50);
++  });
++
++  it('shares one attempt between concurrent load() calls and is a no-op once ready', async () => {
++    const { engine, loadRuntime, fetchModel, runtime } = build();
++    await Promise.all([engine.load(), engine.load(), engine.load()]);
++    await engine.load();
++    expect(loadRuntime).toHaveBeenCalledTimes(1);
++    expect(fetchModel).toHaveBeenCalledTimes(1);
++    expect(runtime.createLandmarker).toHaveBeenCalledTimes(1);
++  });
++
++  it('reports the loading state while the attempt is in flight', async () => {
++    const gate = defer<void>();
++    const { engine } = build({ deps: { loadRuntime: async () => (await gate.promise, makeFakeRuntime()) } });
++    const p = engine.load();
++    expect(engine.status).toBe('loading');
++    gate.resolve();
++    await p;
++    expect(engine.status).toBe('ready');
++  });
++
++  it('reports "unsupported" without loading anything when WebAssembly is missing', async () => {
++    vi.stubGlobal('WebAssembly', undefined);
++    const { engine, loadRuntime, fetchModel } = build();
++    expect(await codeOf(engine.load())).toBe('unsupported');
++    expect(engine.status).toBe('failed');
++    expect(loadRuntime).not.toHaveBeenCalled();
++    expect(fetchModel).not.toHaveBeenCalled();
++  });
++});
++
++describe('initialization failures and retry', () => {
++  it('runtime failure -> runtime_load_failed, then a retry starts a fresh attempt and succeeds', async () => {
++    const good = makeFakeRuntime();
++    const loadRuntime = vi.fn().mockRejectedValueOnce(new Error('chunk 404')).mockResolvedValue(good);
++    const { engine } = build({ deps: { loadRuntime } });
++    expect(await codeOf(engine.load())).toBe('runtime_load_failed');
++    expect(engine.status).toBe('failed');
++    await engine.load(); // retry
++    expect(engine.status).toBe('ready');
++    expect(loadRuntime).toHaveBeenCalledTimes(2);
++    expect(good.createLandmarker).toHaveBeenCalledTimes(1);
++  });
++
++  it('model 404 -> model_missing; once the file exists a retry succeeds', async () => {
++    let present = false;
++    const { engine } = build({
++      fetchModel: async () => (present ? modelResponse(MIN_MODEL_BYTES + 1) : modelResponse(10, { status: 404 })),
++    });
++    expect(await codeOf(engine.load())).toBe('model_missing');
++    present = true;
++    await engine.load();
++    expect(engine.status).toBe('ready');
++  });
++
++  it('other HTTP errors and network failures -> model_download_failed', async () => {
++    const a = build({ fetchModel: async () => modelResponse(10, { status: 503 }) });
++    expect(await codeOf(a.engine.load())).toBe('model_download_failed');
++    const b = build({
++      fetchModel: async () => {
++        throw new TypeError('Failed to fetch');
++      },
++    });
++    expect(await codeOf(b.engine.load())).toBe('model_download_failed');
++  });
++
++  it('a 200 web page (host rewrites unknown paths to index.html) is "not deployed", not a model', async () => {
++    const html = new TextEncoder().encode('<!doctype html><html><body>Iron Log</body></html>'.padEnd(MIN_MODEL_BYTES + 10, ' '));
++    const a = build({ fetchModel: async () => modelResponse(html, { contentType: 'text/html; charset=utf-8' }) });
++    expect(await codeOf(a.engine.load())).toBe('model_missing');
++    const b = build({ fetchModel: async () => modelResponse(html, { contentType: 'application/octet-stream' }) }); // sniffed
++    expect(await codeOf(b.engine.load())).toBe('model_missing');
++    expect(a.runtime.createLandmarker).not.toHaveBeenCalled();
++  });
++
++  it('a body smaller than any plausible model -> model_invalid', async () => {
++    const { engine, runtime } = build({ fetchModel: async () => modelResponse(MIN_MODEL_BYTES - 1) });
++    expect(await codeOf(engine.load())).toBe('model_invalid');
++    expect(runtime.createLandmarker).not.toHaveBeenCalled();
++  });
++
++  it('landmarker creation failure -> init_failed, then retry succeeds', async () => {
++    const lm = makeFakeLandmarker();
++    const runtime = makeFakeRuntime(lm);
++    runtime.createLandmarker.mockRejectedValueOnce(new Error('wasm trap')).mockResolvedValue(lm);
++    const { engine } = build({ deps: { loadRuntime: async () => runtime } });
++    expect(await codeOf(engine.load())).toBe('init_failed');
++    await engine.load();
++    expect(engine.status).toBe('ready');
++  });
++
++  it('error messages are fixed text: underlying error details never leak into them', async () => {
++    const { engine } = build({ deps: { loadRuntime: async () => Promise.reject(new Error('SECRET-detail /home/x')) } });
++    await expect(engine.load()).rejects.toSatisfy((e: Error) => !/SECRET|home/.test(e.message));
++  });
++});
++
++describe('inference', () => {
++  it('analyses a photo: decodes it, runs the landmarker once on that image, adapts the result, frees everything', async () => {
++    const native = makeNativeResult(makeFrontPose());
++    const { engine, landmarker, decode } = build({ native });
++    const result = await engine.detect(BLOB);
++    expect(result.ok).toBe(true);
++    if (!result.ok) return;
++    expect(result.landmarks).toHaveLength(33);
++    expect(result.landmarks[0]).toMatchObject({ x: 0.5, y: 0.1, visibility: 0.99 });
++    expect(decode.decodeImage).toHaveBeenCalledWith(BLOB);
++    expect(landmarker.detect).toHaveBeenCalledTimes(1);
++    expect(landmarker.detect.mock.calls[0][0]).toEqual({ fakeImageFor: BLOB }); // the decoded photo, nothing else
++    expect(decode.released).toHaveLength(1); // decoded pixels released
++    expect(native.close).toHaveBeenCalledTimes(1); // native result released
++  });
++
++  it('loads on demand when detect() is the first call', async () => {
++    const { engine, loadRuntime } = build();
++    await engine.detect(BLOB);
++    expect(loadRuntime).toHaveBeenCalledTimes(1);
++    expect(engine.status).toBe('ready');
++  });
++
++  it('reports no_pose when the model found nobody', async () => {
++    const { engine } = build({ native: makeNativeResult(null) });
++    expect(await engine.detect(BLOB)).toEqual({ ok: false, reason: 'no_pose' });
++  });
++
++  it('reports malformed for garbage output instead of passing it on, and still frees the image', async () => {
++    for (const garbage of [undefined, null, 42, {}, { landmarks: 'x' }, { landmarks: [[{ x: 1 }]] }]) {
++      const { engine, decode } = build({ native: garbage });
++      expect(await engine.detect(BLOB)).toEqual({ ok: false, reason: 'malformed' });
++      expect(decode.released).toHaveLength(1);
++    }
++  });
++
++  it('inference throwing -> inference_failed with the image still released; the engine stays usable', async () => {
++    const lm = makeFakeLandmarker();
++    lm.detect.mockImplementationOnce(() => {
++      throw new Error('model exploded with pixels');
++    });
++    lm.detect.mockImplementation(() => makeNativeResult(makeFrontPose()));
++    const { engine, decode } = build({ landmarker: lm });
++    const first = engine.detect(BLOB);
++    await expect(first).rejects.toMatchObject({ code: 'inference_failed' });
++    await expect(first).rejects.toSatisfy((e: Error) => !/pixels/.test(e.message));
++    expect(decode.released).toHaveLength(1);
++    expect((await engine.detect(BLOB)).ok).toBe(true); // retry works without re-loading
++    expect(engine.status).toBe('ready');
++  });
++
++  it('undecodable photo -> image_decode_failed', async () => {
++    const { engine, landmarker } = build({
++      deps: {
++        decodeImage: async () => {
++          throw new Error('bad jpeg');
++        },
++      },
++    });
++    expect(await codeOf(engine.detect(BLOB))).toBe('image_decode_failed');
++    expect(landmarker.detect).not.toHaveBeenCalled();
++  });
++
++  it('a load failure surfaces its own error and never decodes or runs the model', async () => {
++    const { engine, decode, landmarker } = build({ fetchModel: async () => modelResponse(1, { status: 404 }) });
++    expect(await codeOf(engine.detect(BLOB))).toBe('model_missing');
++    expect(decode.decodeImage).not.toHaveBeenCalled();
++    expect(landmarker.detect).not.toHaveBeenCalled();
++  });
++
++  it('yields to the browser before running the (synchronous) model', async () => {
++    const order: string[] = [];
++    const lm = makeFakeLandmarker();
++    lm.detect.mockImplementation(() => (order.push('detect'), makeNativeResult(makeFrontPose())));
++    const { engine } = build({
++      landmarker: lm,
++      deps: { yieldToUi: async () => void order.push('yield') },
++    });
++    await engine.detect(BLOB);
++    expect(order).toEqual(['yield', 'detect']);
++  });
++});
++
++describe('cancellation', () => {
++  it('an already-aborted signal rejects immediately without touching the network or model', async () => {
++    const { engine, fetchModel, landmarker } = build();
++    const c = new AbortController();
++    c.abort();
++    expect(await codeOf(engine.detect(BLOB, c.signal))).toBe('cancelled');
++    expect(await codeOf(engine.load(c.signal))).toBe('cancelled');
++    expect(fetchModel).not.toHaveBeenCalled();
++    expect(landmarker.detect).not.toHaveBeenCalled();
++  });
++
++  it('aborting during decoding cancels, skips the model and still releases the image', async () => {
++    const gate = defer<void>();
++    const decode = makeFakeDecode();
++    const slowDecode = vi.fn(async (b: Blob) => (await gate.promise, decode.decodeImage(b)));
++    const { engine, landmarker } = build({ deps: { decodeImage: slowDecode } });
++    const c = new AbortController();
++    const p = engine.detect(BLOB, c.signal);
++    await vi.waitFor(() => expect(slowDecode).toHaveBeenCalled());
++    c.abort();
++    gate.resolve();
++    expect(await codeOf(p)).toBe('cancelled');
++    expect(landmarker.detect).not.toHaveBeenCalled();
++    expect(decode.released).toHaveLength(1);
++  });
++
++  it('a caller that stops waiting does not cancel the shared load another caller needs', async () => {
++    const gate = defer<void>();
++    const sharedRuntime = makeFakeRuntime();
++    const loadRuntime = vi.fn(async () => (await gate.promise, sharedRuntime));
++    const { engine } = build({ deps: { loadRuntime } });
++    const c = new AbortController();
++    const impatient = engine.load(c.signal);
++    const patient = engine.load();
++    c.abort();
++    expect(await codeOf(impatient)).toBe('cancelled');
++    gate.resolve();
++    await patient;
++    expect(engine.status).toBe('ready');
++    expect(loadRuntime).toHaveBeenCalledTimes(1); // one shared attempt, not restarted
++    expect(sharedRuntime.createLandmarker).toHaveBeenCalledTimes(1); // and it ran to completion
++  });
++});
++
++describe('disposal', () => {
++  it('closes the landmarker, becomes disposed, is idempotent, and rejects further use', async () => {
++    const { engine, landmarker } = build();
++    await engine.load();
++    engine.dispose();
++    engine.dispose();
++    expect(engine.status).toBe('disposed');
++    expect(landmarker.close).toHaveBeenCalledTimes(1);
++    expect(await codeOf(engine.detect(BLOB))).toBe('disposed');
++    expect(await codeOf(engine.load())).toBe('disposed');
++  });
++
++  it('disposing before anything loaded releases nothing and starts nothing', async () => {
++    const { engine, loadRuntime, fetchModel } = build();
++    engine.dispose();
++    expect(engine.status).toBe('disposed');
++    expect(loadRuntime).not.toHaveBeenCalled();
++    expect(fetchModel).not.toHaveBeenCalled();
++  });
++
++  it('disposing while the runtime loads stops before fetching the model', async () => {
++    const gate = defer<void>();
++    const { engine, fetchModel } = build({ deps: { loadRuntime: async () => (await gate.promise, makeFakeRuntime()) } });
++    const p = engine.load();
++    engine.dispose();
++    gate.resolve();
++    expect(await codeOf(p)).toBe('disposed');
++    expect(fetchModel).not.toHaveBeenCalled();
++    expect(engine.status).toBe('disposed');
++  });
++
++  it('disposing while the model downloads aborts that request', async () => {
++    let seenSignal: AbortSignal | undefined;
++    const { engine } = build({
++      fetchModel: (_url, init) => {
++        seenSignal = init.signal as AbortSignal;
++        return new Promise((_res, rej) => seenSignal!.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError'))));
++      },
++    });
++    const p = engine.load();
++    await vi.waitFor(() => expect(seenSignal).toBeDefined());
++    engine.dispose();
++    expect(seenSignal!.aborted).toBe(true);
++    expect(await codeOf(p)).toBe('disposed');
++  });
++
++  it('a landmarker that finishes creating AFTER dispose is closed immediately, not leaked', async () => {
++    const lm = makeFakeLandmarker();
++    const gate = defer<void>();
++    const runtime = makeFakeRuntime(lm);
++    runtime.createLandmarker.mockImplementation(async () => (await gate.promise, lm));
++    const { engine } = build({ deps: { loadRuntime: async () => runtime } });
++    const p = engine.load();
++    await vi.waitFor(() => expect(runtime.createLandmarker).toHaveBeenCalled());
++    engine.dispose();
++    gate.resolve();
++    expect(await codeOf(p)).toBe('disposed');
++    expect(lm.close).toHaveBeenCalledTimes(1);
++    expect(engine.status).toBe('disposed');
++  });
++
++  it('disposing during decoding means the model never runs, and the decoded image is still released', async () => {
++    const gate = defer<void>();
++    const decode = makeFakeDecode();
++    const { engine, landmarker } = build({ deps: { decodeImage: async (b) => (await gate.promise, decode.decodeImage(b)) } });
++    await engine.load();
++    const p = engine.detect(BLOB);
++    await vi.waitFor(() => expect(engine.status).toBe('ready'));
++    engine.dispose();
++    gate.resolve();
++    expect(await codeOf(p)).toBe('disposed');
++    expect(landmarker.detect).not.toHaveBeenCalled();
++    expect(decode.released).toHaveLength(1);
++    expect(landmarker.close).toHaveBeenCalledTimes(1);
++  });
++
++  it('a throwing close() does not break disposal', async () => {
++    const lm = makeFakeLandmarker();
++    lm.close.mockImplementation(() => {
++      throw new Error('already closed');
++    });
++    const { engine } = build({ landmarker: lm });
++    await engine.load();
++    expect(() => engine.dispose()).not.toThrow();
++    expect(engine.status).toBe('disposed');
++  });
++});
++
++describe('idle release', () => {
++  it('releases the landmarker after a quiet period and transparently re-creates it on next use', async () => {
++    vi.useFakeTimers();
++    const { engine, landmarker, runtime } = build();
++    await engine.detect(BLOB);
++    expect(engine.status).toBe('ready');
++    await vi.advanceTimersByTimeAsync(IDLE_RELEASE_MS - 1);
++    expect(landmarker.close).not.toHaveBeenCalled();
++    await vi.advanceTimersByTimeAsync(2);
++    expect(landmarker.close).toHaveBeenCalledTimes(1);
++    expect(engine.status).toBe('idle');
++    await engine.detect(BLOB);
++    expect(runtime.createLandmarker).toHaveBeenCalledTimes(2);
++    expect(engine.status).toBe('ready');
++  });
++
++  it('does not release while a detection is in flight', async () => {
++    vi.useFakeTimers();
++    const gate = defer<void>();
++    const decode = makeFakeDecode();
++    const { engine, landmarker } = build({ deps: { decodeImage: async (b) => (await gate.promise, decode.decodeImage(b)) } });
++    await engine.load();
++    const p = engine.detect(BLOB);
++    await vi.advanceTimersByTimeAsync(IDLE_RELEASE_MS * 3);
++    expect(landmarker.close).not.toHaveBeenCalled();
++    gate.resolve();
++    await p;
++    await vi.advanceTimersByTimeAsync(IDLE_RELEASE_MS + 1);
++    expect(landmarker.close).toHaveBeenCalledTimes(1);
++  });
++
++  it('dispose() cancels a pending idle release so close() is not called twice', async () => {
++    vi.useFakeTimers();
++    const { engine, landmarker } = build();
++    await engine.detect(BLOB);
++    engine.dispose();
++    await vi.advanceTimersByTimeAsync(IDLE_RELEASE_MS * 2);
++    expect(landmarker.close).toHaveBeenCalledTimes(1);
++  });
++});
++
++describe('default image decoding', () => {
++  const noYield = { yieldToUi: async () => {} };
++
++  it('uses createImageBitmap and closes the bitmap afterwards', async () => {
++    const bitmap = { close: vi.fn(), tag: 'bitmap' };
++    vi.stubGlobal('createImageBitmap', vi.fn(async () => bitmap));
++    const { engine, landmarker } = build({ deps: { ...noYield, decodeImage: undefined } });
++    await engine.detect(BLOB);
++    expect(landmarker.detect).toHaveBeenCalledWith(bitmap);
++    expect(bitmap.close).toHaveBeenCalledTimes(1);
++  });
++
++  it('falls back to an <img> when createImageBitmap is unavailable, and revokes the temporary object URL', async () => {
++    vi.stubGlobal('createImageBitmap', undefined);
++    const created: string[] = [];
++    const revoked: string[] = [];
++    vi.stubGlobal('URL', Object.assign(URL, {
++      createObjectURL: vi.fn(() => (created.push('blob:t'), 'blob:t')),
++      revokeObjectURL: vi.fn((u: string) => void revoked.push(u)),
++    }));
++    class FakeImage {
++      onload: null | (() => void) = null;
++      onerror: null | (() => void) = null;
++      private _src = '';
++      set src(v: string) {
++        this._src = v;
++        if (v) queueMicrotask(() => this.onload?.());
++      }
++      get src() {
++        return this._src;
++      }
++    }
++    vi.stubGlobal('Image', FakeImage);
++    const { engine, landmarker } = build({ deps: { ...noYield, decodeImage: undefined } });
++    await engine.detect(BLOB);
++    expect(landmarker.detect.mock.calls[0][0]).toBeInstanceOf(FakeImage);
++    expect(created).toEqual(['blob:t']);
++    expect(revoked).toEqual(['blob:t']);
++  });
++
++  it('maps an <img> decode error to image_decode_failed and still revokes the URL', async () => {
++    vi.stubGlobal('createImageBitmap', undefined);
++    const revoke = vi.fn();
++    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:t'), revokeObjectURL: revoke }));
++    class BrokenImage {
++      onload: null | (() => void) = null;
++      onerror: null | (() => void) = null;
++      set src(v: string) {
++        if (v) queueMicrotask(() => this.onerror?.());
++      }
++    }
++    vi.stubGlobal('Image', BrokenImage);
++    const { engine } = build({ deps: { ...noYield, decodeImage: undefined } });
++    expect(await codeOf(engine.detect(BLOB))).toBe('image_decode_failed');
++    expect(revoke).toHaveBeenCalledWith('blob:t');
++  });
++});
+diff --git a/src/services/poseLandmarker.ts b/src/services/poseLandmarker.ts
+new file mode 100644
+index 0000000..a0a94c8
+--- /dev/null
++++ b/src/services/poseLandmarker.ts
+@@ -0,0 +1,444 @@
++/**
++ * On-device pose detection for Body Scan (Phase 2C), built on MediaPipe Tasks
++ * Vision "Pose Landmarker" in single-image mode.
++ *
++ * PRIVACY
++ * - Inference runs in this browser tab (WASM, CPU delegate). Photos, frames and
++ *   landmarks are never sent anywhere: this module makes exactly ONE kind of
++ *   network request, a same-origin GET for the model file. It sends no body.
++ * - The MediaPipe package is pinned to 0.10.35 on purpose. Releases from 1.0.0
++ *   contain a usage-logging client that posts to a Google endpoint when a task
++ *   is created or closed; 0.10.35 contains no network endpoints. Do not bump the
++ *   version without re-running the audit in docs/body-scan-pose-model.md (a test
++ *   enforces the pin and scans the installed bundle).
++ * - The WASM runtime is bundled by Vite as hashed assets on this app's own
++ *   origin, and the model is served from `public/models/`. Nothing is fetched
++ *   from a CDN or a third-party host.
++ * - Nothing here stores, caches or logs photos, landmarks or measurements.
++ *
++ * LIFECYCLE
++ * - Nothing is loaded until `load()` / `detect()` is called (lazy dynamic
++ *   import), so the rest of Iron Log pays no start-up cost.
++ * - `load()` shares one in-flight attempt and may be retried after a failure.
++ * - `dispose()` aborts work in flight and closes the landmarker. A landmarker
++ *   that finishes creating after `dispose()` is closed immediately.
++ * - After a period with no detections the landmarker is released and is
++ *   re-created on the next use (the model file then usually comes from the
++ *   browser's HTTP cache).
++ *
++ * LIMITS
++ * - `detect()` is synchronous inside MediaPipe, so it runs on the main thread.
++ *   The engine yields to the browser first so a "analysing" state can paint, but
++ *   the UI can still pause briefly while the model runs. A Web Worker would fix
++ *   that and is deliberately left for a later, device-tested change.
++ * - Only one person is tracked (numPoses = 1).
++ */
++
++import { adaptPoseLandmarkerResult, type PoseAdaptResult } from '../utils/poseResultAdapter';
++
++// ---------------------------------------------------------------------------
++// Configuration
++// ---------------------------------------------------------------------------
++
++/** MediaPipe Pose Landmarker bundle served from `public/models/`. See docs/body-scan-pose-model.md. */
++export const POSE_MODEL_VARIANT = 'pose_landmarker_full';
++export const POSE_MODEL_FILE = `${POSE_MODEL_VARIANT}.task`;
++
++/** Same-origin URL of the model, honouring Vite's `base`. */
++export function defaultModelUrl(): string {
++  return `${import.meta.env.BASE_URL}models/${POSE_MODEL_FILE}`;
++}
++
++/**
++ * Smallest response accepted as a model. Only a guard against error pages and
++ * empty bodies: it is deliberately far below any real Pose Landmarker bundle.
++ */
++export const MIN_MODEL_BYTES = 100_000;
++
++/** Landmarker is released after this long without a detection. */
++export const IDLE_RELEASE_MS = 120_000;
++
++// ---------------------------------------------------------------------------
++// Errors
++// ---------------------------------------------------------------------------
++
++export type PoseEngineErrorCode =
++  | 'unsupported' //            this browser cannot run the engine at all
++  | 'runtime_load_failed' //    the MediaPipe code / WASM could not be loaded
++  | 'model_missing' //          the model file is not deployed (404, or a web page instead of a model)
++  | 'model_download_failed' //  network or server problem fetching the model
++  | 'model_invalid' //          the response is too small to be a model
++  | 'init_failed' //            the landmarker could not be created
++  | 'image_decode_failed' //    the photo could not be decoded for analysis
++  | 'inference_failed' //       the model threw while analysing the photo
++  | 'cancelled' //              the caller's AbortSignal fired
++  | 'disposed'; //              the engine was disposed
++
++/** Messages are fixed strings: they never contain image data, landmarks or underlying error text. */
++export class PoseEngineError extends Error {
++  readonly code: PoseEngineErrorCode;
++  constructor(code: PoseEngineErrorCode, message: string) {
++    super(message);
++    this.name = 'PoseEngineError';
++    this.code = code;
++  }
++}
++
++// ---------------------------------------------------------------------------
++// Types
++// ---------------------------------------------------------------------------
++
++export type PoseEngineStatus = 'idle' | 'loading' | 'ready' | 'failed' | 'disposed';
++
++/** The subset of MediaPipe's PoseLandmarker the engine uses. */
++export interface LandmarkerLike {
++  detect(image: unknown): unknown;
++  close(): void;
++}
++
++/** Loaded MediaPipe code, able to create a landmarker from model bytes. */
++export interface PoseRuntime {
++  createLandmarker(modelBytes: Uint8Array): Promise<LandmarkerLike>;
++}
++
++export interface DecodedImage {
++  source: unknown;
++  /** Frees the decoded pixels. Always called, success or not. */
++  release(): void;
++}
++
++export interface PoseEngineDeps {
++  /** Same-origin URL of the model file. Throws RangeError at construction if it is not same-origin. */
++  modelUrl?: string;
++  loadRuntime?: () => Promise<PoseRuntime>;
++  fetchModel?: (url: string, init: RequestInit) => Promise<Response>;
++  decodeImage?: (blob: Blob) => Promise<DecodedImage>;
++  /** Lets the browser paint before the synchronous inference call. */
++  yieldToUi?: () => Promise<void>;
++  idleReleaseMs?: number;
++}
++
++export interface PoseEngine {
++  readonly status: PoseEngineStatus;
++  /** Loads the runtime and model. Idempotent; shares one attempt; retry after a failure starts a fresh one. */
++  load(signal?: AbortSignal): Promise<void>;
++  /** Analyses one photo. Loads first if needed. Never returns data from a different call. */
++  detect(blob: Blob, signal?: AbortSignal): Promise<PoseAdaptResult>;
++  /** Aborts work in flight and releases the landmarker. Safe to call more than once. */
++  dispose(): void;
++}
++
++// ---------------------------------------------------------------------------
++// Default implementations (browser)
++// ---------------------------------------------------------------------------
++
++/**
++ * Loads MediaPipe lazily and points it at WASM files served by this app.
++ * `FilesetResolver.forVisionTasks` is not used: it would need a fixed directory,
++ * but the bundler emits hashed file names. It only builds this same pair of paths.
++ */
++async function loadMediaPipeRuntime(): Promise<PoseRuntime> {
++  const vision = await import('@mediapipe/tasks-vision');
++  const simd = await vision.FilesetResolver.isSimdSupported();
++  const [loader, binary] = simd
++    ? await Promise.all([
++        import('@mediapipe/tasks-vision/vision_wasm_internal.js?url'),
++        import('@mediapipe/tasks-vision/vision_wasm_internal.wasm?url'),
++      ])
++    : await Promise.all([
++        import('@mediapipe/tasks-vision/vision_wasm_nosimd_internal.js?url'),
++        import('@mediapipe/tasks-vision/vision_wasm_nosimd_internal.wasm?url'),
++      ]);
++  const fileset = { wasmLoaderPath: loader.default, wasmBinaryPath: binary.default };
++  return {
++    createLandmarker: (modelBytes) =>
++      vision.PoseLandmarker.createFromOptions(fileset, {
++        baseOptions: { modelAssetBuffer: modelBytes, delegate: 'CPU' },
++        runningMode: 'IMAGE',
++        numPoses: 1,
++        minPoseDetectionConfidence: 0.5,
++        minPosePresenceConfidence: 0.5,
++        outputSegmentationMasks: false,
++      }),
++  };
++}
++
++async function decodeBlobToImage(blob: Blob): Promise<DecodedImage> {
++  if (typeof createImageBitmap === 'function') {
++    const bitmap = await createImageBitmap(blob);
++    return { source: bitmap, release: () => bitmap.close() };
++  }
++  // Older browsers: decode through an <img>. The temporary object URL is revoked as soon as decoding ends.
++  const url = URL.createObjectURL(blob);
++  try {
++    const img = new Image();
++    await new Promise<void>((resolve, reject) => {
++      img.onload = () => resolve();
++      img.onerror = () => reject(new Error('decode'));
++      img.src = url;
++    });
++    return {
++      source: img,
++      release: () => {
++        img.onload = null;
++        img.onerror = null;
++        img.src = '';
++      },
++    };
++  } finally {
++    URL.revokeObjectURL(url);
++  }
++}
++
++function defaultYieldToUi(): Promise<void> {
++  return new Promise((resolve) => {
++    const timer = setTimeout(resolve, 30);
++    if (typeof requestAnimationFrame === 'function') {
++      requestAnimationFrame(() => {
++        clearTimeout(timer);
++        resolve();
++      });
++    }
++  });
++}
++
++// ---------------------------------------------------------------------------
++// Helpers
++// ---------------------------------------------------------------------------
++
++function assertSameOrigin(url: string): void {
++  if (typeof location === 'undefined') return; // not in a browser: there is no origin to compare against
++  let parsed: URL;
++  try {
++    parsed = new URL(url, location.href);
++  } catch {
++    throw new RangeError('Pose model URL is not a valid URL.');
++  }
++  if (parsed.origin !== location.origin) {
++    throw new RangeError('The pose model must be served from this app’s own origin, never a third-party host.');
++  }
++}
++
++function safeClose(target: { close(): void } | null | undefined): void {
++  try {
++    target?.close();
++  } catch {
++    // Releasing is best-effort; there is nothing useful to do if it throws.
++  }
++}
++
++/** True when the first non-whitespace byte is '<' (an HTML / XML document, never a model bundle). */
++const looksLikeWebPage = (bytes: Uint8Array): boolean => {
++  for (let i = 0; i < Math.min(bytes.length, 64); i++) {
++    const c = bytes[i];
++    if (c === 0x20 || c === 0x0a || c === 0x0d || c === 0x09) continue;
++    return c === 0x3c;
++  }
++  return false;
++};
++
++// ---------------------------------------------------------------------------
++// Engine
++// ---------------------------------------------------------------------------
++
++export function createPoseEngine(deps: PoseEngineDeps = {}): PoseEngine {
++  const modelUrl = deps.modelUrl ?? defaultModelUrl();
++  assertSameOrigin(modelUrl);
++  const loadRuntime = deps.loadRuntime ?? loadMediaPipeRuntime;
++  const fetchModel = deps.fetchModel ?? ((url: string, init: RequestInit) => fetch(url, init));
++  const decodeImage = deps.decodeImage ?? decodeBlobToImage;
++  const yieldToUi = deps.yieldToUi ?? defaultYieldToUi;
++  const idleReleaseMs = deps.idleReleaseMs ?? IDLE_RELEASE_MS;
++
++  let status: PoseEngineStatus = 'idle';
++  let landmarker: LandmarkerLike | null = null;
++  let loading: Promise<void> | null = null;
++  let activeDetections = 0;
++  let idleTimer: ReturnType<typeof setTimeout> | undefined;
++  const lifetime = new AbortController(); // aborted by dispose()
++
++  const disposedError = () => new PoseEngineError('disposed', 'Pose detection was stopped.');
++  const cancelledError = () => new PoseEngineError('cancelled', 'Pose detection was cancelled.');
++
++  const checkAlive = () => {
++    if (lifetime.signal.aborted) throw disposedError();
++  };
++  const checkCaller = (signal?: AbortSignal) => {
++    checkAlive();
++    if (signal?.aborted) throw cancelledError();
++  };
++
++  const cancelIdle = () => {
++    if (idleTimer !== undefined) clearTimeout(idleTimer);
++    idleTimer = undefined;
++  };
++  const scheduleIdleRelease = () => {
++    cancelIdle();
++    if (status !== 'ready' || activeDetections > 0) return;
++    idleTimer = setTimeout(() => {
++      idleTimer = undefined;
++      if (status !== 'ready' || activeDetections > 0) return;
++      const lm = landmarker;
++      landmarker = null;
++      status = 'idle';
++      safeClose(lm);
++    }, idleReleaseMs);
++  };
++
++  async function fetchModelBytes(): Promise<Uint8Array> {
++    let response: Response;
++    try {
++      response = await fetchModel(modelUrl, { signal: lifetime.signal, credentials: 'same-origin' });
++    } catch {
++      checkAlive();
++      throw new PoseEngineError('model_download_failed', 'The pose model could not be downloaded.');
++    }
++    if (!response.ok) {
++      throw response.status === 404
++        ? new PoseEngineError('model_missing', 'The pose model file is not available in this version of the app.')
++        : new PoseEngineError('model_download_failed', 'The pose model could not be downloaded.');
++    }
++    let bytes: Uint8Array;
++    try {
++      bytes = new Uint8Array(await response.arrayBuffer());
++    } catch {
++      checkAlive();
++      throw new PoseEngineError('model_download_failed', 'The pose model could not be downloaded.');
++    }
++    // A host that rewrites unknown paths to index.html answers 200 with a web page: that means "not deployed".
++    if (/text\/html/i.test(response.headers?.get?.('content-type') ?? '') || looksLikeWebPage(bytes)) {
++      throw new PoseEngineError('model_missing', 'The pose model file is not available in this version of the app.');
++    }
++    if (bytes.byteLength < MIN_MODEL_BYTES) {
++      throw new PoseEngineError('model_invalid', 'The pose model file looks incomplete.');
++    }
++    return bytes;
++  }
++
++  async function doLoad(): Promise<void> {
++    status = 'loading';
++    try {
++      if (typeof WebAssembly !== 'object' || typeof WebAssembly.instantiate !== 'function' || typeof fetch !== 'function') {
++        throw new PoseEngineError('unsupported', 'This browser cannot run on-device pose detection.');
++      }
++      let runtime: PoseRuntime;
++      try {
++        runtime = await loadRuntime();
++      } catch {
++        checkAlive();
++        throw new PoseEngineError('runtime_load_failed', 'The pose detection engine could not be loaded.');
++      }
++      checkAlive();
++      const bytes = await fetchModelBytes();
++      checkAlive();
++      let created: LandmarkerLike;
++      try {
++        created = await runtime.createLandmarker(bytes);
++      } catch {
++        checkAlive();
++        throw new PoseEngineError('init_failed', 'The pose model could not be started on this device.');
++      }
++      if (lifetime.signal.aborted) {
++        safeClose(created); // finished after dispose(): do not leak it
++        throw disposedError();
++      }
++      landmarker = created;
++      status = 'ready';
++    } catch (err) {
++      if (!lifetime.signal.aborted) status = 'failed';
++      throw err instanceof PoseEngineError ? err : new PoseEngineError('init_failed', 'The pose model could not be started on this device.');
++    }
++  }
++
++  function load(signal?: AbortSignal): Promise<void> {
++    try {
++      checkCaller(signal);
++    } catch (err) {
++      return Promise.reject(err);
++    }
++    if (status === 'ready') return Promise.resolve();
++    if (!loading) {
++      loading = doLoad().finally(() => {
++        loading = null;
++      });
++    }
++    const attempt = loading;
++    if (!signal) return attempt;
++    // The caller can stop waiting without cancelling the shared attempt (another caller may still need it).
++    return new Promise<void>((resolve, reject) => {
++      const onAbort = () => reject(cancelledError());
++      signal.addEventListener('abort', onAbort, { once: true });
++      attempt.then(
++        () => {
++          signal.removeEventListener('abort', onAbort);
++          resolve();
++        },
++        (err) => {
++          signal.removeEventListener('abort', onAbort);
++          reject(err);
++        }
++      );
++    });
++  }
++
++  async function detect(blob: Blob, signal?: AbortSignal): Promise<PoseAdaptResult> {
++    checkCaller(signal);
++    cancelIdle();
++    activeDetections++;
++    let decoded: DecodedImage | null = null;
++    try {
++      await load(signal);
++      checkCaller(signal);
++      try {
++        decoded = await decodeImage(blob);
++      } catch {
++        checkCaller(signal);
++        throw new PoseEngineError('image_decode_failed', 'This photo could not be read for analysis.');
++      }
++      await yieldToUi();
++      checkCaller(signal);
++      const lm = landmarker;
++      if (!lm) throw disposedError();
++      let native: unknown;
++      try {
++        native = lm.detect(decoded.source);
++      } catch {
++        throw new PoseEngineError('inference_failed', 'Pose detection failed on this photo.');
++      }
++      const adapted = adaptPoseLandmarkerResult(native);
++      if (native !== null && typeof native === 'object' && typeof (native as { close?: unknown }).close === 'function') {
++        safeClose(native as { close(): void });
++      }
++      return adapted;
++    } finally {
++      if (decoded) {
++        try {
++          decoded.release();
++        } catch {
++          // Best-effort: the decoded copy is only in memory and is dropped with its last reference.
++        }
++      }
++      activeDetections--;
++      scheduleIdleRelease();
++    }
++  }
++
++  function dispose(): void {
++    if (status === 'disposed') return;
++    status = 'disposed';
++    lifetime.abort();
++    cancelIdle();
++    const lm = landmarker;
++    landmarker = null;
++    safeClose(lm);
++  }
++
++  return {
++    get status() {
++      return status;
++    },
++    load,
++    detect,
++    dispose,
++  };
++}
+diff --git a/src/utils/captureQuality.ts b/src/utils/captureQuality.ts
+index cfdd55e..42d3435 100644
+--- a/src/utils/captureQuality.ts
++++ b/src/utils/captureQuality.ts
+@@ -224,7 +224,7 @@ const SIDE_CHAINS: Record<'left' | 'right', readonly PoseLandmarkName[]> = {
+   right: ['nose', 'rightShoulder', 'rightHip', 'rightKnee', 'rightAnkle'],
+ };
+ 
+-interface NamedRead {
++export interface NamedRead {
+   name: PoseLandmarkName;
+   read: LandmarkRead;
+ }
+@@ -237,8 +237,11 @@ function readAll(landmarks: LandmarkList, names: readonly PoseLandmarkName[], mi
+  * Front view needs every required landmark. A side view only ever shows one
+  * side of the body clearly, so it needs ONE complete side chain; the better of
+  * the two is used (fewest unusable landmarks, then highest minimum visibility).
++ *
++ * Exported (behaviour unchanged) so pose-detection acceptance can count the
++ * same required landmarks these checks use instead of re-implementing the choice.
+  */
+-function selectRequiredReads(landmarks: LandmarkList, view: ScanView, minVis: number): NamedRead[] {
++export function selectRequiredReads(landmarks: LandmarkList, view: ScanView, minVis: number): NamedRead[] {
+   if (view !== 'side') return readAll(landmarks, FRONT_REQUIRED, minVis);
+   const left = readAll(landmarks, SIDE_CHAINS.left, minVis);
+   const right = readAll(landmarks, SIDE_CHAINS.right, minVis);
+diff --git a/src/utils/poseDetectionAssessment.test.ts b/src/utils/poseDetectionAssessment.test.ts
+new file mode 100644
+index 0000000..ed02421
+--- /dev/null
++++ b/src/utils/poseDetectionAssessment.test.ts
+@@ -0,0 +1,190 @@
++import { describe, expect, it } from 'vitest';
++import type { LandmarkPoint } from '../types/bodyScan';
++import { MIN_POSE_VERTICAL_SPAN, MIN_RELIABLE_FRACTION_FOR_PARTIAL, assessPoseDetection } from './poseDetectionAssessment';
++import { POSE_LANDMARK } from './poseLandmarks';
++import type { PoseAdaptResult } from './poseResultAdapter';
++import { makeFrontPose, makeSidePose } from './syntheticPose.testutil';
++
++// All landmarks below are SYNTHETIC (see syntheticPose.testutil.ts). They exercise the rules only.
++const ok = (landmarks: LandmarkPoint[]): PoseAdaptResult => ({ ok: true, landmarks });
++
++describe('assessPoseDetection: usable', () => {
++  it('accepts a complete, clear front pose and keeps the landmarks for this view', () => {
++    const lm = makeFrontPose();
++    const o = assessPoseDetection('front', ok(lm));
++    expect(o.status).toBe('usable');
++    expect(o.view).toBe('front');
++    expect(o.landmarks).toBe(lm);
++    expect(o.required).toEqual({ total: 9, reliable: 9 });
++    expect(o.failureReason).toBeUndefined();
++  });
++
++  it('accepts a side pose when ONE complete side chain is visible', () => {
++    const o = assessPoseDetection('side', ok(makeSidePose()));
++    expect(o.status).toBe('usable');
++    expect(o.required).toEqual({ total: 5, reliable: 5 });
++  });
++
++  it('still accepts a pose with borderline-visibility warnings, and reports them', () => {
++    const o = assessPoseDetection('front', ok(makeFrontPose({}, 0.6)));
++    expect(o.status).toBe('usable');
++    expect(o.assessment?.checks.find((c) => c.id === 'landmarks_visible')?.status).toBe('warning');
++    expect(o.details.join(' ')).toMatch(/borderline/i);
++  });
++});
++
++describe('assessPoseDetection: unevaluated checks are neither failures nor passes', () => {
++  it('never supplies brightness, sharpness or motion, so those stay not_evaluated and the result is incomplete', () => {
++    const o = assessPoseDetection('front', ok(makeFrontPose()));
++    const byId = (id: string) => o.assessment?.checks.find((c) => c.id === id);
++    for (const id of ['brightness', 'sharpness', 'stillness']) {
++      expect(byId(id)?.status).toBe('not_evaluated');
++      expect(byId(id)?.value).toBeUndefined(); // no number was invented
++    }
++    expect(o.assessment?.notEvaluated).toEqual(['brightness', 'sharpness', 'stillness']);
++    expect(o.qualityComplete).toBe(false);
++    expect(o.status).toBe('usable'); // not downgraded to a failure just because they were not evaluated
++  });
++
++  it('does not count not_evaluated checks as problems in the details', () => {
++    const o = assessPoseDetection('front', ok(makeFrontPose()));
++    expect(o.details).toEqual([]);
++  });
++});
++
++describe('assessPoseDetection: partial', () => {
++  it('is partial when a leg is cut off at the bottom edge but most points are reliable', () => {
++    const lm = makeFrontPose({ leftAnkle: { y: 1.05, visibility: 0.2 }, rightAnkle: { y: 1.05, visibility: 0.2 } });
++    const o = assessPoseDetection('front', ok(lm));
++    expect(o.status).toBe('partial');
++    expect(o.required).toEqual({ total: 9, reliable: 7 });
++    expect(o.headline).toBe('Body pose only partly detected');
++    expect(o.advice.join(' ')).toMatch(/whole body|in view/i);
++  });
++
++  it('is partial when every landmark is reliable but the person is too small in frame', () => {
++    const lm = makeFrontPose({
++      nose: { y: 0.35 },
++      leftShoulder: { y: 0.4 },
++      rightShoulder: { y: 0.4 },
++      leftHip: { y: 0.55 },
++      rightHip: { y: 0.55 },
++      leftKnee: { y: 0.65 },
++      rightKnee: { y: 0.65 },
++      leftAnkle: { y: 0.72 },
++      rightAnkle: { y: 0.72 },
++    });
++    const o = assessPoseDetection('front', ok(lm));
++    expect(o.status).toBe('partial');
++    expect(o.required).toEqual({ total: 9, reliable: 9 });
++    expect(o.headline).toBe('Body pose detected, but the framing needs adjusting');
++  });
++
++  it('is partial when a joint touches the frame edge even though it is clearly visible', () => {
++    const o = assessPoseDetection('front', ok(makeFrontPose({ rightAnkle: { x: 0.003 } })));
++    expect(o.status).toBe('partial');
++    expect(o.assessment?.checks.find((c) => c.id === 'in_frame')?.status).toBe('fail');
++  });
++
++  it('is partial when the person is well off-centre', () => {
++    const shift = (x: number) => x + 0.3;
++    const lm = makeFrontPose({
++      nose: { x: shift(0.5) },
++      leftShoulder: { x: shift(0.6) },
++      rightShoulder: { x: shift(0.4) },
++      leftHip: { x: shift(0.57) },
++      rightHip: { x: shift(0.43) },
++      leftKnee: { x: shift(0.57) },
++      rightKnee: { x: shift(0.43) },
++      leftAnkle: { x: shift(0.57) },
++      rightAnkle: { x: shift(0.43) },
++    });
++    expect(assessPoseDetection('front', ok(lm)).status).toBe('partial');
++  });
++});
++
++describe('assessPoseDetection: failed', () => {
++  it('fails with no_pose when the model found nobody, with no landmarks or assessment', () => {
++    const o = assessPoseDetection('front', { ok: false, reason: 'no_pose' });
++    expect(o).toMatchObject({ status: 'failed', failureReason: 'no_pose', landmarks: null, assessment: null, required: null });
++    expect(o.qualityComplete).toBe(false);
++    expect(o.headline).toMatch(/no body/i);
++  });
++
++  it('fails with malformed_result when the inference output could not be read', () => {
++    const o = assessPoseDetection('side', { ok: false, reason: 'malformed' });
++    expect(o).toMatchObject({ status: 'failed', failureReason: 'malformed_result', landmarks: null, view: 'side' });
++  });
++
++  it('fails when fewer than half of the required landmarks are reliable (front: 4 of 9)', () => {
++    const low = { visibility: 0.1 };
++    const lm = makeFrontPose({
++      leftHip: low,
++      rightHip: low,
++      leftKnee: low,
++      rightKnee: low,
++      leftAnkle: low,
++    });
++    const o = assessPoseDetection('front', ok(lm));
++    expect(o.status).toBe('failed');
++    expect(o.failureReason).toBe('too_few_landmarks');
++    expect(o.required).toEqual({ total: 9, reliable: 4 });
++    expect(o.landmarks).toBe(lm); // the model did return landmarks; they are kept, just not accepted
++  });
++
++  it('is partial, not failed, at exactly half rounded up (front: 5 of 9)', () => {
++    const low = { visibility: 0.1 };
++    const o = assessPoseDetection('front', ok(makeFrontPose({ leftKnee: low, rightKnee: low, leftAnkle: low, rightAnkle: low })));
++    expect(o.required).toEqual({ total: 9, reliable: 5 });
++    expect(o.status).toBe('partial');
++    expect(MIN_RELIABLE_FRACTION_FOR_PARTIAL).toBe(0.5);
++  });
++
++  it('fails on a landmark list the model reported with no usable visibility at all', () => {
++    const lm = makeFrontPose().map((p) => ({ x: p.x, y: p.y })); // visibility missing everywhere
++    const o = assessPoseDetection('front', ok(lm));
++    expect(o.status).toBe('failed');
++    expect(o.required).toEqual({ total: 9, reliable: 0 });
++  });
++
++  it('fails a collapsed pose where every point sits at (almost) the same height', () => {
++    const lm = makeFrontPose();
++    for (const i of Object.values(POSE_LANDMARK)) lm[i] = { x: 0.2 + (i % 5) * 0.1, y: 0.5, visibility: 0.99 };
++    const o = assessPoseDetection('front', ok(lm));
++    expect(o.status).toBe('failed');
++    expect(o.failureReason).toBe('degenerate_pose');
++    expect(MIN_POSE_VERTICAL_SPAN).toBeGreaterThan(0);
++  });
++
++  it('fails when head and feet are inverted by being squashed together rather than calling it usable', () => {
++    const lm = makeFrontPose({ nose: { y: 0.9 }, leftAnkle: { y: 0.1 }, rightAnkle: { y: 0.1 } });
++    expect(assessPoseDetection('front', ok(lm)).status).not.toBe('usable');
++  });
++});
++
++describe('assessPoseDetection: front and side are assessed independently', () => {
++  it('requires different landmarks per view for the same landmark list', () => {
++    // Side pose: right chain is low-visibility. Judged as FRONT it is missing four required points; as SIDE it is complete.
++    const lm = makeSidePose();
++    const asFront = assessPoseDetection('front', ok(lm));
++    const asSide = assessPoseDetection('side', ok(lm));
++    expect(asFront.required).toEqual({ total: 9, reliable: 5 });
++    expect(asFront.status).toBe('partial');
++    expect(asSide.required).toEqual({ total: 5, reliable: 5 });
++    expect(asSide.status).toBe('usable');
++    expect(asFront.view).toBe('front');
++    expect(asSide.view).toBe('side');
++  });
++
++  it('does not share or mutate landmark data between calls', () => {
++    const front = makeFrontPose();
++    const side = makeSidePose();
++    const before = JSON.stringify([front, side]);
++    const a = assessPoseDetection('front', ok(front));
++    const b = assessPoseDetection('side', ok(side));
++    expect(JSON.stringify([front, side])).toBe(before);
++    expect(a.landmarks).toBe(front);
++    expect(b.landmarks).toBe(side);
++    expect(a.landmarks).not.toBe(b.landmarks);
++  });
++});
+diff --git a/src/utils/poseDetectionAssessment.ts b/src/utils/poseDetectionAssessment.ts
+new file mode 100644
+index 0000000..0c75e7f
+--- /dev/null
++++ b/src/utils/poseDetectionAssessment.ts
+@@ -0,0 +1,149 @@
++import type { LandmarkPoint, ScanView } from '../types/bodyScan';
++import {
++  DEFAULT_CAPTURE_QUALITY_CONFIG,
++  assessCaptureQuality,
++  selectRequiredReads,
++  toCaptureQualityReport,
++  type CaptureQualityAssessment,
++} from './captureQuality';
++import type { PoseAdaptResult } from './poseResultAdapter';
++
++/**
++ * Decides what a pose-detection result means for ONE photo.
++ *
++ * "The model returned landmarks" (inference success) is not the same as "the
++ * pose is usable" (acceptance). This module keeps the two apart:
++ *
++ *   usable  every required landmark is reliably visible and no evaluated check
++ *           found a problem (warnings are allowed and are reported).
++ *   partial a pose was found and at least half of the required landmarks are
++ *           reliable, but something is missing or a framing check failed
++ *           (cut off at an edge, too far / too close, off-centre).
++ *   failed  nothing usable: no pose, an unreadable result, fewer than half of
++ *           the required landmarks reliable, or a collapsed / degenerate pose.
++ *
++ * Quality inputs: ONLY landmark-derived checks are run. Brightness, sharpness
++ * and motion are never supplied, so those checks stay `not_evaluated`; they are
++ * never guessed and never counted as a pass. `qualityComplete` is therefore
++ * false for every outcome produced by this phase, and the UI must say so.
++ *
++ * The two numeric rules below are NEW heuristics introduced in Phase 2C. They
++ * are not calibrated against real users or devices. Existing capture-quality
++ * thresholds are used unchanged.
++ *
++ * Front and side views are assessed independently: the view decides which
++ * landmarks are required (all nine for front, one complete side chain for
++ * side), and nothing here combines or compares the two coordinate systems.
++ *
++ * Pure module: no browser APIs, no React, no I/O.
++ */
++
++/** Below this fraction of reliable required landmarks the result is `failed` rather than `partial`. */
++export const MIN_RELIABLE_FRACTION_FOR_PARTIAL = 0.5;
++
++/** Required landmarks spanning less than this fraction of image height are treated as a collapsed pose. */
++export const MIN_POSE_VERTICAL_SPAN = 0.05;
++
++export type PoseDetectionStatus = 'usable' | 'partial' | 'failed';
++
++export type PoseFailureReason = 'no_pose' | 'malformed_result' | 'too_few_landmarks' | 'degenerate_pose';
++
++export interface PoseDetectionOutcome {
++  view: ScanView;
++  status: PoseDetectionStatus;
++  failureReason?: PoseFailureReason;
++  /** Landmarks for this view only, in this photo's own normalised coordinates. Null when none could be read. */
++  landmarks: LandmarkPoint[] | null;
++  /** Landmark-based quality checks. Null when no usable landmark list existed to run them on. */
++  assessment: CaptureQualityAssessment | null;
++  /** How many of the landmarks required for this view were reliably visible. */
++  required: { total: number; reliable: number } | null;
++  /** False whenever any quality check (lighting, sharpness, stillness) could not be evaluated. */
++  qualityComplete: boolean;
++  /** One-line, user-facing result. */
++  headline: string;
++  /** What was found (problems and borderline items), failures first. Empty when nothing needs saying. */
++  details: string[];
++  /** What the person can do about it. */
++  advice: string[];
++}
++
++function failed(view: ScanView, reason: PoseFailureReason, headline: string, advice: string[]): PoseDetectionOutcome {
++  return {
++    view,
++    status: 'failed',
++    failureReason: reason,
++    landmarks: null,
++    assessment: null,
++    required: null,
++    qualityComplete: false,
++    headline,
++    details: [],
++    advice,
++  };
++}
++
++export function assessPoseDetection(view: ScanView, adapted: PoseAdaptResult): PoseDetectionOutcome {
++  if (!adapted.ok) {
++    if (adapted.reason === 'no_pose') {
++      return failed(view, 'no_pose', 'No body was detected in this photo', [
++        'Stand fully in view of the camera, in good light, against a plain background, and retake the photo.',
++      ]);
++    }
++    return failed(view, 'malformed_result', 'The pose result could not be read', [
++      'Try the analysis again. If it keeps happening, retake the photo.',
++    ]);
++  }
++
++  const { landmarks } = adapted;
++  const minVisibility = DEFAULT_CAPTURE_QUALITY_CONFIG.minLandmarkVisibility;
++  const reads = selectRequiredReads(landmarks, view, minVisibility);
++  const total = reads.length;
++  const reliableReads = reads.filter((r) => r.read.status === 'ok');
++  const reliable = reliableReads.length;
++  const required = { total, reliable };
++
++  // No brightness / sharpness / motion are passed: those checks report `not_evaluated`.
++  const assessment = assessCaptureQuality({ view, landmarks });
++  const report = toCaptureQualityReport(assessment);
++  const base = {
++    view,
++    landmarks,
++    assessment,
++    required,
++    qualityComplete: assessment.complete,
++    details: report.issues,
++    advice: assessment.feedback,
++  };
++
++  if (reliable < Math.ceil(total * MIN_RELIABLE_FRACTION_FOR_PARTIAL)) {
++    return {
++      ...base,
++      status: 'failed',
++      failureReason: 'too_few_landmarks',
++      headline: 'Not enough of your body could be located',
++    };
++  }
++
++  const ys = reliableReads.map((r) => r.read.point!.y);
++  if (ys.length >= 2 && Math.max(...ys) - Math.min(...ys) < MIN_POSE_VERTICAL_SPAN) {
++    return {
++      ...base,
++      status: 'failed',
++      failureReason: 'degenerate_pose',
++      headline: 'The detected pose does not look like a standing body',
++      advice: ['Stand upright facing the camera with your whole body in view, then retake the photo.', ...assessment.feedback],
++    };
++  }
++
++  const anyCheckFailed = assessment.checks.some((c) => c.status === 'fail');
++  if (reliable === total && !anyCheckFailed) {
++    return { ...base, status: 'usable', headline: 'Body pose detected' };
++  }
++
++  return {
++    ...base,
++    status: 'partial',
++    headline: reliable < total ? 'Body pose only partly detected' : 'Body pose detected, but the framing needs adjusting',
++  };
++}
+diff --git a/src/utils/poseResultAdapter.test.ts b/src/utils/poseResultAdapter.test.ts
+new file mode 100644
+index 0000000..59bd7a2
+--- /dev/null
++++ b/src/utils/poseResultAdapter.test.ts
+@@ -0,0 +1,96 @@
++import { describe, expect, it } from 'vitest';
++import { POSE_LANDMARK_COUNT, adaptPoseLandmarkerResult } from './poseResultAdapter';
++
++// Hand-made, native-shaped data. Not output from a real model.
++const native = (n = POSE_LANDMARK_COUNT, extra: Record<string, unknown> = {}) =>
++  Array.from({ length: n }, (_, i) => ({ x: i / 100, y: 0.5, z: -0.1, visibility: 0.9, presence: 0.8, ...extra }));
++
++describe('adaptPoseLandmarkerResult', () => {
++  it('converts a 33-landmark pose, preserving x, y, z and visibility', () => {
++    const r = adaptPoseLandmarkerResult({ landmarks: [native()], worldLandmarks: [] });
++    expect(r.ok).toBe(true);
++    if (!r.ok) return;
++    expect(r.landmarks).toHaveLength(POSE_LANDMARK_COUNT);
++    expect(r.landmarks[7]).toEqual({ x: 0.07, y: 0.5, z: -0.1, visibility: 0.9 });
++  });
++
++  it('drops MediaPipe-only fields the app contract does not have (presence, world landmarks)', () => {
++    const r = adaptPoseLandmarkerResult({ landmarks: [native()], worldLandmarks: [native()] });
++    if (!r.ok) throw new Error('expected ok');
++    expect(Object.keys(r.landmarks[0]).sort()).toEqual(['visibility', 'x', 'y', 'z']);
++  });
++
++  it('does not clamp coordinates: out-of-frame joints keep their values', () => {
++    const pose = native();
++    pose[27] = { x: 0.4, y: 1.08, z: 0, visibility: 0.3, presence: 0.2 };
++    pose[28] = { x: -0.05, y: 0.9, z: 0, visibility: 0.6, presence: 0.5 };
++    const r = adaptPoseLandmarkerResult({ landmarks: [pose] });
++    if (!r.ok) throw new Error('expected ok');
++    expect(r.landmarks[27]).toMatchObject({ x: 0.4, y: 1.08, visibility: 0.3 });
++    expect(r.landmarks[28]).toMatchObject({ x: -0.05, visibility: 0.6 });
++  });
++
++  it('leaves visibility out when the model did not give a usable number, rather than inventing one', () => {
++    const pose = native();
++    pose[3] = { x: 0.3, y: 0.3, z: 0 } as never;
++    pose[4] = { x: 0.3, y: 0.3, z: 0, visibility: Number.NaN } as never;
++    pose[5] = { x: 0.3, y: 0.3, z: 0, visibility: '0.9' } as never;
++    const r = adaptPoseLandmarkerResult({ landmarks: [pose] });
++    if (!r.ok) throw new Error('expected ok');
++    for (const i of [3, 4, 5]) expect(r.landmarks[i]).not.toHaveProperty('visibility');
++  });
++
++  it('omits a non-finite z instead of passing it on', () => {
++    const pose = native();
++    pose[9] = { x: 0.3, y: 0.3, z: Number.POSITIVE_INFINITY, visibility: 0.9 } as never;
++    const r = adaptPoseLandmarkerResult({ landmarks: [pose] });
++    if (!r.ok) throw new Error('expected ok');
++    expect(r.landmarks[9]).not.toHaveProperty('z');
++  });
++
++  it('returns an independent copy that survives the native result being changed or closed', () => {
++    const pose = native();
++    const r = adaptPoseLandmarkerResult({ landmarks: [pose] });
++    if (!r.ok) throw new Error('expected ok');
++    pose[0].x = 99;
++    expect(r.landmarks[0].x).toBe(0);
++    expect(r.landmarks[0]).not.toBe(pose[0]);
++  });
++
++  it('reports no_pose when the model found nobody', () => {
++    expect(adaptPoseLandmarkerResult({ landmarks: [] })).toEqual({ ok: false, reason: 'no_pose' });
++    expect(adaptPoseLandmarkerResult({ landmarks: [[]] })).toEqual({ ok: false, reason: 'no_pose' });
++  });
++
++  it('reads only the first pose', () => {
++    const second = native().map((p) => ({ ...p, x: 0.9 }));
++    const r = adaptPoseLandmarkerResult({ landmarks: [native(), second] });
++    if (!r.ok) throw new Error('expected ok');
++    expect(r.landmarks[0].x).toBe(0);
++  });
++
++  describe('malformed results are rejected whole, never partially passed on', () => {
++    const cases: [string, unknown][] = [
++      ['undefined', undefined],
++      ['null', null],
++      ['a string', 'pose'],
++      ['a number', 7],
++      ['no landmarks field', {}],
++      ['landmarks not an array', { landmarks: 'x' }],
++      ['pose not an array', { landmarks: [{}] }],
++      ['too few landmarks', { landmarks: [native(32)] }],
++      ['too many landmarks', { landmarks: [native(34)] }],
++      ['a null landmark', { landmarks: [[...native(32), null]] }],
++      ['a primitive landmark', { landmarks: [[...native(32), 5]] }],
++      ['a landmark without x', { landmarks: [[...native(32), { y: 0.5, visibility: 1 }]] }],
++      ['a NaN coordinate', { landmarks: [[...native(32), { x: Number.NaN, y: 0.5, visibility: 1 }]] }],
++      ['an Infinity coordinate', { landmarks: [[...native(32), { x: 0.5, y: Number.POSITIVE_INFINITY, visibility: 1 }]] }],
++      ['a string coordinate', { landmarks: [[...native(32), { x: '0.5', y: 0.5, visibility: 1 }]] }],
++    ];
++    for (const [name, input] of cases) {
++      it(name, () => {
++        expect(adaptPoseLandmarkerResult(input)).toEqual({ ok: false, reason: 'malformed' });
++      });
++    }
++  });
++});
+diff --git a/src/utils/poseResultAdapter.ts b/src/utils/poseResultAdapter.ts
+new file mode 100644
+index 0000000..6a9149e
+--- /dev/null
++++ b/src/utils/poseResultAdapter.ts
+@@ -0,0 +1,67 @@
++import type { LandmarkPoint } from '../types/bodyScan';
++
++/**
++ * Boundary between MediaPipe's native Pose Landmarker result and the app's own
++ * landmark representation (`LandmarkPoint[]`, MediaPipe 33-point ordering).
++ *
++ * Pure module: no MediaPipe import, no browser APIs, no React. The input is
++ * typed `unknown` on purpose: it comes from a WASM runtime, so nothing about its
++ * shape is trusted. Anything unexpected is reported as `malformed` instead of
++ * being passed on.
++ *
++ * What is kept per landmark: normalised x / y, z (relative depth, NOT metric),
++ * and `visibility`. Coordinates are NOT clamped: a joint outside the frame can
++ * legitimately be reported below 0 or above 1, and the quality checks rely on
++ * that to notice cut-off limbs. MediaPipe's separate `presence` score and the
++ * world-space landmarks are not part of the app's `LandmarkPoint` contract and
++ * are dropped.
++ *
++ * The output is a fresh copy of plain objects, so it stays valid after the
++ * native result is closed.
++ */
++
++/** MediaPipe Pose reports 33 landmarks per detected pose. */
++export const POSE_LANDMARK_COUNT = 33;
++
++export type PoseAdaptFailure = 'no_pose' | 'malformed';
++
++export type PoseAdaptResult =
++  | { ok: true; landmarks: LandmarkPoint[] }
++  | { ok: false; reason: PoseAdaptFailure };
++
++const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
++
++/**
++ * Converts a native Pose Landmarker result into app landmarks.
++ *
++ * - `no_pose`: the model ran and found nobody (empty pose list or empty pose).
++ * - `malformed`: the result is not shaped like a Pose Landmarker result, does
++ *   not contain exactly 33 landmarks, or a landmark has missing / non-finite
++ *   coordinates. Nothing partial is returned in that case.
++ *
++ * The runtime is configured for one pose, so only the first pose is read.
++ */
++export function adaptPoseLandmarkerResult(result: unknown): PoseAdaptResult {
++  if (result === null || typeof result !== 'object') return { ok: false, reason: 'malformed' };
++  const poses = (result as { landmarks?: unknown }).landmarks;
++  if (!Array.isArray(poses)) return { ok: false, reason: 'malformed' };
++  if (poses.length === 0) return { ok: false, reason: 'no_pose' };
++
++  const first: unknown = poses[0];
++  if (!Array.isArray(first)) return { ok: false, reason: 'malformed' };
++  if (first.length === 0) return { ok: false, reason: 'no_pose' };
++  if (first.length !== POSE_LANDMARK_COUNT) return { ok: false, reason: 'malformed' };
++
++  const landmarks: LandmarkPoint[] = [];
++  for (const entry of first as unknown[]) {
++    if (entry === null || typeof entry !== 'object') return { ok: false, reason: 'malformed' };
++    const { x, y, z, visibility } = entry as Record<string, unknown>;
++    if (!isFiniteNumber(x) || !isFiniteNumber(y)) return { ok: false, reason: 'malformed' };
++    const point: LandmarkPoint = { x, y };
++    if (isFiniteNumber(z)) point.z = z;
++    // A missing or non-numeric visibility is left out (not invented): the landmark reader then reports it as unknown.
++    if (isFiniteNumber(visibility)) point.visibility = visibility;
++    landmarks.push(point);
++  }
++  return { ok: true, landmarks };
++}
