@@ -75,7 +75,6 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
       const data = await response.json();
 
       if (data.success && data.recovery) {
-        // Merge with local fallback if any fields are missing
         const aiRecovery = data.recovery;
         setRecoveryData((prev) => ({
           systemicFatigueScore: aiRecovery.systemicFatigueScore ?? prev?.systemicFatigueScore ?? 35,
@@ -132,50 +131,50 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
   const getStatusColor = (status: MuscleGroupRecovery['status']) => {
     switch (status) {
       case 'fresh':
-        return 'text-lime-400 bg-lime-400/10 border-lime-400/30';
+        return 'text-[#CEFF00] bg-[#CEFF00]/10 border-[#CEFF00]/30';
       case 'recovering':
         return 'text-sky-400 bg-sky-400/10 border-sky-400/30';
       case 'fatigued':
-        return 'text-rose-400 bg-rose-400/10 border-rose-400/30';
+        return 'text-[#FF3B30] bg-[#FF3B30]/10 border-[#FF3B30]/30';
     }
   };
 
   const getProgressBarColor = (status: MuscleGroupRecovery['status']) => {
     switch (status) {
       case 'fresh':
-        return 'bg-lime-400';
+        return 'bg-[#CEFF00]';
       case 'recovering':
         return 'bg-sky-400';
       case 'fatigued':
-        return 'bg-rose-400';
+        return 'bg-[#FF3B30]';
     }
   };
 
   const getBatteryIcon = (percentage: number) => {
-    if (percentage >= 80) return <BatteryFull className="w-4 h-4 text-lime-400" />;
+    if (percentage >= 80) return <BatteryFull className="w-4 h-4 text-[#CEFF00]" />;
     if (percentage >= 50) return <BatteryMedium className="w-4 h-4 text-sky-400" />;
-    return <BatteryLow className="w-4 h-4 text-rose-400" />;
+    return <BatteryLow className="w-4 h-4 text-[#FF3B30]" />;
   };
 
   return (
-    <div className="rounded-3xl bg-[#08090c] border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.6)] backdrop-blur-2xl p-5 sm:p-7 space-y-6">
+    <div className="reshape-card p-6 lg:p-7 space-y-6">
       {/* HEADER SECTION */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/[0.06]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/[0.08]">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-lime-400/15 border border-lime-400/30 flex items-center justify-center text-lime-400 shadow-[0_0_12px_rgba(163,230,53,0.15)]">
+            <div className="w-8 h-8 rounded-xl bg-[#CEFF00]/10 border border-[#CEFF00]/25 flex items-center justify-center text-[#CEFF00]">
               <Sparkles className="w-4 h-4" />
             </div>
-            <h2 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
-              <span>Muscle Recovery &amp; Rest Day Insights</span>
+            <h2 className="text-base sm:text-lg font-nrc font-black italic uppercase text-white tracking-tight flex items-center gap-2">
+              <span>Muscle Recovery &amp; Rest Insights</span>
               {isAiGenerated && (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-lime-400/15 border border-lime-400/30 text-lime-300 font-bold uppercase tracking-wider">
-                  Gemini AI Active
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg bg-[#CEFF00]/15 border border-[#CEFF00]/30 text-[#CEFF00] font-bold uppercase tracking-wider not-italic">
+                  Gemini Active
                 </span>
               )}
             </h2>
           </div>
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-zinc-400 font-sans">
             Biomechanical recovery tracking analyzing {recentSessions.length} logged sessions to detect muscle fatigue patterns and schedule optimal rest.
           </p>
         </div>
@@ -183,7 +182,7 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
         <button
           onClick={handleRunAiAnalysis}
           disabled={isLoadingAi}
-          className="touch-press px-5 py-3 bg-gradient-to-r from-lime-400 to-lime-300 hover:from-lime-300 hover:to-lime-400 text-black font-black text-xs rounded-2xl shadow-[0_0_20px_rgba(163,230,53,0.25)] flex items-center justify-center gap-2 transition-all disabled:opacity-50 shrink-0"
+          className="touch-press px-5 py-2.5 bg-zinc-950 hover:bg-zinc-900 text-[#CEFF00] border border-[#CEFF00]/40 font-mono font-bold text-xs rounded-xl shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 shrink-0"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoadingAi ? 'animate-spin' : ''}`} />
           <span>{isLoadingAi ? 'Analyzing Recovery...' : 'Run AI Recovery Analysis'}</span>
@@ -191,7 +190,7 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
       </div>
 
       {aiError && (
-        <div className="p-3 bg-zinc-900/90 border border-amber-500/30 rounded-2xl flex items-center gap-2 text-xs text-amber-300">
+        <div className="p-3 bg-zinc-950/90 border border-amber-500/30 rounded-2xl flex items-center gap-2 text-xs text-amber-300">
           <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
           <span>{aiError}</span>
         </div>
@@ -200,27 +199,27 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
       {/* TOP STATS: READINESS GAUGE & REST DAY RECOMMENDATION */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Systemic Readiness & Fatigue Gauge */}
-        <div className="p-4 bg-zinc-950/60 border border-white/[0.05] rounded-2xl space-y-3">
+        <div className="p-4 bg-zinc-950/80 border border-white/[0.06] rounded-2xl space-y-3">
           <div className="flex items-center justify-between text-zinc-400 text-xs font-mono font-semibold">
             <span className="flex items-center gap-1.5">
-              <HeartPulse className="w-4 h-4 text-lime-400" />
+              <HeartPulse className="w-4 h-4 text-[#CEFF00]" />
               OVERALL READINESS
             </span>
             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
               overallReadiness >= 80
-                ? 'text-lime-400 bg-lime-400/10'
+                ? 'text-[#CEFF00] bg-[#CEFF00]/10'
                 : overallReadiness >= 55
                 ? 'text-sky-400 bg-sky-400/10'
-                : 'text-rose-400 bg-rose-400/10'
+                : 'text-[#FF3B30] bg-[#FF3B30]/10'
             }`}>
               {overallReadiness}%
             </span>
           </div>
 
-          <div className="w-full bg-zinc-800 h-2.5 rounded-full overflow-hidden">
+          <div className="w-full bg-zinc-900 h-2.5 rounded-full overflow-hidden border border-white/[0.04]">
             <div
               className={`h-full rounded-full transition-all duration-700 ${
-                overallReadiness >= 80 ? 'bg-lime-400' : overallReadiness >= 55 ? 'bg-sky-400' : 'bg-rose-400'
+                overallReadiness >= 80 ? 'bg-[#CEFF00]' : overallReadiness >= 55 ? 'bg-sky-400' : 'bg-[#FF3B30]'
               }`}
               style={{ width: `${overallReadiness}%` }}
             />
@@ -228,22 +227,22 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
 
           <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono">
             <span>CNS Fatigue: <strong className="text-zinc-200">{systemicFatigueLevel} ({systemicFatigueScore}/100)</strong></span>
-            <span>Trend: <strong className="text-lime-400">Optimal</strong></span>
+            <span>Trend: <strong className="text-[#CEFF00]">Optimal</strong></span>
           </div>
         </div>
 
-        {/* REST DAY ADVICE CARD (KEY FEATURE) */}
+        {/* REST DAY ADVICE CARD */}
         <div className={`p-4 rounded-2xl border space-y-2 md:col-span-2 ${
           isRestDayToday
             ? 'bg-amber-950/20 border-amber-500/40 text-amber-200'
-            : 'bg-zinc-950/60 border-white/[0.05] text-zinc-200'
+            : 'bg-zinc-950/80 border-white/[0.06] text-zinc-200'
         }`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               {isRestDayToday ? (
                 <BedDouble className="w-4 h-4 text-amber-400 animate-pulse" />
               ) : (
-                <ShieldCheck className="w-4 h-4 text-lime-400" />
+                <ShieldCheck className="w-4 h-4 text-[#CEFF00]" />
               )}
               <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300">
                 Optimal Rest Day Strategy
@@ -256,7 +255,7 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
                 {optimalRestDays.recommendedRestDays.map((day) => (
                   <span
                     key={day}
-                    className="px-2 py-0.5 rounded bg-zinc-800/80 border border-zinc-700/80 text-zinc-200 text-[10px] font-bold"
+                    className="px-2 py-0.5 rounded bg-zinc-900 border border-white/[0.08] text-zinc-200 text-[10px] font-bold"
                   >
                     {day}
                   </span>
@@ -269,7 +268,7 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
             {optimalRestDays.todayAdvice}
           </p>
 
-          <p className="text-[11px] text-zinc-400 leading-normal border-t border-zinc-800/60 pt-2 font-mono">
+          <p className="text-[11px] text-zinc-400 leading-normal border-t border-white/[0.06] pt-2 font-mono">
             {optimalRestDays.rationale}
           </p>
         </div>
@@ -277,15 +276,15 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
 
       {/* SUGGESTED NEXT WORKOUT ACCORDING TO RECOVERY */}
       {suggestedNextWorkout && (
-        <div className="p-4 bg-gradient-to-r from-zinc-900/90 via-zinc-900/60 to-zinc-950 border border-lime-500/30 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="p-4 bg-zinc-950/90 border border-[#CEFF00]/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
-              <Dumbbell className="w-3.5 h-3.5 text-lime-400" />
-              <span className="text-[11px] font-mono text-lime-400 uppercase font-bold tracking-wider">
+              <Dumbbell className="w-3.5 h-3.5 text-[#CEFF00]" />
+              <span className="text-[11px] font-mono text-[#CEFF00] uppercase font-bold tracking-wider">
                 Recommended Next Routine
               </span>
             </div>
-            <div className="text-sm font-bold text-zinc-100">
+            <div className="text-sm font-bold text-white">
               {suggestedNextWorkout.splitDay}
             </div>
             <p className="text-[11px] text-zinc-400">
@@ -295,7 +294,7 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
 
           <button
             onClick={() => onNavigate('workouts')}
-            className="touch-press px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-lime-400 font-bold rounded-lg border border-zinc-700 transition-colors flex items-center gap-1.5 self-start sm:self-auto shrink-0 text-xs"
+            className="touch-press px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-[#CEFF00] font-bold rounded-xl border border-white/[0.08] transition-colors flex items-center gap-1.5 self-start sm:self-auto shrink-0 text-xs font-mono"
           >
             <span>Log This Session</span>
             <ChevronRight className="w-3.5 h-3.5" />
@@ -313,28 +312,28 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
             </h3>
           </div>
 
-          {/* Filter Pills */}
-          <div className="flex items-center gap-1 p-0.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs font-mono">
+          {/* Filter Controls */}
+          <div className="flex items-center gap-1 p-0.5 bg-zinc-950 border border-white/[0.08] rounded-xl text-xs font-mono">
             <button
               onClick={() => setFilterMode('all')}
-              className={`px-2.5 py-1 rounded transition-colors ${
-                filterMode === 'all' ? 'bg-zinc-800 text-zinc-100 font-bold' : 'text-zinc-400 hover:text-zinc-200'
+              className={`px-2.5 py-1 rounded-lg transition-colors ${
+                filterMode === 'all' ? 'bg-zinc-800 text-white font-bold' : 'text-zinc-400 hover:text-white'
               }`}
             >
               All ({muscleRecovery.length})
             </button>
             <button
               onClick={() => setFilterMode('fatigued')}
-              className={`px-2.5 py-1 rounded transition-colors ${
-                filterMode === 'fatigued' ? 'bg-zinc-800 text-amber-300 font-bold' : 'text-zinc-400 hover:text-zinc-200'
+              className={`px-2.5 py-1 rounded-lg transition-colors ${
+                filterMode === 'fatigued' ? 'bg-zinc-800 text-amber-300 font-bold' : 'text-zinc-400 hover:text-white'
               }`}
             >
-              Fatigued / Recovering ({muscleRecovery.filter((m) => m.status !== 'fresh').length})
+              Fatigued ({muscleRecovery.filter((m) => m.status !== 'fresh').length})
             </button>
             <button
               onClick={() => setFilterMode('fresh')}
-              className={`px-2.5 py-1 rounded transition-colors ${
-                filterMode === 'fresh' ? 'bg-zinc-800 text-lime-400 font-bold' : 'text-zinc-400 hover:text-zinc-200'
+              className={`px-2.5 py-1 rounded-lg transition-colors ${
+                filterMode === 'fresh' ? 'bg-zinc-800 text-[#CEFF00] font-bold' : 'text-zinc-400 hover:text-white'
               }`}
             >
               Fresh ({muscleRecovery.filter((m) => m.status === 'fresh').length})
@@ -349,27 +348,27 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
               <div
                 key={muscle.muscleGroup}
                 onClick={() => setSelectedMuscle(isSelected ? null : muscle.muscleGroup)}
-                className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
                   isSelected
-                    ? 'bg-zinc-900 border-lime-400/60 shadow-lg'
-                    : 'bg-zinc-900/50 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/80'
+                    ? 'bg-zinc-950 border-[#CEFF00]/60 shadow-lg'
+                    : 'bg-zinc-950/70 border-white/[0.06] hover:border-white/20'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     {getBatteryIcon(muscle.recoveryPercentage)}
-                    <span className="font-bold text-zinc-200 text-xs sm:text-sm">
+                    <span className="font-bold text-white text-xs sm:text-sm">
                       {muscle.muscleGroup}
                     </span>
                   </div>
 
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${getStatusColor(muscle.status)}`}>
-                    {muscle.status} &middot; {muscle.recoveryPercentage}%
+                  <span className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase border ${getStatusColor(muscle.status)}`}>
+                    {muscle.status} · {muscle.recoveryPercentage}%
                   </span>
                 </div>
 
                 {/* Progress bar */}
-                <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden my-2">
+                <div className="w-full bg-zinc-900 h-2 rounded-full overflow-hidden my-2 border border-white/[0.04]">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${getProgressBarColor(muscle.status)}`}
                     style={{ width: `${muscle.recoveryPercentage}%` }}
@@ -390,17 +389,17 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
                   </span>
                 </div>
 
-                {/* Expanded details when clicked */}
+                {/* Expanded details */}
                 {isSelected && (
-                  <div className="mt-3 pt-2.5 border-t border-zinc-800 text-[11px] space-y-1.5 animate-in fade-in duration-150">
+                  <div className="mt-3 pt-2.5 border-t border-white/[0.06] text-[11px] space-y-1.5 animate-in fade-in duration-150">
                     <div className="text-zinc-400 flex items-center justify-between">
                       <span>7-Day Volume:</span>
-                      <strong className="text-zinc-200 font-mono">{muscle.totalSetsLast7Days} working sets</strong>
+                      <strong className="text-white font-mono">{muscle.totalSetsLast7Days} working sets</strong>
                     </div>
                     {muscle.exercisesTrained.length > 0 && (
                       <div className="text-zinc-400">
                         <span>Contributing Movements: </span>
-                        <span className="text-zinc-300 font-medium">
+                        <span className="text-zinc-200 font-medium">
                           {muscle.exercisesTrained.join(', ')}
                         </span>
                       </div>
@@ -409,7 +408,7 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
                       {muscle.status === 'fresh'
                         ? 'Muscle fibers fully regenerated. Ready for high-load overload stimulus.'
                         : muscle.status === 'recovering'
-                        ? 'Hypertrophy protein remodeling in progress. Allow designated rest interval before heavy re-loading.'
+                        ? 'Hypertrophy remodeling in progress. Allow designated rest interval before heavy re-loading.'
                         : 'Significant microtrauma and fatigue. High DOMS likelihood; postpone direct loading.'}
                     </div>
                   </div>
@@ -420,19 +419,19 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
         </div>
       </div>
 
-      {/* RECOVERY EVIDENCE & ACTIONABLE TIPS */}
-      <div className="p-4 bg-zinc-900/40 border border-zinc-800/80 rounded-xl space-y-2">
+      {/* RECOVERY PROTOCOL TIPS */}
+      <div className="p-4 bg-zinc-950/80 border border-white/[0.06] rounded-2xl space-y-2">
         <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono font-bold uppercase">
-          <Activity className="w-3.5 h-3.5 text-lime-400" />
+          <Activity className="w-3.5 h-3.5 text-[#CEFF00]" />
           <span>Evidence-Based Recovery Protocol</span>
         </div>
         <ul className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
           {recoveryTips.map((tip, idx) => (
             <li
               key={idx}
-              className="p-2.5 bg-zinc-950/60 border border-zinc-800/80 rounded-lg text-[11px] text-zinc-300 leading-relaxed flex items-start gap-2"
+              className="p-3 bg-zinc-900/60 border border-white/[0.04] rounded-xl text-[11px] text-zinc-300 leading-relaxed flex items-start gap-2"
             >
-              <CheckCircle2 className="w-3.5 h-3.5 text-lime-400 shrink-0 mt-0.5" />
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#CEFF00] shrink-0 mt-0.5" />
               <span>{tip}</span>
             </li>
           ))}

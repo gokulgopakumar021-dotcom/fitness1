@@ -1,6 +1,7 @@
 import {
   BodyMetricEntry,
   DailyNutritionLog,
+  DailySleepLog,
   FoodItem,
   ProgressiveOverloadRecommendation,
   UploadedDoc,
@@ -23,6 +24,7 @@ const STORAGE_KEYS = {
   RECOMMENDATIONS: 'ironlog_recommendations_v1',
   UPLOADED_DOCS: 'ironlog_uploaded_docs_v1',
   DEMO_MODE: 'ironlog_demo_mode_active_v1',
+  SLEEP_LOGS: 'ironlog_sleep_logs_v1',
 };
 
 export const DEFAULT_PROFILE: UserProfile = {
@@ -278,6 +280,52 @@ class IronLogDB {
   deleteBodyMetric(id: string): void {
     const list = this.getBodyMetrics().filter((m) => m.id !== id);
     this.saveBodyMetrics(list);
+  }
+
+  // --- Sleep & Recovery Logs ---
+  getSleepLogs(): DailySleepLog[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.SLEEP_LOGS);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) {
+          return parsed.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        }
+      }
+    } catch (e) {
+      console.error('Failed reading sleep logs', e);
+    }
+    return [];
+  }
+
+  saveSleepLogs(logs: DailySleepLog[]): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SLEEP_LOGS, JSON.stringify(logs));
+    } catch (e) {
+      console.error('Failed saving sleep logs', e);
+    }
+  }
+
+  getSleepLogForDate(dateStr: string): DailySleepLog | null {
+    const logs = this.getSleepLogs();
+    return logs.find((l) => l.date === dateStr) || null;
+  }
+
+  saveSleepLog(entry: DailySleepLog): void {
+    const list = this.getSleepLogs();
+    const idx = list.findIndex((l) => l.date === entry.date);
+    if (idx >= 0) {
+      list[idx] = entry;
+    } else {
+      list.push(entry);
+    }
+    list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    this.saveSleepLogs(list);
+  }
+
+  deleteSleepLog(id: string): void {
+    const list = this.getSleepLogs().filter((l) => l.id !== id);
+    this.saveSleepLogs(list);
   }
 
   // --- Uploaded Docs ---
@@ -641,6 +689,24 @@ class IronLogDB {
       ]
     };
 
+    // Seed Demo Sleep Logs (14 days of realistic entries)
+    const demoSleepLogs: DailySleepLog[] = [
+      { id: 'dsl-1', isDemo: true, date: '2026-09-28', hoursSlept: 7.8, quality: 86, restingHeartRate: 54, hrvMs: 68, notes: 'Restful recovery sleep' },
+      { id: 'dsl-2', isDemo: true, date: '2026-09-29', hoursSlept: 7.2, quality: 80, restingHeartRate: 56, hrvMs: 62 },
+      { id: 'dsl-3', isDemo: true, date: '2026-09-30', hoursSlept: 8.1, quality: 92, restingHeartRate: 52, hrvMs: 75, notes: 'Deep sleep peak before heavy pull' },
+      { id: 'dsl-4', isDemo: true, date: '2026-10-01', hoursSlept: 7.5, quality: 84, restingHeartRate: 55, hrvMs: 65 },
+      { id: 'dsl-5', isDemo: true, date: '2026-10-02', hoursSlept: 6.8, quality: 72, restingHeartRate: 58, hrvMs: 58, notes: 'Stayed up late' },
+      { id: 'dsl-6', isDemo: true, date: '2026-10-03', hoursSlept: 8.4, quality: 90, restingHeartRate: 53, hrvMs: 72 },
+      { id: 'dsl-7', isDemo: true, date: '2026-10-04', hoursSlept: 7.6, quality: 85, restingHeartRate: 54, hrvMs: 67 },
+      { id: 'dsl-8', isDemo: true, date: '2026-10-05', hoursSlept: 7.9, quality: 88, restingHeartRate: 53, hrvMs: 70 },
+      { id: 'dsl-9', isDemo: true, date: '2026-10-06', hoursSlept: 6.2, quality: 65, restingHeartRate: 60, hrvMs: 52, notes: 'Poor REM quality' },
+      { id: 'dsl-10', isDemo: true, date: '2026-10-07', hoursSlept: 8.2, quality: 94, restingHeartRate: 51, hrvMs: 78, notes: 'Felt primed for squat session' },
+      { id: 'dsl-11', isDemo: true, date: '2026-10-08', hoursSlept: 7.7, quality: 87, restingHeartRate: 54, hrvMs: 69 },
+      { id: 'dsl-12', isDemo: true, date: '2026-10-09', hoursSlept: 7.4, quality: 82, restingHeartRate: 55, hrvMs: 64 },
+      { id: 'dsl-13', isDemo: true, date: '2026-10-10', hoursSlept: 8.0, quality: 89, restingHeartRate: 52, hrvMs: 74 },
+      { id: 'dsl-14', isDemo: true, date: '2026-10-12', hoursSlept: 7.8, quality: 88, restingHeartRate: 53, hrvMs: 71, notes: 'Solid optimal sleep recovery' }
+    ];
+
     // Save demo entries without overwriting existing real records
     const realSessions = this.getSessions().filter((s) => !s.isDemo);
     this.saveSessions([...realSessions, ...demoSessions]);
@@ -650,6 +716,9 @@ class IronLogDB {
 
     const realNutrition = this.getNutritionLogs().filter((n) => !n.isDemo);
     this.saveNutritionLogs([...realNutrition, demoNutrition]);
+
+    const realSleep = this.getSleepLogs().filter((s) => !s.isDemo);
+    this.saveSleepLogs([...realSleep, ...demoSleepLogs]);
 
     // Activate the starter PPL plan for demo
     this.setActivePlanId('starter-ppl-6day');
@@ -665,6 +734,9 @@ class IronLogDB {
 
     const cleanNutrition = this.getNutritionLogs().filter((n) => !n.isDemo);
     this.saveNutritionLogs(cleanNutrition);
+
+    const cleanSleep = this.getSleepLogs().filter((s) => !s.isDemo);
+    this.saveSleepLogs(cleanSleep);
   }
 
   // --- Export and Import ---
@@ -678,6 +750,7 @@ class IronLogDB {
       activePlanId: this.getActivePlanId(),
       sessions: this.getSessions().filter((s) => !s.isDemo),
       nutritionLogs: this.getNutritionLogs().filter((n) => !n.isDemo),
+      sleepLogs: this.getSleepLogs().filter((s) => !s.isDemo),
       customFoods: this.getCustomFoods(),
       bodyMetrics: this.getBodyMetrics().filter((m) => !m.isDemo),
       recommendations: this.getRecommendations()

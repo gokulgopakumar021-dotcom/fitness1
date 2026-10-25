@@ -3,7 +3,7 @@ export type TrainingExperience = 'beginner' | 'intermediate' | 'advanced';
 export type TrainingPhase = 're_entry' | 'adaptation' | 'hypertrophy' | 'strength' | 'deload';
 export type PreferredUnit = 'kg' | 'lbs';
 export type EquipmentType = 'barbell' | 'dumbbell' | 'machine' | 'cable' | 'bodyweight' | 'other';
-export type SetType = 'warmup' | 'working';
+export type SetType = 'warmup' | 'working' | 'drop' | 'failure';
 export type SetStatus = 'planned' | 'completed' | 'skipped';
 
 export interface UserProfile {
@@ -92,6 +92,7 @@ export interface LoggedSet {
   skipped?: boolean;
   side?: 'both' | 'left' | 'right';
   notes?: string;
+  dropPercentage?: number;
   timestamp: string;
 }
 
@@ -106,6 +107,7 @@ export interface LoggedExercise {
   restSeconds: number;
   notes?: string;
   isUnilateral?: boolean;
+  supersetGroup?: string; // e.g. "A", "B" to link into superset circuits
   sets: LoggedSet[];
 }
 
@@ -172,10 +174,36 @@ export type MealCategory =
   | 'snacks'
   | 'custom';
 
+export interface ScannedFoodNutrients {
+  calories: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  fiber: number | null;
+}
+
+export interface ScannedFoodProduct {
+  barcode: string;
+  name: string;
+  brand?: string;
+  imageUrl?: string;
+  servingSizeText?: string;
+  servingQuantity?: number;
+  servingUnit?: string;
+  hasServingData: boolean;
+  perServing: ScannedFoodNutrients;
+  per100g: ScannedFoodNutrients;
+  isLiquid?: boolean;
+  categories?: string[];
+  incompleteDataWarning?: string;
+}
+
 export interface FoodItem {
   id: string;
   name: string;
   brand?: string;
+  barcode?: string;
+  imageUrl?: string;
   servingSize: number;
   servingUnit: string; // e.g. "g", "ml", "scoop", "egg"
   calories: number;
@@ -190,6 +218,9 @@ export interface FoodItem {
 export interface FoodEntry {
   id: string;
   foodId?: string;
+  barcode?: string;
+  brand?: string;
+  imageUrl?: string;
   name: string;
   mealCategory: MealCategory;
   quantity: number; // multiplier of servingSize
@@ -292,3 +323,34 @@ export interface SystemicRecoveryData {
   recoveryTips: string[];
   lastCalculated: string;
 }
+
+export interface DailySleepLog {
+  id: string;
+  date: string; // YYYY-MM-DD
+  hoursSlept: number; // e.g. 7.5
+  quality: number; // 0 to 100 percentage rating
+  deepSleepMinutes?: number;
+  remSleepMinutes?: number;
+  restingHeartRate?: number;
+  hrvMs?: number;
+  notes?: string;
+  isDemo?: boolean;
+}
+
+export interface DynamicExpenditureEstimate {
+  currentTdee: number;
+  staticBmr: number;
+  staticTdee: number;
+  difference: number;
+  adaptationStatus: 'accelerated' | 'neutral' | 'downregulated';
+  confidence: 'high' | 'medium' | 'calibrating';
+  daysSampled: number;
+  avgDailyIntake: number;
+  rollingWeightDeltaKg: number;
+  recommendedCalories: number;
+  recommendedProtein: number;
+  recommendedCarbs: number;
+  recommendedFat: number;
+  rationale: string;
+}
+

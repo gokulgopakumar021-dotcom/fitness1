@@ -14,7 +14,8 @@ import {
   Calendar,
   Layers,
   Sparkles,
-  RotateCcw
+  RotateCcw,
+  Camera
 } from 'lucide-react';
 import {
   DailyNutritionLog,
@@ -24,6 +25,7 @@ import {
   UserProfile
 } from '../../types';
 import { db } from '../../storage/db';
+import { BarcodeScanner } from './BarcodeScanner';
 
 interface NutritionViewProps {
   profile: UserProfile;
@@ -72,6 +74,9 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
   const [manualFiber, setManualFiber] = useState<number>(0);
   const [manualServingUnit, setManualServingUnit] = useState<string>('g');
 
+  // Barcode Scanner modal state
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState<boolean>(false);
+
   useEffect(() => {
     setFoodDatabase(db.getAllFoods());
   }, []);
@@ -86,51 +91,80 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
     db.saveNutritionLogForDate(log);
   };
 
-  // Date changers
-  const changeDate = (daysDelta: number) => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + daysDelta);
-    setSelectedDate(d.toISOString().split('T')[0]);
+  const handleAddScannedFoodEntry = (scanned: {
+    name: string;
+    brand?: string;
+    barcode?: string;
+    imageUrl?: string;
+    mealCategory: MealCategory;
+    quantity: number;
+    servingUnit: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fiber?: number;
+  }) => {
+    const displayName = scanned.brand ? `${scanned.brand} — ${scanned.name}` : scanned.name;
+    const newEntry: FoodEntry = {
+      id: `entry-scan-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: displayName,
+      brand: scanned.brand,
+      barcode: scanned.barcode,
+      imageUrl: scanned.imageUrl,
+      mealCategory: scanned.mealCategory,
+      quantity: scanned.quantity,
+      servingUnit: scanned.servingUnit,
+      calories: scanned.calories,
+      protein: scanned.protein,
+      carbs: scanned.carbs,
+      fat: scanned.fat,
+      fiber: scanned.fiber,
+      isEstimate: false,
+      timeLogged: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    const updated = {
+      ...currentLog,
+      entries: [...currentLog.entries, newEntry]
+    };
+    saveLog(updated);
   };
 
-  // Nutrition Totals
-  const totalCalories = Math.round(
-    currentLog.entries.reduce((sum, e) => sum + (Number(e.calories) || 0), 0)
-  );
-  const totalProtein = Math.round(
-    currentLog.entries.reduce((sum, e) => sum + (Number(e.protein) || 0), 0)
-  );
-  const totalCarbs = Math.round(
-    currentLog.entries.reduce((sum, e) => sum + (Number(e.carbs) || 0), 0)
-  );
-  const totalFat = Math.round(
-    currentLog.entries.reduce((sum, e) => sum + (Number(e.fat) || 0), 0)
-  );
-  const totalFiber = Math.round(
-    currentLog.entries.reduce((sum, e) => sum + (Number(e.fiber) || 0), 0)
-  );
+  const handleOpenCustomWithBarcode = (prefill: { name: string; barcode: string }) => {
+    setManualName(prefill.name || '');
+    setIsManualModalOpen(true);
+  };
 
-  const calTarget = currentLog.targetCalories || profile.dailyCalorieTarget || 2600;
-  const proTarget = currentLog.targetProtein || profile.dailyProteinTarget || 165;
-  const carbTarget = currentLog.targetCarbs || profile.dailyCarbsTarget || 300;
-  const fatTarget = currentLog.targetFat || profile.dailyFatTarget || 65;
+  const changeDate = (daysDelta: number) => {
+    const curr = new Date(selectedDate);
+    curr.setDate(curr.getDate() + daysDelta);
+    setSelectedDate(curr.toISOString().split('T')[0]);
+  };
+
+  const totalCalories = currentLog.entries.reduce((acc, curr) => acc + (curr.calories || 0), 0);
+  const totalProtein = Math.round(currentLog.entries.reduce((acc, curr) => acc + (curr.protein || 0), 0));
+  const totalCarbs = Math.round(currentLog.entries.reduce((acc, curr) => acc + (curr.carbs || 0), 0));
+  const totalFat = Math.round(currentLog.entries.reduce((acc, curr) => acc + (curr.fat || 0), 0));
+
+  const calTarget = profile.dailyCalorieTarget || 2600;
+  const proTarget = profile.dailyProteinTarget || 165;
+  const carbTarget = profile.dailyCarbsTarget || 300;
+  const fatTarget = profile.dailyFatTarget || 70;
 
   const calRemaining = calTarget - totalCalories;
   const proRemaining = proTarget - totalProtein;
 
-  // Food search filtering
   const filteredFoods = foodDatabase.filter((f) =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Add food entry from database
   const handleAddFromDatabase = () => {
     if (!selectedFoodItem) return;
+    const mult = portionMultiplier > 0 ? portionMultiplier : 1;
 
-    const mult = Number(portionMultiplier) || 1;
     const newEntry: FoodEntry = {
       id: `entry-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      foodId: selectedFoodItem.id,
       name: selectedFoodItem.name,
       mealCategory: activeMealCategory,
       quantity: mult,
@@ -155,30 +189,25 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
     setSearchQuery('');
   };
 
-  // AI Meal Parser
   const handleParseAiMeal = async () => {
     if (!aiMealQuery.trim()) return;
     setAiMealLoading(true);
     setAiMealError(null);
-    setAiParsedItems([]);
 
     try {
       const res = await fetch('/api/ai-food-parser', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: aiMealQuery,
-          mealCategory: activeMealCategory
-        })
+        body: JSON.stringify({ query: aiMealQuery })
       });
-      const data = await res.json();
-      if (data.success && data.items) {
-        setAiParsedItems(data.items);
+      const json = await res.json();
+      if (json.success && json.items) {
+        setAiParsedItems(json.items);
       } else {
-        setAiMealError(data.error || 'Failed to parse meal items.');
+        setAiMealError(json.error || 'Failed to parse meal breakdown');
       }
-    } catch (err: any) {
-      setAiMealError(err?.message || 'Network error analyzing meal.');
+    } catch (e: any) {
+      setAiMealError(e.message || 'Error communicating with AI parser service');
     } finally {
       setAiMealLoading(false);
     }
@@ -186,12 +215,13 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
 
   const handleLogAiMealItems = () => {
     if (aiParsedItems.length === 0) return;
-    const newEntries: FoodEntry[] = aiParsedItems.map((item, idx) => ({
-      id: `ai-food-${Date.now()}-${idx}`,
+
+    const newEntries: FoodEntry[] = aiParsedItems.map((item) => ({
+      id: `entry-ai-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       name: item.name,
       mealCategory: activeMealCategory,
-      quantity: Number(item.quantity) || 1,
-      servingUnit: item.servingUnit || 'portion',
+      quantity: item.quantity || 1,
+      servingUnit: item.servingUnit || 'serving',
       calories: Math.round(Number(item.calories) || 0),
       protein: Number(Number(item.protein || 0).toFixed(1)),
       carbs: Number(Number(item.carbs || 0).toFixed(1)),
@@ -211,7 +241,6 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
     setAiParsedItems([]);
   };
 
-  // Add manual food / custom meal
   const handleAddManualFood = () => {
     if (!manualName.trim()) return;
 
@@ -230,7 +259,6 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
       timeLogged: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    // Save also to custom foods database for quick future reuse
     const newCustomItem: FoodItem = {
       id: `cust-food-${Date.now()}`,
       name: manualName.trim(),
@@ -260,7 +288,6 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
     setManualFat(0);
   };
 
-  // Remove food entry
   const handleRemoveEntry = (entryId: string) => {
     const updated = {
       ...currentLog,
@@ -269,7 +296,6 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
     saveLog(updated);
   };
 
-  // Duplicate yesterday's meals
   const handleDuplicateYesterday = () => {
     const yesterday = new Date(selectedDate);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -293,7 +319,6 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
     saveLog(updated);
   };
 
-  // Water tracking
   const updateWater = (deltaMl: number) => {
     const newWater = Math.max(0, (currentLog.waterMl || 0) + deltaMl);
     const updated = { ...currentLog, waterMl: newWater };
@@ -301,158 +326,173 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto">
       {/* Top Nutrition Command Header */}
-      <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-zinc-800/80">
+      <div className="reshape-card p-6 lg:p-7 overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[var(--border-card)]">
           <div>
-            <div className="flex items-center gap-2 text-lime-400 text-xs font-mono font-semibold uppercase tracking-wider mb-1">
-              <Apple className="w-4 h-4" />
+            <div className="flex items-center gap-2 text-volt-adaptive text-xs font-mono font-bold uppercase tracking-wider mb-1">
+              <Apple className="w-4 h-4 stroke-[2.5]" />
               <span>Nutrition &amp; Macro Command</span>
             </div>
-            <h1 className="text-xl lg:text-2xl font-bold text-zinc-100">
-              Daily Macro Diary
+            <h1 className="text-2xl lg:text-3xl font-nrc font-black italic uppercase text-[var(--text-primary)] tracking-tight">
+              Daily Macro Fuel &amp; Diary
             </h1>
-            <p className="text-xs text-zinc-400 mt-1">
-              Fuel your progressive overload and body recomposition goals.
+            <p className="text-xs text-[var(--text-secondary)] mt-1 font-sans">
+              Fuel your progressive overload, muscular recovery, and body recomposition goals.
             </p>
           </div>
 
-          {/* Date Selector Navigation */}
-          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl p-1.5 self-start sm:self-auto font-mono text-xs">
+          {/* Top Actions: Barcode Scanner & Date Navigation */}
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
             <button
-              onClick={() => changeDate(-1)}
-              className="p-1.5 hover:bg-zinc-800 rounded text-zinc-400 hover:text-zinc-200"
-              title="Previous Day"
+              onClick={() => {
+                setActiveMealCategory('lunch');
+                setIsBarcodeScannerOpen(true);
+              }}
+              className="touch-press px-4 py-2.5 bg-[#CEFF00] hover:bg-[#d4ff00] text-black font-nrc font-black italic uppercase text-sm rounded-2xl flex items-center gap-2 shadow-[0_0_20px_rgba(206,255,0,0.3)] transition-transform"
+              title="Scan packaged food barcode with camera"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <Camera className="w-4 h-4 stroke-[2.5]" />
+              <span>Scan Barcode</span>
             </button>
-            <div className="px-2 font-bold text-zinc-200 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-lime-400" />
-              <span>{selectedDate}</span>
+
+            {/* Date Selector Navigation */}
+            <div className="flex items-center gap-1.5 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-2xl p-1.5 font-mono text-xs">
+              <button
+                onClick={() => changeDate(-1)}
+                className="p-1.5 hover:bg-[var(--chip-bg)] rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                title="Previous Day"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="px-2 font-bold text-[var(--text-primary)] flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-[#CEFF00]" />
+                <span>{selectedDate}</span>
+              </div>
+              <button
+                onClick={() => changeDate(1)}
+                className="p-1.5 hover:bg-[var(--chip-bg)] rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                title="Next Day"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              onClick={() => changeDate(1)}
-              className="p-1.5 hover:bg-zinc-800 rounded text-zinc-400 hover:text-zinc-200"
-              title="Next Day"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
         {/* Macro Overview Bars & Target Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mt-6">
           {/* Calories */}
-          <div className="p-3.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
-            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Calories</span>
-            <div className="text-lg font-mono font-extrabold text-zinc-100">
+          <div className="p-4 reshape-card-subtle space-y-2">
+            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider font-bold">Calories</span>
+            <div className="text-xl font-mono font-bold text-[var(--text-primary)] tabular-nums">
               {totalCalories}{' '}
-              <span className="text-xs font-normal text-zinc-500">/ {calTarget}</span>
+              <span className="text-xs font-normal text-[var(--text-muted)]">/ {calTarget}</span>
             </div>
-            <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+            <div className="w-full bg-[var(--chip-bg)] h-2 rounded-full overflow-hidden border border-[var(--border-card)]">
               <div
-                className={`h-full rounded-full transition-all duration-300 ${
-                  totalCalories > calTarget ? 'bg-amber-400' : 'bg-lime-400'
+                className={`h-full rounded-full transition-all duration-500 ${
+                  totalCalories > calTarget ? 'bg-amber-400' : 'bg-[#CEFF00]'
                 }`}
                 style={{ width: `${Math.min(100, (totalCalories / calTarget) * 100)}%` }}
               />
             </div>
-            <div className="text-[10px] font-mono text-zinc-400">
+            <div className="text-[11px] font-mono text-[var(--text-secondary)]">
               {calRemaining >= 0 ? `${calRemaining} kcal left` : `${Math.abs(calRemaining)} kcal over`}
             </div>
           </div>
 
           {/* Protein */}
-          <div className="p-3.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
-            <span className="text-[10px] font-mono text-lime-400/90 uppercase tracking-wider font-semibold">
+          <div className="p-4 reshape-card-subtle space-y-2">
+            <span className="text-[10px] font-mono text-volt-adaptive uppercase tracking-wider font-bold">
               Protein
             </span>
-            <div className="text-lg font-mono font-extrabold text-lime-400">
+            <div className="text-xl font-mono font-bold text-volt-adaptive tabular-nums">
               {totalProtein}g{' '}
-              <span className="text-xs font-normal text-zinc-500">/ {proTarget}g</span>
+              <span className="text-xs font-normal text-[var(--text-muted)]">/ {proTarget}g</span>
             </div>
-            <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+            <div className="w-full bg-[var(--chip-bg)] h-2 rounded-full overflow-hidden border border-[var(--border-card)]">
               <div
-                className="bg-lime-400 h-full rounded-full transition-all duration-300"
+                className="bg-[#CEFF00] h-full rounded-full transition-all duration-500"
                 style={{ width: `${Math.min(100, (totalProtein / proTarget) * 100)}%` }}
               />
             </div>
-            <div className="text-[10px] font-mono text-zinc-400">
+            <div className="text-[11px] font-mono text-[var(--text-secondary)]">
               {proRemaining <= 0 ? 'Target achieved!' : `${proRemaining}g left`}
             </div>
           </div>
 
           {/* Carbohydrates */}
-          <div className="p-3.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
-            <span className="text-[10px] font-mono text-sky-400/90 uppercase tracking-wider font-semibold">
+          <div className="p-4 reshape-card-subtle space-y-2">
+            <span className="text-[10px] font-mono text-sky-500 uppercase tracking-wider font-bold">
               Carbohydrates
             </span>
-            <div className="text-lg font-mono font-extrabold text-sky-400">
+            <div className="text-xl font-mono font-bold text-sky-500 tabular-nums">
               {totalCarbs}g{' '}
-              <span className="text-xs font-normal text-zinc-500">/ {carbTarget}g</span>
+              <span className="text-xs font-normal text-[var(--text-muted)]">/ {carbTarget}g</span>
             </div>
-            <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+            <div className="w-full bg-[var(--chip-bg)] h-2 rounded-full overflow-hidden border border-[var(--border-card)]">
               <div
-                className="bg-sky-400 h-full rounded-full transition-all duration-300"
+                className="bg-sky-400 h-full rounded-full transition-all duration-500"
                 style={{ width: `${Math.min(100, (totalCarbs / carbTarget) * 100)}%` }}
               />
             </div>
-            <div className="text-[10px] font-mono text-zinc-400">
+            <div className="text-[11px] font-mono text-[var(--text-secondary)]">
               {Math.max(0, carbTarget - totalCarbs)}g remaining
             </div>
           </div>
 
           {/* Fats */}
-          <div className="p-3.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
-            <span className="text-[10px] font-mono text-amber-400/90 uppercase tracking-wider font-semibold">
+          <div className="p-4 reshape-card-subtle space-y-2">
+            <span className="text-[10px] font-mono text-amber-500 uppercase tracking-wider font-bold">
               Healthy Fats
             </span>
-            <div className="text-lg font-mono font-extrabold text-amber-400">
+            <div className="text-xl font-mono font-bold text-amber-500 tabular-nums">
               {totalFat}g{' '}
-              <span className="text-xs font-normal text-zinc-500">/ {fatTarget}g</span>
+              <span className="text-xs font-normal text-[var(--text-muted)]">/ {fatTarget}g</span>
             </div>
-            <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+            <div className="w-full bg-[var(--chip-bg)] h-2 rounded-full overflow-hidden border border-[var(--border-card)]">
               <div
-                className="bg-amber-400 h-full rounded-full transition-all duration-300"
+                className="bg-amber-400 h-full rounded-full transition-all duration-500"
                 style={{ width: `${Math.min(100, (totalFat / fatTarget) * 100)}%` }}
               />
             </div>
-            <div className="text-[10px] font-mono text-zinc-400">
+            <div className="text-[11px] font-mono text-[var(--text-secondary)]">
               {Math.max(0, fatTarget - totalFat)}g remaining
             </div>
           </div>
         </div>
 
-        {/* Quick Duplicate Button */}
-        <div className="mt-5 pt-4 border-t border-zinc-800/60 flex items-center justify-between text-xs">
+        {/* Quick Duplicate & Water Bar */}
+        <div className="mt-5 pt-4 border-t border-[var(--border-card)] flex items-center justify-between text-xs">
           <button
             onClick={handleDuplicateYesterday}
-            className="flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200 transition-colors"
+            className="flex items-center gap-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             title="Duplicate all meals from previous day"
           >
-            <Copy className="w-3.5 h-3.5 text-lime-400" />
+            <Copy className="w-3.5 h-3.5 text-[#CEFF00]" />
             <span>Duplicate Yesterday&apos;s Diary</span>
           </button>
 
-          {/* Optional Hydration Tracking Widget */}
+          {/* Hydration Tracking Widget */}
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 text-zinc-400">
+            <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
               <Droplets className="w-4 h-4 text-sky-400" />
-              <span className="font-mono font-bold text-zinc-200">
+              <span className="font-mono font-bold text-[var(--text-primary)] tabular-nums">
                 {(currentLog.waterMl || 0).toLocaleString()} ml
               </span>
             </div>
             <div className="flex items-center gap-1 font-mono text-[11px]">
               <button
                 onClick={() => updateWater(250)}
-                className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sky-400"
+                className="px-2.5 py-1 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] rounded-xl text-sky-500 border border-sky-400/20"
               >
                 +250ml
               </button>
               <button
                 onClick={() => updateWater(500)}
-                className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sky-400"
+                className="px-2.5 py-1 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] rounded-xl text-sky-500 border border-sky-400/20"
               >
                 +500ml
               </button>
@@ -471,25 +511,36 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
           return (
             <div
               key={cat.id}
-              className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3"
+              className="reshape-card p-4 sm:p-5 space-y-3"
             >
-              <div className="flex items-center justify-between pb-2 border-b border-zinc-800/80">
+              <div className="flex items-center justify-between pb-3 border-b border-[var(--border-card)]">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-zinc-100 text-sm sm:text-base">{cat.label}</h3>
+                  <h3 className="font-bold text-[var(--text-primary)] text-base">{cat.label}</h3>
                   {categoryEntries.length > 0 && (
-                    <span className="text-xs font-mono text-zinc-500">
-                      ({catCalories} kcal &middot; {catProtein}g pro)
+                    <span className="text-xs font-mono text-[var(--text-muted)]">
+                      ({catCalories} kcal · {catProtein}g pro)
                     </span>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      setActiveMealCategory(cat.id);
+                      setIsBarcodeScannerOpen(true);
+                    }}
+                    className="px-2.5 py-1.5 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] border border-[var(--border-card)] hover:border-[#CEFF00]/50 text-[var(--text-secondary)] hover:text-volt-adaptive text-xs font-semibold rounded-xl flex items-center gap-1 transition-colors"
+                    title={`Scan barcode directly into ${cat.label}`}
+                  >
+                    <Camera className="w-3.5 h-3.5 text-[#CEFF00]" />
+                    <span className="hidden sm:inline">Scan</span>
+                  </button>
                   <button
                     onClick={() => {
                       setActiveMealCategory(cat.id);
                       setIsManualModalOpen(true);
                     }}
-                    className="p-1.5 text-zinc-500 hover:text-zinc-300 text-xs rounded transition-colors"
+                    className="px-2.5 py-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-card)] transition-colors"
                     title="Quick manual entry"
                   >
                     Custom
@@ -499,16 +550,16 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                       setActiveMealCategory(cat.id);
                       setIsAddModalOpen(true);
                     }}
-                    className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-lime-400 text-xs font-semibold rounded-lg flex items-center gap-1 transition-colors"
+                    className="px-3 py-1.5 bg-[#CEFF00] hover:bg-[#d4ff00] text-black text-xs font-bold rounded-xl flex items-center gap-1 transition-colors shadow-sm"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-3.5 h-3.5 stroke-[3]" />
                     <span>Add Food</span>
                   </button>
                 </div>
               </div>
 
               {categoryEntries.length === 0 ? (
-                <div className="py-3 text-center text-zinc-600 text-xs">
+                <div className="py-4 text-center text-[var(--text-muted)] text-xs font-sans">
                   No foods logged in {cat.label} yet
                 </div>
               ) : (
@@ -516,28 +567,28 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                   {categoryEntries.map((entry) => (
                     <div
                       key={entry.id}
-                      className="p-3 bg-zinc-900/50 hover:bg-zinc-900 border border-zinc-800/80 rounded-xl flex items-center justify-between text-xs transition-colors"
+                      className="p-3.5 bg-[var(--bg-subtle)] hover:bg-[var(--bg-surface-elevated)] border border-[var(--border-card)] rounded-2xl flex items-center justify-between text-xs transition-colors"
                     >
                       <div>
-                        <div className="font-bold text-zinc-200">{entry.name}</div>
-                        <div className="text-[11px] font-mono text-zinc-500 mt-0.5">
+                        <div className="font-bold text-[var(--text-primary)] text-sm">{entry.name}</div>
+                        <div className="text-[11px] font-mono text-[var(--text-muted)] mt-0.5">
                           <span>{entry.quantity} &times; {entry.servingUnit}</span>
-                          <span className="mx-1.5">&middot;</span>
-                          <span className="text-lime-400">{entry.protein}g P</span>
-                          <span className="mx-1">&middot;</span>
-                          <span className="text-sky-400">{entry.carbs}g C</span>
-                          <span className="mx-1">&middot;</span>
-                          <span className="text-amber-400">{entry.fat}g F</span>
+                          <span className="mx-1.5">·</span>
+                          <span className="text-volt-adaptive font-bold">{entry.protein}g P</span>
+                          <span className="mx-1">·</span>
+                          <span className="text-sky-500 font-bold">{entry.carbs}g C</span>
+                          <span className="mx-1">·</span>
+                          <span className="text-amber-500 font-bold">{entry.fat}g F</span>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold text-zinc-200 text-sm">
+                        <span className="font-mono font-bold text-[var(--text-primary)] text-sm tabular-nums">
                           {entry.calories} kcal
                         </span>
                         <button
                           onClick={() => handleRemoveEntry(entry.id)}
-                          className="p-1 text-zinc-600 hover:text-rose-400 transition-colors"
+                          className="p-1.5 text-[var(--text-muted)] hover:text-rose-500 rounded-lg transition-colors"
                           title="Remove item"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -554,45 +605,55 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
 
       {/* MODAL 1: SEARCH & ADD FROM DATABASE / AI MEAL PARSER */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#12161c] border border-zinc-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="reshape-card p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-zinc-100 text-base">
+                <h3 className="font-bold text-[var(--text-primary)] text-base">
                   Add Food to {MEAL_CATEGORIES.find((c) => c.id === activeMealCategory)?.label}
                 </h3>
-                <p className="text-xs text-zinc-400">Search verified fitness staples or use AI natural language parsing.</p>
+                <p className="text-xs text-[var(--text-secondary)]">Search verified fitness staples or use AI natural language parsing.</p>
               </div>
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="text-zinc-500 hover:text-zinc-300 text-xs"
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xs px-2 py-1"
               >
                 Close
               </button>
             </div>
 
             {/* Mode Toggle Tabs */}
-            <div className="grid grid-cols-2 gap-1 p-1 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-semibold">
+            <div className="grid grid-cols-3 gap-1 p-1 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-2xl text-xs font-semibold">
               <button
                 onClick={() => setAddMode('database')}
-                className={`py-1.5 rounded-lg transition-colors ${
+                className={`py-2 rounded-xl transition-colors truncate px-2 text-xs ${
                   addMode === 'database'
-                    ? 'bg-zinc-800 text-lime-400 shadow-sm'
-                    : 'text-zinc-400 hover:text-zinc-200'
+                    ? 'bg-[#CEFF00] text-black shadow-sm font-bold'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
-                Verified Food Database
+                Food Database
               </button>
               <button
                 onClick={() => setAddMode('ai_parser')}
-                className={`py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1.5 ${
+                className={`py-2 rounded-xl transition-colors flex items-center justify-center gap-1 truncate px-2 text-xs ${
                   addMode === 'ai_parser'
-                    ? 'bg-zinc-800 text-lime-400 shadow-sm'
-                    : 'text-zinc-400 hover:text-zinc-200'
+                    ? 'bg-[#CEFF00] text-black shadow-sm font-bold'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
-                <Sparkles className="w-3.5 h-3.5 text-lime-400" />
-                <span>AI Meal Parser</span>
+                <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                <span>AI Parser</span>
+              </button>
+              <button
+                onClick={() => {
+                  setIsAddModalOpen(false);
+                  setIsBarcodeScannerOpen(true);
+                }}
+                className="py-2 rounded-xl transition-colors flex items-center justify-center gap-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--chip-bg)] truncate px-2 text-xs"
+              >
+                <Camera className="w-3.5 h-3.5 text-[#CEFF00] shrink-0" />
+                <span>Barcode</span>
               </button>
             </div>
 
@@ -600,41 +661,41 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
               <>
                 {/* Search Input */}
                 <div className="relative">
-                  <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
+                  <Search className="w-4 h-4 text-[var(--text-muted)] absolute left-3 top-3" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search chicken breast, rice, oats, whey, eggs..."
-                    className="w-full pl-9 pr-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 text-xs focus:outline-none focus:border-lime-400"
+                    className="w-full pl-9 pr-3 py-2.5 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-2xl text-[var(--text-primary)] text-xs focus:outline-none focus:border-[#CEFF00]"
                   />
                 </div>
 
                 {/* Food items list */}
-                <div className="overflow-y-auto divide-y divide-zinc-800/80 pr-1 flex-1 min-h-[200px]">
+                <div className="overflow-y-auto divide-y divide-[var(--border-card)] pr-1 flex-1 min-h-[200px]">
                   {filteredFoods.slice(0, 25).map((food) => {
                     const isSelected = selectedFoodItem?.id === food.id;
                     return (
                       <div
                         key={food.id}
                         onClick={() => setSelectedFoodItem(food)}
-                        className={`p-3 cursor-pointer rounded-xl transition-colors ${
+                        className={`p-3 cursor-pointer rounded-2xl transition-colors ${
                           isSelected
-                            ? 'bg-zinc-800 border border-lime-400/60'
-                            : 'hover:bg-zinc-850/50'
+                            ? 'bg-[var(--chip-bg)] border border-[#CEFF00]/60'
+                            : 'hover:bg-[var(--chip-bg)]'
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-zinc-200 text-xs">{food.name}</span>
-                          <span className="font-mono text-xs font-bold text-zinc-100">
+                          <span className="font-bold text-[var(--text-primary)] text-xs">{food.name}</span>
+                          <span className="font-mono text-xs font-bold text-[var(--text-primary)]">
                             {food.calories} kcal
                           </span>
                         </div>
-                        <div className="text-[11px] font-mono text-zinc-500 mt-0.5">
-                          Per {food.servingSize} {food.servingUnit} &middot;{' '}
-                          <span className="text-lime-400">{food.protein}g P</span> &middot;{' '}
-                          <span className="text-sky-400">{food.carbs}g C</span> &middot;{' '}
-                          <span className="text-amber-400">{food.fat}g F</span>
+                        <div className="text-[11px] font-mono text-[var(--text-muted)] mt-0.5">
+                          Per {food.servingSize} {food.servingUnit} ·{' '}
+                          <span className="text-volt-adaptive font-semibold">{food.protein}g P</span> ·{' '}
+                          <span className="text-sky-500 font-semibold">{food.carbs}g C</span> ·{' '}
+                          <span className="text-amber-500 font-semibold">{food.fat}g F</span>
                         </div>
                       </div>
                     );
@@ -643,9 +704,9 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
 
                 {/* Portion selector when food is chosen */}
                 {selectedFoodItem && (
-                  <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-between gap-3 text-xs bg-zinc-900/60 p-3 rounded-xl">
+                  <div className="pt-3 border-t border-[var(--border-card)] flex items-center justify-between gap-3 text-xs bg-[var(--bg-subtle)] p-3.5 rounded-2xl">
                     <div>
-                      <label className="block text-zinc-400 text-[11px] mb-1">
+                      <label className="block text-[var(--text-secondary)] text-[11px] mb-1">
                         Portion Servings ({selectedFoodItem.servingUnit})
                       </label>
                       <input
@@ -654,14 +715,14 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                         min="0.1"
                         value={portionMultiplier}
                         onChange={(e) => setPortionMultiplier(parseFloat(e.target.value) || 1)}
-                        className="w-20 px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 font-bold font-mono"
+                        className="w-20 px-2 py-1.5 bg-[var(--bg-surface)] border border-[var(--border-card)] rounded-xl text-[var(--text-primary)] font-bold font-mono"
                       />
                     </div>
                     <div className="text-right font-mono">
-                      <div className="text-sm font-bold text-lime-400">
+                      <div className="text-base font-bold text-volt-adaptive">
                         {Math.round(selectedFoodItem.calories * portionMultiplier)} kcal
                       </div>
-                      <div className="text-[11px] text-zinc-400">
+                      <div className="text-[11px] text-[var(--text-muted)]">
                         {(selectedFoodItem.protein * portionMultiplier).toFixed(1)}g Protein
                       </div>
                     </div>
@@ -671,14 +732,14 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                 <div className="flex items-center justify-end gap-2 pt-2">
                   <button
                     onClick={() => setIsAddModalOpen(false)}
-                    className="px-3 py-2 bg-zinc-800 text-zinc-300 rounded-lg text-xs"
+                    className="px-4 py-2 bg-[var(--bg-subtle)] border border-[var(--border-card)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-xl text-xs"
                   >
                     Cancel
                   </button>
                   <button
                     disabled={!selectedFoodItem}
                     onClick={handleAddFromDatabase}
-                    className="touch-press px-4 py-2 bg-lime-400 disabled:opacity-40 text-black font-bold rounded-lg text-xs"
+                    className="touch-press px-5 py-2 bg-[#CEFF00] disabled:opacity-40 text-black font-bold rounded-xl text-xs"
                   >
                     Log Food Entry
                   </button>
@@ -688,7 +749,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
               /* AI SMART MEAL PARSER MODE */
               <div className="space-y-4 flex-1 flex flex-col min-h-[220px]">
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                  <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
                     Describe your meal in natural English
                   </label>
                   <textarea
@@ -696,17 +757,17 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                     onChange={(e) => setAiMealQuery(e.target.value)}
                     placeholder="e.g. 200g grilled chicken breast with 1.5 cups jasmine rice, half an avocado and 1 cup steamed broccoli"
                     rows={3}
-                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 text-xs focus:outline-none focus:border-lime-400"
+                    className="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-2xl text-[var(--text-primary)] text-xs focus:outline-none focus:border-[#CEFF00]"
                   />
                   <div className="flex items-center justify-between mt-1.5">
-                    <span className="text-[11px] text-zinc-500">
-                      Powered by Gemini Sports Nutrition AI
+                    <span className="text-[11px] text-[var(--text-muted)] font-mono">
+                      Sports Nutrition AI
                     </span>
                     <button
                       type="button"
                       disabled={aiMealLoading || !aiMealQuery.trim()}
                       onClick={handleParseAiMeal}
-                      className="px-3.5 py-1.5 bg-lime-400/20 hover:bg-lime-400/30 text-lime-300 border border-lime-400/40 text-xs font-bold rounded-lg flex items-center gap-1.5 disabled:opacity-40"
+                      className="px-3.5 py-1.5 bg-[#CEFF00] text-black text-xs font-bold rounded-xl flex items-center gap-1.5 disabled:opacity-40 shadow-sm"
                     >
                       {aiMealLoading ? (
                         <>
@@ -715,7 +776,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                         </>
                       ) : (
                         <>
-                          <Sparkles className="w-3.5 h-3.5" />
+                          <Sparkles className="w-3.5 h-3.5 stroke-[2.5]" />
                           <span>Extract Macros</span>
                         </>
                       )}
@@ -724,18 +785,17 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                 </div>
 
                 {aiMealError && (
-                  <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300">
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-xs text-rose-400">
                     {aiMealError}
                   </div>
                 )}
 
-                {/* Parsed items result */}
                 {aiParsedItems.length > 0 && (
                   <div className="space-y-2 flex-1 overflow-y-auto">
-                    <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 uppercase font-bold">
+                    <div className="flex items-center justify-between text-[11px] font-mono text-[var(--text-muted)] uppercase font-bold">
                       <span>Parsed Items ({aiParsedItems.length})</span>
-                      <span className="text-lime-400">
-                        Total: {aiParsedItems.reduce((acc, i) => acc + (Number(i.calories) || 0), 0)} kcal &middot; {aiParsedItems.reduce((acc, i) => acc + (Number(i.protein) || 0), 0).toFixed(0)}g P
+                      <span className="text-volt-adaptive">
+                        Total: {aiParsedItems.reduce((acc, i) => acc + (Number(i.calories) || 0), 0)} kcal · {aiParsedItems.reduce((acc, i) => acc + (Number(i.protein) || 0), 0).toFixed(0)}g P
                       </span>
                     </div>
 
@@ -743,18 +803,18 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                       {aiParsedItems.map((item, idx) => (
                         <div
                           key={idx}
-                          className="p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-between text-xs"
+                          className="p-3 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-2xl flex items-center justify-between text-xs"
                         >
                           <div>
-                            <span className="font-bold text-zinc-200">{item.name}</span>
-                            <div className="text-[11px] font-mono text-zinc-400">
-                              {item.quantity} {item.servingUnit} &middot;{' '}
-                              <span className="text-lime-400">{item.protein}g P</span> &middot;{' '}
-                              <span className="text-sky-400">{item.carbs}g C</span> &middot;{' '}
-                              <span className="text-amber-400">{item.fat}g F</span>
+                            <span className="font-bold text-[var(--text-primary)]">{item.name}</span>
+                            <div className="text-[11px] font-mono text-[var(--text-muted)]">
+                              {item.quantity} {item.servingUnit} ·{' '}
+                              <span className="text-volt-adaptive font-semibold">{item.protein}g P</span> ·{' '}
+                              <span className="text-sky-500 font-semibold">{item.carbs}g C</span> ·{' '}
+                              <span className="text-amber-500 font-semibold">{item.fat}g F</span>
                             </div>
                           </div>
-                          <span className="font-mono font-bold text-zinc-100">
+                          <span className="font-mono font-bold text-[var(--text-primary)]">
                             {item.calories} kcal
                           </span>
                         </div>
@@ -763,17 +823,17 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                   </div>
                 )}
 
-                <div className="flex items-center justify-end gap-2 pt-2 mt-auto border-t border-zinc-800">
+                <div className="flex items-center justify-end gap-2 pt-2 mt-auto border-t border-[var(--border-card)]">
                   <button
                     onClick={() => setIsAddModalOpen(false)}
-                    className="px-3 py-2 bg-zinc-800 text-zinc-300 rounded-lg text-xs"
+                    className="px-4 py-2 bg-[var(--bg-subtle)] border border-[var(--border-card)] text-[var(--text-secondary)] rounded-xl text-xs"
                   >
                     Cancel
                   </button>
                   <button
                     disabled={aiParsedItems.length === 0}
                     onClick={handleLogAiMealItems}
-                    className="touch-press px-4 py-2 bg-lime-400 hover:bg-lime-300 disabled:opacity-40 text-black font-bold rounded-lg text-xs shadow-md flex items-center gap-1.5"
+                    className="touch-press px-5 py-2 bg-[#CEFF00] hover:bg-[#d4ff00] disabled:opacity-40 text-black font-bold rounded-xl text-xs shadow-md flex items-center gap-1.5"
                   >
                     <Check className="w-3.5 h-3.5 stroke-[3]" />
                     <span>Log All {aiParsedItems.length} Items</span>
@@ -785,82 +845,82 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
         </div>
       )}
 
-      {/* MODAL 2: MANUAL FOOD / PACKAGED LABEL VALUE CREATOR */}
+      {/* MODAL 2: MANUAL FOOD CREATOR */}
       {isManualModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#12161c] border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <h3 className="font-bold text-zinc-100 text-base">Custom Food / Label Values</h3>
-            <p className="text-xs text-zinc-400">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="reshape-card p-6 max-w-md w-full shadow-2xl space-y-4">
+            <h3 className="font-bold text-[var(--text-primary)] text-base">Custom Food / Label Values</h3>
+            <p className="text-xs text-[var(--text-secondary)]">
               Input nutrition values directly from a food package label or restaurant guide.
             </p>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-zinc-400 mb-1">Food / Dish Name</label>
+                <label className="block text-[var(--text-secondary)] mb-1">Food / Dish Name</label>
                 <input
                   type="text"
                   value={manualName}
                   onChange={(e) => setManualName(e.target.value)}
                   placeholder="e.g. Protein Bar, Homemade Curry"
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-lime-400"
+                  className="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-[#CEFF00]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-zinc-400 mb-1">Serving Unit</label>
+                  <label className="block text-[var(--text-secondary)] mb-1">Serving Unit</label>
                   <input
                     type="text"
                     value={manualServingUnit}
                     onChange={(e) => setManualServingUnit(e.target.value)}
                     placeholder="e.g. 1 bar, 200g, 1 bowl"
-                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100"
+                    className="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-xl text-[var(--text-primary)]"
                   />
                 </div>
                 <div>
-                  <label className="block text-zinc-400 mb-1">Calories (kcal)</label>
+                  <label className="block text-[var(--text-secondary)] mb-1">Calories (kcal)</label>
                   <input
                     type="number"
                     value={manualCalories || ''}
                     onChange={(e) => setManualCalories(parseFloat(e.target.value) || 0)}
                     placeholder="0"
-                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 font-bold"
+                    className="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-xl text-[var(--text-primary)] font-bold"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-lime-400 mb-1">Protein (g)</label>
+                  <label className="block text-volt-adaptive mb-1 font-semibold">Protein (g)</label>
                   <input
                     type="number"
                     step="0.5"
                     value={manualProtein || ''}
                     onChange={(e) => setManualProtein(parseFloat(e.target.value) || 0)}
                     placeholder="0"
-                    className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 font-mono"
+                    className="w-full px-2 py-1.5 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-xl text-[var(--text-primary)] font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-sky-400 mb-1">Carbs (g)</label>
+                  <label className="block text-sky-500 mb-1 font-semibold">Carbs (g)</label>
                   <input
                     type="number"
                     step="0.5"
                     value={manualCarbs || ''}
                     onChange={(e) => setManualCarbs(parseFloat(e.target.value) || 0)}
                     placeholder="0"
-                    className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 font-mono"
+                    className="w-full px-2 py-1.5 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-xl text-[var(--text-primary)] font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-amber-400 mb-1">Fat (g)</label>
+                  <label className="block text-amber-500 mb-1 font-semibold">Fat (g)</label>
                   <input
                     type="number"
                     step="0.5"
                     value={manualFat || ''}
                     onChange={(e) => setManualFat(parseFloat(e.target.value) || 0)}
                     placeholder="0"
-                    className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 font-mono"
+                    className="w-full px-2 py-1.5 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-xl text-[var(--text-primary)] font-mono"
                   />
                 </div>
               </div>
@@ -869,19 +929,30 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 onClick={() => setIsManualModalOpen(false)}
-                className="px-3 py-2 bg-zinc-800 text-zinc-300 rounded-lg text-xs"
+                className="px-4 py-2 bg-[var(--bg-subtle)] border border-[var(--border-card)] text-[var(--text-secondary)] rounded-xl text-xs"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddManualFood}
-                className="px-4 py-2 bg-lime-400 text-black font-bold rounded-lg text-xs"
+                className="px-5 py-2 bg-[#CEFF00] hover:bg-[#d4ff00] text-black font-bold rounded-xl text-xs"
               >
                 Save &amp; Log Entry
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* NUTRITION BARCODE SCANNER MODAL */}
+      {isBarcodeScannerOpen && (
+        <BarcodeScanner
+          isOpen={isBarcodeScannerOpen}
+          onClose={() => setIsBarcodeScannerOpen(false)}
+          defaultMealCategory={activeMealCategory}
+          onAddFoodEntry={handleAddScannedFoodEntry}
+          onOpenManualCustomFood={handleOpenCustomWithBarcode}
+        />
       )}
     </div>
   );

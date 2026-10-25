@@ -5,6 +5,12 @@ import {
 } from '../types';
 import { calculateBMI, calculateEpley1RM, calculateVolumeLoad } from './calculations';
 import { extractExerciseHistory, generateProgressionRecommendation } from './progressionEngine';
+import {
+  sanitizeBarcode,
+  parseNutrientValue,
+  normalizeOpenFoodFactsProduct,
+  calculatePortionNutrients
+} from '../services/openFoodFactsService';
 
 export interface TestResult {
   name: string;
@@ -250,6 +256,73 @@ export function runAllAutomatedTests(): TestResult[] {
     expected: 'Rule A (+5 kg to 105 kg)',
     actual: `${recPlan.ruleApplied} (${recPlan.recommendedWeight} kg)`,
     details: 'Satisfies uploaded plan rule: lead set reached 10 reps, applying custom +5kg jump'
+  });
+
+  // 8. Test Barcode Sanitization & Validation
+  const dirtyBarcode = '  8888-4900 0010 \n';
+  const cleanBarcode = sanitizeBarcode(dirtyBarcode);
+  results.push({
+    name: 'Barcode Sanitization: Strips whitespace and hyphens',
+    passed: cleanBarcode === '888849000010',
+    expected: '888849000010',
+    actual: cleanBarcode,
+    details: 'Sanitizes dirty input e.g. "  8888-4900 0010 \\n" into clean numeric EAN/UPC'
+  });
+
+  // 9. Test Open Food Facts Normalization: Distinguish Genuine Zero vs Missing Nutrients
+  const mockRawOFF = {
+    product_name: 'Pure Zero Protein Shake',
+    brands: 'IronFuel',
+    serving_size: '1 bottle (330 ml)',
+    serving_quantity: 330,
+    serving_quantity_unit: 'ml',
+    nutriments: {
+      'energy-kcal_100g': 45,
+      'proteins_100g': 9.0,
+      'fat_100g': 0, // Genuine zero fat
+      // carbohydrates_100g is intentionally missing (undefined)
+      'energy-kcal_serving': 148,
+      'proteins_serving': 30.0,
+      'fat_serving': 0
+    }
+  };
+  const normalized = normalizeOpenFoodFactsProduct(mockRawOFF, '1234567890123');
+  const zeroFatPreserved = normalized.per100g.fat === 0;
+  const missingCarbsPreserved = normalized.per100g.carbs === null;
+  const liquidDetected = normalized.isLiquid === true && normalized.servingUnit === 'ml';
+
+  results.push({
+    name: 'Nutrition Normalization: Missing Nutrients vs Genuine Zero (No False Zeros)',
+    passed: zeroFatPreserved && missingCarbsPreserved && liquidDetected,
+    expected: 'fat=0, carbs=null, isLiquid=true',
+    actual: `fat=${normalized.per100g.fat}, carbs=${normalized.per100g.carbs}, isLiquid=${normalized.isLiquid}`,
+    details: 'Protects accuracy: 0g fat stays 0g; unlisted carbs stay null instead of falsely showing 0g'
+  });
+
+  // 10. Test Portion Calculation: Per-Serving vs Custom Gram Scaling
+  const mockSolidProduct = {
+    barcode: '0888849000010',
+    name: 'Protein Bar',
+    brand: 'Quest',
+    servingSizeText: '1 bar (60g)',
+    servingQuantity: 60,
+    servingUnit: 'g',
+    hasServingData: true,
+    perServing: { calories: 200, protein: 21, carbs: 22, fat: 7, fiber: 14 },
+    per100g: { calories: 333, protein: 35, carbs: 36.7, fat: 11.7, fiber: 23.3 }
+  };
+  const portion2Bars = calculatePortionNutrients(mockSolidProduct, 'serving', 2);
+  const portion150g = calculatePortionNutrients(mockSolidProduct, 'custom_grams', 1, 150);
+
+  const calc2BarsPass = portion2Bars.calories === 400 && portion2Bars.protein === 42;
+  const calc150gPass = portion150g.calories === 500 && portion150g.protein === 52.5;
+
+  results.push({
+    name: 'Portion Calculations: Accurate Scaling on Servings and Gram Multipliers',
+    passed: calc2BarsPass && calc150gPass,
+    expected: '2 bars = 400kcal/42g pro; 150g = 500kcal/52.5g pro',
+    actual: `2 bars = ${portion2Bars.calories}kcal/${portion2Bars.protein}g pro; 150g = ${portion150g.calories}kcal/${portion150g.protein}g pro`,
+    details: 'Verifies exact scaling on discrete servings and continuous gram measurements'
   });
 
   return results;

@@ -212,53 +212,53 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
   }));
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto pb-16">
       {/* Top Header Card */}
-      <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-zinc-800/80">
+      <div className="reshape-card p-5 lg:p-7 relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[var(--border-card)]">
           <div>
-            <div className="flex items-center gap-2 text-lime-400 text-xs font-mono font-semibold uppercase tracking-wider mb-1">
+            <div className="flex items-center gap-2 text-volt-adaptive text-xs font-mono font-bold uppercase tracking-widest mb-1.5">
               <BarChart3 className="w-4 h-4" />
-              <span>Performance Analytics</span>
+              <span>Performance Analytics &middot; Longitudinal</span>
             </div>
-            <h1 className="text-xl lg:text-2xl font-bold text-zinc-100">
+            <h1 className="text-xl lg:text-3xl font-nrc font-black italic uppercase text-[var(--text-primary)] tracking-tight">
               Training &amp; Body Reports
             </h1>
-            <p className="text-xs text-zinc-400 mt-1">
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
               Data-driven audit of your strength progression, volume load, and nutrition adherence.
             </p>
           </div>
 
           {/* Time Filter Segmented Control */}
-          <div className="flex items-center gap-1 p-1 bg-zinc-900 border border-zinc-800 rounded-lg self-start sm:self-auto">
+          <div className="flex items-center gap-1 p-1 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-xl self-start sm:self-auto">
             <button
               onClick={() => setFilterPeriod('7d')}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                filterPeriod === '7d' ? 'bg-zinc-800 text-lime-400 font-bold' : 'text-zinc-400 hover:text-zinc-200'
+              className={`min-h-[36px] px-3.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                filterPeriod === '7d' ? 'bg-[#CEFF00] text-black shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
               7 Days
             </button>
             <button
               onClick={() => setFilterPeriod('30d')}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                filterPeriod === '30d' ? 'bg-zinc-800 text-lime-400 font-bold' : 'text-zinc-400 hover:text-zinc-200'
+              className={`min-h-[36px] px-3.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                filterPeriod === '30d' ? 'bg-[#CEFF00] text-black shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
               30 Days
             </button>
             <button
               onClick={() => setFilterPeriod('90d')}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                filterPeriod === '90d' ? 'bg-zinc-800 text-lime-400 font-bold' : 'text-zinc-400 hover:text-zinc-200'
+              className={`min-h-[36px] px-3.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                filterPeriod === '90d' ? 'bg-[#CEFF00] text-black shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
               90 Days
             </button>
             <button
               onClick={() => setFilterPeriod('all')}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                filterPeriod === 'all' ? 'bg-zinc-800 text-lime-400 font-bold' : 'text-zinc-400 hover:text-zinc-200'
+              className={`min-h-[36px] px-3.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                filterPeriod === 'all' ? 'bg-[#CEFF00] text-black shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
               All Time
@@ -268,46 +268,46 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
 
         {/* Top 4 Stat Widgets */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
-          <div className="p-4 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1">
-            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
+          <div className="p-4 reshape-card-subtle space-y-1">
+            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-widest font-bold block">
               Sessions Completed
             </span>
-            <div className="text-2xl font-mono font-extrabold text-lime-400">
+            <div className="text-3xl font-mono font-black text-volt-adaptive tracking-tight tabular-nums">
               {totalCompletedSessions}
             </div>
-            <div className="text-[11px] text-zinc-400 font-mono">In selected window</div>
+            <div className="text-[11px] text-[var(--text-muted)] font-mono">In selected window</div>
           </div>
 
-          <div className="p-4 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1">
-            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
+          <div className="p-4 reshape-card-subtle space-y-1">
+            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-widest font-bold block">
               Total Volume Load
             </span>
-            <div className="text-2xl font-mono font-extrabold text-zinc-100">
+            <div className="text-3xl font-mono font-black text-[var(--text-primary)] tracking-tight tabular-nums">
               {totalFilteredVolume.toLocaleString()}
             </div>
-            <div className="text-[11px] text-zinc-400 font-mono">{profile.preferredUnit} accumulated</div>
+            <div className="text-[11px] text-[var(--text-muted)] font-mono">{profile.preferredUnit} accumulated</div>
           </div>
 
-          <div className="p-4 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1">
-            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
+          <div className="p-4 reshape-card-subtle space-y-1">
+            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-widest font-bold block">
               Daily Calories (Avg)
             </span>
-            <div className="text-2xl font-mono font-extrabold text-sky-400">
+            <div className="text-3xl font-mono font-black text-[#00E5FF] tracking-tight tabular-nums">
               {avgCalories > 0 ? `${avgCalories}` : '—'}
             </div>
-            <div className="text-[11px] text-zinc-400 font-mono">
+            <div className="text-[11px] text-[var(--text-muted)] font-mono">
               Target: {profile.dailyCalorieTarget} kcal
             </div>
           </div>
 
-          <div className="p-4 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1">
-            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
+          <div className="p-4 reshape-card-subtle space-y-1">
+            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-widest font-bold block">
               Daily Protein (Avg)
             </span>
-            <div className="text-2xl font-mono font-extrabold text-lime-400">
+            <div className="text-3xl font-mono font-black text-volt-adaptive tracking-tight tabular-nums">
               {avgProtein > 0 ? `${avgProtein}g` : '—'}
             </div>
-            <div className="text-[11px] text-zinc-400 font-mono">
+            <div className="text-[11px] text-[var(--text-muted)] font-mono">
               Target: {profile.dailyProteinTarget}g
             </div>
           </div>
@@ -315,78 +315,78 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
       </div>
 
       {/* WEEKLY AUDIT / PROGRESSION SUMMARY */}
-      <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-6 shadow-xl space-y-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-zinc-800/80">
-          <CheckCircle className="w-4 h-4 text-lime-400" />
-          <h3 className="font-bold text-zinc-100 text-base">
+      <div className="reshape-card p-5 lg:p-6 space-y-4">
+        <div className="flex items-center gap-2 pb-3 border-b border-[var(--border-card)]">
+          <CheckCircle className="w-4 h-4 text-volt-adaptive" />
+          <h3 className="font-nrc font-black italic uppercase text-lg text-[var(--text-primary)] tracking-tight">
             Verified Training &amp; Adherence Audit
           </h3>
         </div>
 
         {!summary.hasData ? (
-          <div className="text-xs text-zinc-500 py-3">
+          <div className="text-xs text-zinc-500 py-4">
             No training or metric data recorded yet. Record sessions to generate objective analysis.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
             {/* What Improved */}
-            <div className="p-4 bg-zinc-900/50 border border-lime-500/30 rounded-xl space-y-2">
-              <span className="text-[11px] font-mono font-bold text-lime-400 uppercase tracking-wider block">
-                What Improved
+            <div className="p-4 reshape-card-subtle border-[#CEFF00]/40 space-y-2">
+              <span className="text-[11px] font-mono font-bold text-volt-adaptive uppercase tracking-wider block">
+                &bull; What Improved
               </span>
               {summary.improved.length > 0 ? (
-                <ul className="space-y-1.5 text-zinc-300">
+                <ul className="space-y-1.5 text-[var(--text-secondary)]">
                   {summary.improved.map((item, idx) => (
                     <li key={idx} className="flex items-start gap-1.5">
-                      <span className="text-lime-400">&bull;</span>
+                      <span className="text-volt-adaptive">&bull;</span>
                       <span>{item}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-zinc-500">Collect more sessions to detect positive overload trends.</p>
+                <p className="text-[var(--text-muted)]">Collect more sessions to detect positive overload trends.</p>
               )}
             </div>
 
             {/* What Remained Stable */}
-            <div className="p-4 bg-zinc-900/50 border border-zinc-800/80 rounded-xl space-y-2">
-              <span className="text-[11px] font-mono font-bold text-sky-400 uppercase tracking-wider block">
-                What Remained Stable
+            <div className="p-4 reshape-card-subtle space-y-2">
+              <span className="text-[11px] font-mono font-bold text-[#00E5FF] uppercase tracking-wider block">
+                &bull; What Remained Stable
               </span>
               {summary.stable.length > 0 ? (
-                <ul className="space-y-1.5 text-zinc-300">
+                <ul className="space-y-1.5 text-[var(--text-secondary)]">
                   {summary.stable.map((item, idx) => (
                     <li key={idx} className="flex items-start gap-1.5">
-                      <span className="text-sky-400">&bull;</span>
+                      <span className="text-[#00E5FF]">&bull;</span>
                       <span>{item}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-zinc-500">No stability patterns flagged.</p>
+                <p className="text-[var(--text-muted)]">No stability patterns flagged.</p>
               )}
             </div>
 
             {/* Needs Attention & Suggested Actions */}
-            <div className="p-4 bg-zinc-900/50 border border-amber-500/30 rounded-xl space-y-2">
-              <span className="text-[11px] font-mono font-bold text-amber-400 uppercase tracking-wider block">
-                Needs Attention
+            <div className="p-4 reshape-card-subtle border-amber-500/40 space-y-2">
+              <span className="text-[11px] font-mono font-bold text-amber-500 uppercase tracking-wider block">
+                &bull; Needs Attention
               </span>
               {summary.attention.length > 0 ? (
-                <ul className="space-y-1.5 text-zinc-300">
+                <ul className="space-y-1.5 text-[var(--text-secondary)]">
                   {summary.attention.map((item, idx) => (
                     <li key={idx} className="flex items-start gap-1.5">
-                      <span className="text-amber-400">&bull;</span>
+                      <span className="text-amber-500">&bull;</span>
                       <span>{item}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-zinc-500">No negative recovery or volume deficits detected.</p>
+                <p className="text-[var(--text-muted)]">No negative recovery or volume deficits detected.</p>
               )}
               {summary.suggestedActions.length > 0 && (
-                <div className="pt-2 border-t border-zinc-800 text-zinc-400 font-medium">
-                  <span className="text-[10px] uppercase font-mono text-zinc-500 block mb-1">
+                <div className="pt-2 border-t border-[var(--border-card)] text-[var(--text-secondary)] font-medium">
+                  <span className="text-[10px] uppercase font-mono text-[var(--text-muted)] block mb-1">
                     Suggested Next Action:
                   </span>
                   <p>{summary.suggestedActions[0]}</p>
@@ -399,42 +399,42 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
 
       {/* CHARTS: Volume Load Over Time & Body Weight */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 shadow-xl">
+        <div className="reshape-card p-5">
           <LineChart
             data={volumeBySessionData}
             title="Session Volume Load Progression"
             unit={profile.preferredUnit}
-            accentColor="#a3e635"
+            accentColor="#CEFF00"
             emptyMessage="No completed sessions in this date window"
           />
         </div>
 
-        <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 shadow-xl">
+        <div className="reshape-card p-5">
           <LineChart
             data={weightTrendData}
             title="Body Weight Over Time"
             unit={profile.preferredUnit}
             targetLine={profile.goalWeightKg}
-            accentColor="#38bdf8"
+            accentColor="#00E5FF"
             emptyMessage="No body weight entries recorded in this window"
           />
         </div>
       </div>
 
       {/* PERSONAL RECORDS (PR) HALL OF FAME */}
-      <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80">
+      <div className="reshape-card p-5 lg:p-6 space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[var(--border-card)]">
           <div className="flex items-center gap-2">
-            <Award className="w-4 h-4 text-lime-400" />
-            <h3 className="font-bold text-zinc-100 text-base">
+            <Award className="w-4 h-4 text-amber-500" />
+            <h3 className="font-nrc font-black italic uppercase text-lg text-[var(--text-primary)] tracking-tight">
               Personal Records (PR) Board
             </h3>
           </div>
-          <span className="text-xs font-mono text-zinc-500">{prList.length} Exercises Tracked</span>
+          <span className="text-xs font-mono text-[var(--text-muted)]">{prList.length} Exercises Tracked</span>
         </div>
 
         {prList.length === 0 ? (
-          <div className="py-6 text-center text-zinc-500 text-xs">
+          <div className="py-8 text-center text-[var(--text-muted)] text-xs">
             Complete working sets in your workouts to automatically register personal records.
           </div>
         ) : (
@@ -442,24 +442,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
             {prList.map((pr) => (
               <div
                 key={pr.name}
-                className="p-3.5 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-1.5"
+                className="p-4 reshape-card-interactive space-y-2"
               >
-                <div className="font-bold text-zinc-200 text-xs truncate">{pr.name}</div>
+                <div className="font-bold text-[var(--text-primary)] text-xs truncate">{pr.name}</div>
                 <div className="flex items-center justify-between font-mono">
                   <div>
-                    <span className="text-[10px] text-zinc-500 block">TOP LOAD</span>
-                    <span className="text-base font-extrabold text-lime-400">
+                    <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider block font-bold">TOP LOAD</span>
+                    <span className="text-lg font-black text-volt-adaptive tabular-nums">
                       {pr.maxWeight} {profile.preferredUnit}
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] text-zinc-500 block">EST. 1RM</span>
-                    <span className="text-sm font-bold text-sky-400">
+                    <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider block font-bold">EST. 1RM</span>
+                    <span className="text-sm font-bold text-[#00E5FF] tabular-nums">
                       {pr.best1RM} {profile.preferredUnit}
                     </span>
                   </div>
                 </div>
-                <div className="text-[10px] font-mono text-zinc-500 pt-1 border-t border-zinc-800/60">
+                <div className="text-[10px] font-mono text-[var(--text-muted)] pt-1.5 border-t border-[var(--border-card)]">
                   Achieved: {pr.date}
                 </div>
               </div>

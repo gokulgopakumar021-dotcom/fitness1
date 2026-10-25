@@ -1,12 +1,58 @@
 @import "tailwindcss";
 
+:root,
+.dark {
+  --bg-canvas: #06080e;
+  --bg-surface: #0d111a;
+  --bg-surface-elevated: #131824;
+  --bg-subtle: #090c13;
+  --border-card: rgba(255, 255, 255, 0.08);
+  --border-card-hover: rgba(255, 255, 255, 0.18);
+  --card-shadow: 0 12px 40px -10px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --card-shadow-hover: 0 16px 50px -10px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --header-bg: rgba(6, 8, 14, 0.88);
+  --sidebar-bg: #070910;
+  --input-bg: #090c14;
+  --input-border: rgba(255, 255, 255, 0.1);
+  --chip-bg: rgba(255, 255, 255, 0.06);
+  --accent-volt: #CEFF00;
+  --accent-volt-contrast: #000000;
+  --accent-text: #CEFF00;
+}
+
+.light {
+  --bg-canvas: #f2f4f8;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f8fafc;
+  --bg-subtle: #f1f4f9;
+  --border-card: rgba(15, 23, 42, 0.09);
+  --border-card-hover: rgba(15, 23, 42, 0.2);
+  --card-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --card-shadow-hover: 0 10px 28px -4px rgba(15, 23, 42, 0.1), 0 2px 6px rgba(15, 23, 42, 0.06);
+  --text-primary: #090d16;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --header-bg: rgba(255, 255, 255, 0.92);
+  --sidebar-bg: #ffffff;
+  --input-bg: #f8fafc;
+  --input-border: rgba(15, 23, 42, 0.14);
+  --chip-bg: rgba(15, 23, 42, 0.05);
+  --accent-volt: #CEFF00;
+  --accent-volt-contrast: #000000;
+  --accent-text: #15803d;
+}
+
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    background-color: #000000;
-    color: #f4f4f5;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   code, pre, .font-mono {
@@ -14,45 +60,102 @@
   }
 }
 
-/* Nike Run Club athletic condensed typography */
+/* Reshape Athletic Condensed Typography */
 .font-nrc {
   font-family: 'Barlow Condensed', -apple-system, BlinkMacSystemFont, sans-serif;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
 }
 
-/* Nike Volt Glow & Highlights */
+/* Reshape Specular Glass Card Container */
+.reshape-card {
+  position: relative;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--card-shadow);
+  border-radius: 1.5rem;
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.reshape-card-subtle {
+  position: relative;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-card);
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.06);
+  border-radius: 1.25rem;
+  color: var(--text-primary);
+}
+
+.reshape-card-interactive {
+  position: relative;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--card-shadow);
+  border-radius: 1.25rem;
+  color: var(--text-primary);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reshape-card-interactive:hover {
+  border-color: var(--border-card-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--card-shadow-hover);
+}
+
+/* Reshape Electric Glow Accents */
 .glow-volt {
   box-shadow: 0 0 25px rgba(206, 255, 0, 0.35);
+}
+
+.light .glow-volt {
+  box-shadow: 0 4px 16px rgba(206, 255, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.glow-volt-subtle {
+  box-shadow: 0 0 16px rgba(206, 255, 0, 0.18);
 }
 
 .glow-crimson {
   box-shadow: 0 0 25px rgba(255, 59, 48, 0.35);
 }
 
-/* Custom scrollbars for gym tables & logs */
+.glow-cyan {
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+}
+
+/* Adaptive Accent Typography */
+.text-volt-adaptive {
+  color: var(--accent-text);
+}
+
+/* Custom premium scrollbars for gym tables & logs */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0d1117;
+  background: var(--bg-canvas);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
+  background: var(--border-card-hover);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: var(--text-muted);
 }
 
-/* Touch active feedback */
+/* Tactile touch feedback for mobile and gym use */
 .touch-press {
-  transition: transform 0.1s ease, opacity 0.1s ease;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s ease;
 }
 .touch-press:active {
   transform: scale(0.97);
-  opacity: 0.9;
+  opacity: 0.92;
+}
+
+/* Bottom safe-area support for modern mobile devices */
+.safe-area-pb {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }

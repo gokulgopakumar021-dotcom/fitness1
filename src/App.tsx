@@ -19,6 +19,7 @@ import { AiTrainerView } from './components/trainer/AiTrainerView';
 import { FloatingTrainerWidget } from './components/trainer/FloatingTrainerWidget';
 import { BluetoothGadgetProvider } from './context/BluetoothGadgetContext';
 import { BluetoothGadgetModal } from './components/bluetooth/BluetoothGadgetModal';
+import { ThemeProvider } from './context/ThemeContext';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
@@ -69,9 +70,10 @@ export default function App() {
   };
 
   return (
-    <BluetoothGadgetProvider profile={profile}>
-      <div className="min-h-screen bg-[#090b0e] text-zinc-100 flex flex-col font-sans">
-        {/* Top Application Header */}
+    <ThemeProvider>
+      <BluetoothGadgetProvider profile={profile}>
+        <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col font-sans transition-colors duration-200">
+          {/* Top Application Header */}
         <TopHeader
           currentTab={currentTab}
           onSelectTab={setCurrentTab}
@@ -185,5 +187,6 @@ export default function App() {
         <BluetoothGadgetModal />
       </div>
     </BluetoothGadgetProvider>
+    </ThemeProvider>
   );
 }

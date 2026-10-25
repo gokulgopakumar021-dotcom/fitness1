@@ -7,7 +7,7 @@ import { LoggedSet } from '../types';
  * of muscle mass or body composition.
  */
 export function calculateBMI(weightKg: number, heightCm: number): number {
-  if (!weightKg || !heightCm || heightCm <= 0) return 0;
+  if (!weightKg || weightKg <= 0 || !heightCm || heightCm <= 0) return 0;
   const heightM = heightCm / 100;
   const bmi = weightKg / (heightM * heightM);
   return Number(bmi.toFixed(2));
@@ -149,3 +149,101 @@ export function parseRepRange(repRangeStr: string): { min: number; max: number }
   }
   return { min: 8, max: 12 };
 }
+
+export interface BodyCompositionResult {
+  leanMassKg: number | null;
+  fatMassKg: number | null;
+  waistToHeightRatio: number | null;
+  waistRiskCategory: 'optimal' | 'moderate' | 'elevated' | null;
+}
+
+/**
+ * Calculates Body Composition metrics including Lean Mass, Fat Mass, and Waist-to-Height ratio.
+ */
+export function calculateBodyComposition(
+  weightKg: number,
+  bodyFatPercentage?: number,
+  heightCm?: number,
+  waistCm?: number
+): BodyCompositionResult {
+  let leanMassKg: number | null = null;
+  let fatMassKg: number | null = null;
+  let waistToHeightRatio: number | null = null;
+  let waistRiskCategory: 'optimal' | 'moderate' | 'elevated' | null = null;
+
+  if (weightKg > 0 && bodyFatPercentage !== undefined && bodyFatPercentage >= 0 && bodyFatPercentage <= 100) {
+    fatMassKg = Number(((weightKg * bodyFatPercentage) / 100).toFixed(1));
+    leanMassKg = Number((weightKg - fatMassKg).toFixed(1));
+  }
+
+  if (waistCm && heightCm && waistCm > 0 && heightCm > 0) {
+    const ratio = waistCm / heightCm;
+    waistToHeightRatio = Number(ratio.toFixed(2));
+    if (ratio < 0.5) {
+      waistRiskCategory = 'optimal';
+    } else if (ratio <= 0.6) {
+      waistRiskCategory = 'moderate';
+    } else {
+      waistRiskCategory = 'elevated';
+    }
+  }
+
+  return {
+    leanMassKg,
+    fatMassKg,
+    waistToHeightRatio,
+    waistRiskCategory
+  };
+}
+
+export interface MacroBreakdownResult {
+  proteinCalories: number;
+  carbsCalories: number;
+  fatCalories: number;
+  totalCalculatedCalories: number;
+  proteinPercentage: number;
+  carbsPercentage: number;
+  fatPercentage: number;
+}
+
+/**
+ * Calculates macro calorie distribution and percentage of total intake.
+ * Protein: 4 kcal/g, Carbs: 4 kcal/g, Fat: 9 kcal/g.
+ */
+export function calculateMacroBreakdown(
+  proteinGrams: number,
+  carbsGrams: number,
+  fatGrams: number
+): MacroBreakdownResult {
+  const pGrams = Math.max(0, proteinGrams || 0);
+  const cGrams = Math.max(0, carbsGrams || 0);
+  const fGrams = Math.max(0, fatGrams || 0);
+
+  const proteinCalories = Math.round(pGrams * 4);
+  const carbsCalories = Math.round(cGrams * 4);
+  const fatCalories = Math.round(fGrams * 9);
+  const totalCalculatedCalories = proteinCalories + carbsCalories + fatCalories;
+
+  if (totalCalculatedCalories === 0) {
+    return {
+      proteinCalories: 0,
+      carbsCalories: 0,
+      fatCalories: 0,
+      totalCalculatedCalories: 0,
+      proteinPercentage: 0,
+      carbsPercentage: 0,
+      fatPercentage: 0
+    };
+  }
+
+  return {
+    proteinCalories,
+    carbsCalories,
+    fatCalories,
+    totalCalculatedCalories,
+    proteinPercentage: Math.round((proteinCalories / totalCalculatedCalories) * 100),
+    carbsPercentage: Math.round((carbsCalories / totalCalculatedCalories) * 100),
+    fatPercentage: Math.round((fatCalories / totalCalculatedCalories) * 100)
+  };
+}
+

@@ -7,7 +7,21 @@ import { GoogleGenAI } from '@google/genai';
 dotenv.config();
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+
+function getPort(): number {
+  const portArgIndex = process.argv.indexOf('--port');
+  if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
+    const parsed = Number(process.argv[portArgIndex + 1]);
+    if (!isNaN(parsed)) return parsed;
+  }
+  if (process.env.APP_PORT) {
+    return Number(process.env.APP_PORT);
+  }
+  // The dev container runs Nginx on 8080 and proxies traffic to the app on port 3000.
+  return 3000;
+}
+
+const PORT = getPort();
 
 // Support larger uploads for workout plan screenshots/PDFs
 app.use(express.json({ limit: '25mb' }));
@@ -249,6 +263,139 @@ Respond strictly with valid JSON matching:
   } catch (error: any) {
     console.error('Exercise coach error:', error);
     return res.status(500).json({ success: false, error: error?.message || 'Failed to get coaching advice' });
+  }
+});
+
+// --- Open Food Facts Barcode Lookup with In-Memory Cache & Compliant User-Agent ---
+interface CachedBarcodeEntry {
+  timestamp: number;
+  data: any;
+}
+const barcodeCache = new Map<string, CachedBarcodeEntry>();
+const BARCODE_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MAX_BARCODE_CACHE_SIZE = 500;
+
+app.get('/api/nutrition/barcode/:barcode', async (req, res) => {
+  const rawBarcode = req.params.barcode || '';
+  const cleanBarcode = rawBarcode.trim().replace(/[^0-9a-zA-Z]/g, '');
+
+  if (!cleanBarcode || cleanBarcode.length < 4 || cleanBarcode.length > 20) {
+    return res.status(400).json({
+      success: false,
+      found: false,
+      error: 'Invalid barcode format. Barcodes should typically be 8, 12, 13, or 14 numeric digits.'
+    });
+  }
+
+  // Check cache
+  const cached = barcodeCache.get(cleanBarcode);
+  if (cached && Date.now() - cached.timestamp < BARCODE_CACHE_TTL_MS) {
+    return res.json({
+      ...cached.data,
+      fromCache: true
+    });
+  }
+
+  try {
+    const fields = [
+      'code',
+      'status',
+      'status_verbose',
+      'product_name',
+      'product_name_en',
+      'brands',
+      'serving_size',
+      'serving_quantity',
+      'serving_quantity_unit',
+      'nutriments',
+      'image_front_small_url',
+      'image_front_url',
+      'categories'
+    ].join(',');
+
+    const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(cleanBarcode)}.json?fields=${fields}`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const offResponse = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'IronLog-FitnessOS/1.0 (https://ironlog.app; support@ironlog.app)',
+        'Accept': 'application/json'
+      },
+      signal: controller.signal
+    });
+
+    clearTimeout(timeout);
+
+    if (!offResponse.ok) {
+      if (offResponse.status === 404) {
+        const notFoundPayload = {
+          success: true,
+          found: false,
+          barcode: cleanBarcode,
+          message: 'Product not found in Open Food Facts database'
+        };
+        barcodeCache.set(cleanBarcode, {
+          timestamp: Date.now() - (BARCODE_CACHE_TTL_MS - 30 * 60 * 1000),
+          data: notFoundPayload
+        });
+        return res.status(404).json(notFoundPayload);
+      }
+      return res.status(offResponse.status).json({
+        success: false,
+        found: false,
+        error: `Open Food Facts returned HTTP ${offResponse.status}`
+      });
+    }
+
+    const data: any = await offResponse.json();
+
+    if (!data || data.status === 0 || !data.product) {
+      const notFoundPayload = {
+        success: true,
+        found: false,
+        barcode: cleanBarcode,
+        message: data?.status_verbose || 'Product not found in Open Food Facts database'
+      };
+      barcodeCache.set(cleanBarcode, {
+        timestamp: Date.now() - (BARCODE_CACHE_TTL_MS - 30 * 60 * 1000),
+        data: notFoundPayload
+      });
+      return res.json(notFoundPayload);
+    }
+
+    // Bounded cache eviction
+    if (barcodeCache.size >= MAX_BARCODE_CACHE_SIZE) {
+      const firstKey = barcodeCache.keys().next().value;
+      if (firstKey) barcodeCache.delete(firstKey);
+    }
+
+    const resultPayload = {
+      success: true,
+      found: true,
+      barcode: cleanBarcode,
+      product: data.product
+    };
+
+    barcodeCache.set(cleanBarcode, { timestamp: Date.now(), data: resultPayload });
+
+    return res.json(resultPayload);
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      return res.status(504).json({
+        success: false,
+        found: false,
+        error: 'Open Food Facts lookup timed out. Check your connection or enter product manually.'
+      });
+    }
+    console.error('Barcode lookup error:', error);
+    return res.status(502).json({
+      success: false,
+      found: false,
+      error: error?.message || 'Failed to connect to Open Food Facts API'
+    });
   }
 });
 
