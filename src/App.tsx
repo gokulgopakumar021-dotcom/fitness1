@@ -60,6 +60,11 @@ export default function App() {
 
   const [progressionPlanId, setProgressionPlanId] = useState<string | undefined>();
 
+  // Start each screen at the top when switching tabs
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [currentTab]);
+
   const handleResumeActiveSession = () => {
     setCurrentTab('workouts');
   };
@@ -72,7 +77,13 @@ export default function App() {
   return (
     <ThemeProvider>
       <BluetoothGadgetProvider profile={profile}>
-        <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col font-sans transition-colors duration-200">
+        <div className="min-h-dvh bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col font-sans transition-colors duration-200">
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-accent focus:text-accent-ink focus:text-sm focus:font-semibold"
+          >
+            Skip to content
+          </a>
           {/* Top Application Header */}
         <TopHeader
           currentTab={currentTab}
@@ -94,7 +105,11 @@ export default function App() {
           />
 
           {/* Main View Area */}
-          <main className="flex-1 p-4 lg:p-7 min-w-0 pb-24 lg:pb-12 overflow-x-hidden">
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="flex-1 px-4 sm:px-6 lg:px-8 pt-5 lg:pt-7 min-w-0 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-12 overflow-x-hidden outline-none"
+          >
             {currentTab === 'dashboard' && (
               <DashboardView
                 profile={profile}

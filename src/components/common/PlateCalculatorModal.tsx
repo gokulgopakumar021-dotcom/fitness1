@@ -50,7 +50,7 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-[var(--border-card)] bg-[var(--bg-subtle)]">
           <div>
-            <div className="text-[10px] font-mono tracking-wider uppercase text-[var(--text-muted)] flex items-center gap-1.5">
+            <div className="text-[11px] font-mono tracking-wide text-[var(--text-muted)] flex items-center gap-1.5">
               <span>Barbell Sleeve Engine</span>
               {exerciseName && (
                 <>
@@ -77,9 +77,9 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
         <div className="flex border-b border-[var(--border-card)] px-5 pt-3 gap-4 bg-[var(--bg-surface)]">
           <button
             onClick={() => setActiveTab('calculator')}
-            className={`pb-3 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 ${
+            className={`pb-3 text-xs font-semibold tracking-wide transition-all border-b-2 ${
               activeTab === 'calculator'
-                ? 'border-[#CEFF00] text-volt-adaptive'
+                ? 'border-accent text-volt-adaptive'
                 : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             }`}
           >
@@ -87,9 +87,9 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('warmup')}
-            className={`pb-3 text-xs font-semibold uppercase tracking-wider transition-all border-b-2 ${
+            className={`pb-3 text-xs font-semibold tracking-wide transition-all border-b-2 ${
               activeTab === 'warmup'
-                ? 'border-[#CEFF00] text-volt-adaptive'
+                ? 'border-accent text-volt-adaptive'
                 : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             }`}
           >
@@ -102,7 +102,7 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
           {/* Target Weight Controls */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="reshape-card-subtle p-4">
-              <label className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-muted)] block mb-1">
+              <label className="text-[11px] font-mono tracking-wide text-[var(--text-muted)] block mb-1">
                 Target Working Load ({unit})
               </label>
               <div className="flex items-center gap-2">
@@ -112,7 +112,7 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
                   min={barWeight}
                   value={targetWeight}
                   onChange={(e) => setTargetWeight(Math.max(barWeight, parseFloat(e.target.value) || barWeight))}
-                  className="w-full text-2xl font-bold font-mono bg-transparent border-b border-[var(--border-card)] text-[var(--text-primary)] focus:outline-none focus:border-[#CEFF00] py-1"
+                  className="w-full text-2xl font-bold font-mono bg-transparent border-b border-[var(--border-card)] text-[var(--text-primary)] focus:outline-none focus:border-accent py-1"
                 />
                 <span className="text-sm font-bold text-[var(--text-muted)]">{unit}</span>
               </div>
@@ -135,7 +135,7 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
             {/* Barbell Weight & Unit Selectors */}
             <div className="reshape-card-subtle p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
+                <span className="text-[11px] font-mono tracking-wide text-[var(--text-muted)]">
                   Weight Unit
                 </span>
                 <div className="flex items-center bg-[var(--chip-bg)] rounded-md p-0.5">
@@ -146,7 +146,7 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
                       setBarWeight(20);
                     }}
                     className={`px-3 py-1 text-xs font-semibold rounded ${
-                      unit === 'kg' ? 'bg-[#CEFF00] text-black font-bold' : 'text-[var(--text-muted)]'
+                      unit === 'kg' ? 'bg-accent text-accent-ink font-bold' : 'text-[var(--text-muted)]'
                     }`}
                   >
                     KG
@@ -158,7 +158,7 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
                       setBarWeight(45);
                     }}
                     className={`px-3 py-1 text-xs font-semibold rounded ${
-                      unit === 'lbs' ? 'bg-[#CEFF00] text-black font-bold' : 'text-[var(--text-muted)]'
+                      unit === 'lbs' ? 'bg-accent text-accent-ink font-bold' : 'text-[var(--text-muted)]'
                     }`}
                   >
                     LBS
@@ -167,7 +167,7 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
               </div>
 
               <div className="flex items-center justify-between pt-1 border-t border-[var(--border-card)]">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
+                <span className="text-[11px] font-mono tracking-wide text-[var(--text-muted)]">
                   Bar Type
                 </span>
                 <select
@@ -197,14 +197,14 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
             <div className="space-y-6">
               {/* Visual Barbell Graphic */}
               <div className="reshape-card-subtle p-6 flex flex-col items-center justify-center relative overflow-hidden min-h-[190px]">
-                <div className="text-[10px] font-mono uppercase tracking-widest text-[var(--text-muted)] mb-4">
+                <div className="text-[11px] font-mono tracking-wide text-[var(--text-muted)] mb-4">
                   Visual Barbell Collar (Each Side: {result.perSideWeight} {unit})
                 </div>
 
                 {/* Barbell Sleeve Rendering */}
                 <div className="w-full max-w-lg flex items-center justify-center py-4">
                   {/* Left Collar Stop */}
-                  <div className="w-4 h-24 bg-zinc-600 rounded-l-sm border-r-2 border-zinc-800 shadow-md"></div>
+                  <div className="w-4 h-24 bg-zinc-600 rounded-l-sm border-r-2 border-line shadow-md"></div>
                   
                   {/* Steel Shaft Sleeve */}
                   <div className="relative flex items-center h-12 bg-gradient-to-b from-zinc-300 via-zinc-400 to-zinc-500 min-w-[240px] px-2 rounded-r-md border border-zinc-500 shadow-inner">
@@ -224,10 +224,10 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
                                   color: plate.textColor || '#ffffff',
                                   height: `${heightPx}px`
                                 }}
-                                className="w-6 rounded-[2px] shadow-lg flex flex-col items-center justify-center text-[10px] font-bold font-mono border border-black/40 transition-transform hover:scale-105 select-none"
+                                className="w-6 rounded-[2px] shadow-lg flex flex-col items-center justify-center text-[11px] font-bold font-mono border border-black/40 transition-transform hover:scale-105 select-none"
                                 title={`${plate.weight} ${unit}`}
                               >
-                                <span className="rotate-90 origin-center whitespace-nowrap text-[9px] drop-shadow-sm">
+                                <span className="rotate-90 origin-center whitespace-nowrap text-[11px] drop-shadow-sm">
                                   {plate.weight}
                                 </span>
                               </div>
@@ -257,7 +257,7 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
 
               {/* Plate Inventory Breakdown List */}
               <div className="reshape-card-subtle p-4">
-                <h3 className="text-xs font-semibold text-[var(--text-primary)] uppercase tracking-wider mb-3">
+                <h3 className="text-xs font-semibold text-[var(--text-primary)] tracking-wide mb-3">
                   Plates to Load Per Side
                 </h3>
                 {result.platesPerSide.length === 0 ? (
@@ -279,7 +279,7 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
                           <div className="text-xs font-mono font-bold text-[var(--text-primary)]">
                             {p.count} × {p.weight} {unit}
                           </div>
-                          <div className="text-[10px] text-[var(--text-muted)]">
+                          <div className="text-[11px] text-[var(--text-muted)]">
                             = {p.count * p.weight} {unit}
                           </div>
                         </div>
@@ -321,7 +321,7 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
                         <div className="text-base font-bold font-mono text-[var(--text-primary)]">
                           {step.actualWeight} {unit} × {step.reps} reps
                         </div>
-                        <div className="text-[10px] font-mono text-[var(--text-muted)]">
+                        <div className="text-[11px] font-mono text-[var(--text-muted)]">
                           {step.platesPerSide.length === 0
                             ? 'Empty Bar'
                             : `Side: ${step.platesPerSide.map((p) => `${p.count}×${p.weight}`).join(', ')}`}
@@ -342,7 +342,7 @@ export const PlateCalculatorModal: React.FC<PlateCalculatorModalProps> = ({
           </span>
           <button
             onClick={onClose}
-            className="px-5 py-2 rounded-lg bg-[#CEFF00] hover:bg-[#b8e600] text-black font-bold text-xs uppercase tracking-wider transition-colors"
+            className="px-5 py-2 rounded-lg bg-accent hover:bg-accent-hover text-accent-ink font-bold text-xs tracking-wide transition-colors"
           >
             Done
           </button>

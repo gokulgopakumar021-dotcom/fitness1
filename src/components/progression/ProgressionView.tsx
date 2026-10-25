@@ -482,13 +482,13 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
     <div className="space-y-6 max-w-5xl mx-auto pb-16">
       {/* TOP HEADER COMMAND CARD */}
       <div className="reshape-card p-6 lg:p-7 overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-white/[0.07]">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-line">
           <div>
-            <div className="flex items-center gap-2 text-[#CEFF00] text-xs font-mono font-bold uppercase tracking-widest mb-1.5">
+            <div className="flex items-center gap-2 text-accent text-xs font-mono font-bold tracking-wide mb-1.5">
               <TrendingUp className="w-4 h-4" />
               <span>Double Progression Engine &middot; Real-Time</span>
             </div>
-            <h1 className="text-2xl lg:text-3xl font-nrc font-black italic uppercase text-white tracking-tight">
+            <h1 className="text-2xl lg:text-3xl font-nrc font-bold text-white tracking-tight">
               Progressive Overload Analytics
             </h1>
             <p className="text-xs text-zinc-400 mt-1 font-sans">
@@ -502,7 +502,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
               onClick={() => setViewMode('deep_dive')}
               className={`px-3.5 py-2 rounded-lg font-bold transition-all ${
                 viewMode === 'deep_dive'
-                  ? 'bg-white/10 text-[#CEFF00] shadow-sm'
+                  ? 'bg-white/10 text-accent shadow-sm'
                   : 'text-zinc-400 hover:text-white'
               }`}
             >
@@ -512,7 +512,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
               onClick={() => setViewMode('plan_matrix')}
               className={`px-3.5 py-2 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
                 viewMode === 'plan_matrix'
-                  ? 'bg-white/10 text-[#CEFF00] shadow-sm'
+                  ? 'bg-white/10 text-accent shadow-sm'
                   : 'text-zinc-400 hover:text-white'
               }`}
             >
@@ -526,11 +526,11 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
         <div className="mt-5 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
           <div className="sm:col-span-6 md:col-span-5">
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-widest font-bold">
+              <label className="text-[11px] font-mono text-zinc-400 tracking-wide font-bold">
                 Source Workout Plan
               </label>
               {selectedPlan?.isUploaded && (
-                <span className="text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider">
+                <span className="text-[11px] font-mono text-amber-400 font-bold tracking-wide">
                   &bull; UPLOADED PLAN
                 </span>
               )}
@@ -538,7 +538,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
             <select
               value={selectedPlanId}
               onChange={(e) => setSelectedPlanId(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-[#0d121c] border border-white/10 rounded-xl text-white text-xs font-bold focus:outline-none focus:border-[#CEFF00] transition-colors"
+              className="w-full px-3.5 py-2.5 bg-surface-2 border border-white/10 rounded-xl text-white text-xs font-bold focus:outline-none focus:border-accent transition-colors"
             >
               <option value="all">All Available Exercises (Global)</option>
               {plans.map((p) => (
@@ -551,13 +551,13 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
 
           {viewMode === 'deep_dive' && (
             <div className="sm:col-span-6 md:col-span-4">
-              <label className="block text-[11px] font-mono text-zinc-400 uppercase tracking-widest font-bold mb-1.5">
+              <label className="block text-[11px] font-mono text-zinc-400 tracking-wide font-bold mb-1.5">
                 Exercise in this Plan
               </label>
               <select
                 value={selectedExercise}
                 onChange={(e) => setSelectedExercise(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-[#0d121c] border border-white/10 rounded-xl text-white text-xs font-semibold focus:outline-none focus:border-[#CEFF00] transition-colors"
+                className="w-full px-3.5 py-2.5 bg-surface-2 border border-white/10 rounded-xl text-white text-xs font-semibold focus:outline-none focus:border-accent transition-colors"
               >
                 {exerciseList.map((name) => (
                   <option key={name} value={name}>
@@ -572,10 +572,10 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
             {selectedExercise && (
               <button
                 onClick={() => setPostureModalExercise(selectedExercise)}
-                className="min-h-[44px] py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 border-[#00E5FF]/30 text-[#00E5FF]"
+                className="min-h-[44px] py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border bg-info/10 hover:bg-info/20 border-info/30 text-info"
                 title="Preview posture, joint angles, and biomechanical checkpoints for this exercise"
               >
-                <Eye className="w-3.5 h-3.5 text-[#00E5FF]" />
+                <Eye className="w-3.5 h-3.5 text-info" />
                 <span>Form &amp; Biomechanics</span>
               </button>
             )}
@@ -583,10 +583,10 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
             {selectedPlan && selectedPlanId !== 'all' && (
               <button
                 onClick={handleRunAiPlanOverloadTuning}
-                className="min-h-[44px] py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border bg-[#CEFF00]/10 hover:bg-[#CEFF00]/20 border-[#CEFF00]/30 text-[#CEFF00]"
+                className="min-h-[44px] py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
                 title="Use Gemini AI to analyze this uploaded plan and optimize overload targets"
               >
-                <Sparkles className="w-3.5 h-3.5 text-[#CEFF00]" />
+                <Sparkles className="w-3.5 h-3.5 text-accent" />
                 <span>AI Optimizer</span>
               </button>
             )}
@@ -595,11 +595,11 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
               onClick={() => setIsAdjustingPlanRules(!isAdjustingPlanRules)}
               className={`min-h-[44px] py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border ${
                 isAdjustingPlanRules
-                  ? 'bg-[#CEFF00]/15 border-[#CEFF00] text-[#CEFF00]'
+                  ? 'bg-accent/15 border-accent text-accent'
                   : 'bg-white/[0.04] border-white/10 hover:border-white/20 text-zinc-300'
               }`}
             >
-              <Sliders className="w-3.5 h-3.5 text-[#CEFF00]" />
+              <Sliders className="w-3.5 h-3.5 text-accent" />
               <span>{isAdjustingPlanRules ? 'Close Rules' : 'Adjust Rules'}</span>
             </button>
           </div>
@@ -608,11 +608,11 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
 
       {/* ADJUST OVERLOAD RULES FOR THIS WORKOUT PLAN CARD */}
       {isAdjustingPlanRules && (
-        <div className="bg-[#090c12] border border-[#CEFF00]/40 rounded-2xl p-5 lg:p-6 shadow-2xl space-y-4 animate-in fade-in duration-200">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/[0.08]">
+        <div className="bg-surface border border-accent/40 rounded-2xl p-5 lg:p-6 shadow-2xl space-y-4 animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-line">
             <div>
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#CEFF00]" />
+                <Sparkles className="w-4 h-4 text-accent" />
                 <h3 className="font-extrabold text-white text-base">
                   Adjust Overload Analytics Configuration
                 </h3>
@@ -622,12 +622,12 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                 <strong className="text-white">
                   {selectedExercise || 'selected plan exercises'}
                 </strong>{' '}
-                in <strong className="text-[#CEFF00]">{selectedPlan?.name || 'routine'}</strong>.
+                in <strong className="text-accent">{selectedPlan?.name || 'routine'}</strong>.
               </p>
             </div>
 
             {rulesSavedNotice && (
-              <span className="text-xs font-mono text-[#CEFF00] font-bold flex items-center gap-1 animate-pulse">
+              <span className="text-xs font-mono text-accent font-bold flex items-center gap-1 animate-pulse">
                 <Check className="w-3.5 h-3.5" />
                 <span>Saved to Plan!</span>
               </span>
@@ -636,7 +636,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
 
           {/* Overload Strategy Presets */}
           <div className="flex flex-wrap items-center gap-1.5 pb-2">
-            <span className="text-[11px] font-mono text-zinc-400 uppercase font-bold mr-1">
+            <span className="text-[11px] font-mono text-zinc-400 font-bold mr-1">
               Presets:
             </span>
             <button
@@ -700,7 +700,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
             {/* Prescribed Rep Range */}
             <div>
-              <label className="block text-zinc-400 mb-1.5 font-mono uppercase text-[11px] font-bold">
+              <label className="block text-zinc-400 mb-1.5 font-mono text-[11px] font-bold">
                 Target Rep Range
               </label>
               <input
@@ -708,7 +708,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                 value={ruleRepRange}
                 onChange={(e) => setRuleRepRange(e.target.value)}
                 placeholder="e.g. 8-12, 6-8, 5x5, 10-15"
-                className="w-full px-3 py-2 bg-[#0d121c] border border-white/10 rounded-xl text-white font-mono font-bold focus:outline-none focus:border-[#CEFF00]"
+                className="w-full px-3 py-2 bg-surface-2 border border-white/10 rounded-xl text-white font-mono font-bold focus:outline-none focus:border-accent"
               />
               <div className="flex gap-1 mt-1.5">
                 {['6-8', '8-12', '10-15', '5'].map((r) => (
@@ -716,7 +716,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                     key={r}
                     type="button"
                     onClick={() => setRuleRepRange(r)}
-                    className="px-2 py-0.5 bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 rounded text-[10px] font-mono"
+                    className="px-2 py-0.5 bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 rounded text-[11px] font-mono"
                   >
                     {r}
                   </button>
@@ -726,7 +726,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
 
             {/* Target Working Sets */}
             <div>
-              <label className="block text-zinc-400 mb-1.5 font-mono uppercase text-[11px] font-bold">
+              <label className="block text-zinc-400 mb-1.5 font-mono text-[11px] font-bold">
                 Prescribed Working Sets
               </label>
               <input
@@ -735,19 +735,19 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                 max="10"
                 value={ruleSets}
                 onChange={(e) => setRuleSets(parseInt(e.target.value, 10) || 3)}
-                className="w-full px-3 py-2 bg-[#0d121c] border border-white/10 rounded-xl text-white font-mono font-bold focus:outline-none focus:border-[#CEFF00]"
+                className="w-full px-3 py-2 bg-surface-2 border border-white/10 rounded-xl text-white font-mono font-bold focus:outline-none focus:border-accent"
               />
             </div>
 
             {/* Target RIR */}
             <div>
-              <label className="block text-zinc-400 mb-1.5 font-mono uppercase text-[11px] font-bold">
+              <label className="block text-zinc-400 mb-1.5 font-mono text-[11px] font-bold">
                 Target RIR (Effort Level)
               </label>
               <select
                 value={ruleRir}
                 onChange={(e) => setRuleRir(parseInt(e.target.value, 10))}
-                className="w-full px-3 py-2 bg-[#0d121c] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#CEFF00]"
+                className="w-full px-3 py-2 bg-surface-2 border border-white/10 rounded-xl text-white focus:outline-none focus:border-accent"
               >
                 <option value="0">0 RIR (Rep Out to Failure)</option>
                 <option value="1">1 RIR (1 Rep in Reserve)</option>
@@ -758,13 +758,13 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
 
             {/* Progression Strategy */}
             <div>
-              <label className="block text-zinc-400 mb-1.5 font-mono uppercase text-[11px] font-bold">
+              <label className="block text-zinc-400 mb-1.5 font-mono text-[11px] font-bold">
                 Progression Strategy
               </label>
               <select
                 value={ruleStrategy}
                 onChange={(e) => setRuleStrategy(e.target.value as ProgressionStrategy)}
-                className="w-full px-3 py-2 bg-[#0d121c] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#CEFF00]"
+                className="w-full px-3 py-2 bg-surface-2 border border-white/10 rounded-xl text-white focus:outline-none focus:border-accent"
               >
                 <option value="double_progression">Standard Double Progression (All Sets Top of Range)</option>
                 <option value="top_set_only">Top-Set Progression (Lead Set Hits Top)</option>
@@ -776,7 +776,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
 
             {/* Custom Load Increment */}
             <div>
-              <label className="block text-zinc-400 mb-1.5 font-mono uppercase text-[11px] font-bold">
+              <label className="block text-zinc-400 mb-1.5 font-mono text-[11px] font-bold">
                 Load Increase Jump ({profile.preferredUnit})
               </label>
               <input
@@ -784,7 +784,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                 step="0.5"
                 value={ruleIncrement}
                 onChange={(e) => setRuleIncrement(parseFloat(e.target.value) || 2.5)}
-                className="w-full px-3 py-2 bg-[#0d121c] border border-white/10 rounded-xl text-white font-mono font-bold focus:outline-none focus:border-[#CEFF00]"
+                className="w-full px-3 py-2 bg-surface-2 border border-white/10 rounded-xl text-white font-mono font-bold focus:outline-none focus:border-accent"
               />
               <div className="flex gap-1 mt-1.5">
                 {[1.25, 2.0, 2.5, 5.0].map((inc) => (
@@ -792,7 +792,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                     key={inc}
                     type="button"
                     onClick={() => setRuleIncrement(inc)}
-                    className="px-2 py-0.5 bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 rounded text-[10px] font-mono"
+                    className="px-2 py-0.5 bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 rounded text-[11px] font-mono"
                   >
                     +{inc}
                   </button>
@@ -802,13 +802,13 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
 
             {/* Training Phase */}
             <div>
-              <label className="block text-zinc-400 mb-1.5 font-mono uppercase text-[11px] font-bold">
+              <label className="block text-zinc-400 mb-1.5 font-mono text-[11px] font-bold">
                 Plan Training Phase
               </label>
               <select
                 value={rulePhase}
                 onChange={(e) => setRulePhase(e.target.value as TrainingPhase)}
-                className="w-full px-3 py-2 bg-[#0d121c] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#CEFF00] capitalize"
+                className="w-full px-3 py-2 bg-surface-2 border border-white/10 rounded-xl text-white focus:outline-none focus:border-accent capitalize"
               >
                 <option value="hypertrophy">Hypertrophy (Progressive Overload)</option>
                 <option value="strength">Strength (Lower reps, Higher load)</option>
@@ -819,14 +819,14 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
             </div>
           </div>
 
-          <div className="pt-3 border-t border-white/[0.08] flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="pt-3 border-t border-line flex flex-wrap items-center justify-between gap-3 text-xs">
             {selectedPlan && (
-              <label className="flex items-center gap-2 cursor-pointer text-zinc-200 font-semibold select-none bg-black/40 px-3 py-2 rounded-xl border border-white/[0.06]">
+              <label className="flex items-center gap-2 cursor-pointer text-zinc-200 font-semibold select-none bg-black/40 px-3 py-2 rounded-xl border border-line">
                 <input
                   type="checkbox"
                   checked={applyToAllExercisesInPlan}
                   onChange={(e) => setApplyToAllExercisesInPlan(e.target.checked)}
-                  className="w-4 h-4 rounded text-[#CEFF00] accent-[#CEFF00] cursor-pointer"
+                  className="w-4 h-4 rounded text-accent accent-accent cursor-pointer"
                 />
                 <span>
                   Apply this overload configuration to ALL {exerciseList.length} exercises in &quot;{selectedPlan.name}&quot;
@@ -843,7 +843,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
               {selectedPlan && (
                 <button
                   onClick={handleSaveRulesToPlan}
-                  className="min-h-[44px] px-5 py-2 bg-[#CEFF00] hover:bg-[#b8e600] text-black font-extrabold rounded-xl shadow-lg transition-transform active:scale-[0.98]"
+                  className="min-h-[44px] px-5 py-2 bg-accent hover:bg-accent-hover text-accent-ink font-extrabold rounded-xl shadow-lg transition-transform active:scale-[0.98]"
                 >
                   {applyToAllExercisesInPlan
                     ? `Save to Entire ${selectedPlan.name}`
@@ -859,8 +859,8 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
       {/* VIEW MODE 1: PLAN OVERLOAD MATRIX (ALL EXERCISES IN PLAN AT A GLANCE) */}
       {/* ========================================================================= */}
       {viewMode === 'plan_matrix' && (
-        <div className="bg-[#090c12] border border-white/[0.08] rounded-2xl p-5 lg:p-6 shadow-2xl space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/[0.06]">
+        <div className="bg-surface border border-line rounded-2xl p-5 lg:p-6 shadow-2xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-line">
             <div>
               <h3 className="font-extrabold text-white text-base tracking-tight">
                 Overload Status Matrix &middot; {selectedPlan?.name || 'All Plans'}
@@ -879,7 +879,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs font-mono">
                 <thead>
-                  <tr className="border-b border-white/[0.08] text-zinc-400 text-[11px] uppercase tracking-wider">
+                  <tr className="border-b border-line text-zinc-400 text-[11px] tracking-wide">
                     <th className="py-3 px-3 font-bold">Exercise</th>
                     <th className="py-3 px-3 font-bold">Prescribed Target</th>
                     <th className="py-3 px-3 font-bold">Latest Working Load</th>
@@ -935,14 +935,14 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                         </td>
                         <td className="py-3.5 px-3">
                           <span
-                            className={`font-mono text-[11px] font-bold uppercase tracking-wider ${
+                            className={`font-mono text-[11px] font-bold tracking-wide ${
                               isReadyToAdvance
-                                ? 'text-[#CEFF00]'
+                                ? 'text-accent'
                                 : isDecline
                                 ? 'text-amber-400'
                                 : rec.flags.isProvisional
                                 ? 'text-zinc-500'
-                                : 'text-[#00E5FF]'
+                                : 'text-info'
                             }`}
                           >
                             &bull;{' '}
@@ -955,7 +955,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                               : 'Accumulating Reps'}
                           </span>
                         </td>
-                        <td className="py-3.5 px-3 font-bold text-[#CEFF00]">
+                        <td className="py-3.5 px-3 font-bold text-accent">
                           {rec.recommendedWeight} {profile.preferredUnit} ({rec.recommendedRepTarget})
                         </td>
                         <td className="py-3.5 px-2 text-right">
@@ -965,7 +965,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                                 setSelectedExercise(exName);
                                 setIsAdjustingPlanRules(true);
                               }}
-                              className="px-2.5 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] text-[#CEFF00] border border-white/10 text-[11px] font-bold rounded-lg transition-colors flex items-center gap-1"
+                              className="px-2.5 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] text-accent border border-white/10 text-[11px] font-bold rounded-lg transition-colors flex items-center gap-1"
                               title={`Adjust overload rules for ${exName}`}
                             >
                               <Sliders className="w-3 h-3" />
@@ -999,14 +999,13 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
         <>
           {/* NEXT-SESSION RECOMMENDATION CARD */}
           {currentRec && (
-            <div className="bg-[#090c12] border border-[#CEFF00]/40 rounded-2xl p-5 lg:p-7 shadow-2xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-48 h-48 bg-[#CEFF00]/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="bg-surface border border-accent/40 rounded-2xl p-5 lg:p-7 shadow-2xl relative overflow-hidden">
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/[0.08]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-line">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#CEFF00] animate-pulse" />
-                    <span className="text-xs font-mono font-bold text-[#CEFF00] uppercase tracking-widest">
+                    <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                    <span className="text-xs font-mono font-bold text-accent tracking-wide">
                       Next Session Prescription &middot; {currentRec.ruleTitle}
                     </span>
                   </div>
@@ -1025,14 +1024,14 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                 {/* Target Weight & Rep Highlight */}
                 <div className="flex items-center gap-5 bg-black/60 border border-white/10 px-5 py-3 rounded-2xl">
                   <div>
-                    <span className="text-[10px] font-mono text-zinc-400 block uppercase tracking-wider font-bold">Prescribed Load</span>
-                    <span className="text-2xl font-mono font-black text-[#CEFF00] tracking-tight">
+                    <span className="text-[11px] font-mono text-zinc-400 block tracking-wide font-bold">Prescribed Load</span>
+                    <span className="text-2xl font-mono font-bold text-accent tracking-tight">
                       {currentRec.recommendedWeight} <span className="text-xs text-zinc-400 font-sans font-normal">{profile.preferredUnit}</span>
                     </span>
                   </div>
                   <div className="h-10 w-px bg-white/10" />
                   <div>
-                    <span className="text-[10px] font-mono text-zinc-400 block uppercase tracking-wider font-bold">Target Reps</span>
+                    <span className="text-[11px] font-mono text-zinc-400 block tracking-wide font-bold">Target Reps</span>
                     <span className="text-base font-mono font-bold text-white">
                       {currentRec.recommendedRepTarget}
                     </span>
@@ -1042,7 +1041,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
 
               {/* Explanation Text */}
               <div className="py-4 text-xs text-zinc-300 leading-relaxed">
-                <p className="bg-black/40 p-4 rounded-xl border border-white/[0.06] font-medium leading-relaxed">
+                <p className="bg-black/40 p-4 rounded-xl border border-line font-medium leading-relaxed">
                   {currentRec.explanation}
                 </p>
               </div>
@@ -1058,17 +1057,17 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
               )}
 
               {/* User Decision Actions */}
-              <div className="pt-3 border-t border-white/[0.08] flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="pt-3 border-t border-line flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-2 font-mono text-[11px]">
-                  <span className="text-zinc-500 uppercase tracking-wider font-bold">Your Status:</span>
+                  <span className="text-zinc-500 tracking-wide font-bold">Your Status:</span>
                   <span
-                    className={`font-bold uppercase tracking-wider ${
+                    className={`font-bold tracking-wide ${
                       currentRec.userAction === 'accepted'
-                        ? 'text-[#CEFF00]'
+                        ? 'text-accent'
                         : currentRec.userAction === 'rejected'
                         ? 'text-rose-400'
                         : currentRec.userAction === 'modified'
-                        ? 'text-[#00E5FF]'
+                        ? 'text-info'
                         : 'text-zinc-400'
                     }`}
                   >
@@ -1088,12 +1087,12 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                     onClick={() => setIsModifyingDecision(true)}
                     className="min-h-[44px] px-3.5 py-2 bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-zinc-200 rounded-xl font-bold transition-colors flex items-center gap-1.5"
                   >
-                    <Edit3 className="w-3.5 h-3.5 text-[#00E5FF]" />
+                    <Edit3 className="w-3.5 h-3.5 text-info" />
                     <span>Modify Target</span>
                   </button>
                   <button
                     onClick={handleAcceptRec}
-                    className="min-h-[44px] touch-press px-5 py-2 bg-[#CEFF00] hover:bg-[#b8e600] text-black rounded-xl font-extrabold transition-all shadow-lg flex items-center gap-1.5 active:scale-[0.98]"
+                    className="min-h-[44px] touch-press px-5 py-2 bg-accent hover:bg-accent-hover text-accent-ink rounded-xl font-extrabold transition-all shadow-lg flex items-center gap-1.5 active:scale-[0.98]"
                   >
                     <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
                     <span>Accept Prescription</span>
@@ -1106,14 +1105,14 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
           {/* Modify Decision Modal */}
           {isModifyingDecision && (
             <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-              <div className="bg-[#090c12] border border-white/[0.12] rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+              <div className="bg-surface border border-line rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
                 <h3 className="font-extrabold text-white text-base">Modify Prescribed Load</h3>
                 <p className="text-xs text-zinc-400">
                   Override the target weight and reps for your next session.
                 </p>
                 <div className="space-y-3 text-xs">
                   <div>
-                    <label className="block text-zinc-400 mb-1 font-mono uppercase text-[11px] font-bold">
+                    <label className="block text-zinc-400 mb-1 font-mono text-[11px] font-bold">
                       Target Weight ({profile.preferredUnit})
                     </label>
                     <input
@@ -1121,11 +1120,11 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                       step="0.5"
                       value={modifiedWeight}
                       onChange={(e) => setModifiedWeight(parseFloat(e.target.value) || 0)}
-                      className="w-full px-3.5 py-2 bg-[#0d121c] border border-white/10 rounded-xl text-white font-mono font-bold focus:outline-none focus:border-[#CEFF00]"
+                      className="w-full px-3.5 py-2 bg-surface-2 border border-white/10 rounded-xl text-white font-mono font-bold focus:outline-none focus:border-accent"
                     />
                   </div>
                   <div>
-                    <label className="block text-zinc-400 mb-1 font-mono uppercase text-[11px] font-bold">
+                    <label className="block text-zinc-400 mb-1 font-mono text-[11px] font-bold">
                       Target Reps
                     </label>
                     <input
@@ -1133,7 +1132,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                       value={modifiedReps}
                       onChange={(e) => setModifiedReps(e.target.value)}
                       placeholder="e.g. 8-10 reps"
-                      className="w-full px-3.5 py-2 bg-[#0d121c] border border-white/10 rounded-xl text-white font-mono focus:outline-none focus:border-[#CEFF00]"
+                      className="w-full px-3.5 py-2 bg-surface-2 border border-white/10 rounded-xl text-white font-mono focus:outline-none focus:border-accent"
                     />
                   </div>
                 </div>
@@ -1146,7 +1145,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                   </button>
                   <button
                     onClick={handleModifyRec}
-                    className="min-h-[44px] px-5 py-2 bg-[#CEFF00] hover:bg-[#b8e600] text-black font-extrabold rounded-xl text-xs shadow-lg"
+                    className="min-h-[44px] px-5 py-2 bg-accent hover:bg-accent-hover text-accent-ink font-extrabold rounded-xl text-xs shadow-lg"
                   >
                     Save Target
                   </button>
@@ -1157,29 +1156,29 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
 
           {/* Performance Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="p-4 bg-[#090c12] border border-white/[0.08] rounded-2xl space-y-1">
+            <div className="p-4 bg-surface border border-line rounded-2xl space-y-1">
               <div className="flex items-center justify-between text-zinc-400 text-[11px] font-mono font-bold">
                 <span>ALL-TIME PR</span>
                 <Award className="w-3.5 h-3.5 text-amber-400" />
               </div>
-              <div className="text-2xl font-mono font-black text-white">
+              <div className="text-2xl font-mono font-bold text-white">
                 {personalRecordWeight} <span className="text-xs text-zinc-400 font-sans font-normal">{profile.preferredUnit}</span>
               </div>
               <div className="text-[11px] text-zinc-500 font-mono">Heaviest completed load</div>
             </div>
 
-            <div className="p-4 bg-[#090c12] border border-white/[0.08] rounded-2xl space-y-1">
+            <div className="p-4 bg-surface border border-line rounded-2xl space-y-1">
               <div className="flex items-center justify-between text-zinc-400 text-[11px] font-mono font-bold">
                 <span>ESTIMATED 1RM</span>
-                <Zap className="w-3.5 h-3.5 text-[#00E5FF]" />
+                <Zap className="w-3.5 h-3.5 text-info" />
               </div>
-              <div className="text-2xl font-mono font-black text-[#00E5FF]">
+              <div className="text-2xl font-mono font-bold text-info">
                 {bestEstimated1RM} <span className="text-xs text-zinc-400 font-sans font-normal">{profile.preferredUnit}</span>
               </div>
               <div className="text-[11px] text-zinc-500 font-mono">Epley formula estimate</div>
             </div>
 
-            <div className="p-4 bg-[#090c12] border border-white/[0.08] rounded-2xl space-y-1">
+            <div className="p-4 bg-surface border border-line rounded-2xl space-y-1">
               <div className="flex items-center justify-between text-zinc-400 text-[11px] font-mono font-bold">
                 <span>LAST SESSION</span>
                 <History className="w-3.5 h-3.5 text-zinc-400" />
@@ -1192,12 +1191,12 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
               </div>
             </div>
 
-            <div className="p-4 bg-[#090c12] border border-white/[0.08] rounded-2xl space-y-1">
+            <div className="p-4 bg-surface border border-line rounded-2xl space-y-1">
               <div className="flex items-center justify-between text-zinc-400 text-[11px] font-mono font-bold">
                 <span>PEAK VOLUME</span>
-                <TrendingUp className="w-3.5 h-3.5 text-[#CEFF00]" />
+                <TrendingUp className="w-3.5 h-3.5 text-accent" />
               </div>
-              <div className="text-2xl font-mono font-black text-white">
+              <div className="text-2xl font-mono font-bold text-white">
                 {maxVolumeSession.toLocaleString()} <span className="text-xs text-zinc-400 font-sans font-normal">{profile.preferredUnit}</span>
               </div>
               <div className="text-[11px] text-zinc-500 font-mono">Single-session working volume</div>
@@ -1206,7 +1205,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
 
           {/* CHARTS: Load Progression, Repetitions & Volume */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="bg-[#090c12] border border-white/[0.08] rounded-2xl p-5 shadow-2xl">
+            <div className="bg-surface border border-line rounded-2xl p-5 shadow-2xl">
               <LineChart
                 data={loadChartData}
                 title="Weight Load Progression"
@@ -1216,7 +1215,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
               />
             </div>
 
-            <div className="bg-[#090c12] border border-white/[0.08] rounded-2xl p-5 shadow-2xl">
+            <div className="bg-surface border border-line rounded-2xl p-5 shadow-2xl">
               <LineChart
                 data={repChartData}
                 title="Total Working Repetitions"
@@ -1227,7 +1226,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
             </div>
           </div>
 
-          <div className="bg-[#090c12] border border-white/[0.08] rounded-2xl p-5 shadow-2xl">
+          <div className="bg-surface border border-line rounded-2xl p-5 shadow-2xl">
             <BarChart
               data={volumeChartData}
               title="Session Working-Set Volume (Weight × Reps)"
@@ -1240,10 +1239,10 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
       {/* AI PLAN OVERLOAD OPTIMIZER MODAL */}
       {isAiTuningModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-[#090c12] border border-white/[0.12] rounded-2xl p-6 max-w-2xl w-full shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+          <div className="bg-surface border border-line rounded-2xl p-6 max-w-2xl w-full shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-line">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-[#CEFF00]/10 border border-[#CEFF00]/30 flex items-center justify-center text-[#CEFF00]">
+                <div className="w-8 h-8 rounded-xl bg-accent/10 border border-accent/30 flex items-center justify-center text-accent">
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
@@ -1266,7 +1265,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
               {aiTuningLoading && (
                 <div className="py-12 flex flex-col items-center justify-center space-y-3 text-center">
-                  <RotateCcw className="w-7 h-7 text-[#CEFF00] animate-spin" />
+                  <RotateCcw className="w-7 h-7 text-accent animate-spin" />
                   <div className="font-bold text-white text-sm">
                     Calibrating Optimal Overload Targets...
                   </div>
@@ -1295,12 +1294,12 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
               {aiTuningData && (
                 <div className="space-y-4 text-xs">
                   {/* Strategy Summary Card */}
-                  <div className="p-4 bg-black/40 border border-white/[0.06] rounded-xl space-y-2">
+                  <div className="p-4 bg-black/40 border border-line rounded-xl space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-mono text-zinc-400 uppercase font-bold tracking-wider">
+                      <span className="text-[11px] font-mono text-zinc-400 font-bold tracking-wide">
                         Plan Progression Framework
                       </span>
-                      <span className="font-mono font-bold text-[#CEFF00] uppercase text-[10px] tracking-wider">
+                      <span className="font-mono font-bold text-accent text-[11px] tracking-wide">
                         &bull; Phase: {aiTuningData.recommendedPhase}
                       </span>
                     </div>
@@ -1311,10 +1310,10 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
 
                   {/* Calibrated Movements */}
                   <div className="space-y-2">
-                    <h4 className="font-mono text-zinc-400 uppercase tracking-widest text-[11px] font-bold">
+                    <h4 className="font-mono text-zinc-400 tracking-wide text-[11px] font-bold">
                       Calibrated Movement Overload Rules ({aiTuningData.exerciseCalibrations?.length || 0})
                     </h4>
-                    <div className="divide-y divide-white/[0.06] border border-white/[0.08] rounded-xl bg-black/40 overflow-hidden">
+                    <div className="divide-y divide-white/[0.06] border border-line rounded-xl bg-black/40 overflow-hidden">
                       {(aiTuningData.exerciseCalibrations || []).map((cal: any, idx: number) => (
                         <div key={idx} className="p-3.5 space-y-1.5">
                           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1322,11 +1321,11 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                               {cal.exerciseName}
                             </span>
                             <div className="flex items-center gap-2 font-mono text-[11px]">
-                              <span className="text-[#CEFF00] font-bold">
+                              <span className="text-accent font-bold">
                                 {cal.recommendedWorkingSets} sets &times; {cal.recommendedRepRange} reps
                               </span>
                               <span className="text-zinc-500">&middot;</span>
-                              <span className="text-[#00E5FF] font-bold">
+                              <span className="text-info font-bold">
                                 +{cal.recommendedIncrement} {profile.preferredUnit} jump
                               </span>
                               <span className="text-zinc-500">&middot;</span>
@@ -1348,7 +1347,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
               )}
             </div>
 
-            <div className="pt-3 border-t border-white/[0.08] flex items-center justify-between gap-2">
+            <div className="pt-3 border-t border-line flex items-center justify-between gap-2">
               <button
                 onClick={() => setIsAiTuningModalOpen(false)}
                 className="min-h-[44px] px-4 py-2 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 rounded-xl text-xs font-semibold"
@@ -1359,7 +1358,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
               {aiTuningData && (
                 <button
                   onClick={handleApplyAiCalibrations}
-                  className="min-h-[44px] touch-press px-5 py-2 bg-[#CEFF00] hover:bg-[#b8e600] text-black rounded-xl text-xs font-extrabold shadow-lg flex items-center gap-2 active:scale-[0.98]"
+                  className="min-h-[44px] touch-press px-5 py-2 bg-accent hover:bg-accent-hover text-accent-ink rounded-xl text-xs font-extrabold shadow-lg flex items-center gap-2 active:scale-[0.98]"
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
                   <span>Apply All AI Overload Calibrations</span>

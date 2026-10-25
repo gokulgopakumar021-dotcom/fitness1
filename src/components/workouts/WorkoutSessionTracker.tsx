@@ -455,13 +455,13 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
     return (
       <div className="space-y-6 max-w-5xl mx-auto">
         <div className="reshape-card p-6 lg:p-7 overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-white/[0.07]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-line">
             <div>
-              <div className="flex items-center gap-2 text-[#CEFF00] text-xs font-mono font-bold uppercase tracking-wider mb-1">
+              <div className="flex items-center gap-2 text-accent text-xs font-mono font-bold tracking-wide mb-1">
                 <Dumbbell className="w-4 h-4 stroke-[2.5]" />
                 <span>Training Command &amp; Session Logger</span>
               </div>
-              <h1 className="text-2xl lg:text-3xl font-nrc font-black italic uppercase text-white tracking-tight">
+              <h1 className="text-2xl lg:text-3xl font-nrc font-bold text-white tracking-tight">
                 Session Deck · Overload Logger
               </h1>
               <p className="text-xs text-zinc-400 mt-1 font-sans">
@@ -472,7 +472,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 onClick={() => setShowWarmupModal(true)}
-                className="touch-press px-4 py-3 bg-zinc-950 hover:bg-zinc-900 border border-amber-400/30 text-amber-300 font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm"
+                className="touch-press px-4 py-3 bg-canvas hover:bg-surface-2 border border-amber-400/30 text-amber-300 font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm"
               >
                 <Flame className="w-4 h-4 fill-amber-400 text-amber-400" />
                 <span>5-Min Warm-up</span>
@@ -480,7 +480,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
 
               <button
                 onClick={() => handleStartWorkout()}
-                className="touch-press px-6 py-3 bg-[#CEFF00] hover:bg-[#d4ff00] text-black font-nrc font-black italic uppercase text-sm sm:text-base rounded-2xl shadow-[0_0_25px_rgba(206,255,0,0.3)] flex items-center justify-center gap-2 transition-all"
+                className="touch-press px-6 py-3 bg-accent hover:bg-accent text-accent-ink font-nrc font-bold text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 transition-all"
               >
                 <Flame className="w-4 h-4 fill-black" />
                 <span>Start Workout Now</span>
@@ -491,7 +491,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
           {/* Routine Day Selector */}
           <div className="mt-6">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono font-bold text-zinc-300 uppercase tracking-wider">
+              <span className="text-xs font-mono font-bold text-zinc-300 tracking-wide">
                 Select Routine Day
               </span>
               {activePlan && (
@@ -508,11 +508,20 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                   return (
                     <div
                       key={day.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isSelected}
                       onClick={() => setSelectedDayId(day.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedDayId(day.id);
+                        }
+                      }}
                       className={`cursor-pointer p-4 rounded-2xl border text-left transition-all ${
                         isSelected
-                          ? 'bg-zinc-950 border-[#CEFF00] shadow-[0_0_20px_rgba(206,255,0,0.15)] ring-1 ring-[#CEFF00]'
-                          : 'bg-zinc-950/60 border-white/[0.06] hover:border-white/20 hover:bg-zinc-900/40'
+                          ? 'bg-canvas border-accent ring-1 ring-accent'
+                          : 'bg-canvas/60 border-line hover:border-white/20 hover:bg-surface-2/40'
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -520,10 +529,10 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                           Day {day.dayOrder}
                         </span>
                         {isSelected && (
-                          <span className="w-2 h-2 rounded-full bg-[#CEFF00]" />
+                          <span className="w-2 h-2 rounded-full bg-accent" />
                         )}
                       </div>
-                      <h4 className="font-bold text-white text-sm mt-1 line-clamp-1">
+                      <h4 className="font-bold text-white text-sm mt-1 line-clamp-2">
                         {day.dayName}
                       </h4>
                       <p className="text-xs text-zinc-400 mt-1 font-sans">
@@ -534,11 +543,11 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                 })}
               </div>
             ) : (
-              <div className="p-6 bg-zinc-950/40 border border-white/[0.06] rounded-2xl text-center">
+              <div className="p-6 bg-canvas/40 border border-line rounded-2xl text-center">
                 <p className="text-xs text-zinc-400 mb-3 font-sans">No active workout routine configured.</p>
                 <button
                   onClick={onNavigateToPlans}
-                  className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-xl transition-colors inline-flex items-center gap-1.5 border border-white/[0.08]"
+                  className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-white text-xs font-semibold rounded-xl transition-colors inline-flex items-center gap-1.5 border border-line"
                 >
                   <span>Go to Plans &amp; Uploads</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -548,7 +557,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
           </div>
 
           {/* Quick Custom Empty Session option */}
-          <div className="mt-6 pt-5 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-400 font-sans">
+          <div className="mt-6 pt-5 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-400 font-sans">
             <span>Want to train outside your split today?</span>
             <button
               onClick={() => {
@@ -564,7 +573,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                 db.saveActiveSession(customSession);
                 onSessionUpdated(customSession);
               }}
-              className="text-[#CEFF00] hover:underline font-bold"
+              className="text-accent hover:underline font-bold"
             >
               Start Empty Freestyle Session &rarr;
             </button>
@@ -573,7 +582,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
 
         {/* Recent Workout History preview */}
         <div className="reshape-card p-6 lg:p-7">
-          <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400 mb-4">
+          <h3 className="text-xs font-mono font-bold tracking-wide text-zinc-400 mb-4">
             Recent Completed Sessions ({allSessions.filter((s) => s.status === 'completed').length})
           </h3>
           {allSessions.filter((s) => s.status === 'completed').length === 0 ? (
@@ -594,13 +603,13 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                   return (
                     <div
                       key={sess.id}
-                      className="p-3.5 bg-[#0a0d14] hover:bg-[#121622] border border-white/[0.06] rounded-2xl flex items-center justify-between text-xs transition-colors"
+                      className="p-3.5 bg-surface hover:bg-surface-2 border border-line rounded-2xl flex items-center justify-between text-xs transition-colors"
                     >
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-white">{sess.dayName}</span>
                           {sess.isDemo && (
-                            <span className="text-[10px] text-amber-400 font-mono px-1.5 py-0.5 bg-amber-400/10 rounded">
+                            <span className="text-[11px] text-amber-400 font-mono px-1.5 py-0.5 bg-amber-400/10 rounded">
                               DEMO
                             </span>
                           )}
@@ -614,7 +623,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                         </div>
                       </div>
                       <div className="text-right font-mono">
-                        <span className="text-[#CEFF00] font-bold">{totalVol.toLocaleString()}</span>
+                        <span className="text-accent font-bold">{totalVol.toLocaleString()}</span>
                         <span className="text-zinc-500 ml-1">{profile.preferredUnit}</span>
                       </div>
                     </div>
@@ -633,13 +642,13 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-16">
       {/* Top Session Command Bar */}
-      <div className="sticky top-14 z-30 reshape-card p-4 flex flex-wrap items-center justify-between gap-3 shadow-[0_16px_40px_rgba(0,0,0,0.8)]">
+      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-30 reshape-card p-4 flex flex-wrap items-center justify-between gap-3 shadow-[0_16px_40px_rgba(0,0,0,0.8)]">
         <div className="flex items-center gap-3">
           <div
             className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-colors ${
               isPaused
-                ? 'bg-[#FF3B30]/15 border border-[#FF3B30]/30 text-[#FF3B30]'
-                : 'bg-[#CEFF00]/15 border border-[#CEFF00]/30 text-[#CEFF00]'
+                ? 'bg-danger/15 border border-danger/30 text-danger'
+                : 'bg-accent/15 border border-accent/30 text-accent'
             }`}
           >
             {isPaused ? <Pause className="w-5 h-5" /> : <Timer className="w-5 h-5 animate-spin-slow" />}
@@ -648,14 +657,14 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
             <div className="flex items-center gap-2">
               <span
                 className={`w-2 h-2 rounded-full ${
-                  isPaused ? 'bg-[#FF3B30] animate-pulse' : 'bg-[#CEFF00] animate-ping'
+                  isPaused ? 'bg-danger animate-pulse' : 'bg-accent animate-ping'
                 }`}
               />
-              <h2 className="font-nrc font-black italic uppercase text-white text-lg sm:text-xl tracking-tight">
+              <h2 className="font-nrc font-bold text-white text-lg sm:text-xl tracking-tight">
                 {activeSession.dayName}
               </h2>
               {isPaused && (
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#FF3B30]/15 text-[#FF3B30] border border-[#FF3B30]/30">
+                <span className="text-[11px] font-mono font-bold tracking-wide px-2 py-0.5 rounded bg-danger/15 text-danger border border-danger/30">
                   PAUSED
                 </span>
               )}
@@ -665,7 +674,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
               <span>Elapsed: <strong className="text-white tabular-nums">{formatTime(elapsedSeconds)}</strong></span>
               <button
                 onClick={() => setShowResetTimerConfirm(true)}
-                className="text-zinc-500 hover:text-[#CEFF00] p-0.5 rounded transition-colors ml-0.5"
+                className="text-zinc-500 hover:text-accent p-0.5 rounded transition-colors ml-0.5"
                 title="Reset Workout Elapsed Timer to 00:00"
               >
                 <RotateCcw className="w-3 h-3" />
@@ -683,8 +692,8 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
             onClick={handleTogglePause}
             className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors border ${
               isPaused
-                ? 'bg-[#FF3B30] text-white border-[#FF3B30] hover:bg-rose-600 font-bold shadow-md'
-                : 'bg-zinc-950 border-white/[0.08] hover:border-white/20 text-zinc-300'
+                ? 'bg-danger text-white border-danger hover:bg-rose-600 font-bold shadow-md'
+                : 'bg-canvas border-line hover:border-white/20 text-zinc-300'
             }`}
             title={isPaused ? 'Resume active workout' : 'Pause workout timer'}
           >
@@ -695,7 +704,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
           {/* 5-Min Warm-up Button */}
           <button
             onClick={() => setShowWarmupModal(true)}
-            className="p-2 sm:px-3 sm:py-2 bg-zinc-950 border border-amber-400/30 hover:border-amber-400 text-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+            className="p-2 sm:px-3 sm:py-2 bg-canvas border border-amber-400/30 hover:border-amber-400 text-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
             title="Launch 5-Minute Targeted Dynamic Pre-Workout Warm-up"
           >
             <Flame className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
@@ -705,7 +714,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
           {/* Reset Timer */}
           <button
             onClick={() => setShowResetTimerConfirm(true)}
-            className="p-2 sm:px-3 sm:py-2 bg-zinc-950 border border-white/[0.08] hover:border-white/20 rounded-xl text-zinc-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            className="p-2 sm:px-3 sm:py-2 bg-canvas border border-line hover:border-white/20 rounded-xl text-zinc-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
             title="Reset workout session clock to 00:00"
           >
             <RotateCcw className="w-3.5 h-3.5 text-zinc-400" />
@@ -715,17 +724,17 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
           {/* Rest Timer */}
           <button
             onClick={() => setIsRestTimerOpen(true)}
-            className="p-2 sm:px-3 sm:py-2 bg-zinc-950 border border-white/[0.08] hover:border-white/20 rounded-xl text-zinc-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            className="p-2 sm:px-3 sm:py-2 bg-canvas border border-line hover:border-white/20 rounded-xl text-zinc-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
             title="Open Rest Timer"
           >
-            <Clock className="w-4 h-4 text-[#00E5FF]" />
+            <Clock className="w-4 h-4 text-info" />
             <span className="hidden sm:inline">Rest Timer</span>
           </button>
 
           {/* Discard Workout */}
           <button
             onClick={() => setShowDiscardModal(true)}
-            className="p-2.5 bg-zinc-950 border border-white/[0.08] hover:border-rose-900/60 rounded-xl text-zinc-400 hover:text-rose-400 text-xs font-semibold transition-colors"
+            className="p-2.5 bg-canvas border border-line hover:border-rose-900/60 rounded-xl text-zinc-400 hover:text-rose-400 text-xs font-semibold transition-colors"
             title="Discard Workout"
           >
             <Trash2 className="w-4 h-4" />
@@ -734,7 +743,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
           {/* Finish Session */}
           <button
             onClick={() => setShowFinishModal(true)}
-            className="touch-press px-4 py-2 bg-[#CEFF00] hover:bg-[#d4ff00] text-black font-nrc font-black italic uppercase text-xs sm:text-sm rounded-xl shadow-md shadow-[0_0_15px_rgba(206,255,0,0.3)] flex items-center gap-1.5 transition-colors"
+            className="touch-press px-4 py-2 bg-accent hover:bg-accent text-accent-ink font-nrc font-bold text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-1.5 transition-colors"
           >
             <Check className="w-4 h-4 stroke-[3]" />
             <span>Finish Session</span>
@@ -744,11 +753,11 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
 
       {/* Paused Alert Notification Banner */}
       {isPaused && (
-        <div className="p-3.5 bg-[#FF3B30]/15 border border-[#FF3B30]/30 rounded-2xl flex items-center justify-between text-xs text-rose-200 shadow-md">
+        <div className="p-3.5 bg-danger/15 border border-danger/30 rounded-2xl flex items-center justify-between text-xs text-rose-200 shadow-md">
           <div className="flex items-center gap-2.5">
-            <Pause className="w-4 h-4 text-[#FF3B30] shrink-0" />
+            <Pause className="w-4 h-4 text-danger shrink-0" />
             <div>
-              <span className="font-bold text-[#FF3B30]">Workout Paused:</span>
+              <span className="font-bold text-danger">Workout Paused:</span>
               <span className="ml-1 text-zinc-300">
                 Elapsed clock is frozen at {formatTime(elapsedSeconds)}. Sets, notes, and timers are active.
               </span>
@@ -756,7 +765,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
           </div>
           <button
             onClick={handleTogglePause}
-            className="px-3 py-1.5 bg-[#FF3B30] hover:bg-rose-600 text-white font-bold rounded-xl text-xs shrink-0 transition-colors"
+            className="px-3 py-1.5 bg-danger hover:bg-rose-600 text-white font-bold rounded-xl text-xs shrink-0 transition-colors"
           >
             Resume
           </button>
@@ -765,7 +774,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
 
       {/* Live Bluetooth Fitness Gadget Telemetry Bar */}
       {isConnected ? (
-        <div className="p-3.5 bg-zinc-950/90 border border-sky-400/30 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-lg">
+        <div className="p-3.5 bg-canvas/90 border border-sky-400/30 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-lg">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <Heart className="w-4 h-4 text-rose-500 fill-rose-500 animate-pulse" />
@@ -774,7 +783,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                 <span className="text-[11px] text-zinc-400 font-normal">BPM</span>
               </span>
             </div>
-            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${currentZone.color}`}>
+            <span className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold border ${currentZone.color}`}>
               {currentZone.name}
             </span>
           </div>
@@ -793,7 +802,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
           </div>
         </div>
       ) : (
-        <div className="p-3 bg-zinc-950/60 border border-white/[0.06] rounded-2xl flex items-center justify-between gap-2 text-xs">
+        <div className="p-3 bg-canvas/60 border border-line rounded-2xl flex items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-2 text-zinc-400">
             <Bluetooth className="w-3.5 h-3.5 text-zinc-500" />
             <span className="text-[11px]">
@@ -802,7 +811,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
           </div>
           <button
             onClick={() => setIsGadgetModalOpen(true)}
-            className="px-3 py-1 bg-zinc-900 hover:bg-zinc-800 text-sky-300 rounded-xl text-xs font-semibold shrink-0 transition-colors border border-sky-400/20"
+            className="px-3 py-1 bg-surface-2 hover:bg-surface-3 text-sky-300 rounded-xl text-xs font-semibold shrink-0 transition-colors border border-sky-400/20"
           >
             Connect Gadget
           </button>
@@ -811,8 +820,8 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
 
       {/* Toast Notice */}
       {timerNotice && (
-        <div className="p-3 bg-zinc-950 border border-white/[0.1] rounded-2xl text-xs text-white flex items-center gap-2 font-mono shadow-md animate-in fade-in duration-200">
-          <Clock className="w-3.5 h-3.5 text-[#CEFF00]" />
+        <div className="p-3 bg-canvas border border-line rounded-2xl text-xs text-white flex items-center gap-2 font-mono shadow-md animate-in fade-in duration-200">
+          <Clock className="w-3.5 h-3.5 text-accent" />
           <span>{timerNotice}</span>
         </div>
       )}
@@ -836,13 +845,13 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
           return (
             <div
               key={exercise.id}
-              className="bg-[#090c12] border border-white/[0.08] rounded-3xl p-4 sm:p-5 shadow-xl space-y-4"
+              className="bg-surface border border-line rounded-2xl p-4 sm:p-5 space-y-4"
             >
               {/* Exercise Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/[0.06]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-line">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-bold text-[#CEFF00] uppercase tracking-wider">
+                    <span className="text-xs font-mono font-bold text-accent tracking-wide">
                       #{exIndex + 1}
                     </span>
                     <h3 className="text-base sm:text-lg font-bold text-white">
@@ -872,7 +881,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                   {/* AI Coach & Substitutions Button */}
                   <button
                     onClick={() => handleOpenAiCoach(exercise, exIndex)}
-                    className="px-2.5 py-1 bg-[#CEFF00]/10 hover:bg-[#CEFF00]/20 text-[#CEFF00] border border-[#CEFF00]/30 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors"
+                    className="px-2.5 py-1 bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors"
                     title="Get AI Form Cues, Warmup Ramp, and Substitutions"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
@@ -897,7 +906,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
 
               {/* Previous Performance Banner */}
               {lastSessionData ? (
-                <div className="flex items-center justify-between p-3 bg-zinc-950/80 border border-white/[0.06] rounded-2xl text-xs">
+                <div className="flex items-center justify-between p-3 bg-canvas/80 border border-line rounded-2xl text-xs">
                   <div className="flex items-center gap-2">
                     <Info className="w-4 h-4 text-sky-400 shrink-0" />
                     <span className="text-zinc-300">
@@ -910,14 +919,14 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                   </div>
                   <button
                     onClick={() => handleCopyPreviousWeightToAllSets(exIndex, lastWorkingWeight)}
-                    className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-medium rounded-xl transition-colors shrink-0 text-[11px] border border-white/[0.08]"
+                    className="px-2.5 py-1 bg-surface-2 hover:bg-surface-3 text-zinc-200 font-medium rounded-xl transition-colors shrink-0 text-[11px] border border-line"
                     title="Copy weight to all sets"
                   >
                     Use {lastWorkingWeight} {profile.preferredUnit}
                   </button>
                 </div>
               ) : (
-                <div className="p-2.5 bg-zinc-950/40 rounded-2xl text-zinc-500 text-xs flex items-center gap-2">
+                <div className="p-2.5 bg-canvas/40 rounded-2xl text-zinc-500 text-xs flex items-center gap-2">
                   <Info className="w-3.5 h-3.5" />
                   <span>First logged session for this movement. Establishing baseline.</span>
                 </div>
@@ -927,7 +936,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-white/[0.06] text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
+                    <tr className="border-b border-line text-[11px] font-mono text-zinc-400 tracking-wide">
                       <th className="py-2.5 px-2 w-12 text-center">Set</th>
                       <th className="py-2.5 px-2 min-w-[90px]">Weight ({profile.preferredUnit})</th>
                       <th className="py-2.5 px-2 min-w-[70px]">Reps</th>
@@ -945,7 +954,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                         <tr
                           key={set.id}
                           className={`transition-colors ${
-                            isCompleted ? 'bg-[#CEFF00]/[0.05]' : 'hover:bg-zinc-900/40'
+                            isCompleted ? 'bg-accent/[0.05]' : 'hover:bg-surface-2/40'
                           }`}
                         >
                           {/* Set Badge */}
@@ -959,7 +968,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                               className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${
                                 isWarmup
                                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                  : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800 border border-white/[0.06]'
+                                  : 'bg-surface-2 text-zinc-300 hover:bg-surface-3 border border-line'
                               }`}
                               title={isWarmup ? 'Warmup Set (toggle to Working)' : 'Working Set (toggle to Warmup)'}
                             >
@@ -980,7 +989,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                                   })
                                 }
                                 placeholder="0"
-                                className="w-16 sm:w-20 px-2 py-1.5 bg-zinc-950 border border-white/[0.1] rounded-xl text-white font-bold text-sm focus:outline-none focus:border-[#CEFF00] tabular-nums"
+                                className="w-16 sm:w-20 px-2 py-1.5 bg-canvas border border-line rounded-xl text-white font-bold text-sm focus:outline-none focus:border-accent tabular-nums"
                               />
                               <div className="hidden sm:flex flex-col gap-0.5">
                                 <button
@@ -989,7 +998,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                                       weight: Number((set.weight + 2.5).toFixed(1))
                                     })
                                   }
-                                  className="px-1.5 py-0.5 text-[9px] bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded border border-white/[0.06]"
+                                  className="px-1.5 py-0.5 text-[11px] bg-surface-2 hover:bg-surface-3 text-zinc-300 rounded border border-line"
                                 >
                                   +2.5
                                 </button>
@@ -999,7 +1008,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                                       weight: Math.max(0, Number((set.weight - 2.5).toFixed(1)))
                                     })
                                   }
-                                  className="px-1.5 py-0.5 text-[9px] bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded border border-white/[0.06]"
+                                  className="px-1.5 py-0.5 text-[11px] bg-surface-2 hover:bg-surface-3 text-zinc-300 rounded border border-line"
                                 >
                                   -2.5
                                 </button>
@@ -1020,7 +1029,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                                 })
                               }
                               placeholder="0"
-                              className="w-14 sm:w-16 px-2 py-1.5 bg-zinc-950 border border-white/[0.1] rounded-xl text-white font-bold text-sm focus:outline-none focus:border-[#CEFF00] tabular-nums"
+                              className="w-14 sm:w-16 px-2 py-1.5 bg-canvas border border-line rounded-xl text-white font-bold text-sm focus:outline-none focus:border-accent tabular-nums"
                             />
                           </td>
 
@@ -1033,7 +1042,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                                   rir: parseInt(e.target.value, 10)
                                 })
                               }
-                              className="px-2 py-1.5 bg-zinc-950 border border-white/[0.1] rounded-xl text-zinc-200 text-xs focus:outline-none focus:border-[#CEFF00]"
+                              className="px-2 py-1.5 bg-canvas border border-line rounded-xl text-zinc-200 text-xs focus:outline-none focus:border-accent"
                             >
                               <option value="0">0 (Fail)</option>
                               <option value="1">1 RIR</option>
@@ -1053,8 +1062,8 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                               }
                               className={`touch-press w-11 h-11 rounded-2xl flex items-center justify-center transition-all ${
                                 isCompleted
-                                  ? 'bg-[#CEFF00] text-black shadow-[0_0_15px_rgba(206,255,0,0.35)]'
-                                  : 'bg-zinc-900 text-zinc-500 hover:text-white hover:bg-zinc-800 border border-white/[0.08]'
+                                  ? 'bg-accent text-accent-ink'
+                                  : 'bg-surface-2 text-zinc-500 hover:text-white hover:bg-surface-3 border border-line'
                               }`}
                               title={isCompleted ? 'Mark incomplete' : 'Complete set'}
                             >
@@ -1080,19 +1089,19 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
               </div>
 
               {/* Set Actions & Notes */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/[0.04]">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-line">
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleAddSet(exIndex, 'working')}
-                    className="px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors border border-white/[0.08]"
+                    className="px-3.5 py-1.5 bg-surface-2 hover:bg-surface-3 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors border border-line"
                   >
-                    <Plus className="w-3.5 h-3.5 text-[#CEFF00]" />
+                    <Plus className="w-3.5 h-3.5 text-accent" />
                     <span>Add Set</span>
                   </button>
 
                   <button
                     onClick={() => handleAddSet(exIndex, 'warmup')}
-                    className="px-3 py-1.5 bg-zinc-950 hover:bg-zinc-900 border border-white/[0.06] text-zinc-400 hover:text-white text-xs font-medium rounded-xl transition-colors"
+                    className="px-3 py-1.5 bg-canvas hover:bg-surface-2 border border-line text-zinc-400 hover:text-white text-xs font-medium rounded-xl transition-colors"
                   >
                     <span>+ Warmup Set</span>
                   </button>
@@ -1111,7 +1120,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
       {/* Add Exercise to this workout button */}
       <div className="pt-2">
         {isAddingExercise ? (
-          <div className="bg-[#090c12] border border-white/[0.08] rounded-3xl p-5 shadow-xl space-y-4">
+          <div className="bg-surface border border-line rounded-2xl p-5 space-y-4">
             <h4 className="font-bold text-white text-sm">Add Movement to Workout</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div>
@@ -1121,7 +1130,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                   value={newExName}
                   onChange={(e) => setNewExName(e.target.value)}
                   placeholder="e.g. Incline Dumbbell Curl"
-                  className="w-full px-3 py-2 bg-zinc-950 border border-white/[0.1] rounded-xl text-white focus:outline-none focus:border-[#CEFF00]"
+                  className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-white focus:outline-none focus:border-accent"
                 />
               </div>
 
@@ -1130,7 +1139,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                 <select
                   value={newExMuscle}
                   onChange={(e) => setNewExMuscle(e.target.value)}
-                  className="w-full px-3 py-2 bg-zinc-950 border border-white/[0.1] rounded-xl text-zinc-200 focus:outline-none focus:border-[#CEFF00]"
+                  className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-zinc-200 focus:outline-none focus:border-accent"
                 >
                   <option value="Chest">Chest</option>
                   <option value="Back">Back</option>
@@ -1150,7 +1159,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                 <select
                   value={newExEquipment}
                   onChange={(e) => setNewExEquipment(e.target.value as EquipmentType)}
-                  className="w-full px-3 py-2 bg-zinc-950 border border-white/[0.1] rounded-xl text-zinc-200 focus:outline-none focus:border-[#CEFF00]"
+                  className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-zinc-200 focus:outline-none focus:border-accent"
                 >
                   <option value="barbell">Barbell</option>
                   <option value="dumbbell">Dumbbell</option>
@@ -1167,7 +1176,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                   value={newExReps}
                   onChange={(e) => setNewExReps(e.target.value)}
                   placeholder="e.g. 8-12"
-                  className="w-full px-3 py-2 bg-zinc-950 border border-white/[0.1] rounded-xl text-white focus:outline-none focus:border-[#CEFF00]"
+                  className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-white focus:outline-none focus:border-accent"
                 />
               </div>
             </div>
@@ -1175,13 +1184,13 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 onClick={() => setIsAddingExercise(false)}
-                className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl"
+                className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-zinc-300 text-xs font-semibold rounded-xl"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddNewExerciseToSession}
-                className="px-5 py-2 bg-[#CEFF00] hover:bg-[#d4ff00] text-black text-xs font-bold rounded-xl shadow-md"
+                className="px-5 py-2 bg-accent hover:bg-accent text-accent-ink text-xs font-bold rounded-xl shadow-md"
               >
                 Insert Movement
               </button>
@@ -1190,9 +1199,9 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
         ) : (
           <button
             onClick={() => setIsAddingExercise(true)}
-            className="w-full py-4 border-2 border-dashed border-white/[0.1] hover:border-[#CEFF00]/50 rounded-3xl text-xs font-bold text-zinc-400 hover:text-white transition-all flex items-center justify-center gap-2 bg-zinc-950/30"
+            className="w-full py-4 border-2 border-dashed border-line hover:border-accent/50 rounded-2xl text-xs font-bold text-zinc-400 hover:text-white transition-all flex items-center justify-center gap-2 bg-canvas/30"
           >
-            <Plus className="w-4 h-4 text-[#CEFF00]" />
+            <Plus className="w-4 h-4 text-accent" />
             <span>Add Additional Exercise</span>
           </button>
         )}
@@ -1208,10 +1217,10 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
       {/* AI Exercise Coach & Substitutions Modal */}
       {aiCoachExercise && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0b0e14] border border-white/[0.1] rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+          <div className="bg-surface border border-line rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-line">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-[#CEFF00]/10 border border-[#CEFF00]/30 flex items-center justify-center text-[#CEFF00]">
+                <div className="w-8 h-8 rounded-xl bg-accent/10 border border-accent/30 flex items-center justify-center text-accent">
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
@@ -1229,13 +1238,13 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
 
             {aiCoachLoading && (
               <div className="py-8 flex flex-col items-center justify-center text-xs text-zinc-400 space-y-2">
-                <RefreshCw className="w-6 h-6 animate-spin text-[#CEFF00]" />
+                <RefreshCw className="w-6 h-6 animate-spin text-accent" />
                 <span>Analyzing biomechanics, cues, and gym equipment substitutions...</span>
               </div>
             )}
 
             {aiCoachError && (
-              <div className="p-3 bg-zinc-950 border border-amber-500/30 rounded-2xl text-xs text-amber-300 flex items-center gap-2">
+              <div className="p-3 bg-canvas border border-amber-500/30 rounded-2xl text-xs text-amber-300 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>{aiCoachError}</span>
               </div>
@@ -1245,14 +1254,14 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
               <div className="space-y-4 text-xs">
                 {/* Form Cues */}
                 {aiCoachData.cues && (
-                  <div className="p-3.5 bg-zinc-950/80 border border-white/[0.06] rounded-2xl space-y-2">
-                    <span className="font-mono text-[#CEFF00] uppercase font-bold text-[11px] block">
+                  <div className="p-3.5 bg-canvas/80 border border-line rounded-2xl space-y-2">
+                    <span className="font-mono text-accent font-bold text-[11px] block">
                       Execution &amp; Form Cues
                     </span>
                     <ul className="space-y-1 text-zinc-300">
                       {aiCoachData.cues.map((cue: string, idx: number) => (
                         <li key={idx} className="flex items-start gap-1.5">
-                          <Check className="w-3.5 h-3.5 text-[#CEFF00] shrink-0 mt-0.5" />
+                          <Check className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
                           <span>{cue}</span>
                         </li>
                       ))}
@@ -1263,14 +1272,14 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                 {/* Gym Substitutions */}
                 {aiCoachData.substitutions && aiCoachData.substitutions.length > 0 && (
                   <div className="space-y-2">
-                    <span className="font-mono text-zinc-400 uppercase font-bold text-[11px] block">
+                    <span className="font-mono text-zinc-400 font-bold text-[11px] block">
                       Equipment Busy? Smart Substitutions
                     </span>
                     <div className="space-y-2">
                       {aiCoachData.substitutions.map((sub: any, idx: number) => (
                         <div
                           key={idx}
-                          className="p-3 bg-zinc-950/80 border border-white/[0.06] rounded-2xl flex items-center justify-between gap-2"
+                          className="p-3 bg-canvas/80 border border-line rounded-2xl flex items-center justify-between gap-2"
                         >
                           <div>
                             <span className="font-bold text-white block">{sub.name}</span>
@@ -1278,7 +1287,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                           </div>
                           <button
                             onClick={() => handleApplySubstitution(sub)}
-                            className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-[#CEFF00] border border-[#CEFF00]/30 font-bold rounded-xl text-xs shrink-0 transition-colors"
+                            className="px-3 py-1.5 bg-surface-2 hover:bg-surface-3 text-accent border border-accent/30 font-bold rounded-xl text-xs shrink-0 transition-colors"
                           >
                             Use Swap
                           </button>
@@ -1296,10 +1305,10 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
       {/* Finish Session Modal */}
       {showFinishModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0b0e14] border border-white/[0.1] rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-[#CEFF00]">
-              <Flame className="w-6 h-6 fill-[#CEFF00]" />
-              <h3 className="font-nrc font-black italic uppercase text-xl text-white">Finish Today&apos;s Session</h3>
+          <div className="bg-surface border border-line rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-accent">
+              <Flame className="w-6 h-6 fill-accent" />
+              <h3 className="font-nrc font-bold text-xl text-white">Finish Today&apos;s Session</h3>
             </div>
             <p className="text-xs text-zinc-400 leading-relaxed font-sans">
               Great work! This workout will be stored to your training log and used to update your
@@ -1315,20 +1324,20 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                 onChange={(e) => setFinishNotes(e.target.value)}
                 placeholder="Energy levels, pump, sleep quality, adjustments..."
                 rows={3}
-                className="w-full px-3 py-2 bg-zinc-950 border border-white/[0.1] rounded-2xl text-white text-xs focus:outline-none focus:border-[#CEFF00]"
+                className="w-full px-3 py-2 bg-canvas border border-line rounded-2xl text-white text-xs focus:outline-none focus:border-accent"
               />
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 onClick={() => setShowFinishModal(false)}
-                className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl"
+                className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-zinc-300 text-xs font-semibold rounded-xl"
               >
                 Back to Workout
               </button>
               <button
                 onClick={handleConfirmFinish}
-                className="px-5 py-2 bg-[#CEFF00] hover:bg-[#d4ff00] text-black text-xs font-bold rounded-xl shadow-md font-nrc uppercase text-sm"
+                className="px-5 py-2 bg-accent hover:bg-accent text-accent-ink text-xs font-bold rounded-xl shadow-md font-nrc text-sm"
               >
                 Confirm &amp; Save
               </button>
@@ -1340,8 +1349,8 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
       {/* Discard Session Modal */}
       {showDiscardModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0b0e14] border border-white/[0.1] rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-[#FF3B30]">
+          <div className="bg-surface border border-line rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-danger">
               <AlertTriangle className="w-6 h-6" />
               <h3 className="font-bold text-lg text-white">Discard In-Progress Workout?</h3>
             </div>
@@ -1352,13 +1361,13 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 onClick={() => setShowDiscardModal(false)}
-                className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl"
+                className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-zinc-300 text-xs font-semibold rounded-xl"
               >
                 Keep Workout
               </button>
               <button
                 onClick={handleConfirmDiscard}
-                className="px-4 py-2 bg-[#FF3B30] hover:bg-rose-600 text-white text-xs font-bold rounded-xl"
+                className="px-4 py-2 bg-danger hover:bg-rose-600 text-white text-xs font-bold rounded-xl"
               >
                 Yes, Discard
               </button>
@@ -1370,29 +1379,29 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
       {/* Reset Workout Timer Modal */}
       {showResetTimerConfirm && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-[#0b0e14] border border-white/[0.1] rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-[#CEFF00]">
+          <div className="bg-surface border border-line rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-accent">
               <RotateCcw className="w-6 h-6" />
               <h3 className="font-bold text-lg text-white">Reset Workout Timer</h3>
             </div>
             <p className="text-xs text-zinc-400 leading-relaxed font-sans">
               Reset the session clock back to <strong className="text-white">00:00</strong>?
-              Your logged sets, weights, and repetitions will <strong className="text-[#CEFF00]">NOT</strong> be lost.
+              Your logged sets, weights, and repetitions will <strong className="text-accent">NOT</strong> be lost.
             </p>
-            <div className="bg-zinc-950 border border-white/[0.08] rounded-2xl p-3 text-xs text-zinc-300 flex items-center justify-between">
+            <div className="bg-canvas border border-line rounded-2xl p-3 text-xs text-zinc-300 flex items-center justify-between">
               <span>Current elapsed time:</span>
               <span className="font-mono font-bold text-white">{formatTime(elapsedSeconds)}</span>
             </div>
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 onClick={() => setShowResetTimerConfirm(false)}
-                className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl"
+                className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-zinc-300 text-xs font-semibold rounded-xl"
               >
                 Cancel
               </button>
               <button
                 onClick={handleResetWorkoutTimer}
-                className="px-4 py-2 bg-[#CEFF00] hover:bg-[#d4ff00] text-black text-xs font-bold rounded-xl shadow-md flex items-center gap-1.5 font-nrc uppercase"
+                className="px-4 py-2 bg-accent hover:bg-accent text-accent-ink text-xs font-bold rounded-xl shadow-md flex items-center gap-1.5 font-nrc "
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Reset to 00:00</span>

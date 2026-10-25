@@ -38,12 +38,12 @@ export const AdaptiveTdeeCard: React.FC<AdaptiveTdeeCardProps> = ({
 
   const getAdaptationBadge = (status: string) => {
     if (status === 'accelerated') {
-      return { text: 'Elevated Metabolism (Hyper-Adaptive)', color: 'text-volt-adaptive bg-[#CEFF00]/10 border-[#CEFF00]/30' };
+      return { text: 'Elevated Metabolism (Hyper-Adaptive)', color: 'text-volt-adaptive bg-accent/10 border-accent/30' };
     }
     if (status === 'downregulated') {
       return { text: 'Adaptive Thermogenesis (Downregulated)', color: 'text-amber-400 bg-amber-400/10 border-amber-400/30' };
     }
-    return { text: 'Metabolically Stable', color: 'text-zinc-400 bg-zinc-800 border-zinc-700' };
+    return { text: 'Metabolically Stable', color: 'text-zinc-400 bg-surface-3 border-line-strong' };
   };
 
   const badge = getAdaptationBadge(estimate.adaptationStatus);
@@ -53,7 +53,7 @@ export const AdaptiveTdeeCard: React.FC<AdaptiveTdeeCardProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border-card)] pb-4">
         <div>
-          <div className="text-[10px] font-mono tracking-wider uppercase text-[var(--text-muted)] flex items-center gap-1.5">
+          <div className="text-[11px] font-mono tracking-wide text-[var(--text-muted)] flex items-center gap-1.5">
             <span>MacroFactor Energy Engine</span>
             <span aria-hidden="true">·</span>
             <span className="text-volt-adaptive font-semibold">Dynamic Expenditure</span>
@@ -75,10 +75,10 @@ export const AdaptiveTdeeCard: React.FC<AdaptiveTdeeCardProps> = ({
         {/* Dynamic Expenditure Dial */}
         <div className="reshape-card-subtle p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
+            <span className="text-[11px] font-mono tracking-wide text-[var(--text-muted)]">
               Dynamic Daily Burn (TDEE)
             </span>
-            <span className="text-[10px] font-mono text-[var(--text-muted)]">
+            <span className="text-[11px] font-mono text-[var(--text-muted)]">
               {estimate.confidence.toUpperCase()} CONFIDENCE
             </span>
           </div>
@@ -97,7 +97,7 @@ export const AdaptiveTdeeCard: React.FC<AdaptiveTdeeCardProps> = ({
             </div>
           </div>
 
-          <div className="text-[10px] text-[var(--text-muted)] font-mono pt-2 border-t border-[var(--border-card)]">
+          <div className="text-[11px] text-[var(--text-muted)] font-mono pt-2 border-t border-[var(--border-card)]">
             Sampled over {estimate.daysSampled} days of scale weight & intake logs
           </div>
         </div>
@@ -105,7 +105,7 @@ export const AdaptiveTdeeCard: React.FC<AdaptiveTdeeCardProps> = ({
         {/* Energy Balance Physics */}
         <div className="reshape-card-subtle p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
+            <span className="text-[11px] font-mono tracking-wide text-[var(--text-muted)]">
               Rolling Energy Intake & Scale Shift
             </span>
           </div>
@@ -127,7 +127,7 @@ export const AdaptiveTdeeCard: React.FC<AdaptiveTdeeCardProps> = ({
             </div>
           </div>
 
-          <div className="text-[10px] text-[var(--text-muted)] font-mono pt-2 border-t border-[var(--border-card)]">
+          <div className="text-[11px] text-[var(--text-muted)] font-mono pt-2 border-t border-[var(--border-card)]">
             7,700 kcal energy equivalent per 1 kg tissue flux
           </div>
         </div>
@@ -135,10 +135,10 @@ export const AdaptiveTdeeCard: React.FC<AdaptiveTdeeCardProps> = ({
         {/* Recommended Calibrated Targets */}
         <div className="reshape-card-subtle p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
+            <span className="text-[11px] font-mono tracking-wide text-[var(--text-muted)]">
               Calibrated Goal Target
             </span>
-            <span className="text-[10px] font-mono text-volt-adaptive font-bold uppercase">
+            <span className="text-[11px] font-mono text-volt-adaptive font-bold ">
               {profile.primaryGoal.replace('_', ' ')}
             </span>
           </div>
@@ -149,15 +149,15 @@ export const AdaptiveTdeeCard: React.FC<AdaptiveTdeeCardProps> = ({
             </div>
             <div className="grid grid-cols-3 gap-1.5 mt-2 text-center text-xs font-mono">
               <div className="p-1 rounded bg-[var(--bg-canvas)] border border-[var(--border-card)]">
-                <span className="text-[10px] text-cyan-400 block font-bold">PRO</span>
+                <span className="text-[11px] text-cyan-400 block font-bold">PRO</span>
                 <span className="font-bold text-[var(--text-primary)]">{estimate.recommendedProtein}g</span>
               </div>
               <div className="p-1 rounded bg-[var(--bg-canvas)] border border-[var(--border-card)]">
-                <span className="text-[10px] text-amber-400 block font-bold">CARB</span>
+                <span className="text-[11px] text-amber-400 block font-bold">CARB</span>
                 <span className="font-bold text-[var(--text-primary)]">{estimate.recommendedCarbs}g</span>
               </div>
               <div className="p-1 rounded bg-[var(--bg-canvas)] border border-[var(--border-card)]">
-                <span className="text-[10px] text-rose-400 block font-bold">FAT</span>
+                <span className="text-[11px] text-rose-400 block font-bold">FAT</span>
                 <span className="font-bold text-[var(--text-primary)]">{estimate.recommendedFat}g</span>
               </div>
             </div>
@@ -166,10 +166,10 @@ export const AdaptiveTdeeCard: React.FC<AdaptiveTdeeCardProps> = ({
           <button
             type="button"
             onClick={handleApplyRecommendations}
-            className={`w-full mt-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${
+            className={`w-full mt-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-colors ${
               justApplied
-                ? 'bg-emerald-500 text-black'
-                : 'bg-[#CEFF00] hover:bg-[#b8e600] text-black'
+                ? 'bg-emerald-500 text-accent-ink'
+                : 'bg-accent hover:bg-accent-hover text-accent-ink'
             }`}
           >
             {justApplied ? '✓ Calibrated Targets Applied' : 'Apply Calibrated Targets'}
@@ -178,7 +178,7 @@ export const AdaptiveTdeeCard: React.FC<AdaptiveTdeeCardProps> = ({
       </div>
 
       {/* Scientific Rationale Callout */}
-      <div className="reshape-card-subtle p-4 text-xs leading-relaxed text-[var(--text-secondary)] border-l-2 border-[#CEFF00]">
+      <div className="reshape-card-subtle p-4 text-xs leading-relaxed text-[var(--text-secondary)] border-l-2 border-accent">
         <strong className="text-[var(--text-primary)]">Scientific Energy Flux Audit: </strong>
         {estimate.rationale}
       </div>

@@ -246,17 +246,15 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
   return (
     <div className="reshape-card overflow-hidden p-6 lg:p-7 space-y-6">
       {/* Subtle radial ambient glow */}
-      <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#CEFF00]/[0.04] rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-1/4 w-80 h-80 bg-sky-400/[0.03] rounded-full blur-3xl pointer-events-none" />
 
       {/* TOP COMMAND HEADER */}
-      <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-white/[0.08]">
+      <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-line">
         <div>
-          <div className="flex items-center gap-2 text-xs font-mono font-bold tracking-widest text-[#CEFF00] uppercase mb-1">
-            <Flame className="w-4 h-4 fill-[#CEFF00] text-[#CEFF00]" />
+          <div className="flex items-center gap-2 text-xs font-mono font-bold tracking-wide text-accent mb-1">
+            <Flame className="w-4 h-4 fill-accent text-accent" />
             <span>Habit &amp; Attendance Ledger</span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-nrc font-black italic uppercase text-white tracking-tight flex items-center gap-2">
+          <h2 className="text-xl sm:text-2xl font-nrc font-bold text-white tracking-tight flex items-center gap-2">
             Gym Consistency Streak
           </h2>
           <p className="text-xs text-zinc-400 mt-1 max-w-xl font-sans">
@@ -266,22 +264,22 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
 
         {/* STREAK HERO BADGE */}
         <div className="flex items-center gap-3">
-          <div className="bg-zinc-950/90 border border-[#CEFF00]/40 rounded-2xl px-5 py-3 shadow-[0_0_20px_rgba(206,255,0,0.15)] flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-[#CEFF00] flex items-center justify-center text-black font-nrc font-black text-xl italic shadow-md">
+          <div className="bg-canvas/90 border border-accent/40 rounded-2xl px-5 py-3 flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-accent flex items-center justify-center text-accent-ink font-nrc font-bold text-xl shadow-md">
               <Flame className="w-6 h-6 fill-black stroke-[2]" />
             </div>
             <div>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-3xl font-nrc font-black italic text-white tracking-tight">
+                <span className="text-3xl font-nrc font-bold text-white tracking-tight">
                   {stats.currentStreak}
                 </span>
-                <span className="text-xs font-mono font-bold text-[#CEFF00] uppercase">
+                <span className="text-xs font-mono font-bold text-accent ">
                   {stats.currentStreak === 1 ? 'DAY' : 'DAYS'}
                 </span>
               </div>
               <div className="text-[11px] font-semibold text-zinc-400 flex items-center gap-1.5">
                 {stats.isTrainedToday ? (
-                  <span className="text-[#CEFF00] font-bold flex items-center gap-1">
+                  <span className="text-accent font-bold flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" /> Trained Today
                   </span>
                 ) : stats.isStreakActiveToday ? (
@@ -298,7 +296,7 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
       {/* ATHLETIC ACTIVITY RINGS SHOWCASE */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
         {/* LEFT: CIRCULAR ACTIVITY RINGS (SVG) */}
-        <div className="md:col-span-5 flex flex-col items-center justify-center p-5 bg-zinc-950/80 rounded-3xl border border-white/[0.06] relative shadow-inner">
+        <div className="md:col-span-5 flex flex-col items-center justify-center p-5 bg-canvas/80 rounded-2xl border border-line relative shadow-inner">
           <div className="relative w-48 h-48 flex items-center justify-center">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 200 200">
               {/* Ring 1 Track & Progress: Consistency (Volt Lime) */}
@@ -377,10 +375,10 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
 
             {/* CENTER FLAME ICON & NUMBER */}
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-              <span className="text-3xl font-nrc font-black italic text-white">
+              <span className="text-3xl font-nrc font-bold text-white">
                 {stats.monthlyConsistencyRate}%
               </span>
-              <span className="text-[10px] uppercase tracking-wider font-mono font-bold text-zinc-400">
+              <span className="text-[11px] tracking-wide font-mono font-bold text-zinc-400">
                 Consistency
               </span>
             </div>
@@ -388,17 +386,17 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
 
           {/* RING LEGEND LABELS */}
           <div className="grid grid-cols-3 gap-2 w-full mt-4 text-center">
-            <div className="p-2.5 rounded-xl bg-zinc-900/60 border border-white/[0.04]">
-              <div className="flex items-center justify-center gap-1.5 text-[10px] font-mono font-bold text-[#CEFF00]">
-                <span className="w-2 h-2 rounded-full bg-[#CEFF00]" />
+            <div className="p-2.5 rounded-xl bg-surface-2/60 border border-line">
+              <div className="flex items-center justify-center gap-1.5 text-[11px] font-mono font-bold text-accent">
+                <span className="w-2 h-2 rounded-full bg-accent" />
                 <span>Habit</span>
               </div>
               <span className="text-xs font-mono font-bold text-zinc-200 mt-0.5 block">
                 {stats.monthlyConsistencyRate}%
               </span>
             </div>
-            <div className="p-2.5 rounded-xl bg-zinc-900/60 border border-white/[0.04]">
-              <div className="flex items-center justify-center gap-1.5 text-[10px] font-mono font-bold text-sky-400">
+            <div className="p-2.5 rounded-xl bg-surface-2/60 border border-line">
+              <div className="flex items-center justify-center gap-1.5 text-[11px] font-mono font-bold text-sky-400">
                 <span className="w-2 h-2 rounded-full bg-sky-400" />
                 <span>Time</span>
               </div>
@@ -406,9 +404,9 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
                 {stats.totalMinutesThisMonth}m
               </span>
             </div>
-            <div className="p-2.5 rounded-xl bg-zinc-900/60 border border-white/[0.04]">
-              <div className="flex items-center justify-center gap-1.5 text-[10px] font-mono font-bold text-[#FF3B30]">
-                <span className="w-2 h-2 rounded-full bg-[#FF3B30]" />
+            <div className="p-2.5 rounded-xl bg-surface-2/60 border border-line">
+              <div className="flex items-center justify-center gap-1.5 text-[11px] font-mono font-bold text-danger">
+                <span className="w-2 h-2 rounded-full bg-danger" />
                 <span>Volume</span>
               </div>
               <span className="text-xs font-mono font-bold text-zinc-200 mt-0.5 block truncate">
@@ -420,13 +418,13 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
 
         {/* RIGHT: FOUR HIGH IMPACT STATS CARDS */}
         <div className="md:col-span-7 grid grid-cols-2 gap-3">
-          <div className="p-4 bg-zinc-950/80 border border-white/[0.06] rounded-2xl flex flex-col justify-between">
-            <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase font-bold">
+          <div className="p-4 bg-canvas/80 border border-line rounded-2xl flex flex-col justify-between">
+            <div className="flex items-center justify-between text-zinc-400 text-xs font-mono font-bold">
               <span>CURRENT STREAK</span>
-              <Flame className="w-4 h-4 text-[#CEFF00]" />
+              <Flame className="w-4 h-4 text-accent" />
             </div>
             <div className="my-2">
-              <span className="text-3xl font-nrc font-black italic text-white">
+              <span className="text-3xl font-nrc font-bold text-white">
                 {stats.currentStreak}
               </span>
               <span className="text-xs font-mono text-zinc-500 ml-1">days</span>
@@ -436,13 +434,13 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
             </span>
           </div>
 
-          <div className="p-4 bg-zinc-950/80 border border-white/[0.06] rounded-2xl flex flex-col justify-between">
-            <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase font-bold">
+          <div className="p-4 bg-canvas/80 border border-line rounded-2xl flex flex-col justify-between">
+            <div className="flex items-center justify-between text-zinc-400 text-xs font-mono font-bold">
               <span>LONGEST RECORD</span>
               <Award className="w-4 h-4 text-amber-400" />
             </div>
             <div className="my-2">
-              <span className="text-3xl font-nrc font-black italic text-amber-400">
+              <span className="text-3xl font-nrc font-bold text-amber-400">
                 {stats.longestStreak}
               </span>
               <span className="text-xs font-mono text-zinc-500 ml-1">days</span>
@@ -450,13 +448,13 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
             <span className="text-[11px] text-zinc-400">All-time uninterrupted record</span>
           </div>
 
-          <div className="p-4 bg-zinc-950/80 border border-white/[0.06] rounded-2xl flex flex-col justify-between">
-            <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase font-bold">
+          <div className="p-4 bg-canvas/80 border border-line rounded-2xl flex flex-col justify-between">
+            <div className="flex items-center justify-between text-zinc-400 text-xs font-mono font-bold">
               <span>TOTAL SESSIONS</span>
               <Dumbbell className="w-4 h-4 text-sky-400" />
             </div>
             <div className="my-2">
-              <span className="text-3xl font-nrc font-black italic text-sky-400">
+              <span className="text-3xl font-nrc font-bold text-sky-400">
                 {stats.totalWorkouts}
               </span>
               <span className="text-xs font-mono text-zinc-500 ml-1">logged</span>
@@ -464,13 +462,13 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
             <span className="text-[11px] text-zinc-400">Archived workouts in ledger</span>
           </div>
 
-          <div className="p-4 bg-zinc-950/80 border border-white/[0.06] rounded-2xl flex flex-col justify-between">
-            <div className="flex items-center justify-between text-zinc-400 text-xs font-mono uppercase font-bold">
+          <div className="p-4 bg-canvas/80 border border-line rounded-2xl flex flex-col justify-between">
+            <div className="flex items-center justify-between text-zinc-400 text-xs font-mono font-bold">
               <span>WEEKLY TARGET</span>
               <TrendingUp className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="my-2">
-              <span className="text-3xl font-nrc font-black italic text-emerald-400">
+              <span className="text-3xl font-nrc font-bold text-emerald-400">
                 {profile.trainingDaysPerWeek || 4}
               </span>
               <span className="text-xs font-mono text-zinc-500 ml-1">days / wk</span>
@@ -481,9 +479,9 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
       </div>
 
       {/* RECENT 14-DAY ACTIVITY TRAIL STRIP */}
-      <div className="p-4 bg-zinc-950/80 rounded-2xl border border-white/[0.06] space-y-2.5">
+      <div className="p-4 bg-canvas/80 rounded-2xl border border-line space-y-2.5">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-mono text-zinc-400 font-bold uppercase tracking-wider text-[11px]">
+          <span className="font-mono text-zinc-400 font-bold tracking-wide text-[11px]">
             14-Day Activity Trail
           </span>
           <span className="text-[11px] text-zinc-500 font-mono">
@@ -497,17 +495,17 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
               key={idx}
               className={`p-2 rounded-xl border flex flex-col items-center justify-center transition-all ${
                 d.hasWorkout
-                  ? 'bg-[#CEFF00]/15 border-[#CEFF00]/40 text-[#CEFF00] shadow-[0_0_12px_rgba(206,255,0,0.15)]'
+                  ? 'bg-accent/15 border-accent/40 text-accent'
                   : d.isToday
-                  ? 'bg-zinc-900 border-zinc-700 text-zinc-300 ring-1 ring-zinc-500'
-                  : 'bg-zinc-950/80 border-white/[0.03] text-zinc-600'
+                  ? 'bg-surface-2 border-line-strong text-zinc-300 ring-1 ring-zinc-500'
+                  : 'bg-canvas/80 border-line text-zinc-600'
               }`}
             >
-              <span className="text-[10px] font-mono uppercase">{d.dayName}</span>
+              <span className="text-[11px] font-mono ">{d.dayName}</span>
               <span className="text-xs font-mono font-bold mt-0.5">{d.dayNum}</span>
               <div className="mt-1">
                 {d.hasWorkout ? (
-                  <Flame className="w-3.5 h-3.5 fill-[#CEFF00] text-[#CEFF00]" />
+                  <Flame className="w-3.5 h-3.5 fill-accent text-accent" />
                 ) : (
                   <span className="w-1.5 h-1.5 rounded-full bg-zinc-700 block" />
                 )}
@@ -518,31 +516,31 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
       </div>
 
       {/* FULL MONTH CALENDAR GRID */}
-      <div className="p-4 sm:p-5 bg-zinc-950/80 rounded-3xl border border-white/[0.06] space-y-4">
+      <div className="p-4 sm:p-5 bg-canvas/80 rounded-2xl border border-line space-y-4">
         {/* MONTH HEADER NAVIGATION */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CalendarIcon className="w-4 h-4 text-[#CEFF00]" />
+            <CalendarIcon className="w-4 h-4 text-accent" />
             <h3 className="font-bold text-white text-base tracking-tight">{monthLabel}</h3>
           </div>
 
           <div className="flex items-center gap-1.5">
             <button
               onClick={handlePrevMonth}
-              className="p-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-white/[0.05] transition-colors"
+              className="p-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-zinc-400 hover:text-white border border-line transition-colors"
               title="Previous Month"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={() => setCurrentMonthDate(new Date())}
-              className="px-2.5 py-1 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-mono border border-white/[0.05] transition-colors"
+              className="px-2.5 py-1 rounded-xl bg-surface-2 hover:bg-surface-3 text-zinc-300 hover:text-white text-xs font-mono border border-line transition-colors"
             >
               Current
             </button>
             <button
               onClick={handleNextMonth}
-              className="p-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-white/[0.05] transition-colors"
+              className="p-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-zinc-400 hover:text-white border border-line transition-colors"
               title="Next Month"
             >
               <ChevronRight className="w-4 h-4" />
@@ -551,7 +549,7 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
         </div>
 
         {/* WEEKDAY HEADERS */}
-        <div className="grid grid-cols-7 gap-1 text-center font-mono text-[11px] text-zinc-500 font-bold uppercase py-1 border-b border-white/[0.04]">
+        <div className="grid grid-cols-7 gap-1 text-center font-mono text-[11px] text-zinc-500 font-bold py-1 border-b border-line">
           <span>Mon</span>
           <span>Tue</span>
           <span>Wed</span>
@@ -585,17 +583,17 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
                 }}
                 className={`group relative h-14 sm:h-16 rounded-2xl p-2 flex flex-col justify-between text-left transition-all border ${
                   cell.hasWorkout
-                    ? 'bg-gradient-to-br from-[#CEFF00]/15 via-zinc-900/90 to-zinc-950 border-[#CEFF00]/40 hover:border-[#CEFF00] shadow-[0_0_15px_rgba(206,255,0,0.12)] cursor-pointer'
+                    ? 'bg-accent/10 border-accent/40 hover:border-accent cursor-pointer'
                     : cell.isToday
-                    ? 'bg-zinc-900/70 border-white/20 text-zinc-300'
-                    : 'bg-zinc-950/40 border-white/[0.03] text-zinc-500 hover:border-white/10'
-                } ${isSelected ? 'ring-2 ring-[#CEFF00]' : ''}`}
+                    ? 'bg-surface-2/70 border-white/20 text-zinc-300'
+                    : 'bg-canvas/40 border-line text-zinc-500 hover:border-white/10'
+                } ${isSelected ? 'ring-2 ring-accent' : ''}`}
               >
                 <div className="flex items-center justify-between w-full">
                   <span
                     className={`font-mono text-xs font-bold ${
                       cell.isToday
-                        ? 'text-[#CEFF00] font-black'
+                        ? 'text-accent font-bold'
                         : cell.hasWorkout
                         ? 'text-white'
                         : 'text-zinc-500'
@@ -604,16 +602,16 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
                     {cell.dayNumber}
                   </span>
                   {cell.hasWorkout && (
-                    <Flame className="w-3.5 h-3.5 fill-[#CEFF00] text-[#CEFF00]" />
+                    <Flame className="w-3.5 h-3.5 fill-accent text-accent" />
                   )}
                 </div>
 
                 {cell.hasWorkout ? (
-                  <div className="text-[10px] font-mono text-[#CEFF00]/90 truncate font-semibold">
+                  <div className="text-[11px] font-mono text-accent/90 truncate font-semibold">
                     {cell.sessions[0]?.dayName?.replace(/^(Day \d+ — |Day \d+ - )/i, '') || 'Trained'}
                   </div>
                 ) : cell.isToday ? (
-                  <div className="text-[9px] font-mono text-zinc-500 uppercase tracking-tighter">
+                  <div className="text-[11px] font-mono text-zinc-500 tracking-tighter">
                     Today
                   </div>
                 ) : (
@@ -626,10 +624,10 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
 
         {/* SELECTED DAY WORKOUT DETAILS DRAWER */}
         {selectedDayDetails && (
-          <div className="mt-4 p-4 rounded-2xl bg-zinc-950 border border-[#CEFF00]/40 shadow-xl space-y-3">
+          <div className="mt-4 p-4 rounded-2xl bg-canvas border border-accent/40 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-[#CEFF00]" />
+                <CheckCircle2 className="w-4 h-4 text-accent" />
                 <span className="font-bold text-sm text-white">
                   Workout Logged on {selectedDayDetails.dateStr}
                 </span>
@@ -648,7 +646,7 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
                 return (
                   <div
                     key={sIdx}
-                    className="p-3 bg-zinc-900/90 border border-white/[0.06] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                    className="p-3 bg-surface-2/90 border border-line rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
                   >
                     <div>
                       <span className="font-bold text-white text-sm block">{s.dayName}</span>
@@ -657,7 +655,7 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center gap-3 font-mono text-zinc-300">
-                      <span>Volume: <strong className="text-[#CEFF00]">{vol.toLocaleString()} {profile.preferredUnit}</strong></span>
+                      <span>Volume: <strong className="text-accent">{vol.toLocaleString()} {profile.preferredUnit}</strong></span>
                       {s.notes && <span className="text-zinc-500 truncate max-w-[150px]">“{s.notes}”</span>}
                     </div>
                   </div>
@@ -671,7 +669,7 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
       {/* HABIT MILESTONES SHOWCASE */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-400">
+          <span className="text-xs font-mono font-bold tracking-wide text-zinc-400">
             Discipline Trophies &amp; Milestones
           </span>
           <span className="text-xs font-mono text-zinc-500">
@@ -685,8 +683,8 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
               key={idx}
               className={`p-3.5 rounded-2xl border transition-all text-left flex flex-col justify-between h-24 ${
                 m.unlocked
-                  ? 'bg-zinc-950/90 border-amber-400/40 text-amber-300 shadow-md'
-                  : 'bg-zinc-950/40 border-white/[0.03] text-zinc-600'
+                  ? 'bg-canvas/90 border-amber-400/40 text-amber-300 shadow-md'
+                  : 'bg-canvas/40 border-line text-zinc-600'
               }`}
             >
               <div className="flex items-center justify-between">
@@ -701,7 +699,7 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
                 >
                   {m.title}
                 </span>
-                <span className="text-[10px] text-zinc-500 block">{m.desc}</span>
+                <span className="text-[11px] text-zinc-500 block">{m.desc}</span>
               </div>
             </div>
           ))}
@@ -709,9 +707,9 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
       </div>
 
       {/* ATHLETE ADVICE BANNER */}
-      <div className="p-4 rounded-2xl bg-zinc-950/80 border border-white/[0.06] flex items-center justify-between gap-4 text-xs">
+      <div className="p-4 rounded-2xl bg-canvas/80 border border-line flex items-center justify-between gap-4 text-xs">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-[#CEFF00]/10 border border-[#CEFF00]/25 flex items-center justify-center text-[#CEFF00] shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-accent/10 border border-accent/25 flex items-center justify-center text-accent shrink-0">
             <Zap className="w-4 h-4" />
           </div>
           <div>
@@ -727,7 +725,7 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
         {onNavigateToWorkouts && (
           <button
             onClick={onNavigateToWorkouts}
-            className="touch-press px-4 py-2 bg-[#CEFF00] hover:bg-[#d4ff00] text-black font-nrc font-black italic uppercase text-xs rounded-xl shadow-md shrink-0 transition-colors"
+            className="touch-press px-4 py-2 bg-accent hover:bg-accent text-accent-ink font-nrc font-bold text-xs rounded-xl shadow-md shrink-0 transition-colors"
           >
             Train Now
           </button>

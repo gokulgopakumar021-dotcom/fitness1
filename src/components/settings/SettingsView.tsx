@@ -161,8 +161,8 @@ export const SettingsView: React.FC<SettingsProps> = ({
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-16">
       {/* Settings Top Card */}
-      <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 shadow-xl">
-        <div className="flex items-center gap-2 text-lime-400 text-xs font-mono font-semibold uppercase tracking-wider mb-1">
+      <div className="bg-surface-2 border border-line rounded-2xl p-5 lg:p-7">
+        <div className="flex items-center gap-2 text-lime-400 text-xs font-mono font-semibold tracking-wide mb-1">
           <Settings className="w-4 h-4" />
           <span>System &amp; Athlete Preferences</span>
         </div>
@@ -177,9 +177,9 @@ export const SettingsView: React.FC<SettingsProps> = ({
       {/* ATHLETE PROFILE FORM */}
       <form
         onSubmit={handleSaveProfile}
-        className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-6 shadow-xl space-y-5"
+        className="bg-surface-2 border border-line rounded-2xl p-5 lg:p-6 space-y-5"
       >
-        <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80">
+        <div className="flex items-center justify-between pb-3 border-b border-line">
           <div className="flex items-center gap-2">
             <User className="w-4 h-4 text-lime-400" />
             <h3 className="font-bold text-zinc-100 text-base">Athlete Profile &amp; Biometrics</h3>
@@ -200,7 +200,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g. Alex"
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-bold focus:outline-none focus:border-lime-400"
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-bold focus:outline-none focus:border-lime-400"
             />
           </div>
 
@@ -210,7 +210,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
               type="number"
               value={formData.age}
               onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value, 10) || 0 })}
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono"
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono"
             />
           </div>
 
@@ -219,7 +219,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
             <select
               value={formData.sex}
               onChange={(e) => setFormData({ ...formData, sex: e.target.value as any })}
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-200"
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-200"
             >
               <option value="male">Male</option>
               <option value="female">Female</option>
@@ -234,7 +234,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
               type="number"
               value={formData.heightCm}
               onChange={(e) => setFormData({ ...formData, heightCm: parseFloat(e.target.value) || 0 })}
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono"
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono"
             />
           </div>
 
@@ -247,7 +247,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
               onChange={(e) =>
                 setFormData({ ...formData, currentWeightKg: parseFloat(e.target.value) || 0 })
               }
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono font-bold"
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono font-bold"
             />
           </div>
 
@@ -260,7 +260,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
               onChange={(e) =>
                 setFormData({ ...formData, goalWeightKg: parseFloat(e.target.value) || 0 })
               }
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono font-bold"
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono font-bold"
             />
           </div>
 
@@ -269,7 +269,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
             <select
               value={formData.primaryGoal}
               onChange={(e) => setFormData({ ...formData, primaryGoal: e.target.value as PrimaryGoal })}
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-200"
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-200"
             >
               <option value="muscle_gain">Muscle Gain (Hypertrophy)</option>
               <option value="fat_loss">Fat Loss (Deficit)</option>
@@ -285,7 +285,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
               onChange={(e) =>
                 setFormData({ ...formData, trainingExperience: e.target.value as TrainingExperience })
               }
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-200"
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-200"
             >
               <option value="beginner">Beginner (&lt; 1 year)</option>
               <option value="intermediate">Intermediate (1-4 years)</option>
@@ -303,7 +303,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
               onChange={(e) =>
                 setFormData({ ...formData, trainingDaysPerWeek: parseInt(e.target.value, 10) || 4 })
               }
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono"
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono"
             />
           </div>
 
@@ -314,7 +314,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
               onChange={(e) =>
                 setFormData({ ...formData, preferredUnit: e.target.value as PreferredUnit })
               }
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-200 font-mono"
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-200 font-mono"
             >
               <option value="kg">Kilograms (kg)</option>
               <option value="lbs">Pounds (lbs)</option>
@@ -328,7 +328,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
               value={formData.preferredTrainingTime || ''}
               onChange={(e) => setFormData({ ...formData, preferredTrainingTime: e.target.value })}
               placeholder="e.g. 06:30 AM or 17:30 PM"
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100"
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100"
             />
           </div>
 
@@ -338,14 +338,14 @@ export const SettingsView: React.FC<SettingsProps> = ({
               type="date"
               value={formData.targetDate || ''}
               onChange={(e) => setFormData({ ...formData, targetDate: e.target.value })}
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono"
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono"
             />
           </div>
         </div>
 
         {/* NUTRITION TARGETS */}
-        <div className="pt-4 border-t border-zinc-800/80">
-          <h4 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-3">
+        <div className="pt-4 border-t border-line">
+          <h4 className="text-xs font-semibold text-zinc-300 tracking-wide mb-3">
             Daily Calorie &amp; Macronutrient Targets
           </h4>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -357,7 +357,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
                 onChange={(e) =>
                   setFormData({ ...formData, dailyCalorieTarget: parseInt(e.target.value, 10) || 0 })
                 }
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono font-bold"
+                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono font-bold"
               />
             </div>
             <div>
@@ -368,7 +368,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
                 onChange={(e) =>
                   setFormData({ ...formData, dailyProteinTarget: parseInt(e.target.value, 10) || 0 })
                 }
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono font-bold"
+                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono font-bold"
               />
             </div>
             <div>
@@ -379,7 +379,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
                 onChange={(e) =>
                   setFormData({ ...formData, dailyCarbsTarget: parseInt(e.target.value, 10) || 0 })
                 }
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono font-bold"
+                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono font-bold"
               />
             </div>
             <div>
@@ -390,17 +390,17 @@ export const SettingsView: React.FC<SettingsProps> = ({
                 onChange={(e) =>
                   setFormData({ ...formData, dailyFatTarget: parseInt(e.target.value, 10) || 0 })
                 }
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono font-bold"
+                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono font-bold"
               />
             </div>
           </div>
         </div>
 
         {/* PROGRESSION ENGINE CALIBRATION RULES */}
-        <div className="pt-4 border-t border-zinc-800/80">
+        <div className="pt-4 border-t border-line">
           <div className="flex items-center gap-2 mb-3">
             <Sliders className="w-4 h-4 text-lime-400" />
-            <h4 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+            <h4 className="text-xs font-semibold text-zinc-300 tracking-wide">
               Progression Engine Rules &amp; Minimum Increments
             </h4>
           </div>
@@ -413,7 +413,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
                 onChange={(e) =>
                   setFormData({ ...formData, trainingPhase: e.target.value as TrainingPhase })
                 }
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-200 capitalize"
+                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-200 capitalize"
               >
                 <option value="hypertrophy">Hypertrophy (Progressive)</option>
                 <option value="strength">Strength (Lower reps)</option>
@@ -432,7 +432,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
                 onChange={(e) =>
                   setFormData({ ...formData, minBarbellIncrement: parseFloat(e.target.value) || 2.5 })
                 }
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono"
+                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono"
               />
             </div>
 
@@ -445,7 +445,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
                 onChange={(e) =>
                   setFormData({ ...formData, minDumbbellIncrement: parseFloat(e.target.value) || 2.0 })
                 }
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono"
+                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono"
               />
             </div>
 
@@ -458,7 +458,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
                 onChange={(e) =>
                   setFormData({ ...formData, minMachineIncrement: parseFloat(e.target.value) || 2.5 })
                 }
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono"
+                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono"
               />
             </div>
           </div>
@@ -467,7 +467,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
         <div className="pt-3 flex justify-end">
           <button
             type="submit"
-            className="touch-press px-6 py-2.5 bg-lime-400 hover:bg-lime-300 text-black font-bold text-xs rounded-xl shadow-md transition-colors"
+            className="touch-press px-6 py-2.5 bg-lime-400 hover:bg-lime-300 text-accent-ink font-bold text-xs rounded-xl shadow-md transition-colors"
           >
             Save All Preferences
           </button>
@@ -475,8 +475,8 @@ export const SettingsView: React.FC<SettingsProps> = ({
       </form>
 
       {/* AUTOMATED CALCULATION & PROGRESSION ENGINE TESTS */}
-      <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-6 shadow-xl space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800/80">
+      <div className="bg-surface-2 border border-line rounded-2xl p-5 lg:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-line">
           <div>
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-lime-400" />
@@ -491,7 +491,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
 
           <button
             onClick={handleRunTests}
-            className="touch-press px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-lime-400 font-semibold text-xs rounded-xl flex items-center gap-1.5 transition-colors shrink-0"
+            className="touch-press px-4 py-2 bg-surface-3 hover:bg-zinc-700 text-lime-400 font-semibold text-xs rounded-xl flex items-center gap-1.5 transition-colors shrink-0"
           >
             <Play className="w-3.5 h-3.5 fill-lime-400" />
             <span>Run Automated Tests</span>
@@ -513,7 +513,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
                   <div className="flex items-center gap-2">
                     <span className="font-bold">{t.name}</span>
                     <span
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${
                         t.passed ? 'bg-lime-400/20 text-lime-400' : 'bg-rose-500/20 text-rose-400'
                       }`}
                     >
@@ -533,15 +533,15 @@ export const SettingsView: React.FC<SettingsProps> = ({
       </div>
 
       {/* DATA BACKUP & EXPORTS */}
-      <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-6 shadow-xl space-y-4">
-        <h3 className="font-bold text-zinc-100 text-base pb-3 border-b border-zinc-800/80">
+      <div className="bg-surface-2 border border-line rounded-2xl p-5 lg:p-6 space-y-4">
+        <h3 className="font-bold text-zinc-100 text-base pb-3 border-b border-line">
           Data Export, Backup &amp; Portability
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
           <button
             onClick={handleExportJSON}
-            className="p-3 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl text-left transition-colors space-y-1"
+            className="p-3 bg-surface-2 border border-line hover:border-line-strong rounded-xl text-left transition-colors space-y-1"
           >
             <Download className="w-4 h-4 text-lime-400" />
             <div className="font-bold text-zinc-200">Full JSON Backup</div>
@@ -550,7 +550,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
 
           <button
             onClick={handleExportWorkoutsCSV}
-            className="p-3 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl text-left transition-colors space-y-1"
+            className="p-3 bg-surface-2 border border-line hover:border-line-strong rounded-xl text-left transition-colors space-y-1"
           >
             <FileSpreadsheet className="w-4 h-4 text-sky-400" />
             <div className="font-bold text-zinc-200">Workouts (CSV)</div>
@@ -559,7 +559,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
 
           <button
             onClick={handleExportNutritionCSV}
-            className="p-3 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl text-left transition-colors space-y-1"
+            className="p-3 bg-surface-2 border border-line hover:border-line-strong rounded-xl text-left transition-colors space-y-1"
           >
             <FileSpreadsheet className="w-4 h-4 text-amber-400" />
             <div className="font-bold text-zinc-200">Nutrition (CSV)</div>
@@ -568,7 +568,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
 
           <button
             onClick={handleExportMetricsCSV}
-            className="p-3 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl text-left transition-colors space-y-1"
+            className="p-3 bg-surface-2 border border-line hover:border-line-strong rounded-xl text-left transition-colors space-y-1"
           >
             <FileSpreadsheet className="w-4 h-4 text-lime-400" />
             <div className="font-bold text-zinc-200">Body Metrics (CSV)</div>
@@ -577,12 +577,12 @@ export const SettingsView: React.FC<SettingsProps> = ({
         </div>
 
         {/* RESTORE JSON BACKUP */}
-        <div className="pt-4 border-t border-zinc-800/80">
-          <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-2">
+        <div className="pt-4 border-t border-line">
+          <label className="block text-xs font-semibold text-zinc-300 tracking-wide mb-2">
             Restore Backup from JSON
           </label>
           <div className="flex items-center gap-3">
-            <label className="touch-press px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold rounded-xl cursor-pointer transition-colors flex items-center gap-2">
+            <label className="touch-press px-4 py-2 bg-surface-3 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold rounded-xl cursor-pointer transition-colors flex items-center gap-2">
               <Upload className="w-3.5 h-3.5" />
               <span>Select Backup File</span>
               <input
@@ -599,8 +599,8 @@ export const SettingsView: React.FC<SettingsProps> = ({
       </div>
 
       {/* DEMO MODE & SYSTEM RESET */}
-      <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-6 shadow-xl space-y-4">
-        <h3 className="font-bold text-zinc-100 text-base pb-3 border-b border-zinc-800/80">
+      <div className="bg-surface-2 border border-line rounded-2xl p-5 lg:p-6 space-y-4">
+        <h3 className="font-bold text-zinc-100 text-base pb-3 border-b border-line">
           Demo Dataset &amp; Data Maintenance
         </h3>
 
@@ -622,14 +622,14 @@ export const SettingsView: React.FC<SettingsProps> = ({
           ) : (
             <button
               onClick={onLoadDemoData}
-              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-semibold rounded-xl text-xs transition-colors"
+              className="px-4 py-2 bg-surface-3 hover:bg-zinc-700 text-zinc-200 font-semibold rounded-xl text-xs transition-colors"
             >
               Load Demo Dataset
             </button>
           )}
         </div>
 
-        <div className="pt-4 border-t border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="pt-4 border-t border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div>
             <div className="font-bold text-rose-400">Clear All Stored App Data</div>
             <p className="text-zinc-500 text-[11px]">
@@ -649,7 +649,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
       {/* Reset Confirmation Modal */}
       {showResetModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#12161c] border border-zinc-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+          <div className="bg-surface-2 border border-line rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
             <div className="flex items-center gap-3 text-rose-500">
               <AlertTriangle className="w-6 h-6" />
               <h3 className="font-bold text-zinc-100 text-base">Reset Entire Database?</h3>
@@ -669,7 +669,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
                   setShowResetModal(false);
                 }}
                 disabled={isResetting}
-                className="px-3 py-1.5 bg-zinc-800 text-zinc-300 rounded-lg text-xs"
+                className="px-3 py-1.5 bg-surface-3 text-zinc-300 rounded-lg text-xs"
               >
                 Cancel
               </button>

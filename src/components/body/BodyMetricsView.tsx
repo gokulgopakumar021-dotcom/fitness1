@@ -134,10 +134,10 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Top Header Card */}
-      <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-zinc-800/80">
+      <div className="bg-surface-2 border border-line rounded-2xl p-5 lg:p-7">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-line">
           <div>
-            <div className="flex items-center gap-2 text-lime-400 text-xs font-mono font-semibold uppercase tracking-wider mb-1">
+            <div className="flex items-center gap-2 text-lime-400 text-xs font-mono font-semibold tracking-wide mb-1">
               <Activity className="w-4 h-4" />
               <span>Physique &amp; Body Composition</span>
             </div>
@@ -153,7 +153,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
             <button
               type="button"
               onClick={() => setShowBodyScan(true)}
-              className="touch-press px-4 py-2.5 bg-zinc-900 border border-zinc-700 hover:border-lime-400/60 text-zinc-100 font-bold text-xs sm:text-sm rounded-xl flex items-center gap-2 transition-colors"
+              className="touch-press px-4 py-2.5 bg-surface-2 border border-line-strong hover:border-lime-400/60 text-zinc-100 font-bold text-xs sm:text-sm rounded-xl flex items-center gap-2 transition-colors"
             >
               <Scan className="w-4 h-4" aria-hidden="true" />
               <span>Body Scan</span>
@@ -163,7 +163,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
                 setLogWeight(profile.currentWeightKg);
                 setIsLogModalOpen(true);
               }}
-              className="touch-press px-5 py-2.5 bg-lime-400 hover:bg-lime-300 text-black font-bold text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-2 transition-colors"
+              className="touch-press px-5 py-2.5 bg-lime-400 hover:bg-lime-300 text-accent-ink font-bold text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-2 transition-colors"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
               <span>Log Daily Weight</span>
@@ -174,8 +174,8 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
         {/* Primary Metrics Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
           {/* Current Weight */}
-          <div className="p-4 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1">
-            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Current Weight</span>
+          <div className="p-4 bg-surface-2/70 border border-line rounded-xl space-y-1">
+            <span className="text-[11px] font-mono text-zinc-500 tracking-wide">Current Weight</span>
             <div className="text-2xl font-mono font-extrabold text-zinc-100">
               {profile.currentWeightKg}{' '}
               <span className="text-xs text-zinc-500 font-normal">{profile.preferredUnit}</span>
@@ -186,8 +186,8 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
           </div>
 
           {/* 7-Day Rolling Average */}
-          <div className="p-4 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1">
-            <span className="text-[10px] font-mono text-sky-400 uppercase tracking-wider font-semibold">
+          <div className="p-4 bg-surface-2/70 border border-line rounded-xl space-y-1">
+            <span className="text-[11px] font-mono text-sky-400 tracking-wide font-semibold">
               7-Day Rolling Avg
             </span>
             <div className="text-2xl font-mono font-extrabold text-sky-400">
@@ -200,8 +200,8 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
           </div>
 
           {/* Body Mass Index (BMI) */}
-          <div className="p-4 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1">
-            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Screening BMI</span>
+          <div className="p-4 bg-surface-2/70 border border-line rounded-xl space-y-1">
+            <span className="text-[11px] font-mono text-zinc-500 tracking-wide">Screening BMI</span>
             <div className="text-2xl font-mono font-extrabold text-lime-400">
               {currentBMI}
             </div>
@@ -211,8 +211,8 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
           </div>
 
           {/* Goal Progress Delta */}
-          <div className="p-4 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1">
-            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Goal Delta</span>
+          <div className="p-4 bg-surface-2/70 border border-line rounded-xl space-y-1">
+            <span className="text-[11px] font-mono text-zinc-500 tracking-wide">Goal Delta</span>
             <div className="text-2xl font-mono font-extrabold text-zinc-200">
               {Math.abs(weightDifference).toFixed(1)}{' '}
               <span className="text-xs text-zinc-500 font-normal">{profile.preferredUnit}</span>
@@ -228,7 +228,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
         </div>
 
         {/* Scientific BMI Screening Context Notice */}
-        <div className="mt-5 p-4 bg-zinc-900/40 border border-zinc-800 rounded-xl text-xs text-zinc-400 space-y-1.5 leading-relaxed">
+        <div className="mt-5 p-4 bg-surface-2/40 border border-line rounded-xl text-xs text-zinc-400 space-y-1.5 leading-relaxed">
           <div className="flex items-center gap-2 text-zinc-200 font-bold">
             <Info className="w-4 h-4 text-sky-400 shrink-0" />
             <span>Scientific Assessment &amp; Anti-Bias Notice on BMI</span>
@@ -242,8 +242,8 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
       </div>
 
       {/* Height and Goal Weight Inline Settings */}
-      <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 shadow-xl">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
+      <div className="bg-surface-2 border border-line rounded-2xl p-5">
+        <h3 className="text-xs font-semibold tracking-wide text-zinc-400 mb-3">
           Height &amp; Target Setup
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
@@ -253,7 +253,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
               type="number"
               value={editingHeight}
               onChange={(e) => setEditingHeight(parseFloat(e.target.value) || 0)}
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono font-bold"
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono font-bold"
             />
           </div>
           <div>
@@ -263,13 +263,13 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
               step="0.5"
               value={editingGoal}
               onChange={(e) => setEditingGoal(parseFloat(e.target.value) || 0)}
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-mono font-bold"
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono font-bold"
             />
           </div>
           <div className="flex items-end">
             <button
               onClick={handleUpdateHeightAndGoal}
-              className="w-full px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-semibold rounded-xl transition-colors"
+              className="w-full px-4 py-2.5 bg-surface-3 hover:bg-zinc-700 text-zinc-200 font-semibold rounded-xl transition-colors"
             >
               Update Profile Targets
             </button>
@@ -278,7 +278,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
       </div>
 
       {/* WEIGHT TREND CHART */}
-      <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-4">
+      <div className="bg-surface-2 border border-line rounded-2xl p-5 space-y-4">
         <LineChart
           data={chartData}
           title="Body Weight Progression vs Goal"
@@ -293,7 +293,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
 
       {/* WAIST MEASUREMENT CHART IF DATA EXISTS */}
       {waistChartData.length > 0 && (
-        <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-4">
+        <div className="bg-surface-2 border border-line rounded-2xl p-5 space-y-4">
           <LineChart
             data={waistChartData}
             title="Waist Circumference Trend"
@@ -304,8 +304,8 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
       )}
 
       {/* WEIGHT LOG HISTORY TABLE */}
-      <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 shadow-xl space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+      <div className="bg-surface-2 border border-line rounded-2xl p-5 space-y-3">
+        <h3 className="text-xs font-semibold tracking-wide text-zinc-400">
           Recorded Body Weight Entries ({metrics.length})
         </h3>
 
@@ -317,7 +317,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs font-mono">
               <thead>
-                <tr className="border-b border-zinc-800 text-zinc-500 text-[11px] uppercase tracking-wider">
+                <tr className="border-b border-line text-zinc-500 text-[11px] tracking-wide">
                   <th className="py-2 px-3">Date</th>
                   <th className="py-2 px-3">Weight ({profile.preferredUnit})</th>
                   <th className="py-2 px-3">Waist (cm)</th>
@@ -326,7 +326,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
                   <th className="py-2 px-2 text-right"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
+              <tbody className="divide-y divide-line/60 text-zinc-300">
                 {metrics
                   .slice()
                   .reverse()
@@ -335,7 +335,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
                       <td className="py-2.5 px-3 font-bold text-zinc-200">
                         {entry.date}
                         {entry.isDemo && (
-                          <span className="ml-2 text-[10px] text-amber-400 bg-amber-400/10 px-1 py-0.2 rounded">
+                          <span className="ml-2 text-[11px] text-amber-400 bg-amber-400/10 px-1 py-0.2 rounded">
                             DEMO
                           </span>
                         )}
@@ -368,7 +368,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
       {/* LOG MODAL */}
       {isLogModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#12161c] border border-zinc-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+          <div className="bg-surface-2 border border-line rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
             <h3 className="font-bold text-zinc-100 text-base">Log Morning Weight</h3>
             <div className="space-y-3 text-xs">
               <div>
@@ -377,7 +377,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
                   type="date"
                   value={logDate}
                   onChange={(e) => setLogDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 font-mono"
+                  className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-lg text-zinc-100 font-mono"
                 />
               </div>
 
@@ -390,7 +390,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
                   step="0.1"
                   value={logWeight || ''}
                   onChange={(e) => setLogWeight(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 font-bold font-mono text-base focus:outline-none focus:border-lime-400"
+                  className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-lg text-zinc-100 font-bold font-mono text-base focus:outline-none focus:border-lime-400"
                 />
               </div>
 
@@ -402,7 +402,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
                   value={logWaist}
                   onChange={(e) => setLogWaist(e.target.value)}
                   placeholder="e.g. 81.5"
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 font-mono"
+                  className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-lg text-zinc-100 font-mono"
                 />
               </div>
 
@@ -414,7 +414,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
                   value={logBodyFat}
                   onChange={(e) => setLogBodyFat(e.target.value)}
                   placeholder="e.g. 14.5"
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 font-mono"
+                  className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-lg text-zinc-100 font-mono"
                 />
               </div>
 
@@ -425,7 +425,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
                   value={logNotes}
                   onChange={(e) => setLogNotes(e.target.value)}
                   placeholder="e.g. Post rest day, low sodium"
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100"
+                  className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-lg text-zinc-100"
                 />
               </div>
             </div>
@@ -433,13 +433,13 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 onClick={() => setIsLogModalOpen(false)}
-                className="px-3 py-2 bg-zinc-800 text-zinc-300 rounded-lg text-xs"
+                className="px-3 py-2 bg-surface-3 text-zinc-300 rounded-lg text-xs"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveMetric}
-                className="px-4 py-2 bg-lime-400 text-black font-bold rounded-lg text-xs"
+                className="px-4 py-2 bg-lime-400 text-accent-ink font-bold rounded-lg text-xs"
               >
                 Save Record
               </button>

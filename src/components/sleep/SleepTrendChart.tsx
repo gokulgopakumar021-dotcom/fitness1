@@ -28,7 +28,7 @@ export const SleepTrendChart: React.FC<SleepTrendChartProps> = ({
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border-card)] pb-4">
         <div>
-          <div className="text-[10px] font-mono tracking-wider uppercase text-[var(--text-muted)] flex items-center gap-1.5">
+          <div className="text-[11px] font-mono tracking-wide text-[var(--text-muted)] flex items-center gap-1.5">
             <span>Recovery Biomarkers</span>
             <span aria-hidden="true">·</span>
             <span className="text-volt-adaptive font-semibold">Sleep Architecture & Performance</span>
@@ -52,13 +52,13 @@ export const SleepTrendChart: React.FC<SleepTrendChartProps> = ({
       {/* Scientific Correlation Highlight Callout */}
       <div className="reshape-card-subtle p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#CEFF00]/10 border border-[#CEFF00]/30 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/30 flex items-center justify-center shrink-0">
             <svg className="w-5 h-5 text-volt-adaptive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
             </svg>
           </div>
           <div>
-            <div className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
+            <div className="text-[11px] font-mono tracking-wide text-[var(--text-muted)]">
               Readiness & Output Finding
             </div>
             <p className="text-xs font-semibold text-[var(--text-primary)] leading-relaxed">
@@ -69,14 +69,14 @@ export const SleepTrendChart: React.FC<SleepTrendChartProps> = ({
 
         <div className="flex items-center gap-4 shrink-0 text-xs font-mono">
           <div className="text-right">
-            <div className="text-[10px] text-[var(--text-muted)] uppercase">Avg Duration</div>
+            <div className="text-[11px] text-[var(--text-muted)] ">Avg Duration</div>
             <div className="text-sm font-bold text-[var(--text-primary)]">
               {analysis.averageSleepHours} hrs
             </div>
           </div>
           <div className="h-7 w-[1px] bg-[var(--border-card)]"></div>
           <div className="text-right">
-            <div className="text-[10px] text-[var(--text-muted)] uppercase">Quality Score</div>
+            <div className="text-[11px] text-[var(--text-muted)] ">Quality Score</div>
             <div className="text-sm font-bold text-volt-adaptive">
               {analysis.averageSleepQuality}%
             </div>
@@ -89,7 +89,7 @@ export const SleepTrendChart: React.FC<SleepTrendChartProps> = ({
         <div className="flex items-center justify-between text-[11px] font-mono text-[var(--text-muted)]">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-[#CEFF00]"></span> Sleep Duration (Hours)
+              <span className="w-3 h-3 rounded-sm bg-accent"></span> Sleep Duration (Hours)
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span> Workout Volume (Tonnage)
@@ -109,7 +109,7 @@ export const SleepTrendChart: React.FC<SleepTrendChartProps> = ({
               className="absolute left-0 right-0 border-b border-dashed border-zinc-600/60 z-0 flex items-center justify-end pr-2"
               style={{ bottom: `${(8.0 / maxSleepHours) * 160 + 28}px` }}
             >
-              <span className="text-[9px] font-mono text-zinc-500 bg-[var(--bg-canvas)] px-1 rounded">
+              <span className="text-[11px] font-mono text-zinc-500 bg-[var(--bg-canvas)] px-1 rounded">
                 8.0h Target
               </span>
             </div>
@@ -134,14 +134,14 @@ export const SleepTrendChart: React.FC<SleepTrendChartProps> = ({
                   >
                     {/* Tooltip Popup */}
                     {isHovered && (
-                      <div className="absolute bottom-full mb-3 z-30 p-2.5 rounded-lg bg-zinc-900 border border-zinc-700 shadow-2xl text-[10px] font-mono text-zinc-200 pointer-events-none min-w-[140px] whitespace-nowrap">
-                        <div className="font-bold text-white border-b border-zinc-700 pb-1 mb-1">
+                      <div className="absolute bottom-full mb-3 z-30 p-2.5 rounded-lg bg-surface-2 border border-line-strong shadow-2xl text-[11px] font-mono text-zinc-200 pointer-events-none min-w-[140px] whitespace-nowrap">
+                        <div className="font-bold text-white border-b border-line-strong pb-1 mb-1">
                           {item.date}
                         </div>
-                        <div>Sleep: <strong className="text-[#CEFF00]">{item.sleepHours}h</strong> ({item.sleepQuality}%)</div>
+                        <div>Sleep: <strong className="text-accent">{item.sleepHours}h</strong> ({item.sleepQuality}%)</div>
                         {item.restingHeartRate && <div>RHR: {item.restingHeartRate} bpm</div>}
                         {item.hasWorkout ? (
-                          <div className="text-cyan-400 mt-1 border-t border-zinc-800 pt-1">
+                          <div className="text-cyan-400 mt-1 border-t border-line pt-1">
                             Workout: {item.workoutVolume} kg vol · RPE {item.averageRpe}
                           </div>
                         ) : (
@@ -164,7 +164,7 @@ export const SleepTrendChart: React.FC<SleepTrendChartProps> = ({
                       <div
                         className={`w-full transition-all rounded-t-sm ${
                           item.sleepHours >= 7.5
-                            ? 'bg-[#CEFF00] group-hover:brightness-110'
+                            ? 'bg-accent group-hover:brightness-110'
                             : 'bg-amber-400/80 group-hover:bg-amber-400'
                         }`}
                         style={{ height: `${heightPercent}%` }}
@@ -172,7 +172,7 @@ export const SleepTrendChart: React.FC<SleepTrendChartProps> = ({
                     </div>
 
                     {/* Date Label */}
-                    <span className="text-[9px] font-mono text-[var(--text-muted)] mt-2">
+                    <span className="text-[11px] font-mono text-[var(--text-muted)] mt-2">
                       {dateFormatted}
                     </span>
                   </div>

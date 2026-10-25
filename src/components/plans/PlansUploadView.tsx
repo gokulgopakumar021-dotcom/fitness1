@@ -431,10 +431,10 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
   if (subView === 'review_extracted' && reviewPlan) {
     return (
       <div className="space-y-6 max-w-4xl mx-auto pb-16">
-        <div className="bg-[#090c12] border border-white/[0.08] rounded-2xl p-5 lg:p-7 shadow-2xl space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/[0.06]">
+        <div className="bg-surface border border-line rounded-2xl p-5 lg:p-7 shadow-2xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-line">
             <div>
-              <div className="flex items-center gap-2 text-[#CEFF00] text-xs font-mono font-bold uppercase tracking-widest mb-1.5">
+              <div className="flex items-center gap-2 text-accent text-xs font-mono font-bold tracking-wide mb-1.5">
                 <CheckCircle className="w-4 h-4" />
                 <span>Verification &amp; Correction Step</span>
               </div>
@@ -462,7 +462,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                 type="text"
                 value={reviewPlan.name}
                 onChange={(e) => setReviewPlan({ ...reviewPlan, name: e.target.value })}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-bold"
+                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-bold"
               />
             </div>
             <div>
@@ -471,13 +471,13 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                 type="text"
                 value={reviewPlan.trainingSplit}
                 onChange={(e) => setReviewPlan({ ...reviewPlan, trainingSplit: e.target.value })}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100"
+                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100"
               />
             </div>
           </div>
 
           {/* Overload Strategy & Phase Calibration during Review */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-zinc-900/60 border border-zinc-800 p-3.5 rounded-xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-surface-2/60 border border-line p-3.5 rounded-xl">
             <div>
               <label className="block text-zinc-300 mb-1 font-semibold flex items-center gap-1.5">
                 <TrendingUp className="w-3.5 h-3.5 text-lime-400" />
@@ -486,7 +486,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
               <select
                 value={reviewPlan.defaultStrategy || 'double_progression'}
                 onChange={(e) => setReviewPlan({ ...reviewPlan, defaultStrategy: e.target.value as any })}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 font-medium"
+                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-lg text-zinc-100 font-medium"
               >
                 <option value="double_progression">Standard Double Progression (All Sets Top of Range)</option>
                 <option value="top_set_only">Top-Set Only Progression</option>
@@ -501,7 +501,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
               <select
                 value={reviewPlan.progressionPhase || 'hypertrophy'}
                 onChange={(e) => setReviewPlan({ ...reviewPlan, progressionPhase: e.target.value as any })}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-100 capitalize font-medium"
+                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-lg text-zinc-100 capitalize font-medium"
               >
                 <option value="hypertrophy">Hypertrophy (Progressive Overload)</option>
                 <option value="strength">Strength (Lower Reps, Heavy Compound)</option>
@@ -516,7 +516,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
             {reviewPlan.days.map((day, dIdx) => (
               <div
                 key={day.id}
-                className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 space-y-3"
+                className="bg-surface-2/60 border border-line rounded-xl p-4 space-y-3"
               >
                 <div className="flex items-center justify-between">
                   <input
@@ -527,7 +527,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                       days[dIdx].dayName = e.target.value;
                       setReviewPlan({ ...reviewPlan, days });
                     }}
-                    className="font-bold text-zinc-100 bg-transparent border-b border-zinc-700 text-sm pb-1 w-full max-w-xs focus:outline-none focus:border-lime-400"
+                    className="font-bold text-zinc-100 bg-transparent border-b border-line-strong text-sm pb-1 w-full max-w-xs focus:outline-none focus:border-lime-400"
                   />
                   <button
                     onClick={() => {
@@ -546,7 +546,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                   {day.exercises.map((ex, exIdx) => (
                     <div
                       key={ex.id}
-                      className="p-3 bg-zinc-950/60 border border-zinc-800/80 rounded-lg grid grid-cols-1 sm:grid-cols-12 gap-2 items-center text-xs"
+                      className="p-3 bg-canvas/60 border border-line rounded-lg grid grid-cols-1 sm:grid-cols-12 gap-2 items-center text-xs"
                     >
                       <div className="sm:col-span-4">
                         <input
@@ -583,9 +583,9 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                             setReviewPlan({ ...reviewPlan, days });
                           }}
                           placeholder="Sets"
-                          className="w-16 bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-zinc-200 font-mono text-[11px]"
+                          className="w-16 bg-surface-2 border border-line rounded px-1.5 py-0.5 text-zinc-200 font-mono text-[11px]"
                         />
-                        <span className="text-[10px] text-zinc-500 ml-1">sets</span>
+                        <span className="text-[11px] text-zinc-500 ml-1">sets</span>
                       </div>
                       <div className="sm:col-span-3">
                         <input
@@ -597,9 +597,9 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                             setReviewPlan({ ...reviewPlan, days });
                           }}
                           placeholder="8-12 reps"
-                          className="w-20 bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-zinc-200 font-mono text-[11px]"
+                          className="w-20 bg-surface-2 border border-line rounded px-1.5 py-0.5 text-zinc-200 font-mono text-[11px]"
                         />
-                        <span className="text-[10px] text-zinc-500 ml-1">reps</span>
+                        <span className="text-[11px] text-zinc-500 ml-1">reps</span>
                       </div>
                       <div className="sm:col-span-1 text-right">
                         <button
@@ -632,7 +632,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                     });
                     setReviewPlan({ ...reviewPlan, days });
                   }}
-                  className="text-xs text-[#CEFF00] hover:underline flex items-center gap-1 font-bold"
+                  className="text-xs text-accent hover:underline flex items-center gap-1 font-bold"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Exercise to this Day</span>
@@ -642,7 +642,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
           </div>
 
           {/* Import Decision Actions */}
-          <div className="pt-5 border-t border-white/[0.08] flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="pt-5 border-t border-line flex flex-wrap items-center justify-between gap-3 text-xs">
             <span className="text-zinc-400 font-mono">
               Total: {reviewPlan.days.length} Days &middot;{' '}
               {reviewPlan.days.reduce((acc, d) => acc + d.exercises.length, 0)} Exercises
@@ -657,14 +657,14 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
               </button>
               <button
                 onClick={handleImportAndTuneOverload}
-                className="min-h-[44px] px-4 py-2 bg-[#CEFF00]/15 hover:bg-[#CEFF00]/25 border border-[#CEFF00]/40 text-[#CEFF00] font-bold rounded-xl transition-colors flex items-center gap-1.5"
+                className="min-h-[44px] px-4 py-2 bg-accent/15 hover:bg-accent/25 border border-accent/40 text-accent font-bold rounded-xl transition-colors flex items-center gap-1.5"
               >
-                <TrendingUp className="w-3.5 h-3.5 text-[#CEFF00]" />
+                <TrendingUp className="w-3.5 h-3.5 text-accent" />
                 <span>Import &amp; Tune Overload Analytics</span>
               </button>
               <button
                 onClick={() => setShowReplaceModal(true)}
-                className="min-h-[44px] touch-press px-5 py-2 bg-[#CEFF00] hover:bg-[#b8e600] text-black font-extrabold rounded-xl transition-all shadow-lg active:scale-[0.98]"
+                className="min-h-[44px] touch-press px-5 py-2 bg-accent hover:bg-accent-hover text-accent-ink font-extrabold rounded-xl transition-all shadow-lg active:scale-[0.98]"
               >
                 Import &amp; Set as Active Plan
               </button>
@@ -675,7 +675,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
         {/* Confirmation Modal to Replace Active Plan */}
         {showReplaceModal && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="bg-[#090c12] border border-white/[0.12] rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+            <div className="bg-surface border border-line rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
               <div className="flex items-center gap-3 text-amber-400">
                 <AlertTriangle className="w-6 h-6" />
                 <h3 className="font-extrabold text-white text-base">Replace Active Plan?</h3>
@@ -692,7 +692,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                 </button>
                 <button
                   onClick={handleImportAndReplaceActive}
-                  className="min-h-[44px] px-5 py-2 bg-[#CEFF00] hover:bg-[#b8e600] text-black font-extrabold rounded-xl text-xs shadow-lg"
+                  className="min-h-[44px] px-5 py-2 bg-accent hover:bg-accent-hover text-accent-ink font-extrabold rounded-xl text-xs shadow-lg"
                 >
                   Confirm &amp; Activate
                 </button>
@@ -710,8 +710,8 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
   if (subView === 'manual_builder') {
     return (
       <div className="space-y-6 max-w-4xl mx-auto">
-        <div className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 shadow-xl space-y-4">
-          <div className="flex items-center justify-between pb-4 border-b border-zinc-800/80">
+        <div className="bg-surface-2 border border-line rounded-2xl p-5 lg:p-7 space-y-4">
+          <div className="flex items-center justify-between pb-4 border-b border-line">
             <div>
               <h2 className="text-xl font-bold text-zinc-100">Manual Workout Plan Builder</h2>
               <p className="text-xs text-zinc-400 mt-1">
@@ -720,7 +720,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
             </div>
             <button
               onClick={() => setSubView('plans_list')}
-              className="px-3 py-1.5 bg-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs rounded-lg"
+              className="px-3 py-1.5 bg-surface-3 text-zinc-400 hover:text-zinc-200 text-xs rounded-lg"
             >
               Back to Plans
             </button>
@@ -733,7 +733,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                 type="text"
                 value={builderPlanName}
                 onChange={(e) => setBuilderPlanName(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100 font-bold"
+                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-bold"
               />
             </div>
             <div>
@@ -742,7 +742,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                 type="text"
                 value={builderSplit}
                 onChange={(e) => setBuilderSplit(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-zinc-100"
+                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100"
               />
             </div>
           </div>
@@ -752,7 +752,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
             {builderDays.map((day, dIdx) => (
               <div
                 key={day.id}
-                className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 space-y-3"
+                className="bg-surface-2/60 border border-line rounded-xl p-4 space-y-3"
               >
                 <div className="flex items-center justify-between">
                   <input
@@ -763,7 +763,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                       days[dIdx].dayName = e.target.value;
                       setBuilderDays(days);
                     }}
-                    className="font-bold text-zinc-100 bg-transparent border-b border-zinc-700 text-sm pb-1 w-full max-w-xs focus:outline-none focus:border-lime-400"
+                    className="font-bold text-zinc-100 bg-transparent border-b border-line-strong text-sm pb-1 w-full max-w-xs focus:outline-none focus:border-lime-400"
                   />
                   <button
                     onClick={() => {
@@ -780,7 +780,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                   {day.exercises.map((ex, exIdx) => (
                     <div
                       key={ex.id}
-                      className="p-3 bg-zinc-950/60 border border-zinc-800/80 rounded-lg grid grid-cols-1 sm:grid-cols-12 gap-2 items-center text-xs"
+                      className="p-3 bg-canvas/60 border border-line rounded-lg grid grid-cols-1 sm:grid-cols-12 gap-2 items-center text-xs"
                     >
                       <div className="sm:col-span-4">
                         <input
@@ -817,9 +817,9 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                             days[dIdx].exercises[exIdx].workingSets = parseInt(e.target.value, 10) || 3;
                             setBuilderDays(days);
                           }}
-                          className="w-14 bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-zinc-200 font-mono text-[11px]"
+                          className="w-14 bg-surface-2 border border-line rounded px-1.5 py-0.5 text-zinc-200 font-mono text-[11px]"
                         />
-                        <span className="text-[10px] text-zinc-500 ml-1">sets</span>
+                        <span className="text-[11px] text-zinc-500 ml-1">sets</span>
                       </div>
                       <div className="sm:col-span-3">
                         <input
@@ -831,9 +831,9 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                             setBuilderDays(days);
                           }}
                           placeholder="8-12"
-                          className="w-16 bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-zinc-200 font-mono text-[11px]"
+                          className="w-16 bg-surface-2 border border-line rounded px-1.5 py-0.5 text-zinc-200 font-mono text-[11px]"
                         />
-                        <span className="text-[10px] text-zinc-500 ml-1">reps</span>
+                        <span className="text-[11px] text-zinc-500 ml-1">reps</span>
                       </div>
                       <div className="sm:col-span-1 text-right">
                         <button
@@ -862,10 +862,10 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
             ))}
           </div>
 
-          <div className="flex items-center justify-between pt-4 border-t border-zinc-800/80">
+          <div className="flex items-center justify-between pt-4 border-t border-line">
             <button
               onClick={handleAddBuilderDay}
-              className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold rounded-lg flex items-center gap-1.5"
+              className="px-3.5 py-2 bg-surface-3 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold rounded-lg flex items-center gap-1.5"
             >
               <Plus className="w-3.5 h-3.5 text-lime-400" />
               <span>Add Training Day</span>
@@ -873,7 +873,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
 
             <button
               onClick={handleSaveManualPlan}
-              className="touch-press px-5 py-2 bg-lime-400 hover:bg-lime-300 text-black font-bold text-xs rounded-xl"
+              className="touch-press px-5 py-2 bg-lime-400 hover:bg-lime-300 text-accent-ink font-bold text-xs rounded-xl"
             >
               Save Routine to Library
             </button>
@@ -892,11 +892,11 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
       <div className="reshape-card p-5 lg:p-7 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[var(--border-card)]">
           <div>
-            <div className="flex items-center gap-2 text-volt-adaptive text-xs font-mono font-bold uppercase tracking-widest mb-1.5">
+            <div className="flex items-center gap-2 text-volt-adaptive text-xs font-mono font-bold tracking-wide mb-1.5">
               <FileSpreadsheet className="w-4 h-4" />
               <span>Routines &amp; File Ingestion</span>
             </div>
-            <h1 className="text-xl lg:text-3xl font-nrc font-black italic uppercase text-[var(--text-primary)] tracking-tight">
+            <h1 className="text-xl lg:text-3xl font-nrc font-bold text-[var(--text-primary)] tracking-tight">
               Workout Plans &amp; Document Uploads
             </h1>
             <p className="text-xs text-[var(--text-secondary)] mt-1">
@@ -915,7 +915,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
 
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="min-h-[44px] touch-press px-5 py-2.5 bg-[#CEFF00] hover:bg-[#b8e600] text-black font-extrabold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-lg active:scale-[0.98]"
+              className="min-h-[44px] touch-press px-5 py-2.5 bg-accent hover:bg-accent-hover text-accent-ink font-extrabold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-lg active:scale-[0.98]"
             >
               <Upload className="w-4 h-4 stroke-[2.5]" />
               <span>Upload Document</span>
@@ -932,7 +932,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
 
         {/* Processing State */}
         {isProcessing && (
-          <div className="mt-4 p-4 bg-[var(--bg-subtle)] border border-[#CEFF00]/40 rounded-xl flex items-center gap-3 text-xs text-volt-adaptive animate-pulse">
+          <div className="mt-4 p-4 bg-[var(--bg-subtle)] border border-accent/40 rounded-xl flex items-center gap-3 text-xs text-volt-adaptive animate-pulse">
             <RefreshCw className="w-4 h-4 animate-spin" />
             <span>Analyzing file document and parsing workout routine exercises...</span>
           </div>
@@ -958,9 +958,9 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
         {/* File Dropzone Card */}
         <div
           onClick={() => fileInputRef.current?.click()}
-          className="mt-6 border-2 border-dashed border-[var(--border-card)] hover:border-[#CEFF00]/60 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] rounded-2xl p-7 text-center cursor-pointer transition-all group"
+          className="mt-6 border-2 border-dashed border-[var(--border-card)] hover:border-accent/60 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] rounded-2xl p-7 text-center cursor-pointer transition-all group"
         >
-          <div className="w-12 h-12 rounded-2xl bg-[var(--bg-surface)] group-hover:bg-[#CEFF00]/15 border border-[var(--border-card)] group-hover:border-[#CEFF00]/40 flex items-center justify-center text-[var(--text-muted)] group-hover:text-volt-adaptive mx-auto mb-3 transition-colors">
+          <div className="w-12 h-12 rounded-2xl bg-[var(--bg-surface)] group-hover:bg-accent/15 border border-[var(--border-card)] group-hover:border-accent/40 flex items-center justify-center text-[var(--text-muted)] group-hover:text-volt-adaptive mx-auto mb-3 transition-colors">
             <Upload className="w-5 h-5" />
           </div>
           <h4 className="font-bold text-[var(--text-primary)] text-sm">
@@ -975,7 +975,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
       {/* PLANS LIBRARY */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--text-muted)]">
+          <h3 className="text-xs font-mono font-bold tracking-wide text-[var(--text-muted)]">
             Workout Plans Library ({plans.length})
           </h3>
         </div>
@@ -990,16 +990,16 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                 key={plan.id}
                 className={`reshape-card p-5 lg:p-6 space-y-4 transition-all ${
                   isActive
-                    ? 'border-[#CEFF00] shadow-[0_0_24px_rgba(206,255,0,0.18)] ring-1 ring-[#CEFF00]'
+                    ? 'border-accent ring-1 ring-accent'
                     : 'hover:border-[var(--border-card-hover)]'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h4 className="font-nrc font-black italic uppercase text-lg text-[var(--text-primary)] tracking-tight">{plan.name}</h4>
+                      <h4 className="font-nrc font-bold text-lg text-[var(--text-primary)] tracking-tight">{plan.name}</h4>
                       {plan.isStarter && (
-                        <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase font-bold">
+                        <span className="text-[11px] font-mono text-[var(--text-muted)] font-bold">
                           &bull; TEMPLATE
                         </span>
                       )}
@@ -1010,7 +1010,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                   </div>
 
                   {isActive && (
-                    <span className="font-mono text-xs font-bold text-volt-adaptive uppercase tracking-wider shrink-0 flex items-center gap-1">
+                    <span className="font-mono text-xs font-bold text-volt-adaptive tracking-wide shrink-0 flex items-center gap-1">
                       <Check className="w-3.5 h-3.5 stroke-[3]" />
                       <span>ACTIVE</span>
                     </span>
@@ -1036,7 +1036,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                 </div>
 
                 {/* Plan card actions */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-white/[0.06] text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-line text-xs">
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleDuplicatePlan(plan)}
@@ -1061,10 +1061,10 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
                           onNavigateToProgression(plan.id);
                         }
                       }}
-                      className="min-h-[40px] px-3.5 py-1.5 bg-[#CEFF00]/10 hover:bg-[#CEFF00]/20 text-[#CEFF00] border border-[#CEFF00]/30 font-bold rounded-xl text-xs flex items-center gap-1 transition-colors"
+                      className="min-h-[40px] px-3.5 py-1.5 bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 font-bold rounded-xl text-xs flex items-center gap-1 transition-colors"
                       title="Adjust Overload Analytics for this plan"
                     >
-                      <TrendingUp className="w-3.5 h-3.5 text-[#CEFF00]" />
+                      <TrendingUp className="w-3.5 h-3.5 text-accent" />
                       <span>Overload Rules &rarr;</span>
                     </button>
 
@@ -1086,8 +1086,8 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
 
       {/* UPLOADED DOCUMENTS AUDIT LOG */}
       {uploadedDocs.length > 0 && (
-        <div className="bg-[#090c12] border border-white/[0.08] rounded-2xl p-5 shadow-2xl space-y-3">
-          <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-zinc-400">
+        <div className="bg-surface border border-line rounded-2xl p-5 shadow-2xl space-y-3">
+          <h3 className="text-xs font-mono font-bold tracking-wide text-zinc-400">
             Uploaded Files History ({uploadedDocs.length})
           </h3>
           <div className="divide-y divide-white/[0.04] font-mono text-xs">

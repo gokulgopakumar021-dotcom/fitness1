@@ -38,6 +38,7 @@ import {
   formatWeight
 } from '../../utils/calculations';
 import { NavTab } from '../layout/Navbar';
+import { Badge, Button, Card, PageHeader, ProgressBar, SectionHeading } from '../ui';
 import { AiRecoveryInsightsPanel } from './AiRecoveryInsightsPanel';
 import { GymConsistencyStreakCalendar } from './GymConsistencyStreakCalendar';
 import { ExercisePostureModal } from '../posture/ExercisePostureModal';
@@ -162,194 +163,241 @@ export const DashboardView: React.FC<DashboardProps> = ({
   // Calculated Dynamic Daily Readiness Score (Reshape / WHOOP 4.0 style)
   const readinessScore = Math.min(98, Math.max(72, Math.round(84 + (sessionsLast7Days >= 3 ? 8 : -4) + (checklistPercent > 80 ? 4 : 0))));
 
+  const quickLaunch: {
+    key: string;
+    title: string;
+    description: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+    badge?: React.ReactNode;
+    featured?: boolean;
+  }[] = [
+    {
+      key: 'workouts',
+      title: 'Session Logger',
+      description: 'Real-time set tracker, target RIR calibration, rest countdown timer, and automatic set completion.',
+      icon: <Dumbbell className="w-5 h-5" />,
+      onClick: () => onNavigate('workouts')
+    },
+    {
+      key: 'progression',
+      title: 'Double Progression Engine',
+      description: 'Deterministic overload recommendations (Rules A, B, C, D) calculated across all working sets.',
+      icon: <TrendingUp className="w-5 h-5" />,
+      onClick: () => onNavigate('progression')
+    },
+    {
+      key: 'nutrition',
+      title: 'Macro Food Diary & Barcode',
+      description: 'Live barcode scanning, Open Food Facts normalization, bodybuilding staples, and protein tracking.',
+      icon: <Apple className="w-5 h-5" />,
+      onClick: () => onNavigate('nutrition')
+    },
+    {
+      key: 'body',
+      title: 'Body Composition & BMI',
+      description: '7-day smoothed rolling averages, BMI demographic categorizations, and silhouette ratio analysis.',
+      icon: <Activity className="w-5 h-5" />,
+      onClick: () => onNavigate('body')
+    },
+    {
+      key: 'trainer',
+      title: 'Coach Iron · AI Coach',
+      description: 'Interactive consultation, customized 5-minute warm-ups, and physique recomposition blueprints.',
+      icon: <Bot className="w-5 h-5" />,
+      onClick: () => onNavigate('trainer'),
+      badge: <Badge tone="accent">AI coach</Badge>,
+      featured: true
+    },
+    {
+      key: 'posture',
+      title: 'Biomechanics & Posture',
+      description: 'Biomechanical mannequin, joint angle visualization, common failure cues, and safety guidelines.',
+      icon: <Eye className="w-5 h-5" />,
+      onClick: () => setPostureModalExercise('Barbell Back Squat'),
+      badge: <Badge tone="info">Biomechanics</Badge>
+    }
+  ];
+
+  const tileBase =
+    'text-left w-full rounded-2xl border bg-surface hover:bg-surface-2 transition-colors p-4 sm:p-5 border-line hover:border-line-strong';
+
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      {/* RESHAPE HERO COMMAND HUB */}
-      <div className="reshape-card p-6 lg:p-8 overflow-hidden">
-        {/* Specular Radial Ambience */}
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#CEFF00]/[0.04] rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 right-0 w-80 h-80 bg-sky-500/[0.03] rounded-full blur-3xl pointer-events-none" />
+    <div className="space-y-8 max-w-5xl mx-auto">
+      <PageHeader
+        eyebrow="Athlete performance radar"
+        title={profile.name ? profile.name : 'Athlete discipline'}
+        description="Precision double-overload tracking, AI recovery guidance, and automated nutritional balance."
+        actions={
+          activeSession ? (
+            <Button size="lg" onClick={onResumeActiveSession} icon={<Play className="w-4 h-4 fill-current" />}>
+              Resume workout
+            </Button>
+          ) : (
+            <Button size="lg" onClick={() => onNavigate('workouts')} icon={<Dumbbell className="w-4 h-4" />}>
+              Start workout
+            </Button>
+          )
+        }
+      />
 
-        <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-7 border-b border-white/[0.07]">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#CEFF00] shadow-[0_0_8px_#CEFF00] animate-pulse" />
-              <span className="text-[11px] font-mono tracking-widest text-[#CEFF00] font-bold uppercase">
-                ATHLETE PERFORMANCE RADAR
-              </span>
-            </div>
-            <h1 className="text-3xl lg:text-4xl font-nrc font-black italic text-white uppercase tracking-tight">
-              {profile.name ? `${profile.name}` : 'ATHLETE DISCIPLINE'}
-            </h1>
-            <p className="text-xs sm:text-sm text-zinc-400 max-w-xl font-sans leading-relaxed">
-              Precision double-overload tracking, AI recovery guidance, and automated nutritional balance.
-            </p>
+      {/* KEY METRICS */}
+      <section aria-label="Key metrics" className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <button type="button" onClick={() => onNavigate('reports')} className={`${tileBase} space-y-2`}>
+          <div className="flex items-center justify-between text-[var(--text-secondary)]">
+            <span className="text-xs font-medium">Readiness</span>
+            <HeartPulse className="w-4 h-4 text-volt-adaptive" aria-hidden />
           </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-3xl font-bold tracking-tight text-[var(--text-primary)] tabular">{readinessScore}</span>
+            <span className="text-xs text-[var(--text-muted)] tabular">/ 100</span>
+          </div>
+          <div className="text-xs text-[var(--text-secondary)]">Estimate from recent training</div>
+        </button>
 
-          {/* Reshape High-Visibility Hero Action */}
-          <div className="flex items-center gap-3 shrink-0">
-            {activeSession ? (
-              <button
-                onClick={onResumeActiveSession}
-                className="touch-press px-6 py-3.5 bg-[#CEFF00] hover:bg-[#d8ff1a] text-black font-nrc font-black italic uppercase text-base sm:text-lg rounded-2xl shadow-[0_0_30px_rgba(206,255,0,0.35)] flex items-center justify-center gap-2 transition-all group"
-              >
-                <Play className="w-5 h-5 fill-black" />
-                <span>Resume Workout</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </button>
+        <button type="button" onClick={() => onNavigate('reports')} className={`${tileBase} space-y-2`}>
+          <div className="flex items-center justify-between text-[var(--text-secondary)]">
+            <span className="text-xs font-medium">7-day frequency</span>
+            <Calendar className="w-4 h-4 text-[var(--text-muted)]" aria-hidden />
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-3xl font-bold tracking-tight text-[var(--text-primary)] tabular">{sessionsLast7Days}</span>
+            <span className="text-xs text-[var(--text-muted)] tabular">/ {profile.trainingDaysPerWeek} days</span>
+          </div>
+          <div className="text-xs">
+            {sessionsLast7Days >= profile.trainingDaysPerWeek ? (
+              <span className="text-volt-adaptive font-semibold">Weekly quota satisfied</span>
             ) : (
-              <button
-                onClick={() => onNavigate('workouts')}
-                className="touch-press px-7 py-3.5 bg-[#CEFF00] hover:bg-[#d8ff1a] text-black font-nrc font-black italic uppercase text-base sm:text-lg rounded-2xl shadow-[0_0_30px_rgba(206,255,0,0.35)] flex items-center justify-center gap-2.5 transition-all group"
-              >
-                <Dumbbell className="w-5 h-5 stroke-[2.5]" />
-                <span>Start Workout</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </button>
+              <span className="text-[var(--text-secondary)]">
+                {profile.trainingDaysPerWeek - sessionsLast7Days} sessions to goal
+              </span>
             )}
           </div>
-        </div>
+        </button>
 
-        {/* Reshape Signature 4-Metric Bento Deck */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mt-6">
-          {/* 1. Daily Readiness Dial */}
-          <div
-            onClick={() => onNavigate('reports')}
-            className="reshape-card-interactive p-4 sm:p-5 cursor-pointer flex flex-col justify-between"
-          >
-            <div className="flex items-center justify-between text-zinc-400 text-[10px] font-mono uppercase font-bold tracking-wider mb-2">
-              <span>Readiness</span>
-              <HeartPulse className="w-4 h-4 text-[#CEFF00]" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-nrc font-black italic text-white tabular-nums">
-                {readinessScore}
-              </span>
-              <span className="text-xs font-mono text-[#CEFF00] font-bold">/ 100</span>
-            </div>
-            <div className="text-[11px] text-zinc-400 mt-2 font-sans flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span>Optimal training capacity</span>
-            </div>
+        <button type="button" onClick={() => onNavigate('nutrition')} className={`${tileBase} space-y-2`}>
+          <div className="flex items-center justify-between text-[var(--text-secondary)]">
+            <span className="text-xs font-medium">Fuel targets</span>
+            <Apple className="w-4 h-4 text-[var(--text-muted)]" aria-hidden />
           </div>
-
-          {/* 2. Consistency Target */}
-          <div
-            onClick={() => onNavigate('reports')}
-            className="reshape-card-interactive p-4 sm:p-5 cursor-pointer flex flex-col justify-between"
-          >
-            <div className="flex items-center justify-between text-zinc-400 text-[10px] font-mono uppercase font-bold tracking-wider mb-2">
-              <span>7D Frequency</span>
-              <Calendar className="w-4 h-4 text-sky-400" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-nrc font-black italic text-white tabular-nums">
-                {sessionsLast7Days}
-              </span>
-              <span className="text-xs font-mono text-zinc-500 font-normal">/ {profile.trainingDaysPerWeek}d target</span>
-            </div>
-            <div className="text-[11px] text-zinc-400 mt-2 font-sans">
-              {sessionsLast7Days >= profile.trainingDaysPerWeek ? (
-                <span className="text-[#CEFF00] font-semibold">Weekly quota satisfied</span>
-              ) : (
-                <span>{profile.trainingDaysPerWeek - sessionsLast7Days} sessions to goal</span>
-              )}
-            </div>
+          <div className="flex items-baseline gap-1.5 min-w-0">
+            <span className="text-3xl font-bold tracking-tight text-[var(--text-primary)] tabular">{totalCal}</span>
+            <span className="text-xs text-[var(--text-muted)] tabular truncate">/ {calTarget} kcal</span>
           </div>
-
-          {/* 3. Nutrition & Protein Fuel */}
-          <div
-            onClick={() => onNavigate('nutrition')}
-            className="reshape-card-interactive p-4 sm:p-5 cursor-pointer flex flex-col justify-between"
-          >
-            <div className="flex items-center justify-between text-zinc-400 text-[10px] font-mono uppercase font-bold tracking-wider mb-2">
-              <span>Fuel Targets</span>
-              <Apple className="w-4 h-4 text-sky-400" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-mono font-bold text-white tabular-nums">
-                {totalCal}
-              </span>
-              <span className="text-xs font-mono text-zinc-500 font-normal">/ {calTarget} kcal</span>
-            </div>
-            <div className="text-[11px] text-sky-300 font-sans mt-2 font-semibold truncate">
-              {totalPro}g / {proTarget}g protein ({calorieProgress}%)
-            </div>
+          <ProgressBar value={totalCal} max={calTarget} label="Calories today" />
+          <div className="text-xs text-[var(--text-secondary)] tabular">
+            {totalPro}g / {proTarget}g protein ({calorieProgress}%)
           </div>
+        </button>
 
-          {/* 4. Body Recomp & BMI */}
-          <div
-            onClick={() => onNavigate('body')}
-            className="reshape-card-interactive p-4 sm:p-5 cursor-pointer flex flex-col justify-between"
-          >
-            <div className="flex items-center justify-between text-zinc-400 text-[10px] font-mono uppercase font-bold tracking-wider mb-2">
-              <span>Body Metrics</span>
-              <Activity className="w-4 h-4 text-amber-400" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-mono font-bold text-white tabular-nums">
-                {profile.currentWeightKg}
-              </span>
-              <span className="text-xs font-mono text-zinc-500 font-normal">{profile.preferredUnit}</span>
-            </div>
-            <div className="text-[11px] text-zinc-400 mt-2 font-sans truncate">
-              BMI: <strong className="text-[#CEFF00] font-mono font-bold">{currentBMI}</strong>
-              {weeklyAvg && ` · 7d: ${weeklyAvg}`}
-            </div>
+        <button type="button" onClick={() => onNavigate('body')} className={`${tileBase} space-y-2`}>
+          <div className="flex items-center justify-between text-[var(--text-secondary)]">
+            <span className="text-xs font-medium">Body metrics</span>
+            <Activity className="w-4 h-4 text-[var(--text-muted)]" aria-hidden />
           </div>
-        </div>
-      </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-3xl font-bold tracking-tight text-[var(--text-primary)] tabular">{profile.currentWeightKg}</span>
+            <span className="text-xs text-[var(--text-muted)]">{profile.preferredUnit}</span>
+          </div>
+          <div className="text-xs text-[var(--text-secondary)] tabular">
+            BMI <span className="text-[var(--text-primary)] font-semibold">{currentBMI}</span>
+            {weeklyAvg && ` · 7d avg ${weeklyAvg}`}
+          </div>
+        </button>
+      </section>
 
-      {/* RESHAPE ATHLETIC PROGRESSION TIER STRIP */}
-      <div className="reshape-card p-5 sm:p-6 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-3.5 h-3.5 rounded-full shadow-[0_0_10px_currentColor]"
-              style={{ backgroundColor: currentLevel.color, color: currentLevel.color }}
+      {/* VOLUME PRESTIGE TIER */}
+      <Card as="section" aria-label="Volume prestige tier" className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <span
+              className="w-3 h-3 rounded-full shrink-0"
+              style={{ backgroundColor: currentLevel.color }}
+              aria-hidden
             />
-            <div>
-              <div className="text-[11px] font-mono font-bold text-zinc-400 uppercase tracking-wider">
-                Volume Prestige Tier
-              </div>
-              <div className="text-lg font-nrc font-black italic uppercase text-white tracking-wide">
-                Level: <span style={{ color: currentLevel.color }}>{currentLevel.label}</span>
-              </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-[var(--text-secondary)]">Volume prestige tier</p>
+              <p className="text-lg font-bold tracking-tight text-[var(--text-primary)] truncate">
+                {currentLevel.label}
+              </p>
             </div>
           </div>
-          <div className="text-xs font-mono text-zinc-400">
-            Total Tonnage: <strong className="text-white font-bold">{totalLifetimeVolume.toLocaleString()} {profile.preferredUnit}</strong>
-          </div>
+          <p className="text-xs text-[var(--text-secondary)] tabular">
+            Total tonnage:{' '}
+            <strong className="text-[var(--text-primary)] font-semibold">
+              {totalLifetimeVolume.toLocaleString()} {profile.preferredUnit}
+            </strong>
+          </p>
         </div>
-
-        {/* Crisp Linear Progress Bar */}
-        <div className="space-y-1.5 pt-1">
-          <div className="w-full bg-[#0a0d14] h-2.5 rounded-full overflow-hidden border border-white/[0.06] p-0.5">
+        <div className="space-y-1.5">
+          <div
+            role="progressbar"
+            aria-label="Progress to next tier"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={levelProgress}
+            className="h-2 w-full rounded-full bg-surface-3 overflow-hidden"
+          >
             <div
-              className="h-full rounded-full transition-all duration-700 shadow-sm"
-              style={{
-                width: `${levelProgress}%`,
-                backgroundColor: currentLevel.color
-              }}
+              className="h-full rounded-full transition-[width] duration-500"
+              style={{ width: `${levelProgress}%`, backgroundColor: currentLevel.color }}
             />
           </div>
-          <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono">
-            <span>{levelProgress}% towards {nextLevel ? nextLevel.label : 'Maximum Prestige'}</span>
+          <div className="flex items-center justify-between gap-3 text-xs text-[var(--text-secondary)] tabular">
+            <span>
+              {levelProgress}% towards {nextLevel ? nextLevel.label : 'maximum prestige'}
+            </span>
             {nextLevel && (
-              <span>{volToNext.toLocaleString()} {profile.preferredUnit} remaining</span>
+              <span>
+                {volToNext.toLocaleString()} {profile.preferredUnit} remaining
+              </span>
             )}
           </div>
         </div>
-      </div>
+      </Card>
 
-      {/* GYM CONSISTENCY STREAK CALENDAR */}
+      {/* PROGRESSIVE OVERLOAD ALERTS (most actionable) */}
+      {pendingRecommendations.length > 0 && (
+        <Card tone="accent" as="section" aria-label="Progressive overload alerts" className="space-y-3">
+          <SectionHeading
+            className="mb-0"
+            title={`Overload recommendations (${pendingRecommendations.length})`}
+            description="Ready to review based on your recent sessions."
+            action={
+              <Button variant="ghost" size="sm" onClick={() => onNavigate('progression')} icon={<ArrowRight className="w-3.5 h-3.5" />}>
+                Review all
+              </Button>
+            }
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {pendingRecommendations.slice(0, 2).map((rec) => (
+              <button
+                type="button"
+                key={rec.id}
+                onClick={() => onNavigate('progression')}
+                className="text-left p-3.5 bg-surface-2 border border-line hover:border-accent/40 rounded-xl transition-colors space-y-1.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-[var(--text-primary)] truncate">{rec.exerciseName}</span>
+                  <Badge tone="accent" className="tabular shrink-0">
+                    +{(rec.recommendedWeight - rec.currentWeight).toFixed(1)} {profile.preferredUnit}
+                  </Badge>
+                </div>
+                <p className="text-xs text-[var(--text-secondary)] line-clamp-2">{rec.explanation}</p>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* CONSISTENCY CALENDAR */}
       <GymConsistencyStreakCalendar
         sessions={recentSessions}
         profile={profile}
         onNavigateToWorkouts={() => onNavigate('workouts')}
       />
 
-      {/* AI-POWERED RECOVERY INSIGHTS & REST DAYS */}
+      {/* RECOVERY INSIGHTS */}
       <AiRecoveryInsightsPanel
         profile={profile}
         recentSessions={recentSessions}
@@ -357,218 +405,89 @@ export const DashboardView: React.FC<DashboardProps> = ({
         onNavigate={onNavigate}
       />
 
-      {/* ONBOARDING CHECKLIST (IF NOT YET 100%) */}
+      {/* SETUP CHECKLIST (until complete) */}
       {checklistPercent < 100 && (
-        <div className="reshape-card p-5 sm:p-6 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
-            <div>
-              <h3 className="font-bold text-white text-sm sm:text-base">
-                Calibration Checklist ({checklistPercent}%)
-              </h3>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Complete these initial milestones to customize your progressive overload engine.
-              </p>
-            </div>
-            <div className="text-xs font-mono font-bold text-[#CEFF00]">
-              {completedChecklistCount} / {checklistItems.length} Done
-            </div>
-          </div>
-
-          <div className="w-full bg-[#0a0d14] h-2 rounded-full overflow-hidden border border-white/[0.04]">
-            <div
-              className="bg-[#CEFF00] h-full rounded-full transition-all duration-500"
-              style={{ width: `${checklistPercent}%` }}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+        <Card as="section" aria-label="Calibration checklist" className="space-y-4">
+          <SectionHeading
+            className="mb-0"
+            title={`Calibration checklist · ${checklistPercent}%`}
+            description="Complete these initial milestones to customize your progressive overload engine."
+            action={
+              <span className="text-xs font-medium text-[var(--text-secondary)] tabular">
+                {completedChecklistCount} / {checklistItems.length}
+              </span>
+            }
+          />
+          <ProgressBar value={checklistPercent} label="Calibration progress" />
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {checklistItems.map((item, idx) => (
-              <div
-                key={idx}
-                onClick={() => onNavigate(item.tab)}
-                className={`p-3.5 rounded-2xl border flex items-center justify-between cursor-pointer text-xs transition-colors ${
-                  item.done
-                    ? 'bg-[#0a0d14]/50 border-white/[0.04] text-zinc-500'
-                    : 'bg-[#0e121a] border-white/[0.08] hover:border-[#CEFF00]/40 text-zinc-200'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
-                      item.done ? 'bg-[#CEFF00]/20 text-[#CEFF00]' : 'border border-zinc-600'
-                    }`}
-                  >
-                    {item.done && <CheckCircle2 className="w-3.5 h-3.5" />}
-                  </div>
-                  <span className={item.done ? 'line-through text-zinc-500' : 'font-medium'}>
-                    {item.label}
+              <li key={idx}>
+                <button
+                  type="button"
+                  onClick={() => onNavigate(item.tab)}
+                  className={`w-full min-h-[48px] px-3 py-2.5 rounded-xl border flex items-center justify-between gap-3 text-left text-sm transition-colors ${
+                    item.done
+                      ? 'bg-surface border-line text-[var(--text-muted)]'
+                      : 'bg-surface-2 border-line-strong hover:border-accent/40 text-[var(--text-primary)]'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                        item.done ? 'bg-accent/15 text-volt-adaptive' : 'border border-[var(--text-muted)]'
+                      }`}
+                      aria-hidden
+                    >
+                      {item.done && <CheckCircle2 className="w-4 h-4" />}
+                    </span>
+                    <span className={item.done ? 'line-through' : 'font-medium'}>{item.label}</span>
+                    <span className="sr-only">{item.done ? '(done)' : '(to do)'}</span>
                   </span>
-                </div>
-                <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
-              </div>
+                  <ChevronRight className="w-4 h-4 text-[var(--text-muted)] shrink-0" aria-hidden />
+                </button>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </Card>
       )}
 
-      {/* PROGRESSIVE OVERLOAD ALERTS BANNER (IF PENDING RECOMMENDATIONS) */}
-      {pendingRecommendations.length > 0 && (
-        <div className="reshape-card p-5 sm:p-6 border-[#CEFF00]/30 space-y-3.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <Zap className="w-4 h-4 text-[#CEFF00] fill-[#CEFF00]" />
-              <h3 className="font-bold text-white text-sm sm:text-base">
-                Overload Recommendations Calibrated ({pendingRecommendations.length})
-              </h3>
-            </div>
+      {/* EXPLORE */}
+      <section aria-label="Explore Iron Log">
+        <SectionHeading title="Explore" description="Jump into any part of your training system." />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {quickLaunch.map((q) => (
             <button
-              onClick={() => onNavigate('progression')}
-              className="text-xs text-[#CEFF00] hover:underline font-bold font-mono uppercase tracking-wide"
+              type="button"
+              key={q.key}
+              onClick={q.onClick}
+              className={`${tileBase} group flex items-start gap-3 sm:flex-col sm:gap-3 ${
+                q.featured ? 'border-accent/30 hover:border-accent/60' : ''
+              }`}
             >
-              Review All &rarr;
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {pendingRecommendations.slice(0, 2).map((rec) => (
-              <div
-                key={rec.id}
-                onClick={() => onNavigate('progression')}
-                className="p-3.5 bg-[#0a0d14] border border-white/[0.07] hover:border-[#CEFF00]/50 rounded-2xl cursor-pointer text-xs transition-colors space-y-1.5"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-zinc-200">{rec.exerciseName}</span>
-                  <span className="font-mono text-[10px] text-[#CEFF00] font-bold">
-                    +{(rec.recommendedWeight - rec.currentWeight).toFixed(1)} {profile.preferredUnit}
-                  </span>
-                </div>
-                <p className="text-[11px] text-zinc-400 line-clamp-2">{rec.explanation}</p>
+              <div className="flex items-center justify-between sm:w-full shrink-0">
+                <span
+                  className={`w-10 h-10 rounded-xl border flex items-center justify-center ${
+                    q.featured
+                      ? 'bg-accent/10 border-accent/30 text-volt-adaptive'
+                      : 'bg-surface-2 border-line text-[var(--text-secondary)] group-hover:text-volt-adaptive transition-colors'
+                  }`}
+                  aria-hidden
+                >
+                  {q.icon}
+                </span>
+                <span className="hidden sm:block">{q.badge}</span>
               </div>
-            ))}
-          </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">{q.title}</h3>
+                  <span className="sm:hidden">{q.badge}</span>
+                </div>
+                <p className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">{q.description}</p>
+              </div>
+            </button>
+          ))}
         </div>
-      )}
-
-      {/* QUICK LAUNCH RESHAPE BENTO GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Workouts */}
-        <div
-          onClick={() => onNavigate('workouts')}
-          className="reshape-card-interactive p-5 sm:p-6 cursor-pointer space-y-3 group"
-        >
-          <div className="w-11 h-11 rounded-2xl bg-[#CEFF00]/10 border border-[#CEFF00]/25 flex items-center justify-center text-[#CEFF00] group-hover:scale-105 transition-transform">
-            <Dumbbell className="w-5 h-5 stroke-[2.5]" />
-          </div>
-          <div>
-            <h4 className="font-bold text-white text-base group-hover:text-[#CEFF00] transition-colors">
-              Session Logger
-            </h4>
-            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-              Real-time set tracker, target RIR calibration, rest countdown timer, and automatic set completion.
-            </p>
-          </div>
-        </div>
-
-        {/* Progression */}
-        <div
-          onClick={() => onNavigate('progression')}
-          className="reshape-card-interactive p-5 sm:p-6 cursor-pointer space-y-3 group"
-        >
-          <div className="w-11 h-11 rounded-2xl bg-[#CEFF00]/10 border border-[#CEFF00]/25 flex items-center justify-center text-[#CEFF00] group-hover:scale-105 transition-transform">
-            <TrendingUp className="w-5 h-5 stroke-[2.5]" />
-          </div>
-          <div>
-            <h4 className="font-bold text-white text-base group-hover:text-[#CEFF00] transition-colors">
-              Double Progression Engine
-            </h4>
-            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-              Deterministic overload recommendations (Rules A, B, C, D) calculated across all working sets.
-            </p>
-          </div>
-        </div>
-
-        {/* Nutrition */}
-        <div
-          onClick={() => onNavigate('nutrition')}
-          className="reshape-card-interactive p-5 sm:p-6 cursor-pointer space-y-3 group"
-        >
-          <div className="w-11 h-11 rounded-2xl bg-sky-400/10 border border-sky-400/25 flex items-center justify-center text-sky-400 group-hover:scale-105 transition-transform">
-            <Apple className="w-5 h-5 stroke-[2.5]" />
-          </div>
-          <div>
-            <h4 className="font-bold text-white text-base group-hover:text-sky-300 transition-colors">
-              Macro Food Diary &amp; Barcode
-            </h4>
-            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-              Live barcode scanning, Open Food Facts normalization, bodybuilding staples, and protein tracking.
-            </p>
-          </div>
-        </div>
-
-        {/* Body Metrics */}
-        <div
-          onClick={() => onNavigate('body')}
-          className="reshape-card-interactive p-5 sm:p-6 cursor-pointer space-y-3 group"
-        >
-          <div className="w-11 h-11 rounded-2xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
-            <Activity className="w-5 h-5 stroke-[2.5]" />
-          </div>
-          <div>
-            <h4 className="font-bold text-white text-base group-hover:text-amber-300 transition-colors">
-              Body Composition &amp; BMI
-            </h4>
-            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-              7-day smoothed rolling averages, BMI demographic categorizations, and silhouette ratio analysis.
-            </p>
-          </div>
-        </div>
-
-        {/* Coach Iron AI Personal Trainer */}
-        <div
-          onClick={() => onNavigate('trainer')}
-          className="reshape-card-interactive p-5 sm:p-6 cursor-pointer space-y-3 group border-[#CEFF00]/25"
-        >
-          <div className="flex items-center justify-between">
-            <div className="w-11 h-11 rounded-2xl bg-[#CEFF00]/15 border border-[#CEFF00]/30 flex items-center justify-center text-[#CEFF00] group-hover:scale-105 transition-transform">
-              <Bot className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] font-mono font-bold uppercase text-[#CEFF00] tracking-wider">
-              AI Coach
-            </span>
-          </div>
-          <div>
-            <h4 className="font-bold text-white text-base group-hover:text-[#CEFF00] transition-colors">
-              Coach Iron · AI Coach
-            </h4>
-            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-              Interactive consultation, customized 5-minute warm-ups, and physique recomposition blueprints.
-            </p>
-          </div>
-        </div>
-
-        {/* Posture & Form Preview */}
-        <div
-          onClick={() => setPostureModalExercise('Barbell Back Squat')}
-          className="reshape-card-interactive p-5 sm:p-6 cursor-pointer space-y-3 group border-sky-400/25"
-        >
-          <div className="flex items-center justify-between">
-            <div className="w-11 h-11 rounded-2xl bg-sky-400/15 border border-sky-400/30 flex items-center justify-center text-sky-400 group-hover:scale-105 transition-transform">
-              <Eye className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] font-mono font-bold uppercase text-sky-400 tracking-wider">
-              Biomechanics
-            </span>
-          </div>
-          <div>
-            <h4 className="font-bold text-white text-base group-hover:text-sky-300 transition-colors">
-              Biomechanics &amp; Posture
-            </h4>
-            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-              Biomechanical mannequin, joint angle visualization, common failure cues, and safety guidelines.
-            </p>
-          </div>
-        </div>
-      </div>
+      </section>
 
       {/* Posture & Form Preview Modal */}
       {postureModalExercise && (
@@ -580,22 +499,19 @@ export const DashboardView: React.FC<DashboardProps> = ({
         />
       )}
 
-      {/* Demo Mode Prompt */}
+      {/* Demo mode prompt */}
       {!isDemoMode && recentSessions.length === 0 && (
-        <div className="reshape-card-subtle p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2.5">
-            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="text-zinc-300">
-              Want to preview the Reshape experience with populated session history, progression logs, and nutrition metrics?
+        <Card tone="ghost" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 text-sm text-[var(--text-secondary)]">
+            <Sparkles className="w-4 h-4 text-warning shrink-0" aria-hidden />
+            <span>
+              Want to preview Iron Log with populated session history, progression logs, and nutrition metrics?
             </span>
           </div>
-          <button
-            onClick={onLoadDemoData}
-            className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-amber-300 font-semibold rounded-xl text-xs shrink-0 transition-colors border border-amber-400/30"
-          >
-            Load Demo Data Preview
-          </button>
-        </div>
+          <Button variant="secondary" size="sm" onClick={onLoadDemoData} className="shrink-0">
+            Load demo data
+          </Button>
+        </Card>
       )}
     </div>
   );

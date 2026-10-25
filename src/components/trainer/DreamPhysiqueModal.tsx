@@ -255,24 +255,24 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div className="bg-[#0b0f14] border border-zinc-800 rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+      <div className="bg-surface border border-line rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         {/* TOAST ALERT */}
         {notification && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-lime-400 text-black font-extrabold text-xs px-4 py-2 rounded-xl shadow-xl flex items-center gap-2 animate-bounce">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-lime-400 text-accent-ink font-extrabold text-xs px-4 py-2 rounded-xl flex items-center gap-2 animate-bounce">
             <CheckCircle2 className="w-4 h-4" />
             <span>{notification}</span>
           </div>
         )}
 
         {/* MODAL HEADER */}
-        <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/70">
+        <div className="p-4 sm:p-5 border-b border-line flex items-center justify-between bg-canvas/70">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-lime-400/20 to-emerald-500/20 border border-lime-400/30 flex items-center justify-center text-lime-400 shadow-inner">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-lime-400/15 text-lime-400 border border-lime-400/30">
+                <span className="text-[11px] font-mono font-bold tracking-wide px-2 py-0.5 rounded bg-lime-400/15 text-lime-400 border border-lime-400/30">
                   AI Body Visualizer & Coach Blueprint
                 </span>
               </div>
@@ -286,7 +286,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
             {step !== 'configure' && (
               <button
                 onClick={() => setStep('configure')}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-100 bg-zinc-900 border border-zinc-800 flex items-center gap-1.5 transition-colors"
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-100 bg-surface-2 border border-line flex items-center gap-1.5 transition-colors"
               >
                 <Sliders className="w-3.5 h-3.5" />
                 <span>Adjust Vision</span>
@@ -294,7 +294,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
             )}
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 bg-zinc-900 border border-zinc-800 transition-colors"
+              className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 bg-surface-2 border border-line transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -309,7 +309,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
           {step === 'configure' && (
             <div className="space-y-6 max-w-2xl mx-auto py-2">
               <div className="text-center space-y-2">
-                <h3 className="text-xl sm:text-2xl font-black text-zinc-100">
+                <h3 className="text-xl sm:text-2xl font-bold text-zinc-100">
                   Design Your Target Dream Physique
                 </h3>
                 <p className="text-xs sm:text-sm text-zinc-400">
@@ -319,7 +319,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
 
               {/* ARCHETYPE SELECTOR CARDS */}
               <div className="space-y-2">
-                <label className="text-xs font-mono uppercase text-zinc-400 font-bold block">
+                <label className="text-xs font-mono text-zinc-400 font-bold block">
                   Select Physique Archetype:
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -358,7 +358,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                       className={`text-left p-3.5 rounded-2xl border transition-all ${
                         archetype === arch.id
                           ? 'bg-lime-400/10 border-lime-400 ring-1 ring-lime-400/50 shadow-md'
-                          : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700'
+                          : 'bg-surface-2/60 border-line hover:border-line-strong'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -378,12 +378,12 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
               </div>
 
               {/* TARGET BODY FAT SLIDER */}
-              <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl space-y-3">
+              <div className="p-4 bg-surface-2/60 border border-line rounded-2xl space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-zinc-200">
                     Target Body Fat Percentage:
                   </span>
-                  <span className="text-sm font-mono font-black text-lime-400 px-2 py-0.5 rounded bg-lime-400/10 border border-lime-400/30">
+                  <span className="text-sm font-mono font-bold text-lime-400 px-2 py-0.5 rounded bg-lime-400/10 border border-lime-400/30">
                     {targetBodyFat}% Body Fat
                   </span>
                 </div>
@@ -396,7 +396,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                   onChange={(e) => setTargetBodyFat(Number(e.target.value))}
                   className="w-full accent-lime-400 cursor-pointer"
                 />
-                <div className="flex justify-between text-[10px] font-mono text-zinc-500">
+                <div className="flex justify-between text-[11px] font-mono text-zinc-500">
                   <span>6% (Stage Lean)</span>
                   <span>10% (Chiseled)</span>
                   <span>14% (Athletic)</span>
@@ -406,7 +406,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
 
               {/* MUSCLE EMPHASIS CHIPS */}
               <div className="space-y-2">
-                <label className="text-xs font-mono uppercase text-zinc-400 font-bold block">
+                <label className="text-xs font-mono text-zinc-400 font-bold block">
                   Priority Muscle Emphasis (Select up to 3):
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -426,8 +426,8 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                         onClick={() => handleToggleMuscle(muscle)}
                         className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                           isSelected
-                            ? 'bg-lime-400 text-black border-lime-400 shadow-sm font-bold'
-                            : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+                            ? 'bg-lime-400 text-accent-ink border-lime-400 shadow-sm font-bold'
+                            : 'bg-surface-2 text-zinc-400 border-line hover:border-line-strong'
                         }`}
                       >
                         {muscle}
@@ -439,7 +439,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
 
               {/* OPTIONAL CUSTOM VISION PROMPT */}
               <div className="space-y-1.5">
-                <label className="text-xs font-mono uppercase text-zinc-400 font-bold block">
+                <label className="text-xs font-mono text-zinc-400 font-bold block">
                   Custom Physique Details (Optional):
                 </label>
                 <input
@@ -447,12 +447,12 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                   value={customPrompt}
                   onChange={(e) => setCustomPrompt(e.target.value)}
                   placeholder="e.g. Broad clavicles, narrow waist, aesthetic vascularity for basketball"
-                  className="w-full px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs sm:text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-lime-400"
+                  className="w-full px-4 py-2.5 bg-surface-2 border border-line rounded-xl text-xs sm:text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-lime-400"
                 />
               </div>
 
               {/* CURRENT BASELINE CARD */}
-              <div className="p-3.5 bg-[#0e131b] border border-zinc-800/90 rounded-2xl flex items-center justify-between text-xs">
+              <div className="p-3.5 bg-surface-2 border border-zinc-800/90 rounded-2xl flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 text-zinc-400">
                   <Scale className="w-4 h-4 text-lime-400" />
                   <span>Your Current Baseline:</span>
@@ -467,7 +467,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
               <button
                 onClick={handleGeneratePhysique}
                 disabled={isGenerating}
-                className="touch-press w-full py-4 bg-lime-400 hover:bg-lime-300 disabled:opacity-40 text-black font-extrabold text-sm rounded-2xl shadow-xl shadow-lime-950/40 flex items-center justify-center gap-2 transition-all"
+                className="touch-press w-full py-4 bg-lime-400 hover:bg-lime-300 disabled:opacity-40 text-accent-ink font-extrabold text-sm rounded-2xl shadow-lime-950/40 flex items-center justify-center gap-2 transition-all"
               >
                 {isGenerating ? (
                   <>
@@ -490,10 +490,10 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
           {(step === 'visualize' || step === 'analysis') && dreamPhysique && (
             <div className="space-y-6">
               {/* TOP HERO: THE AI GENERATED TARGET PHOTO & AUDIT SUMMARY */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 bg-[#0e131b] border border-zinc-800 rounded-3xl p-4 sm:p-6 shadow-xl">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 bg-surface-2 border border-line rounded-2xl p-4 sm:p-6">
                 {/* PHOTO CONTAINER */}
                 <div className="lg:col-span-5 flex flex-col items-center">
-                  <div className="relative rounded-2xl overflow-hidden border-2 border-lime-400/40 shadow-2xl w-full max-w-xs aspect-[3/4] bg-zinc-950">
+                  <div className="relative rounded-2xl overflow-hidden border-2 border-lime-400/40 shadow-2xl w-full max-w-xs aspect-[3/4] bg-canvas">
                     <img
                       src={dreamPhysique.imageUrl}
                       alt={dreamPhysique.title}
@@ -503,16 +503,16 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
                     
                     {/* OVERLAY BADGES */}
-                    <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-xl border border-lime-400/40 text-[10px] font-mono font-bold text-lime-400 flex items-center gap-1.5">
+                    <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-xl border border-lime-400/40 text-[11px] font-mono font-bold text-lime-400 flex items-center gap-1.5">
                       <Sparkles className="w-3 h-3" />
                       <span>Target Dream Physique</span>
                     </div>
 
                     <div className="absolute bottom-3 left-3 right-3 text-zinc-100">
-                      <div className="text-xs font-mono font-bold text-lime-400 uppercase tracking-wider">
+                      <div className="text-xs font-mono font-bold text-lime-400 tracking-wide">
                         {dreamPhysique.targetBodyFat}% Target Body Fat
                       </div>
-                      <div className="text-sm font-black truncate">{dreamPhysique.title}</div>
+                      <div className="text-sm font-bold truncate">{dreamPhysique.title}</div>
                     </div>
                   </div>
 
@@ -529,7 +529,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                         <Flame className="w-4 h-4 fill-lime-400" />
                       </div>
                       <div>
-                        <span className="text-[10px] font-mono uppercase text-lime-400 font-bold tracking-wider">
+                        <span className="text-[11px] font-mono text-lime-400 font-bold tracking-wide">
                           Coach Iron Biomechanics Audit
                         </span>
                         <h4 className="text-lg font-extrabold text-zinc-100">
@@ -539,7 +539,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                     </div>
 
                     {isAnalyzing ? (
-                      <div className="p-6 bg-zinc-900/60 border border-zinc-800 rounded-2xl flex flex-col items-center justify-center space-y-3 text-center">
+                      <div className="p-6 bg-surface-2/60 border border-line rounded-2xl flex flex-col items-center justify-center space-y-3 text-center">
                         <Activity className="w-6 h-6 text-lime-400 animate-spin" />
                         <span className="text-xs text-zinc-300 font-semibold">
                           Coach Iron is calculating metabolic requirements, macronutrient breakdown, and targeted hypertrophy split...
@@ -548,14 +548,14 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                     ) : blueprint?.gapAnalysis ? (
                       <div className="space-y-3">
                         <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-xl">
-                            <span className="text-zinc-500 font-mono text-[10px] block">Current Baseline:</span>
+                          <div className="p-3 bg-surface-2/80 border border-line rounded-xl">
+                            <span className="text-zinc-500 font-mono text-[11px] block">Current Baseline:</span>
                             <span className="font-bold text-zinc-200">
                               {blueprint.gapAnalysis.currentStatsSummary}
                             </span>
                           </div>
-                          <div className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-xl">
-                            <span className="text-zinc-500 font-mono text-[10px] block">Target Goal:</span>
+                          <div className="p-3 bg-surface-2/80 border border-line rounded-xl">
+                            <span className="text-zinc-500 font-mono text-[11px] block">Target Goal:</span>
                             <span className="font-bold text-lime-400">
                               {blueprint.gapAnalysis.targetStatsSummary}
                             </span>
@@ -564,7 +564,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
 
                         <div className="p-3 bg-lime-400/10 border border-lime-400/30 rounded-xl text-xs space-y-1">
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-lime-400 font-mono text-[11px] uppercase">
+                            <span className="font-bold text-lime-400 font-mono text-[11px] ">
                               Verdict: {blueprint.gapAnalysis.bodyCompositionVerdict}
                             </span>
                             <span className="text-[11px] font-mono text-zinc-300">
@@ -589,7 +589,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                     <button
                       onClick={handleApplyDiet}
                       disabled={isAnalyzing || !blueprint?.nutritionPlan}
-                      className="touch-press flex-1 py-3 px-4 bg-lime-400 hover:bg-lime-300 disabled:opacity-40 text-black font-extrabold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 transition-all"
+                      className="touch-press flex-1 py-3 px-4 bg-lime-400 hover:bg-lime-300 disabled:opacity-40 text-accent-ink font-extrabold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 transition-all"
                     >
                       <Apple className="w-4 h-4" />
                       <span>Activate Target Diet in App</span>
@@ -597,7 +597,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                     <button
                       onClick={handleSaveWorkoutPlan}
                       disabled={isAnalyzing || !blueprint?.workoutPlan}
-                      className="touch-press flex-1 py-3 px-4 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 disabled:opacity-40 text-zinc-100 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all"
+                      className="touch-press flex-1 py-3 px-4 bg-surface-2 hover:bg-surface-3 border border-line-strong disabled:opacity-40 text-zinc-100 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all"
                     >
                       <Dumbbell className="w-4 h-4 text-lime-400" />
                       <span>Save Workout Plan to Plans</span>
@@ -607,12 +607,12 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
               </div>
 
               {/* NAVIGATION TABS FOR DETAILED BLUEPRINT: DIET VS WORKOUT */}
-              <div className="flex items-center gap-2 border-b border-zinc-800 pb-2">
+              <div className="flex items-center gap-2 border-b border-line pb-2">
                 <button
                   onClick={() => setActivePlanTab('overview')}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                     activePlanTab === 'overview'
-                      ? 'bg-lime-400 text-black shadow-md'
+                      ? 'bg-lime-400 text-accent-ink shadow-md'
                       : 'text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
@@ -622,7 +622,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                   onClick={() => setActivePlanTab('diet')}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                     activePlanTab === 'diet'
-                      ? 'bg-lime-400 text-black shadow-md'
+                      ? 'bg-lime-400 text-accent-ink shadow-md'
                       : 'text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
@@ -632,7 +632,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                   onClick={() => setActivePlanTab('workout')}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                     activePlanTab === 'workout'
-                      ? 'bg-lime-400 text-black shadow-md'
+                      ? 'bg-lime-400 text-accent-ink shadow-md'
                       : 'text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
@@ -643,8 +643,8 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
               {/* TAB 1: OVERVIEW & COACH MESSAGE */}
               {activePlanTab === 'overview' && blueprint && (
                 <div className="space-y-4 animate-fade-in">
-                  <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl space-y-3">
-                    <div className="flex items-center gap-2 text-lime-400 text-xs font-mono font-bold uppercase">
+                  <div className="p-4 bg-surface-2/60 border border-line rounded-2xl space-y-3">
+                    <div className="flex items-center gap-2 text-lime-400 text-xs font-mono font-bold ">
                       <Zap className="w-4 h-4" />
                       <span>Coach Iron&apos;s Direct Guidance</span>
                     </div>
@@ -654,24 +654,24 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="p-4 bg-[#0e131b] border border-zinc-800 rounded-2xl space-y-1">
-                      <span className="text-[10px] font-mono text-zinc-500 uppercase">Daily Caloric Target</span>
-                      <div className="text-2xl font-mono font-black text-lime-400">
+                    <div className="p-4 bg-surface-2 border border-line rounded-2xl space-y-1">
+                      <span className="text-[11px] font-mono text-zinc-500 ">Daily Caloric Target</span>
+                      <div className="text-2xl font-mono font-bold text-lime-400">
                         {blueprint.nutritionPlan.calorieTarget} <span className="text-xs font-normal text-zinc-400">kcal/day</span>
                       </div>
                       <p className="text-[11px] text-zinc-400">{blueprint.nutritionPlan.strategy}</p>
                     </div>
 
-                    <div className="p-4 bg-[#0e131b] border border-zinc-800 rounded-2xl space-y-1">
-                      <span className="text-[10px] font-mono text-zinc-500 uppercase">Daily Protein Target</span>
-                      <div className="text-2xl font-mono font-black text-lime-400">
+                    <div className="p-4 bg-surface-2 border border-line rounded-2xl space-y-1">
+                      <span className="text-[11px] font-mono text-zinc-500 ">Daily Protein Target</span>
+                      <div className="text-2xl font-mono font-bold text-lime-400">
                         {blueprint.nutritionPlan.macros.proteinGrams}g <span className="text-xs font-normal text-zinc-400">/day</span>
                       </div>
                       <p className="text-[11px] text-zinc-400">{blueprint.nutritionPlan.macros.proteinPerKg}</p>
                     </div>
 
-                    <div className="p-4 bg-[#0e131b] border border-zinc-800 rounded-2xl space-y-1">
-                      <span className="text-[10px] font-mono text-zinc-500 uppercase">Training Program</span>
+                    <div className="p-4 bg-surface-2 border border-line rounded-2xl space-y-1">
+                      <span className="text-[11px] font-mono text-zinc-500 ">Training Program</span>
                       <div className="text-lg font-bold text-zinc-100 truncate">
                         {blueprint.workoutPlan.planName}
                       </div>
@@ -686,27 +686,27 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                 <div className="space-y-4 animate-fade-in">
                   {/* MACROS BREAKDOWN ROW */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-center">
-                      <span className="text-[10px] font-mono text-zinc-500 block uppercase">Calories</span>
+                    <div className="p-3 bg-surface-2 border border-line rounded-xl text-center">
+                      <span className="text-[11px] font-mono text-zinc-500 block ">Calories</span>
                       <span className="text-xl font-mono font-bold text-zinc-100">{blueprint.nutritionPlan.calorieTarget}</span>
                     </div>
-                    <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-center">
-                      <span className="text-[10px] font-mono text-emerald-400 block uppercase">Protein</span>
+                    <div className="p-3 bg-surface-2 border border-line rounded-xl text-center">
+                      <span className="text-[11px] font-mono text-emerald-400 block ">Protein</span>
                       <span className="text-xl font-mono font-bold text-emerald-400">{blueprint.nutritionPlan.macros.proteinGrams}g</span>
                     </div>
-                    <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-center">
-                      <span className="text-[10px] font-mono text-amber-400 block uppercase">Carbs</span>
+                    <div className="p-3 bg-surface-2 border border-line rounded-xl text-center">
+                      <span className="text-[11px] font-mono text-amber-400 block ">Carbs</span>
                       <span className="text-xl font-mono font-bold text-amber-400">{blueprint.nutritionPlan.macros.carbsGrams}g</span>
                     </div>
-                    <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-center">
-                      <span className="text-[10px] font-mono text-rose-400 block uppercase">Fats</span>
+                    <div className="p-3 bg-surface-2 border border-line rounded-xl text-center">
+                      <span className="text-[11px] font-mono text-rose-400 block ">Fats</span>
                       <span className="text-xl font-mono font-bold text-rose-400">{blueprint.nutritionPlan.macros.fatsGrams}g</span>
                     </div>
                   </div>
 
                   {/* NUTRIENT TIMING PROTOCOL */}
-                  <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl space-y-2">
-                    <span className="text-xs font-mono font-bold uppercase text-lime-400 block">
+                  <div className="p-4 bg-surface-2/60 border border-line rounded-2xl space-y-2">
+                    <span className="text-xs font-mono font-bold text-lime-400 block">
                       Nutrient Timing & Partitioning Strategy:
                     </span>
                     <ul className="space-y-1.5 text-xs text-zinc-300">
@@ -721,14 +721,14 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
 
                   {/* SAMPLE MEAL PLAN */}
                   <div className="space-y-2">
-                    <span className="text-xs font-mono font-bold uppercase text-zinc-400 block">
+                    <span className="text-xs font-mono font-bold text-zinc-400 block">
                       Sample Daily Meal Schedule:
                     </span>
                     <div className="space-y-2">
                       {blueprint.nutritionPlan.sampleMealPlan.map((m, mIdx) => (
                         <div
                           key={mIdx}
-                          className="p-3.5 bg-zinc-900/70 border border-zinc-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                          className="p-3.5 bg-surface-2/70 border border-line rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
                         >
                           <div>
                             <span className="font-bold text-zinc-100 block">{m.meal}</span>
@@ -744,8 +744,8 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                   </div>
 
                   {/* SUPPLEMENTS */}
-                  <div className="p-4 bg-zinc-900/40 border border-zinc-800/80 rounded-2xl space-y-1.5 text-xs">
-                    <span className="font-bold font-mono text-zinc-400 uppercase text-[11px]">
+                  <div className="p-4 bg-surface-2/40 border border-line rounded-2xl space-y-1.5 text-xs">
+                    <span className="font-bold font-mono text-zinc-400 text-[11px]">
                       Recommended Supplements for Accelerated Adaptation:
                     </span>
                     <ul className="space-y-1 text-zinc-300">
@@ -763,7 +763,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
               {/* TAB 3: CUSTOM WORKOUT PROGRAM */}
               {activePlanTab === 'workout' && blueprint && (
                 <div className="space-y-4 animate-fade-in">
-                  <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl space-y-1">
+                  <div className="p-4 bg-surface-2/60 border border-line rounded-2xl space-y-1">
                     <h4 className="font-bold text-zinc-100 text-sm">
                       {blueprint.workoutPlan.planName}
                     </h4>
@@ -776,9 +776,9 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                     {blueprint.workoutPlan.days.map((day, dIdx) => (
                       <div
                         key={dIdx}
-                        className="p-4 bg-zinc-900/40 border border-zinc-800 rounded-2xl space-y-2.5"
+                        className="p-4 bg-surface-2/40 border border-line rounded-2xl space-y-2.5"
                       >
-                        <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2">
+                        <div className="flex items-center justify-between border-b border-line pb-2">
                           <span className="font-bold text-xs sm:text-sm text-lime-400">
                             {day.dayName}
                           </span>
@@ -796,7 +796,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
                             {day.exercises.map((ex, eIdx) => (
                               <div
                                 key={eIdx}
-                                className="p-2.5 bg-zinc-950/60 border border-zinc-800/60 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs"
+                                className="p-2.5 bg-canvas/60 border border-zinc-800/60 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs"
                               >
                                 <div>
                                   <span className="font-bold text-zinc-200">{ex.name}</span>

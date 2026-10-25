@@ -217,11 +217,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
       <div className="reshape-card p-5 lg:p-7 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[var(--border-card)]">
           <div>
-            <div className="flex items-center gap-2 text-volt-adaptive text-xs font-mono font-bold uppercase tracking-widest mb-1.5">
+            <div className="flex items-center gap-2 text-volt-adaptive text-xs font-mono font-bold tracking-wide mb-1.5">
               <BarChart3 className="w-4 h-4" />
               <span>Performance Analytics &middot; Longitudinal</span>
             </div>
-            <h1 className="text-xl lg:text-3xl font-nrc font-black italic uppercase text-[var(--text-primary)] tracking-tight">
+            <h1 className="text-xl lg:text-3xl font-nrc font-bold text-[var(--text-primary)] tracking-tight">
               Training &amp; Body Reports
             </h1>
             <p className="text-xs text-[var(--text-secondary)] mt-1">
@@ -234,7 +234,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
             <button
               onClick={() => setFilterPeriod('7d')}
               className={`min-h-[36px] px-3.5 py-1 text-xs font-bold rounded-lg transition-all ${
-                filterPeriod === '7d' ? 'bg-[#CEFF00] text-black shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                filterPeriod === '7d' ? 'bg-accent text-accent-ink shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
               7 Days
@@ -242,7 +242,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
             <button
               onClick={() => setFilterPeriod('30d')}
               className={`min-h-[36px] px-3.5 py-1 text-xs font-bold rounded-lg transition-all ${
-                filterPeriod === '30d' ? 'bg-[#CEFF00] text-black shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                filterPeriod === '30d' ? 'bg-accent text-accent-ink shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
               30 Days
@@ -250,7 +250,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
             <button
               onClick={() => setFilterPeriod('90d')}
               className={`min-h-[36px] px-3.5 py-1 text-xs font-bold rounded-lg transition-all ${
-                filterPeriod === '90d' ? 'bg-[#CEFF00] text-black shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                filterPeriod === '90d' ? 'bg-accent text-accent-ink shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
               90 Days
@@ -258,7 +258,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
             <button
               onClick={() => setFilterPeriod('all')}
               className={`min-h-[36px] px-3.5 py-1 text-xs font-bold rounded-lg transition-all ${
-                filterPeriod === 'all' ? 'bg-[#CEFF00] text-black shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                filterPeriod === 'all' ? 'bg-accent text-accent-ink shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
               All Time
@@ -269,30 +269,30 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
         {/* Top 4 Stat Widgets */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
           <div className="p-4 reshape-card-subtle space-y-1">
-            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-widest font-bold block">
+            <span className="text-[11px] font-mono text-[var(--text-muted)] tracking-wide font-bold block">
               Sessions Completed
             </span>
-            <div className="text-3xl font-mono font-black text-volt-adaptive tracking-tight tabular-nums">
+            <div className="text-3xl font-mono font-bold text-volt-adaptive tracking-tight tabular-nums">
               {totalCompletedSessions}
             </div>
             <div className="text-[11px] text-[var(--text-muted)] font-mono">In selected window</div>
           </div>
 
           <div className="p-4 reshape-card-subtle space-y-1">
-            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-widest font-bold block">
+            <span className="text-[11px] font-mono text-[var(--text-muted)] tracking-wide font-bold block">
               Total Volume Load
             </span>
-            <div className="text-3xl font-mono font-black text-[var(--text-primary)] tracking-tight tabular-nums">
+            <div className="text-3xl font-mono font-bold text-[var(--text-primary)] tracking-tight tabular-nums">
               {totalFilteredVolume.toLocaleString()}
             </div>
             <div className="text-[11px] text-[var(--text-muted)] font-mono">{profile.preferredUnit} accumulated</div>
           </div>
 
           <div className="p-4 reshape-card-subtle space-y-1">
-            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-widest font-bold block">
+            <span className="text-[11px] font-mono text-[var(--text-muted)] tracking-wide font-bold block">
               Daily Calories (Avg)
             </span>
-            <div className="text-3xl font-mono font-black text-[#00E5FF] tracking-tight tabular-nums">
+            <div className="text-3xl font-mono font-bold text-info tracking-tight tabular-nums">
               {avgCalories > 0 ? `${avgCalories}` : '—'}
             </div>
             <div className="text-[11px] text-[var(--text-muted)] font-mono">
@@ -301,10 +301,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
           </div>
 
           <div className="p-4 reshape-card-subtle space-y-1">
-            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-widest font-bold block">
+            <span className="text-[11px] font-mono text-[var(--text-muted)] tracking-wide font-bold block">
               Daily Protein (Avg)
             </span>
-            <div className="text-3xl font-mono font-black text-volt-adaptive tracking-tight tabular-nums">
+            <div className="text-3xl font-mono font-bold text-volt-adaptive tracking-tight tabular-nums">
               {avgProtein > 0 ? `${avgProtein}g` : '—'}
             </div>
             <div className="text-[11px] text-[var(--text-muted)] font-mono">
@@ -318,7 +318,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
       <div className="reshape-card p-5 lg:p-6 space-y-4">
         <div className="flex items-center gap-2 pb-3 border-b border-[var(--border-card)]">
           <CheckCircle className="w-4 h-4 text-volt-adaptive" />
-          <h3 className="font-nrc font-black italic uppercase text-lg text-[var(--text-primary)] tracking-tight">
+          <h3 className="font-nrc font-bold text-lg text-[var(--text-primary)] tracking-tight">
             Verified Training &amp; Adherence Audit
           </h3>
         </div>
@@ -330,8 +330,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
             {/* What Improved */}
-            <div className="p-4 reshape-card-subtle border-[#CEFF00]/40 space-y-2">
-              <span className="text-[11px] font-mono font-bold text-volt-adaptive uppercase tracking-wider block">
+            <div className="p-4 reshape-card-subtle border-accent/40 space-y-2">
+              <span className="text-[11px] font-mono font-bold text-volt-adaptive tracking-wide block">
                 &bull; What Improved
               </span>
               {summary.improved.length > 0 ? (
@@ -350,14 +350,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
 
             {/* What Remained Stable */}
             <div className="p-4 reshape-card-subtle space-y-2">
-              <span className="text-[11px] font-mono font-bold text-[#00E5FF] uppercase tracking-wider block">
+              <span className="text-[11px] font-mono font-bold text-info tracking-wide block">
                 &bull; What Remained Stable
               </span>
               {summary.stable.length > 0 ? (
                 <ul className="space-y-1.5 text-[var(--text-secondary)]">
                   {summary.stable.map((item, idx) => (
                     <li key={idx} className="flex items-start gap-1.5">
-                      <span className="text-[#00E5FF]">&bull;</span>
+                      <span className="text-info">&bull;</span>
                       <span>{item}</span>
                     </li>
                   ))}
@@ -369,7 +369,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
 
             {/* Needs Attention & Suggested Actions */}
             <div className="p-4 reshape-card-subtle border-amber-500/40 space-y-2">
-              <span className="text-[11px] font-mono font-bold text-amber-500 uppercase tracking-wider block">
+              <span className="text-[11px] font-mono font-bold text-amber-500 tracking-wide block">
                 &bull; Needs Attention
               </span>
               {summary.attention.length > 0 ? (
@@ -386,7 +386,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
               )}
               {summary.suggestedActions.length > 0 && (
                 <div className="pt-2 border-t border-[var(--border-card)] text-[var(--text-secondary)] font-medium">
-                  <span className="text-[10px] uppercase font-mono text-[var(--text-muted)] block mb-1">
+                  <span className="text-[11px] font-mono text-[var(--text-muted)] block mb-1">
                     Suggested Next Action:
                   </span>
                   <p>{summary.suggestedActions[0]}</p>
@@ -426,7 +426,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
         <div className="flex items-center justify-between pb-3 border-b border-[var(--border-card)]">
           <div className="flex items-center gap-2">
             <Award className="w-4 h-4 text-amber-500" />
-            <h3 className="font-nrc font-black italic uppercase text-lg text-[var(--text-primary)] tracking-tight">
+            <h3 className="font-nrc font-bold text-lg text-[var(--text-primary)] tracking-tight">
               Personal Records (PR) Board
             </h3>
           </div>
@@ -447,19 +447,19 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
                 <div className="font-bold text-[var(--text-primary)] text-xs truncate">{pr.name}</div>
                 <div className="flex items-center justify-between font-mono">
                   <div>
-                    <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider block font-bold">TOP LOAD</span>
-                    <span className="text-lg font-black text-volt-adaptive tabular-nums">
+                    <span className="text-[11px] text-[var(--text-muted)] tracking-wide block font-bold">TOP LOAD</span>
+                    <span className="text-lg font-bold text-volt-adaptive tabular-nums">
                       {pr.maxWeight} {profile.preferredUnit}
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider block font-bold">EST. 1RM</span>
-                    <span className="text-sm font-bold text-[#00E5FF] tabular-nums">
+                    <span className="text-[11px] text-[var(--text-muted)] tracking-wide block font-bold">EST. 1RM</span>
+                    <span className="text-sm font-bold text-info tabular-nums">
                       {pr.best1RM} {profile.preferredUnit}
                     </span>
                   </div>
                 </div>
-                <div className="text-[10px] font-mono text-[var(--text-muted)] pt-1.5 border-t border-[var(--border-card)]">
+                <div className="text-[11px] font-mono text-[var(--text-muted)] pt-1.5 border-t border-[var(--border-card)]">
                   Achieved: {pr.date}
                 </div>
               </div>

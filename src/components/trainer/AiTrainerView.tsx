@@ -173,51 +173,51 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-130px)] max-w-5xl mx-auto space-y-4">
-      {/* Top Trainer Header Bar */}
-      <div className="reshape-card p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-[#CEFF00]/15 border border-[#CEFF00]/30 flex items-center justify-center text-[#CEFF00] font-nrc font-black text-xl italic shadow-md">
-            <Bot className="w-5 h-5" />
+    <div className="flex flex-col h-[calc(100dvh-11rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-9rem)] min-h-[480px] max-w-5xl mx-auto space-y-4">
+      {/* TRAINER HEADER */}
+      <div className="bg-surface border border-line rounded-2xl p-3 sm:p-4 shrink-0 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/30 flex items-center justify-center text-accent shrink-0">
+            <Bot className="w-5 h-5" aria-hidden />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-nrc font-black italic uppercase text-white text-lg sm:text-xl tracking-tight">
-                Coach Iron · AI Fitness Trainer
-              </h1>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg bg-[#CEFF00]/15 border border-[#CEFF00]/30 text-[#CEFF00] font-bold uppercase not-italic">
-                Active Coach
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-tight">Coach Iron</h1>
+            <p className="text-xs text-zinc-400 mt-0.5 truncate">
+              <span className="sm:hidden">AI fitness trainer</span>
+              <span className="hidden sm:inline">
+                AI fitness trainer · form cues, warm-ups, physique blueprints and live gadget data
               </span>
-            </div>
-            <p className="text-xs text-zinc-400 mt-0.5 font-sans">
-              Real-time form cues, 5-min warm-ups, dream physique blueprints, and live gadget telemetry
             </p>
           </div>
         </div>
 
-        {/* Telemetry & Audio Toggle */}
-        <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+        {/* Telemetry pills & controls */}
+        <div className="flex items-center gap-2 text-xs shrink-0">
           {isConnected && device && (
-            <div
+            <button
+              type="button"
               onClick={() => setIsGadgetModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500/10 border border-sky-500/30 text-sky-300 rounded-xl cursor-pointer hover:bg-sky-500/20 transition-colors"
+              className="flex items-center gap-1.5 h-9 px-2.5 bg-info/10 border border-info/30 text-info rounded-lg hover:bg-info/20 transition-colors tabular"
+              aria-label="Open Bluetooth gadgets"
             >
-              <Bluetooth className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
+              <Bluetooth className="w-3.5 h-3.5" aria-hidden />
               <span>{liveHeartRate ? `${liveHeartRate} BPM` : 'Connected'}</span>
-            </div>
+            </button>
           )}
 
           {activeSession && (
-            <div
+            <button
+              type="button"
               onClick={() => onNavigate('workouts')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#CEFF00]/10 border border-[#CEFF00]/30 text-[#CEFF00] rounded-xl cursor-pointer hover:bg-[#CEFF00]/20 transition-colors"
+              className="hidden sm:flex items-center gap-1.5 h-9 px-2.5 bg-accent/10 border border-accent/30 text-accent rounded-lg hover:bg-accent/20 transition-colors"
             >
-              <Dumbbell className="w-3.5 h-3.5" />
+              <Dumbbell className="w-3.5 h-3.5" aria-hidden />
               <span className="truncate max-w-[120px]">{activeSession.dayName}</span>
-            </div>
+            </button>
           )}
 
           <button
+            type="button"
             onClick={() => {
               const next = !isSpeechEnabled;
               setIsSpeechEnabled(next);
@@ -225,10 +225,12 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
                 window.speechSynthesis.cancel();
               }
             }}
-            className={`p-2 rounded-xl border transition-colors ${
+            aria-pressed={isSpeechEnabled}
+            aria-label={isSpeechEnabled ? 'Mute AI voice output' : 'Enable voice read-out'}
+            className={`w-10 h-10 flex items-center justify-center rounded-lg border transition-colors ${
               isSpeechEnabled
-                ? 'bg-[#CEFF00] text-black border-[#CEFF00] font-bold shadow-md'
-                : 'bg-zinc-950 border-white/[0.08] text-zinc-400 hover:text-white'
+                ? 'bg-accent text-accent-ink border-accent'
+                : 'bg-surface-2 border-line text-zinc-400 hover:text-zinc-200'
             }`}
             title={isSpeechEnabled ? 'Mute AI voice output' : 'Enable voice read-out for hands-free training'}
           >
@@ -236,6 +238,7 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
           </button>
 
           <button
+            type="button"
             onClick={() => {
               if (window.confirm('Reset conversation with Coach Iron?')) {
                 setMessages([
@@ -248,75 +251,62 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
                 ]);
               }
             }}
-            className="p-2 bg-zinc-950 hover:bg-zinc-900 border border-white/[0.08] text-zinc-400 hover:text-white rounded-xl transition-colors"
-            title="Reset Chat"
+            className="w-10 h-10 flex items-center justify-center bg-surface-2 hover:bg-surface-3 border border-line text-zinc-400 hover:text-zinc-200 rounded-lg transition-colors"
+            title="Reset chat"
+            aria-label="Reset chat"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* COACH TOOLKIT QUICK ACCESS BANNER */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 shrink-0">
-        <button
-          onClick={() => setIsWarmupModalOpen(true)}
-          className="touch-press text-left p-3.5 rounded-2xl bg-zinc-950/80 border border-white/[0.06] hover:border-amber-400/50 transition-all flex items-center justify-between group shadow-sm"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-400 flex items-center justify-center shrink-0">
-              <Flame className="w-4 h-4 fill-amber-400" />
-            </div>
-            <div>
-              <span className="font-bold text-xs text-white block group-hover:text-amber-300 transition-colors">
-                5-Min Dynamic Warm-up
+      {/* COACH TOOLKIT QUICK ACCESS */}
+      <div className="grid grid-cols-3 gap-2 shrink-0">
+        {[
+          {
+            key: 'warmup',
+            icon: <Flame className="w-4 h-4" />,
+            short: 'Warm-up',
+            title: '5-min dynamic warm-up',
+            sub: 'RAMP pre-workout routine',
+            onClick: () => setIsWarmupModalOpen(true)
+          },
+          {
+            key: 'dream',
+            icon: <Sparkles className="w-4 h-4" />,
+            short: 'Physique',
+            title: 'Dream physique & blueprint',
+            sub: 'AI photo + diet & split plan',
+            onClick: () => setIsDreamPhysiqueModalOpen(true)
+          },
+          {
+            key: 'posture',
+            icon: <ShieldCheck className="w-4 h-4" />,
+            short: 'Form cues',
+            title: 'Posture & form cues',
+            sub: 'Interactive joint visualizer',
+            onClick: () => setPostureModalExercise('Barbell Back Squat')
+          }
+        ].map((t) => (
+          <button
+            type="button"
+            key={t.key}
+            onClick={t.onClick}
+            className="touch-press group text-left min-h-[52px] p-2.5 sm:p-3 rounded-xl bg-surface border border-line hover:border-accent/40 hover:bg-surface-2 transition-colors flex flex-col sm:flex-row items-center sm:items-center justify-center sm:justify-between gap-1.5 sm:gap-2.5"
+          >
+            <span className="flex flex-col sm:flex-row items-center gap-1.5 sm:gap-2.5 min-w-0">
+              <span className="w-8 h-8 rounded-lg bg-surface-2 border border-line text-zinc-300 group-hover:text-accent flex items-center justify-center shrink-0 transition-colors" aria-hidden>
+                {t.icon}
               </span>
-              <span className="text-[11px] text-zinc-400 block truncate max-w-[160px]">
-                RAMP pre-workout routine
+              <span className="min-w-0 text-center sm:text-left">
+                <span className="sm:hidden block text-[11px] font-medium text-zinc-200">{t.short}</span>
+                <span className="hidden sm:block text-sm font-semibold text-white truncate">{t.title}</span>
+                <span className="hidden sm:block text-xs text-zinc-400 truncate">{t.sub}</span>
               </span>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-amber-400 transition-colors" />
-        </button>
-
-        <button
-          onClick={() => setIsDreamPhysiqueModalOpen(true)}
-          className="touch-press text-left p-3.5 rounded-2xl bg-zinc-950/80 border border-white/[0.06] hover:border-[#CEFF00]/50 transition-all flex items-center justify-between group shadow-sm"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#CEFF00]/20 text-[#CEFF00] flex items-center justify-center shrink-0">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="font-bold text-xs text-white block group-hover:text-[#CEFF00] transition-colors">
-                Dream Physique &amp; Blueprint
-              </span>
-              <span className="text-[11px] text-zinc-400 block truncate max-w-[160px]">
-                AI photo + diet &amp; split plan
-              </span>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-[#CEFF00] transition-colors" />
-        </button>
-
-        <button
-          onClick={() => setPostureModalExercise('Barbell Back Squat')}
-          className="touch-press text-left p-3.5 rounded-2xl bg-zinc-950/80 border border-white/[0.06] hover:border-sky-400/50 transition-all flex items-center justify-between group shadow-sm"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-sky-400/20 text-sky-400 flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="font-bold text-xs text-white block group-hover:text-sky-300 transition-colors">
-                Posture &amp; Form Cues
-              </span>
-              <span className="text-[11px] text-zinc-400 block truncate max-w-[160px]">
-                Interactive joint visualizer
-              </span>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-sky-400 transition-colors" />
-        </button>
+            </span>
+            <ChevronRight className="hidden sm:block w-4 h-4 text-zinc-500 group-hover:text-accent transition-colors shrink-0" aria-hidden />
+          </button>
+        ))}
       </div>
 
       {/* CHAT MESSAGES SCROLL AREA */}
@@ -331,39 +321,39 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
               <div
                 className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold font-mono ${
                   isAi
-                    ? 'bg-[#CEFF00]/15 border border-[#CEFF00]/30 text-[#CEFF00]'
-                    : 'bg-zinc-900 border border-white/[0.1] text-white'
+                    ? 'bg-accent/15 border border-accent/30 text-accent'
+                    : 'bg-surface-2 border border-line text-white'
                 }`}
               >
                 {isAi ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
               </div>
 
               <div
-                className={`max-w-[85%] sm:max-w-[75%] rounded-3xl p-4 space-y-2 text-xs sm:text-sm leading-relaxed ${
+                className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-4 space-y-2 text-sm leading-relaxed ${
                   isAi
-                    ? 'bg-zinc-950/90 border border-white/[0.06] text-zinc-200 shadow-md'
-                    : 'bg-[#CEFF00] text-black font-medium font-sans shadow-md'
+                    ? 'bg-canvas/90 border border-line text-zinc-200 shadow-md'
+                    : 'bg-accent text-accent-ink font-medium font-sans shadow-md'
                 }`}
               >
                 <div className="whitespace-pre-line">{msg.text}</div>
 
                 {/* Direct Action Button attached to AI message */}
                 {msg.suggestedAction && isAi && (
-                  <div className="pt-2 border-t border-white/[0.06]">
+                  <div className="pt-2 border-t border-line">
                     <button
                       onClick={() => handleActionClick(msg.suggestedAction)}
-                      className="touch-press px-3.5 py-1.5 bg-[#CEFF00]/15 hover:bg-[#CEFF00]/25 border border-[#CEFF00]/40 text-[#CEFF00] font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors"
+                      className="touch-press px-3.5 py-1.5 bg-accent/15 hover:bg-accent/25 border border-accent/40 text-accent font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-[#CEFF00]" />
+                      <Sparkles className="w-3.5 h-3.5 text-accent" />
                       <span>{msg.suggestedAction.label}</span>
-                      <ChevronRight className="w-3 h-3 text-[#CEFF00]" />
+                      <ChevronRight className="w-3 h-3 text-accent" />
                     </button>
                   </div>
                 )}
 
                 <div
-                  className={`text-[10px] font-mono flex items-center justify-end ${
-                    isAi ? 'text-zinc-500' : 'text-black/60 font-semibold'
+                  className={`text-[11px] font-mono flex items-center justify-end ${
+                    isAi ? 'text-zinc-500' : 'text-accent-ink/70 font-semibold'
                   }`}
                 >
                   {msg.timestamp}
@@ -375,11 +365,11 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
 
         {isSending && (
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl bg-[#CEFF00]/15 border border-[#CEFF00]/30 flex items-center justify-center text-[#CEFF00] shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center text-accent shrink-0">
               <Bot className="w-4 h-4 animate-pulse" />
             </div>
-            <div className="p-3 bg-zinc-950 border border-white/[0.06] rounded-2xl text-xs text-zinc-400 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#CEFF00] animate-ping" />
+            <div className="p-3 bg-canvas border border-line rounded-2xl text-xs text-zinc-400 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
               <span>Coach Iron is analyzing biomechanics and training data...</span>
             </div>
           </div>
@@ -402,7 +392,7 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
           <button
             key={chip}
             onClick={() => handleSendMessage(chip)}
-            className="px-3.5 py-1.5 bg-zinc-950 hover:bg-zinc-900 border border-white/[0.08] text-zinc-300 hover:text-white rounded-xl text-xs whitespace-nowrap transition-colors"
+            className="px-3.5 py-1.5 bg-canvas hover:bg-surface-2 border border-line text-zinc-300 hover:text-white rounded-xl text-xs whitespace-nowrap transition-colors"
           >
             {chip}
           </button>
@@ -410,7 +400,7 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
       </div>
 
       {/* INPUT BAR */}
-      <div className="bg-[#090c12] border border-white/[0.08] rounded-2xl p-2.5 flex items-center gap-2 shrink-0 shadow-lg">
+      <div className="bg-surface border border-line rounded-2xl p-2.5 flex items-center gap-2 shrink-0 shadow-lg">
         <input
           type="text"
           value={inputText}
@@ -428,7 +418,7 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
         <button
           onClick={() => handleSendMessage()}
           disabled={!inputText.trim() || isSending}
-          className="touch-press px-4 py-2 bg-[#CEFF00] hover:bg-[#d4ff00] disabled:opacity-40 text-black font-nrc font-black italic uppercase text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-1.5 transition-colors shrink-0"
+          className="touch-press px-4 py-2 bg-accent hover:bg-accent disabled:opacity-40 text-accent-ink font-nrc font-bold text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-1.5 transition-colors shrink-0"
         >
           <span>Send</span>
           <Send className="w-3.5 h-3.5" />

@@ -331,11 +331,11 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
       <div className="reshape-card p-6 lg:p-7 overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[var(--border-card)]">
           <div>
-            <div className="flex items-center gap-2 text-volt-adaptive text-xs font-mono font-bold uppercase tracking-wider mb-1">
+            <div className="flex items-center gap-2 text-volt-adaptive text-xs font-mono font-bold tracking-wide mb-1">
               <Apple className="w-4 h-4 stroke-[2.5]" />
               <span>Nutrition &amp; Macro Command</span>
             </div>
-            <h1 className="text-2xl lg:text-3xl font-nrc font-black italic uppercase text-[var(--text-primary)] tracking-tight">
+            <h1 className="text-2xl lg:text-3xl font-nrc font-bold text-[var(--text-primary)] tracking-tight">
               Daily Macro Fuel &amp; Diary
             </h1>
             <p className="text-xs text-[var(--text-secondary)] mt-1 font-sans">
@@ -350,7 +350,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                 setActiveMealCategory('lunch');
                 setIsBarcodeScannerOpen(true);
               }}
-              className="touch-press px-4 py-2.5 bg-[#CEFF00] hover:bg-[#d4ff00] text-black font-nrc font-black italic uppercase text-sm rounded-2xl flex items-center gap-2 shadow-[0_0_20px_rgba(206,255,0,0.3)] transition-transform"
+              className="touch-press px-4 py-2.5 bg-accent hover:bg-accent text-accent-ink font-nrc font-bold text-sm rounded-2xl flex items-center gap-2 transition-transform"
               title="Scan packaged food barcode with camera"
             >
               <Camera className="w-4 h-4 stroke-[2.5]" />
@@ -367,7 +367,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <div className="px-2 font-bold text-[var(--text-primary)] flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#CEFF00]" />
+                <Calendar className="w-3.5 h-3.5 text-accent" />
                 <span>{selectedDate}</span>
               </div>
               <button
@@ -385,7 +385,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mt-6">
           {/* Calories */}
           <div className="p-4 reshape-card-subtle space-y-2">
-            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider font-bold">Calories</span>
+            <span className="text-[11px] font-mono text-[var(--text-muted)] tracking-wide font-bold">Calories</span>
             <div className="text-xl font-mono font-bold text-[var(--text-primary)] tabular-nums">
               {totalCalories}{' '}
               <span className="text-xs font-normal text-[var(--text-muted)]">/ {calTarget}</span>
@@ -393,7 +393,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
             <div className="w-full bg-[var(--chip-bg)] h-2 rounded-full overflow-hidden border border-[var(--border-card)]">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${
-                  totalCalories > calTarget ? 'bg-amber-400' : 'bg-[#CEFF00]'
+                  totalCalories > calTarget ? 'bg-amber-400' : 'bg-accent'
                 }`}
                 style={{ width: `${Math.min(100, (totalCalories / calTarget) * 100)}%` }}
               />
@@ -405,7 +405,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
 
           {/* Protein */}
           <div className="p-4 reshape-card-subtle space-y-2">
-            <span className="text-[10px] font-mono text-volt-adaptive uppercase tracking-wider font-bold">
+            <span className="text-[11px] font-mono text-volt-adaptive tracking-wide font-bold">
               Protein
             </span>
             <div className="text-xl font-mono font-bold text-volt-adaptive tabular-nums">
@@ -414,7 +414,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
             </div>
             <div className="w-full bg-[var(--chip-bg)] h-2 rounded-full overflow-hidden border border-[var(--border-card)]">
               <div
-                className="bg-[#CEFF00] h-full rounded-full transition-all duration-500"
+                className="bg-accent h-full rounded-full transition-all duration-500"
                 style={{ width: `${Math.min(100, (totalProtein / proTarget) * 100)}%` }}
               />
             </div>
@@ -425,7 +425,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
 
           {/* Carbohydrates */}
           <div className="p-4 reshape-card-subtle space-y-2">
-            <span className="text-[10px] font-mono text-sky-500 uppercase tracking-wider font-bold">
+            <span className="text-[11px] font-mono text-sky-500 tracking-wide font-bold">
               Carbohydrates
             </span>
             <div className="text-xl font-mono font-bold text-sky-500 tabular-nums">
@@ -445,7 +445,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
 
           {/* Fats */}
           <div className="p-4 reshape-card-subtle space-y-2">
-            <span className="text-[10px] font-mono text-amber-500 uppercase tracking-wider font-bold">
+            <span className="text-[11px] font-mono text-amber-500 tracking-wide font-bold">
               Healthy Fats
             </span>
             <div className="text-xl font-mono font-bold text-amber-500 tabular-nums">
@@ -465,13 +465,13 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
         </div>
 
         {/* Quick Duplicate & Water Bar */}
-        <div className="mt-5 pt-4 border-t border-[var(--border-card)] flex items-center justify-between text-xs">
+        <div className="mt-5 pt-4 border-t border-[var(--border-card)] flex flex-wrap items-center justify-between gap-x-4 gap-y-3 text-xs">
           <button
             onClick={handleDuplicateYesterday}
-            className="flex items-center gap-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            className="flex items-center gap-1.5 h-9 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors whitespace-nowrap"
             title="Duplicate all meals from previous day"
           >
-            <Copy className="w-3.5 h-3.5 text-[#CEFF00]" />
+            <Copy className="w-3.5 h-3.5 text-accent" />
             <span>Duplicate Yesterday&apos;s Diary</span>
           </button>
 
@@ -529,10 +529,10 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                       setActiveMealCategory(cat.id);
                       setIsBarcodeScannerOpen(true);
                     }}
-                    className="px-2.5 py-1.5 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] border border-[var(--border-card)] hover:border-[#CEFF00]/50 text-[var(--text-secondary)] hover:text-volt-adaptive text-xs font-semibold rounded-xl flex items-center gap-1 transition-colors"
+                    className="px-2.5 py-1.5 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] border border-[var(--border-card)] hover:border-accent/50 text-[var(--text-secondary)] hover:text-volt-adaptive text-xs font-semibold rounded-xl flex items-center gap-1 transition-colors"
                     title={`Scan barcode directly into ${cat.label}`}
                   >
-                    <Camera className="w-3.5 h-3.5 text-[#CEFF00]" />
+                    <Camera className="w-3.5 h-3.5 text-accent" />
                     <span className="hidden sm:inline">Scan</span>
                   </button>
                   <button
@@ -550,7 +550,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                       setActiveMealCategory(cat.id);
                       setIsAddModalOpen(true);
                     }}
-                    className="px-3 py-1.5 bg-[#CEFF00] hover:bg-[#d4ff00] text-black text-xs font-bold rounded-xl flex items-center gap-1 transition-colors shadow-sm"
+                    className="px-3 py-1.5 bg-accent hover:bg-accent text-accent-ink text-xs font-bold rounded-xl flex items-center gap-1 transition-colors shadow-sm"
                   >
                     <Plus className="w-3.5 h-3.5 stroke-[3]" />
                     <span>Add Food</span>
@@ -606,7 +606,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
       {/* MODAL 1: SEARCH & ADD FROM DATABASE / AI MEAL PARSER */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="reshape-card p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+          <div className="reshape-card p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90dvh] flex flex-col">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-[var(--text-primary)] text-base">
@@ -628,7 +628,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                 onClick={() => setAddMode('database')}
                 className={`py-2 rounded-xl transition-colors truncate px-2 text-xs ${
                   addMode === 'database'
-                    ? 'bg-[#CEFF00] text-black shadow-sm font-bold'
+                    ? 'bg-accent text-accent-ink shadow-sm font-bold'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
@@ -638,7 +638,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                 onClick={() => setAddMode('ai_parser')}
                 className={`py-2 rounded-xl transition-colors flex items-center justify-center gap-1 truncate px-2 text-xs ${
                   addMode === 'ai_parser'
-                    ? 'bg-[#CEFF00] text-black shadow-sm font-bold'
+                    ? 'bg-accent text-accent-ink shadow-sm font-bold'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
@@ -652,7 +652,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                 }}
                 className="py-2 rounded-xl transition-colors flex items-center justify-center gap-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--chip-bg)] truncate px-2 text-xs"
               >
-                <Camera className="w-3.5 h-3.5 text-[#CEFF00] shrink-0" />
+                <Camera className="w-3.5 h-3.5 text-accent shrink-0" />
                 <span>Barcode</span>
               </button>
             </div>
@@ -667,7 +667,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search chicken breast, rice, oats, whey, eggs..."
-                    className="w-full pl-9 pr-3 py-2.5 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-2xl text-[var(--text-primary)] text-xs focus:outline-none focus:border-[#CEFF00]"
+                    className="w-full pl-9 pr-3 py-2.5 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-2xl text-[var(--text-primary)] text-xs focus:outline-none focus:border-accent"
                   />
                 </div>
 
@@ -681,7 +681,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                         onClick={() => setSelectedFoodItem(food)}
                         className={`p-3 cursor-pointer rounded-2xl transition-colors ${
                           isSelected
-                            ? 'bg-[var(--chip-bg)] border border-[#CEFF00]/60'
+                            ? 'bg-[var(--chip-bg)] border border-accent/60'
                             : 'hover:bg-[var(--chip-bg)]'
                         }`}
                       >
@@ -739,7 +739,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                   <button
                     disabled={!selectedFoodItem}
                     onClick={handleAddFromDatabase}
-                    className="touch-press px-5 py-2 bg-[#CEFF00] disabled:opacity-40 text-black font-bold rounded-xl text-xs"
+                    className="touch-press px-5 py-2 bg-accent disabled:opacity-40 text-accent-ink font-bold rounded-xl text-xs"
                   >
                     Log Food Entry
                   </button>
@@ -757,7 +757,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                     onChange={(e) => setAiMealQuery(e.target.value)}
                     placeholder="e.g. 200g grilled chicken breast with 1.5 cups jasmine rice, half an avocado and 1 cup steamed broccoli"
                     rows={3}
-                    className="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-2xl text-[var(--text-primary)] text-xs focus:outline-none focus:border-[#CEFF00]"
+                    className="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-2xl text-[var(--text-primary)] text-xs focus:outline-none focus:border-accent"
                   />
                   <div className="flex items-center justify-between mt-1.5">
                     <span className="text-[11px] text-[var(--text-muted)] font-mono">
@@ -767,7 +767,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                       type="button"
                       disabled={aiMealLoading || !aiMealQuery.trim()}
                       onClick={handleParseAiMeal}
-                      className="px-3.5 py-1.5 bg-[#CEFF00] text-black text-xs font-bold rounded-xl flex items-center gap-1.5 disabled:opacity-40 shadow-sm"
+                      className="px-3.5 py-1.5 bg-accent text-accent-ink text-xs font-bold rounded-xl flex items-center gap-1.5 disabled:opacity-40 shadow-sm"
                     >
                       {aiMealLoading ? (
                         <>
@@ -792,7 +792,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
 
                 {aiParsedItems.length > 0 && (
                   <div className="space-y-2 flex-1 overflow-y-auto">
-                    <div className="flex items-center justify-between text-[11px] font-mono text-[var(--text-muted)] uppercase font-bold">
+                    <div className="flex items-center justify-between text-[11px] font-mono text-[var(--text-muted)] font-bold">
                       <span>Parsed Items ({aiParsedItems.length})</span>
                       <span className="text-volt-adaptive">
                         Total: {aiParsedItems.reduce((acc, i) => acc + (Number(i.calories) || 0), 0)} kcal · {aiParsedItems.reduce((acc, i) => acc + (Number(i.protein) || 0), 0).toFixed(0)}g P
@@ -833,7 +833,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                   <button
                     disabled={aiParsedItems.length === 0}
                     onClick={handleLogAiMealItems}
-                    className="touch-press px-5 py-2 bg-[#CEFF00] hover:bg-[#d4ff00] disabled:opacity-40 text-black font-bold rounded-xl text-xs shadow-md flex items-center gap-1.5"
+                    className="touch-press px-5 py-2 bg-accent hover:bg-accent disabled:opacity-40 text-accent-ink font-bold rounded-xl text-xs shadow-md flex items-center gap-1.5"
                   >
                     <Check className="w-3.5 h-3.5 stroke-[3]" />
                     <span>Log All {aiParsedItems.length} Items</span>
@@ -862,7 +862,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
                   value={manualName}
                   onChange={(e) => setManualName(e.target.value)}
                   placeholder="e.g. Protein Bar, Homemade Curry"
-                  className="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-[#CEFF00]"
+                  className="w-full px-3 py-2 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-accent"
                 />
               </div>
 
@@ -935,7 +935,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
               </button>
               <button
                 onClick={handleAddManualFood}
-                className="px-5 py-2 bg-[#CEFF00] hover:bg-[#d4ff00] text-black font-bold rounded-xl text-xs"
+                className="px-5 py-2 bg-accent hover:bg-accent text-accent-ink font-bold rounded-xl text-xs"
               >
                 Save &amp; Log Entry
               </button>

@@ -67,7 +67,7 @@ export const AnatomicalHeatmap: React.FC<AnatomicalHeatmapProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border-card)] pb-4">
         <div>
-          <div className="text-[10px] font-mono tracking-wider uppercase text-[var(--text-muted)] flex items-center gap-1.5">
+          <div className="text-[11px] font-mono tracking-wide text-[var(--text-muted)] flex items-center gap-1.5">
             <span>Anatomical Biomechanics</span>
             <span aria-hidden="true">·</span>
             <span className="text-volt-adaptive font-semibold">Muscle Readiness Heatmap</span>
@@ -83,7 +83,7 @@ export const AnatomicalHeatmap: React.FC<AnatomicalHeatmapProps> = ({
             type="button"
             onClick={() => setViewOrientation('both')}
             className={`px-3 py-1 text-xs font-semibold rounded ${
-              viewOrientation === 'both' ? 'bg-[#CEFF00] text-black font-bold' : 'text-[var(--text-muted)]'
+              viewOrientation === 'both' ? 'bg-accent text-accent-ink font-bold' : 'text-[var(--text-muted)]'
             }`}
           >
             All Views
@@ -92,7 +92,7 @@ export const AnatomicalHeatmap: React.FC<AnatomicalHeatmapProps> = ({
             type="button"
             onClick={() => setViewOrientation('front')}
             className={`px-3 py-1 text-xs font-semibold rounded ${
-              viewOrientation === 'front' ? 'bg-[#CEFF00] text-black font-bold' : 'text-[var(--text-muted)]'
+              viewOrientation === 'front' ? 'bg-accent text-accent-ink font-bold' : 'text-[var(--text-muted)]'
             }`}
           >
             Anterior (Front)
@@ -101,7 +101,7 @@ export const AnatomicalHeatmap: React.FC<AnatomicalHeatmapProps> = ({
             type="button"
             onClick={() => setViewOrientation('back')}
             className={`px-3 py-1 text-xs font-semibold rounded ${
-              viewOrientation === 'back' ? 'bg-[#CEFF00] text-black font-bold' : 'text-[var(--text-muted)]'
+              viewOrientation === 'back' ? 'bg-accent text-accent-ink font-bold' : 'text-[var(--text-muted)]'
             }`}
           >
             Posterior (Back)
@@ -116,7 +116,7 @@ export const AnatomicalHeatmap: React.FC<AnatomicalHeatmapProps> = ({
           {/* Anterior (Front) View */}
           {(viewOrientation === 'both' || viewOrientation === 'front') && (
             <div className="flex flex-col items-center">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-[var(--text-muted)] mb-2">
+              <span className="text-[11px] font-mono tracking-wide text-[var(--text-muted)] mb-2">
                 Anterior (Front)
               </span>
               <svg viewBox="0 0 160 300" className="w-36 h-72 select-none filter drop-shadow-md">
@@ -235,7 +235,7 @@ export const AnatomicalHeatmap: React.FC<AnatomicalHeatmapProps> = ({
           {/* Posterior (Back) View */}
           {(viewOrientation === 'both' || viewOrientation === 'back') && (
             <div className="flex flex-col items-center">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-[var(--text-muted)] mb-2">
+              <span className="text-[11px] font-mono tracking-wide text-[var(--text-muted)] mb-2">
                 Posterior (Back)
               </span>
               <svg viewBox="0 0 160 300" className="w-36 h-72 select-none filter drop-shadow-md">
@@ -367,7 +367,7 @@ export const AnatomicalHeatmap: React.FC<AnatomicalHeatmapProps> = ({
           <div className="reshape-card-subtle p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-[var(--border-card)] pb-3">
               <div>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
+                <span className="text-[11px] font-mono tracking-wide text-[var(--text-muted)]">
                   Selected Target Group
                 </span>
                 <h4 className="text-base font-bold text-[var(--text-primary)]">
@@ -376,7 +376,7 @@ export const AnatomicalHeatmap: React.FC<AnatomicalHeatmapProps> = ({
               </div>
               <span
                 style={{ backgroundColor: `${activeColor.fill}20`, color: activeColor.fill }}
-                className="px-2.5 py-1 rounded text-xs font-mono font-bold uppercase tracking-wider border border-current"
+                className="px-2.5 py-1 rounded text-xs font-mono font-bold tracking-wide border border-current"
               >
                 {activeMuscleData.recoveryPercentage}% {activeColor.label}
               </span>
@@ -385,7 +385,7 @@ export const AnatomicalHeatmap: React.FC<AnatomicalHeatmapProps> = ({
             {/* Quick Metrics */}
             <div className="grid grid-cols-2 gap-3 text-xs font-mono">
               <div className="p-3 rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-card)]">
-                <div className="text-[10px] text-[var(--text-muted)] uppercase">Hours Since Trained</div>
+                <div className="text-[11px] text-[var(--text-muted)] ">Hours Since Trained</div>
                 <div className="text-sm font-bold text-[var(--text-primary)] mt-0.5">
                   {activeMuscleData.hoursSinceLastTrained !== undefined
                     ? `${activeMuscleData.hoursSinceLastTrained}h ago`
@@ -393,7 +393,7 @@ export const AnatomicalHeatmap: React.FC<AnatomicalHeatmapProps> = ({
                 </div>
               </div>
               <div className="p-3 rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-card)]">
-                <div className="text-[10px] text-[var(--text-muted)] uppercase">7-Day Volume Sets</div>
+                <div className="text-[11px] text-[var(--text-muted)] ">7-Day Volume Sets</div>
                 <div className="text-sm font-bold text-[var(--text-primary)] mt-0.5">
                   {activeMuscleData.totalSetsLast7Days} sets
                 </div>
@@ -423,7 +423,7 @@ export const AnatomicalHeatmap: React.FC<AnatomicalHeatmapProps> = ({
             {/* Exercises Logged */}
             {activeMuscleData.exercisesTrained.length > 0 && (
               <div>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-muted)] block mb-1.5">
+                <span className="text-[11px] font-mono tracking-wide text-[var(--text-muted)] block mb-1.5">
                   Recent Movements Performed
                 </span>
                 <div className="flex flex-wrap gap-1.5">
@@ -442,13 +442,13 @@ export const AnatomicalHeatmap: React.FC<AnatomicalHeatmapProps> = ({
             {/* Legend */}
             <div className="pt-2 border-t border-[var(--border-card)] flex items-center justify-between text-[11px] font-mono text-[var(--text-muted)]">
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#CEFF00]"></span> Fresh (≥85%)
+                <span className="w-2.5 h-2.5 rounded-full bg-accent"></span> Fresh (≥85%)
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b]"></span> Recovering
+                <span className="w-2.5 h-2.5 rounded-full bg-warning"></span> Recovering
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444]"></span> Fatigued (&lt;45%)
+                <span className="w-2.5 h-2.5 rounded-full bg-danger"></span> Fatigued (&lt;45%)
               </span>
             </div>
           </div>

@@ -35,7 +35,7 @@ export const LineChart: React.FC<LineChartProps> = ({
   if (!data || data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-[var(--text-muted)] reshape-card-subtle">
-        <p className="text-xs uppercase tracking-wider">{emptyMessage}</p>
+        <p className="text-xs tracking-wide">{emptyMessage}</p>
       </div>
     );
   }
@@ -94,7 +94,7 @@ export const LineChart: React.FC<LineChartProps> = ({
     <div className="w-full">
       {title && (
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-mono font-bold text-[var(--text-secondary)] uppercase tracking-wider">{title}</span>
+          <span className="text-xs font-mono font-bold text-[var(--text-secondary)] tracking-wide">{title}</span>
           {hoverIndex !== null && data[hoverIndex] && (
             <div className="text-xs font-mono text-[var(--text-primary)]">
               <span className="text-[var(--text-muted)] mr-1.5">{data[hoverIndex].date}:</span>
@@ -142,7 +142,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                   x={padding.left - 8}
                   y={y + 3}
                   textAnchor="end"
-                  className="fill-[var(--text-muted)] text-[10px] font-mono"
+                  className="fill-[var(--text-muted)] text-[11px] font-mono"
                 >
                   {tickVal.toFixed(0)}
                 </text>
@@ -166,7 +166,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                 x={width - padding.right}
                 y={getY(targetLine) - 5}
                 textAnchor="end"
-                className="fill-amber-400 text-[9px] font-mono font-medium"
+                className="fill-amber-400 text-[11px] font-mono font-medium"
               >
                 {targetLabel || `Goal: ${targetLine} ${unit}`}
               </text>
@@ -237,7 +237,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                 x={getX(0)}
                 y={height - 8}
                 textAnchor="start"
-                className="fill-zinc-500 text-[10px] font-mono"
+                className="fill-zinc-500 text-[11px] font-mono"
               >
                 {data[0].date.slice(5)}
               </text>
@@ -246,7 +246,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                   x={getX(Math.floor(data.length / 2))}
                   y={height - 8}
                   textAnchor="middle"
-                  className="fill-zinc-500 text-[10px] font-mono"
+                  className="fill-zinc-500 text-[11px] font-mono"
                 >
                   {data[Math.floor(data.length / 2)].date.slice(5)}
                 </text>
@@ -256,7 +256,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                   x={getX(data.length - 1)}
                   y={height - 8}
                   textAnchor="end"
-                  className="fill-zinc-500 text-[10px] font-mono"
+                  className="fill-zinc-500 text-[11px] font-mono"
                 >
                   {data[data.length - 1].date.slice(5)}
                 </text>
@@ -313,7 +313,7 @@ export const BarChart: React.FC<BarChartProps> = ({
     <div className="w-full">
       {title && (
         <div className="flex items-center justify-between mb-3">
-          <span className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{title}</span>
+          <span className="text-xs font-semibold text-[var(--text-secondary)] tracking-wide">{title}</span>
         </div>
       )}
 
@@ -323,20 +323,20 @@ export const BarChart: React.FC<BarChartProps> = ({
           return (
             <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group">
               {/* Tooltip value */}
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-mono text-[var(--text-primary)] mb-1 whitespace-nowrap">
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[11px] font-mono text-[var(--text-primary)] mb-1 whitespace-nowrap">
                 {item.value} {unit}
               </div>
 
               {/* Bar */}
               <div className="w-full max-w-[36px] bg-[var(--chip-bg)] rounded-t-sm relative transition-all overflow-hidden flex items-end">
                 <div
-                  className="w-full bg-[#CEFF00] group-hover:brightness-110 transition-all rounded-t-sm"
+                  className="w-full bg-accent group-hover:brightness-110 transition-all rounded-t-sm"
                   style={{ height: `${heightPercent}%` }}
                 />
               </div>
 
               {/* Label */}
-              <span className="text-[10px] font-mono text-[var(--text-muted)] mt-2 truncate w-full text-center">
+              <span className="text-[11px] font-mono text-[var(--text-muted)] mt-2 truncate w-full text-center">
                 {item.label}
               </span>
             </div>

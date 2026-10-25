@@ -290,18 +290,18 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fade-in">
-      <div className="bg-[#0b0e14] border border-zinc-800 rounded-3xl max-w-md w-full shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-surface border border-line rounded-2xl max-w-md w-full shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col max-h-[92vh]">
         {/* HEADER */}
-        <div className="px-5 py-4 border-b border-zinc-800/80 flex items-center justify-between bg-zinc-950/80">
+        <div className="px-5 py-4 border-b border-line flex items-center justify-between bg-canvas/80">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#CEFF00] flex items-center justify-center text-black font-black font-nrc italic text-sm shadow-[0_0_12px_rgba(206,255,0,0.3)]">
+            <div className="w-8 h-8 rounded-xl bg-accent flex items-center justify-center text-accent-ink font-bold font-nrc text-sm">
               NRC
             </div>
             <div>
               <h3 className="font-bold text-white text-sm sm:text-base tracking-tight flex items-center gap-1.5">
                 <span>Food Barcode Scanner</span>
               </h3>
-              <p className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">
+              <p className="text-[11px] font-mono text-zinc-400 tracking-wide">
                 Open Food Facts Integration
               </p>
             </div>
@@ -312,7 +312,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
               stopScanner();
               onClose();
             }}
-            className="w-8 h-8 rounded-full bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/60 text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-full bg-surface-2 hover:bg-surface-3 border border-zinc-700/60 text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
             title="Close"
           >
             <X className="w-4 h-4" />
@@ -324,8 +324,8 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
           {/* LOOKING UP SPINNER */}
           {isLookingUp && (
             <div className="py-12 flex flex-col items-center justify-center text-center space-y-3">
-              <div className="w-12 h-12 rounded-full border-2 border-zinc-800 border-t-[#CEFF00] animate-spin" />
-              <div className="text-sm font-bold text-white font-nrc uppercase tracking-wide">
+              <div className="w-12 h-12 rounded-full border-2 border-line border-t-[#CEFF00] animate-spin" />
+              <div className="text-sm font-bold text-white font-nrc tracking-wide">
                 Searching Open Food Facts...
               </div>
               <p className="text-xs text-zinc-400 font-mono">Barcode: {scannedBarcode}</p>
@@ -336,7 +336,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
           {!isLookingUp && !scannedProduct && (
             <div className="space-y-4">
               {/* Mode Toggle */}
-              <div className="grid grid-cols-2 gap-1 p-1 bg-zinc-900 border border-zinc-800 rounded-2xl text-xs font-semibold">
+              <div className="grid grid-cols-2 gap-1 p-1 bg-surface-2 border border-line rounded-2xl text-xs font-semibold">
                 <button
                   onClick={() => {
                     setScannerError(null);
@@ -345,7 +345,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                   }}
                   className={`py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
                     activeMode === 'camera'
-                      ? 'bg-zinc-800 text-[#CEFF00] font-bold shadow-sm'
+                      ? 'bg-surface-3 text-accent font-bold shadow-sm'
                       : 'text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
@@ -362,7 +362,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                   }}
                   className={`py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
                     activeMode === 'manual'
-                      ? 'bg-zinc-800 text-[#CEFF00] font-bold shadow-sm'
+                      ? 'bg-surface-3 text-accent font-bold shadow-sm'
                       : 'text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
@@ -374,33 +374,33 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
               {/* Camera Scanner Viewfinder */}
               {activeMode === 'camera' && (
                 <div className="space-y-3">
-                  <div className="relative rounded-2xl overflow-hidden bg-black aspect-[4/3] border border-zinc-800 shadow-inner flex items-center justify-center">
+                  <div className="relative rounded-2xl overflow-hidden bg-black aspect-[4/3] border border-line shadow-inner flex items-center justify-center">
                     <div id="barcode-scanner-viewfinder" className="w-full h-full" />
 
                     {/* Viewfinder Target Reticle */}
                     {isScanning && (
                       <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
                         <div className="relative w-64 h-36 border-2 border-white/30 rounded-xl">
-                          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-[#CEFF00] -translate-x-0.5 -translate-y-0.5" />
-                          <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-[#CEFF00] translate-x-0.5 -translate-y-0.5" />
-                          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-[#CEFF00] -translate-x-0.5 translate-y-0.5" />
-                          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-[#CEFF00] translate-x-0.5 translate-y-0.5" />
-                          <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-[#CEFF00] to-transparent animate-pulse absolute top-1/2 -translate-y-1/2 shadow-[0_0_8px_#CEFF00]" />
+                          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-accent -translate-x-0.5 -translate-y-0.5" />
+                          <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-accent translate-x-0.5 -translate-y-0.5" />
+                          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-accent -translate-x-0.5 translate-y-0.5" />
+                          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-accent translate-x-0.5 translate-y-0.5" />
+                          <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-accent to-transparent animate-pulse absolute top-1/2 -translate-y-1/2" />
                         </div>
-                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-white/70 mt-2 bg-black/60 px-2.5 py-0.5 rounded-full backdrop-blur-sm">
+                        <span className="text-[11px] font-mono font-bold tracking-wide text-white/70 mt-2 bg-black/60 px-2.5 py-0.5 rounded-full backdrop-blur-sm">
                           Align barcode inside target
                         </span>
                       </div>
                     )}
 
                     {scannerError && (
-                      <div className="absolute inset-0 p-4 bg-zinc-950/95 flex flex-col items-center justify-center text-center space-y-2.5">
+                      <div className="absolute inset-0 p-4 bg-canvas/95 flex flex-col items-center justify-center text-center space-y-2.5">
                         <AlertCircle className="w-8 h-8 text-amber-400" />
                         <div className="text-xs font-bold text-white">Camera Unavailable</div>
                         <p className="text-[11px] text-zinc-400 max-w-xs">{scannerError}</p>
                         <button
                           onClick={() => setActiveMode('manual')}
-                          className="px-4 py-2 bg-[#CEFF00] text-black font-bold text-xs rounded-xl transition-transform hover:scale-105 mt-1"
+                          className="px-4 py-2 bg-accent text-accent-ink font-bold text-xs rounded-xl transition-transform hover:scale-105 mt-1"
                         >
                           Enter Barcode Manually
                         </button>
@@ -429,21 +429,21 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                       value={manualBarcodeInput}
                       onChange={(e) => setManualBarcodeInput(e.target.value)}
                       placeholder="e.g. 888849000010 or 3017624010701"
-                      className="w-full px-3.5 py-3 bg-zinc-900 border border-zinc-700 focus:border-[#CEFF00] rounded-xl text-white font-mono text-sm tracking-wider focus:outline-none"
+                      className="w-full px-3.5 py-3 bg-surface-2 border border-line-strong focus:border-accent rounded-xl text-white font-mono text-sm tracking-wide focus:outline-none"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={!manualBarcodeInput.trim()}
-                    className="w-full py-3 bg-[#CEFF00] hover:bg-[#d8ff33] disabled:opacity-50 text-black font-black font-nrc uppercase text-sm rounded-xl tracking-tight transition-transform flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(206,255,0,0.25)]"
+                    className="w-full py-3 bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-ink font-bold font-nrc text-sm rounded-xl tracking-tight transition-transform flex items-center justify-center gap-2"
                   >
                     <Search className="w-4 h-4 stroke-[2.5]" />
                     <span>Search Open Food Facts</span>
                   </button>
 
-                  <div className="pt-2 border-t border-zinc-800/80 space-y-1.5">
-                    <span className="text-[10px] font-mono uppercase text-zinc-500 font-bold tracking-wider block">
+                  <div className="pt-2 border-t border-line space-y-1.5">
+                    <span className="text-[11px] font-mono text-zinc-500 font-bold tracking-wide block">
                       Quick Test Barcodes:
                     </span>
                     <div className="flex flex-wrap gap-1.5">
@@ -453,7 +453,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                           setManualBarcodeInput('888849000010');
                           handleProcessBarcode('888849000010');
                         }}
-                        className="px-2 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[11px] text-zinc-300 font-mono transition-colors"
+                        className="px-2 py-1 rounded-lg bg-surface-2 hover:bg-surface-3 border border-line text-[11px] text-zinc-300 font-mono transition-colors"
                       >
                         Quest Bar (888849000010)
                       </button>
@@ -463,7 +463,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                           setManualBarcodeInput('5449000000996');
                           handleProcessBarcode('5449000000996');
                         }}
-                        className="px-2 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[11px] text-zinc-300 font-mono transition-colors"
+                        className="px-2 py-1 rounded-lg bg-surface-2 hover:bg-surface-3 border border-line text-[11px] text-zinc-300 font-mono transition-colors"
                       >
                         Coca-Cola (5449000000996)
                       </button>
@@ -473,7 +473,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                           setManualBarcodeInput('3017624010701');
                           handleProcessBarcode('3017624010701');
                         }}
-                        className="px-2 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[11px] text-zinc-300 font-mono transition-colors"
+                        className="px-2 py-1 rounded-lg bg-surface-2 hover:bg-surface-3 border border-line text-[11px] text-zinc-300 font-mono transition-colors"
                       >
                         Nutella (3017624010701)
                       </button>
@@ -499,7 +499,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                           barcode: scannedBarcode
                         });
                       }}
-                      className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-amber-300 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5"
+                      className="w-full py-2 bg-surface-3 hover:bg-zinc-700 text-amber-300 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Log as Custom Food</span>
@@ -513,23 +513,23 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
           {/* VIEW: PRODUCT REVIEW CARD & SERVING CUSTOMIZER */}
           {!isLookingUp && scannedProduct && (
             <div className="space-y-4 animate-fade-in">
-              <div className="p-3.5 rounded-2xl bg-zinc-900/80 border border-zinc-800 flex gap-3.5">
+              <div className="p-3.5 rounded-2xl bg-surface-2/80 border border-line flex gap-3.5">
                 {scannedProduct.imageUrl ? (
                   <img
                     src={scannedProduct.imageUrl}
                     alt={scannedProduct.name}
-                    className="w-16 h-16 rounded-xl object-cover bg-black border border-zinc-800 shrink-0"
+                    className="w-16 h-16 rounded-xl object-cover bg-black border border-line shrink-0"
                     loading="lazy"
                   />
                 ) : (
-                  <div className="w-16 h-16 rounded-xl bg-zinc-800 border border-zinc-700/60 flex items-center justify-center text-zinc-500 shrink-0">
+                  <div className="w-16 h-16 rounded-xl bg-surface-3 border border-zinc-700/60 flex items-center justify-center text-zinc-500 shrink-0">
                     <Flame className="w-6 h-6 text-zinc-600" />
                   </div>
                 )}
 
                 <div className="flex-1 min-w-0">
                   {scannedProduct.brand && (
-                    <span className="text-[10px] font-mono uppercase font-bold text-[#CEFF00] tracking-wider block truncate">
+                    <span className="text-[11px] font-mono font-bold text-accent tracking-wide block truncate">
                       {scannedProduct.brand}
                     </span>
                   )}
@@ -557,11 +557,11 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
 
               {/* Portion Mode Selector */}
               <div className="space-y-2">
-                <label className="block text-[11px] font-mono font-bold uppercase tracking-wider text-zinc-400">
+                <label className="block text-[11px] font-mono font-bold tracking-wide text-zinc-400">
                   Select Serving Unit &amp; Portion
                 </label>
 
-                <div className="grid grid-cols-3 gap-1.5 p-1 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-semibold">
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-surface-2 border border-line rounded-xl text-xs font-semibold">
                   {scannedProduct.hasServingData && (
                     <button
                       onClick={() => {
@@ -570,7 +570,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                       }}
                       className={`py-1.5 rounded-lg transition-colors truncate px-1 text-[11px] ${
                         portionMode === 'serving'
-                          ? 'bg-zinc-800 text-[#CEFF00] font-bold shadow-sm'
+                          ? 'bg-surface-3 text-accent font-bold shadow-sm'
                           : 'text-zinc-400 hover:text-white'
                       }`}
                     >
@@ -585,7 +585,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                     }}
                     className={`py-1.5 rounded-lg transition-colors truncate px-1 text-[11px] ${
                       portionMode === '100g'
-                        ? 'bg-zinc-800 text-[#CEFF00] font-bold shadow-sm'
+                        ? 'bg-surface-3 text-accent font-bold shadow-sm'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
@@ -599,7 +599,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                     }}
                     className={`py-1.5 rounded-lg transition-colors truncate px-1 text-[11px] ${
                       portionMode === 'custom_grams'
-                        ? 'bg-zinc-800 text-[#CEFF00] font-bold shadow-sm'
+                        ? 'bg-surface-3 text-accent font-bold shadow-sm'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
@@ -609,7 +609,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
               </div>
 
               {/* Quantity Controls */}
-              <div className="p-3 bg-zinc-900/60 border border-zinc-800/80 rounded-2xl flex items-center justify-between gap-3">
+              <div className="p-3 bg-surface-2/60 border border-line rounded-2xl flex items-center justify-between gap-3">
                 <div>
                   <span className="text-xs font-bold text-white block">
                     {portionMode === 'serving'
@@ -635,7 +635,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                       max="5000"
                       value={customGramAmount}
                       onChange={(e) => setCustomGramAmount(Math.max(1, Number(e.target.value) || 1))}
-                      className="w-20 px-2.5 py-1.5 bg-zinc-800 border border-zinc-700 rounded-xl text-center text-white font-mono font-bold text-xs"
+                      className="w-20 px-2.5 py-1.5 bg-surface-3 border border-line-strong rounded-xl text-center text-white font-mono font-bold text-xs"
                     />
                     <span className="text-zinc-400 text-xs font-mono">{scannedProduct.servingUnit}</span>
                   </div>
@@ -643,7 +643,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setPortionMultiplier((p) => Math.max(0.25, Number((p - 0.25).toFixed(2))))}
-                      className="w-8 h-8 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold flex items-center justify-center transition-colors text-sm"
+                      className="w-8 h-8 rounded-xl bg-surface-3 hover:bg-zinc-700 text-white font-bold flex items-center justify-center transition-colors text-sm"
                     >
                       &minus;
                     </button>
@@ -654,11 +654,11 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                       max="20"
                       value={portionMultiplier}
                       onChange={(e) => setPortionMultiplier(Math.max(0.1, Number(e.target.value) || 1))}
-                      className="w-14 px-1 py-1 bg-zinc-800 border border-zinc-700 rounded-xl text-center text-white font-mono font-bold text-xs"
+                      className="w-14 px-1 py-1 bg-surface-3 border border-line-strong rounded-xl text-center text-white font-mono font-bold text-xs"
                     />
                     <button
                       onClick={() => setPortionMultiplier((p) => Number((p + 0.25).toFixed(2)))}
-                      className="w-8 h-8 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold flex items-center justify-center transition-colors text-sm"
+                      className="w-8 h-8 rounded-xl bg-surface-3 hover:bg-zinc-700 text-white font-bold flex items-center justify-center transition-colors text-sm"
                     >
                       +
                     </button>
@@ -676,13 +676,13 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                 );
 
                 return (
-                  <div className="p-4 rounded-2xl bg-gradient-to-br from-zinc-900 to-black border border-zinc-800 space-y-3">
-                    <div className="flex items-baseline justify-between border-b border-zinc-800/80 pb-2">
-                      <span className="text-xs font-mono uppercase font-bold text-zinc-400">
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-zinc-900 to-black border border-line space-y-3">
+                    <div className="flex items-baseline justify-between border-b border-line pb-2">
+                      <span className="text-xs font-mono font-bold text-zinc-400">
                         Total Nutrients ({calculated.servingLabel})
                       </span>
                       <div className="flex items-baseline gap-1">
-                        <span className="text-2xl font-black font-nrc italic text-[#CEFF00]">
+                        <span className="text-2xl font-bold font-nrc text-accent">
                           {calculated.calories}
                         </span>
                         <span className="text-xs font-mono font-bold text-zinc-400">KCAL</span>
@@ -690,38 +690,38 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                     </div>
 
                     <div className="grid grid-cols-4 gap-2 text-center">
-                      <div className="p-2 rounded-xl bg-zinc-950/80 border border-zinc-800/60">
-                        <span className="text-[10px] font-mono font-bold uppercase text-lime-400 block">
+                      <div className="p-2 rounded-xl bg-canvas/80 border border-zinc-800/60">
+                        <span className="text-[11px] font-mono font-bold text-lime-400 block">
                           Protein
                         </span>
-                        <span className="text-sm font-mono font-black text-white">
+                        <span className="text-sm font-mono font-bold text-white">
                           {calculated.protein}g
                         </span>
                       </div>
 
-                      <div className="p-2 rounded-xl bg-zinc-950/80 border border-zinc-800/60">
-                        <span className="text-[10px] font-mono font-bold uppercase text-sky-400 block">
+                      <div className="p-2 rounded-xl bg-canvas/80 border border-zinc-800/60">
+                        <span className="text-[11px] font-mono font-bold text-sky-400 block">
                           Carbs
                         </span>
-                        <span className="text-sm font-mono font-black text-white">
+                        <span className="text-sm font-mono font-bold text-white">
                           {calculated.carbs}g
                         </span>
                       </div>
 
-                      <div className="p-2 rounded-xl bg-zinc-950/80 border border-zinc-800/60">
-                        <span className="text-[10px] font-mono font-bold uppercase text-amber-400 block">
+                      <div className="p-2 rounded-xl bg-canvas/80 border border-zinc-800/60">
+                        <span className="text-[11px] font-mono font-bold text-amber-400 block">
                           Fat
                         </span>
-                        <span className="text-sm font-mono font-black text-white">
+                        <span className="text-sm font-mono font-bold text-white">
                           {calculated.fat}g
                         </span>
                       </div>
 
-                      <div className="p-2 rounded-xl bg-zinc-950/80 border border-zinc-800/60">
-                        <span className="text-[10px] font-mono font-bold uppercase text-purple-400 block">
+                      <div className="p-2 rounded-xl bg-canvas/80 border border-zinc-800/60">
+                        <span className="text-[11px] font-mono font-bold text-purple-400 block">
                           Fiber
                         </span>
-                        <span className="text-sm font-mono font-black text-white">
+                        <span className="text-sm font-mono font-bold text-white">
                           {calculated.fiber}g
                         </span>
                       </div>
@@ -732,13 +732,13 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
 
               {/* Target Meal Category Selector */}
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-mono font-bold uppercase tracking-wider text-zinc-400">
+                <label className="block text-[11px] font-mono font-bold tracking-wide text-zinc-400">
                   Add To Meal
                 </label>
                 <select
                   value={selectedMealCategory}
                   onChange={(e) => setSelectedMealCategory(e.target.value as MealCategory)}
-                  className="w-full px-3.5 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-[#CEFF00]"
+                  className="w-full px-3.5 py-2.5 bg-surface-2 border border-line-strong rounded-xl text-xs font-bold text-white focus:outline-none focus:border-accent"
                 >
                   {MEAL_CATEGORY_OPTIONS.map((cat) => (
                     <option key={cat.id} value={cat.id}>
@@ -753,7 +753,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                 <button
                   type="button"
                   onClick={handleResetScan}
-                  className="px-4 py-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-bold text-xs rounded-xl transition-colors"
+                  className="px-4 py-3 bg-surface-2 hover:bg-surface-3 border border-line text-zinc-300 font-bold text-xs rounded-xl transition-colors"
                 >
                   Scan Another
                 </button>
@@ -762,14 +762,14 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
                   type="button"
                   onClick={handleConfirmAddToMeal}
                   disabled={isSubmitting}
-                  className="flex-1 py-3 bg-[#CEFF00] hover:bg-[#d8ff33] text-black font-black font-nrc uppercase text-sm rounded-xl tracking-tight transition-transform flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(206,255,0,0.3)] disabled:opacity-50"
+                  className="flex-1 py-3 bg-accent hover:bg-accent-hover text-accent-ink font-bold font-nrc text-sm rounded-xl tracking-tight transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <Plus className="w-4 h-4 stroke-[3]" />
                   <span>Add to {MEAL_CATEGORY_OPTIONS.find((c) => c.id === selectedMealCategory)?.label}</span>
                 </button>
               </div>
 
-              <p className="text-[10px] text-zinc-500 text-center font-mono pt-1">
+              <p className="text-[11px] text-zinc-500 text-center font-mono pt-1">
                 Data &amp; imagery provided by Open Food Facts under Open Database License (ODbL).
               </p>
             </div>

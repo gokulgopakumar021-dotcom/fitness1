@@ -88,9 +88,9 @@ export const RestTimer: React.FC<RestTimerProps> = ({
   const presetTimes = [60, 90, 120, 180];
 
   return (
-    <div className="fixed bottom-20 md:bottom-6 right-4 md:right-8 z-50 w-72 bg-[#12161c] border border-zinc-800 rounded-xl shadow-2xl p-4 text-zinc-100 backdrop-blur-md">
-      <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-800/80">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-lime-400">
+    <div className="fixed bottom-20 md:bottom-6 right-4 md:right-8 z-50 w-72 bg-surface-2 border border-line rounded-xl shadow-2xl p-4 text-zinc-100 backdrop-blur-md">
+      <div className="flex items-center justify-between pb-2 mb-2 border-b border-line">
+        <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-lime-400">
           <Volume2 className="w-3.5 h-3.5" />
           <span>Rest Interval Timer</span>
         </div>
@@ -118,7 +118,7 @@ export const RestTimer: React.FC<RestTimerProps> = ({
       </div>
 
       {/* Progress Bar */}
-      <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden my-2">
+      <div className="w-full bg-surface-3 h-1.5 rounded-full overflow-hidden my-2">
         <div
           className="bg-lime-400 h-full transition-all duration-300"
           style={{ width: `${progressPercent}%` }}
@@ -129,7 +129,7 @@ export const RestTimer: React.FC<RestTimerProps> = ({
       <div className="flex items-center justify-center gap-2 mt-3">
         <button
           onClick={() => addTime(-15)}
-          className="p-2 bg-zinc-800/80 hover:bg-zinc-700 rounded-lg text-xs font-medium text-zinc-300 transition-colors"
+          className="p-2 bg-surface-3/80 hover:bg-zinc-700 rounded-lg text-xs font-medium text-zinc-300 transition-colors"
           title="-15s"
         >
           <Minus className="w-3.5 h-3.5" />
@@ -139,8 +139,8 @@ export const RestTimer: React.FC<RestTimerProps> = ({
           onClick={() => setIsRunning(!isRunning)}
           className={`px-4 py-2 rounded-lg font-semibold text-xs flex items-center gap-1.5 transition-colors ${
             isRunning
-              ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200'
-              : 'bg-lime-400 text-black hover:bg-lime-300'
+              ? 'bg-surface-3 hover:bg-zinc-700 text-zinc-200'
+              : 'bg-lime-400 text-accent-ink hover:bg-lime-300'
           }`}
         >
           {isRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -152,7 +152,7 @@ export const RestTimer: React.FC<RestTimerProps> = ({
             setSecondsLeft(totalSeconds);
             setIsRunning(true);
           }}
-          className="p-2 bg-zinc-800/80 hover:bg-zinc-700 rounded-lg text-xs font-medium text-zinc-300 transition-colors"
+          className="p-2 bg-surface-3/80 hover:bg-zinc-700 rounded-lg text-xs font-medium text-zinc-300 transition-colors"
           title="Reset"
         >
           <RotateCcw className="w-3.5 h-3.5" />
@@ -160,7 +160,7 @@ export const RestTimer: React.FC<RestTimerProps> = ({
 
         <button
           onClick={() => addTime(15)}
-          className="p-2 bg-zinc-800/80 hover:bg-zinc-700 rounded-lg text-xs font-medium text-zinc-300 transition-colors"
+          className="p-2 bg-surface-3/80 hover:bg-zinc-700 rounded-lg text-xs font-medium text-zinc-300 transition-colors"
           title="+15s"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -180,7 +180,7 @@ export const RestTimer: React.FC<RestTimerProps> = ({
             className={`py-1 rounded text-[11px] font-mono font-medium transition-colors ${
               totalSeconds === secs && secondsLeft > 0
                 ? 'bg-lime-400/20 text-lime-400 border border-lime-400/40'
-                : 'bg-zinc-800/40 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                : 'bg-surface-3/40 hover:bg-surface-3 text-zinc-400 hover:text-zinc-200'
             }`}
           >
             {secs}s
