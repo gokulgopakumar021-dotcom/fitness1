@@ -512,3 +512,49 @@ describe('existing behaviour preserved', () => {
     expect(byText('button', 'Discard these photos')).toBeTruthy();
   });
 });
+
+describe('session summary is advisory and honest about detection results', () => {
+  const summary = () => container.querySelector<HTMLElement>('[data-testid="session-summary"]');
+
+  it('does not say the photos are fine when both detections failed, and still lets the person keep or retake them', async () => {
+    engine = createFakePoseEngine([{ ok: false, reason: 'no_pose' }, { ok: false, reason: 'no_pose' }]);
+    await giveConsent();
+    await takeAndAccept('front');
+    await takeAndAccept('side');
+    expect(summary()!.dataset.summary).toBe('needs_attention');
+    expect(summary()!.textContent).toMatch(/needs another look/i);
+    expect(summary()!.textContent).toMatch(/advisory/i);
+    expect(summary()!.textContent).not.toMatch(/show a usable pose/i);
+    // Advisory, not a gate: the photos are still held and can be retaken or discarded.
+    expect(byText('button', 'Retake front photo')).toBeTruthy();
+    expect(byText('button', 'Discard these photos')).toBeTruthy();
+  });
+
+  it('says both show a usable pose only when both detections were usable', async () => {
+    engine = createFakePoseEngine([ok(makeFrontPose()), ok(makeSidePose())]);
+    await giveConsent();
+    await takeAndAccept('front');
+    await takeAndAccept('side');
+    expect(summary()!.dataset.summary).toBe('all_usable');
+    expect(summary()!.textContent).toMatch(/nothing is measured, scored or saved/i);
+  });
+
+  it('needs attention when one view is usable and the other errored', async () => {
+    engine.detect.mockResolvedValueOnce(ok(makeFrontPose())).mockRejectedValueOnce(new PoseEngineError('inference_failed', 'x'));
+    await giveConsent();
+    await takeAndAccept('front');
+    await takeAndAccept('side');
+    expect(summary()!.dataset.summary).toBe('needs_attention');
+  });
+
+  it('says the photos are being checked while an analysis is still running', async () => {
+    const slow = defer<PoseAdaptResult>();
+    engine.detect.mockResolvedValueOnce(ok(makeFrontPose())).mockImplementationOnce(() => slow.promise);
+    await giveConsent();
+    await takeAndAccept('front');
+    await takeAndAccept('side');
+    expect(summary()!.dataset.summary).toBe('analysing');
+    await act(async () => slow.resolve(ok(makeSidePose())));
+    expect(summary()!.dataset.summary).toBe('all_usable');
+  });
+});

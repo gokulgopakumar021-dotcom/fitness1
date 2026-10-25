@@ -73,11 +73,14 @@ message with a retry button, and the rest of Iron Log is unaffected.
 
 | Recorded value | |
 | --- | --- |
-| Downloaded on | _not yet recorded_ |
-| Size in bytes | _not yet recorded_ |
-| SHA-256 | _not yet recorded_ |
+| Downloaded on | _date not recorded_ |
+| Source URL | `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task` |
+| Size in bytes | 9398198 |
+| SHA-256 | `4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad` |
 
-> `latest` in the URL is a moving alias. Recording the SHA-256 is what pins the model.
+These values were reported by the maintainer after downloading the file with the source URL above. They were not independently re-downloaded or confirmed against Google's model card by whoever wrote this record. `scripts/fetch-pose-model.mjs` is pinned to this hash (`EXPECTED_SHA256`) and refuses any download that differs, and `src/services/poseModel.integrity.test.ts` checks the committed file against it.
+
+> `latest` in the URL is a moving alias. The SHA-256 is what pins the model: the fetch script rejects any other bytes.
 
 ### Redistribution
 The model card states Apache License 2.0. Apache-2.0 permits redistribution provided the
@@ -97,6 +100,41 @@ third-party notices. The model card is at
 
 No request carries a photo, a frame or a landmark. The model is held in memory only and
 released after two minutes without use.
+
+## Validation behaviour in this version (advisory, not a gate)
+
+Pose results are **advisory**. Nothing is measured, scored or saved from them in this
+version, so a `partial` or `failed` result never blocks "Use this photo", retaking, or
+discarding. The result panel explains what was found and what to change, and the footer
+under the two photo cards (`summariseSession` in `CaptureSession.tsx`) reflects the real
+outcome: it says both photos show a usable pose only when both were `usable`, says
+photos are still being checked while an analysis runs, and otherwise says at least one
+needs another look. If a later phase starts measuring or saving from these landmarks, it
+should decide then whether to gate on `usable`.
+
+## Provisional thresholds
+
+These two rules were introduced in Phase 2C and are **not calibrated on real photos,
+people or devices**. Boundary tests in `poseDetectionAssessment.test.ts` pin today's
+behaviour only; they do not show the values are right.
+
+| Rule | Value | What it does | Limitation |
+| --- | --- | --- | --- |
+| `MIN_RELIABLE_FRACTION_FOR_PARTIAL` | 0.5 (half, rounded up) | Fewer reliable required landmarks than this fails the photo | Front needs 5 of 9, side 3 of 5. The model card reports accuracy gaps across skin tones and genders, so a fixed fraction may treat people unequally. |
+| `MIN_POSE_VERTICAL_SPAN` | 0.05 of image height | Reliable required points spanning less than this are treated as a collapsed pose | Only catches near-flat output; says nothing about a plausible but wrong pose |
+
+Still required before calling these settled: run the real model on a diverse set of front
+and side photos (different body types, skin tones, clothing, lighting, distances) on at
+least one iOS and one Android device, and record the outcomes.
+
+## Completion status
+
+Not complete until the real-model checks below are done. The model file is committed and
+pinned (size and SHA-256 above; licence in `THIRD_PARTY_NOTICES.md` and
+`licenses/Apache-2.0.txt`), but no real-model inference, real-photo test, production-build
+serving check or browser network trace has been recorded yet. Still to record here: the
+outcome of real front and side photos, a DevTools network trace showing only same-origin
+requests, and testing on at least one iOS and one Android device.
 
 ## Known limitations
 - `detect()` is synchronous inside MediaPipe, so analysis runs on the main thread and the
