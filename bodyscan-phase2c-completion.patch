@@ -1,0 +1,234 @@
+From 086107ee5d877a0a19fa9c09ced655ffff6cb833 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 25 Oct 2026 13:41:13 +0000
+Subject: [PATCH] Body Scan Phase 2C: honest session summary, boundary tests,
+ advisory/provisional docs (model still missing)
+
+---
+ docs/body-scan-pose-model.md                  | 32 ++++++++++++
+ src/components/bodyscan/CaptureSession.tsx    | 30 +++++++++--
+ .../bodyscan/PoseDetection.test.tsx           | 46 +++++++++++++++++
+ src/utils/poseDetectionAssessment.test.ts     | 51 +++++++++++++++++++
+ 4 files changed, 155 insertions(+), 4 deletions(-)
+
+diff --git a/docs/body-scan-pose-model.md b/docs/body-scan-pose-model.md
+index 071f54d..047d185 100644
+--- a/docs/body-scan-pose-model.md
++++ b/docs/body-scan-pose-model.md
+@@ -98,6 +98,38 @@ third-party notices. The model card is at
+ No request carries a photo, a frame or a landmark. The model is held in memory only and
+ released after two minutes without use.
+ 
++## Validation behaviour in this version (advisory, not a gate)
++
++Pose results are **advisory**. Nothing is measured, scored or saved from them in this
++version, so a `partial` or `failed` result never blocks "Use this photo", retaking, or
++discarding. The result panel explains what was found and what to change, and the footer
++under the two photo cards (`summariseSession` in `CaptureSession.tsx`) reflects the real
++outcome: it says both photos show a usable pose only when both were `usable`, says
++photos are still being checked while an analysis runs, and otherwise says at least one
++needs another look. If a later phase starts measuring or saving from these landmarks, it
++should decide then whether to gate on `usable`.
++
++## Provisional thresholds
++
++These two rules were introduced in Phase 2C and are **not calibrated on real photos,
++people or devices**. Boundary tests in `poseDetectionAssessment.test.ts` pin today's
++behaviour only; they do not show the values are right.
++
++| Rule | Value | What it does | Limitation |
++| --- | --- | --- | --- |
++| `MIN_RELIABLE_FRACTION_FOR_PARTIAL` | 0.5 (half, rounded up) | Fewer reliable required landmarks than this fails the photo | Front needs 5 of 9, side 3 of 5. The model card reports accuracy gaps across skin tones and genders, so a fixed fraction may treat people unequally. |
++| `MIN_POSE_VERTICAL_SPAN` | 0.05 of image height | Reliable required points spanning less than this are treated as a collapsed pose | Only catches near-flat output; says nothing about a plausible but wrong pose |
++
++Still required before calling these settled: run the real model on a diverse set of front
++and side photos (different body types, skin tones, clothing, lighting, distances) on at
++least one iOS and one Android device, and record the outcomes.
++
++## Completion status
++
++Not complete. The model file has not been added: it could not be downloaded from the
++build environment, so its size, SHA-256 and licence notice are still unrecorded in the
++table above, and no real-model inference has been run.
++
+ ## Known limitations
+ - `detect()` is synchronous inside MediaPipe, so analysis runs on the main thread and the
+   page can pause for a moment. The engine yields to the browser first so an "analysing"
+diff --git a/src/components/bodyscan/CaptureSession.tsx b/src/components/bodyscan/CaptureSession.tsx
+index 3fa34fc..4c94846 100644
+--- a/src/components/bodyscan/CaptureSession.tsx
++++ b/src/components/bodyscan/CaptureSession.tsx
+@@ -6,7 +6,7 @@ import { CAPTURE_GUIDANCE } from './captureGuidance';
+ import { CameraCapture } from './CameraCapture';
+ import { PoseDetectionPanel } from './PoseDetectionPanel';
+ import { useObjectUrl } from './useObjectUrl';
+-import { usePoseDetection } from './usePoseDetection';
++import { usePoseDetection, type DetectionState } from './usePoseDetection';
+ 
+ const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-400';
+ const VIEWS: ScanView[] = ['front', 'side'];
+@@ -23,6 +23,28 @@ const PhotoThumb: React.FC<{ photo: NewScanPhoto }> = ({ photo }) => {
+   );
+ };
+ 
++type SessionSummary = 'analysing' | 'all_usable' | 'needs_attention';
++
++/**
++ * What the footer says once both photos exist. Pose results are ADVISORY in this
++ * version: nothing is measured, scored or saved from them, so a failed or partial
++ * result never blocks the person from keeping, retaking or discarding photos.
++ * The footer must still not read as "all good" when a photo failed or has not
++ * been analysed successfully.
++ */
++export function summariseSession(states: Array<DetectionState | undefined>): SessionSummary {
++  if (states.some((s) => !s || s.phase === 'loading_model' || s.phase === 'detecting')) return 'analysing';
++  return states.every((s) => s?.phase === 'done' && s.outcome.status === 'usable') ? 'all_usable' : 'needs_attention';
++}
++
++const SUMMARY_COPY: Record<SessionSummary, string> = {
++  analysing: 'Both temporary photos are taken. They are being checked for body landmarks on this device.',
++  all_usable:
++    'Both temporary photos show a usable pose. In this version they are only checked for body landmarks on this device; nothing is measured, scored or saved.',
++  needs_attention:
++    'Both temporary photos are taken, but at least one could not be checked or needs another look (see the results above). You can retake any photo. These results are advisory: nothing is measured, scored or saved in this version.',
++};
++
+ interface CaptureSessionProps {
+   /** Test seam: creates the pose engine. Production uses the real on-device engine. */
+   createEngine?: () => PoseEngine;
+@@ -60,6 +82,7 @@ export const CaptureSession: React.FC<CaptureSessionProps> = ({ createEngine = c
+   }
+ 
+   const taken = VIEWS.filter((v) => photos[v]).length;
++  const summary = summariseSession(VIEWS.map((v) => detection.states[v]));
+ 
+   return (
+     <section aria-labelledby="capture-session-heading" className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 shadow-xl space-y-5">
+@@ -120,9 +143,8 @@ export const CaptureSession: React.FC<CaptureSessionProps> = ({ createEngine = c
+       </ul>
+ 
+       {taken === 2 && (
+-        <p role="status" className="text-xs text-zinc-300">
+-          Both temporary photos are ready. In this version they are only checked for body landmarks on this device; nothing is
+-          measured, scored or saved.
++        <p role="status" className="text-xs text-zinc-300" data-testid="session-summary" data-summary={summary}>
++          {SUMMARY_COPY[summary]}
+         </p>
+       )}
+ 
+diff --git a/src/components/bodyscan/PoseDetection.test.tsx b/src/components/bodyscan/PoseDetection.test.tsx
+index 9c2ec2e..75eb65c 100644
+--- a/src/components/bodyscan/PoseDetection.test.tsx
++++ b/src/components/bodyscan/PoseDetection.test.tsx
+@@ -512,3 +512,49 @@ describe('existing behaviour preserved', () => {
+     expect(byText('button', 'Discard these photos')).toBeTruthy();
+   });
+ });
++
++describe('session summary is advisory and honest about detection results', () => {
++  const summary = () => container.querySelector<HTMLElement>('[data-testid="session-summary"]');
++
++  it('does not say the photos are fine when both detections failed, and still lets the person keep or retake them', async () => {
++    engine = createFakePoseEngine([{ ok: false, reason: 'no_pose' }, { ok: false, reason: 'no_pose' }]);
++    await giveConsent();
++    await takeAndAccept('front');
++    await takeAndAccept('side');
++    expect(summary()!.dataset.summary).toBe('needs_attention');
++    expect(summary()!.textContent).toMatch(/needs another look/i);
++    expect(summary()!.textContent).toMatch(/advisory/i);
++    expect(summary()!.textContent).not.toMatch(/show a usable pose/i);
++    // Advisory, not a gate: the photos are still held and can be retaken or discarded.
++    expect(byText('button', 'Retake front photo')).toBeTruthy();
++    expect(byText('button', 'Discard these photos')).toBeTruthy();
++  });
++
++  it('says both show a usable pose only when both detections were usable', async () => {
++    engine = createFakePoseEngine([ok(makeFrontPose()), ok(makeSidePose())]);
++    await giveConsent();
++    await takeAndAccept('front');
++    await takeAndAccept('side');
++    expect(summary()!.dataset.summary).toBe('all_usable');
++    expect(summary()!.textContent).toMatch(/nothing is measured, scored or saved/i);
++  });
++
++  it('needs attention when one view is usable and the other errored', async () => {
++    engine.detect.mockResolvedValueOnce(ok(makeFrontPose())).mockRejectedValueOnce(new PoseEngineError('inference_failed', 'x'));
++    await giveConsent();
++    await takeAndAccept('front');
++    await takeAndAccept('side');
++    expect(summary()!.dataset.summary).toBe('needs_attention');
++  });
++
++  it('says the photos are being checked while an analysis is still running', async () => {
++    const slow = defer<PoseAdaptResult>();
++    engine.detect.mockResolvedValueOnce(ok(makeFrontPose())).mockImplementationOnce(() => slow.promise);
++    await giveConsent();
++    await takeAndAccept('front');
++    await takeAndAccept('side');
++    expect(summary()!.dataset.summary).toBe('analysing');
++    await act(async () => slow.resolve(ok(makeSidePose())));
++    expect(summary()!.dataset.summary).toBe('all_usable');
++  });
++});
+diff --git a/src/utils/poseDetectionAssessment.test.ts b/src/utils/poseDetectionAssessment.test.ts
+index ed02421..df37f0d 100644
+--- a/src/utils/poseDetectionAssessment.test.ts
++++ b/src/utils/poseDetectionAssessment.test.ts
+@@ -188,3 +188,54 @@ describe('assessPoseDetection: front and side are assessed independently', () =>
+     expect(a.landmarks).not.toBe(b.landmarks);
+   });
+ });
++
++// Boundary behaviour of the two PROVISIONAL Phase 2C rules. These tests pin what the rules do today;
++// they do not show the values are right. Calibration needs real photos (see docs/body-scan-pose-model.md).
++describe('assessPoseDetection: provisional rule boundaries', () => {
++  const low = { visibility: 0.1 };
++
++  it('treats a landmark at exactly the minimum visibility (0.5) as reliable, and just below it as not', () => {
++    const atMin = assessPoseDetection('front', ok(makeFrontPose({}, 0.5)));
++    expect(atMin.required).toEqual({ total: 9, reliable: 9 });
++    const below = assessPoseDetection('front', ok(makeFrontPose({}, 0.49)));
++    expect(below.required).toEqual({ total: 9, reliable: 0 });
++    expect(below.status).toBe('failed');
++  });
++
++  it('side view: 3 of 5 reliable is partial, 2 of 5 is failed (half rounded up)', () => {
++    const three = assessPoseDetection('side', ok(makeSidePose({ leftKnee: low, leftAnkle: low })));
++    expect(three.required).toEqual({ total: 5, reliable: 3 });
++    expect(three.status).toBe('partial');
++    const two = assessPoseDetection('side', ok(makeSidePose({ leftHip: low, leftKnee: low, leftAnkle: low })));
++    expect(two.required).toEqual({ total: 5, reliable: 2 });
++    expect(two.status).toBe('failed');
++    expect(two.failureReason).toBe('too_few_landmarks');
++  });
++
++  it('the collapsed-pose rule uses the vertical span of the reliable points, in image-height units', () => {
++    const flatten = (span: number) => {
++      const lm = makeFrontPose();
++      for (const i of Object.values(POSE_LANDMARK)) lm[i] = { x: 0.2 + (i % 5) * 0.1, y: 0.5, visibility: 0.99 };
++      lm[POSE_LANDMARK.leftAnkle] = { x: 0.57, y: 0.5 + span, visibility: 0.99 };
++      return assessPoseDetection('front', ok(lm));
++    };
++    expect(flatten(MIN_POSE_VERTICAL_SPAN * 0.8).failureReason).toBe('degenerate_pose'); // clearly below the span
++    expect(flatten(MIN_POSE_VERTICAL_SPAN * 1.2).failureReason).not.toBe('degenerate_pose'); // clearly above it
++  });
++
++  it('ignores unreliable points when measuring the span, so one wild low-visibility point cannot hide a collapse', () => {
++    const lm = makeFrontPose();
++    for (const i of Object.values(POSE_LANDMARK)) lm[i] = { x: 0.2 + (i % 5) * 0.1, y: 0.5, visibility: 0.99 };
++    lm[POSE_LANDMARK.rightAnkle] = { x: 0.43, y: 0.95, visibility: 0.2 }; // far away but not reliable
++    const o = assessPoseDetection('front', ok(lm));
++    expect(o.required).toEqual({ total: 9, reliable: 8 });
++    expect(o.failureReason).toBe('degenerate_pose');
++  });
++
++  it('a result with unusable (non-finite) coordinates is malformed upstream and never reaches the rules', () => {
++    const o = assessPoseDetection('front', { ok: false, reason: 'malformed' });
++    expect(o.status).toBe('failed');
++    expect(o.failureReason).toBe('malformed_result');
++    expect(o.landmarks).toBeNull();
++  });
++});
+-- 
+2.43.0
+
