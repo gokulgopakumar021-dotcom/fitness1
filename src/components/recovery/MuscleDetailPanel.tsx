@@ -109,7 +109,7 @@ export const MuscleDetailPanel: React.FC<MuscleDetailPanelProps> = ({ summary, r
                 ) : (
                   <ul className="mt-1 flex flex-wrap gap-1.5">
                     {r.recentExercises.slice(0, MAX_EXERCISES_SHOWN).map((name) => (
-                      <li key={name} className="rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-white">
+                      <li key={name} className="max-w-full break-words rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-white">
                         {name}
                       </li>
                     ))}
@@ -138,7 +138,7 @@ export const MuscleDetailPanel: React.FC<MuscleDetailPanelProps> = ({ summary, r
             matched to a region reliably. They are not counted for any region, so region totals can be lower than your real training.
           </p>
           {unmapped.exerciseNames.length > 0 && (
-            <p className="mt-1.5 text-xs text-white">{unmapped.exerciseNames.join(', ')}</p>
+            <p className="mt-1.5 break-words text-xs text-white">{unmapped.exerciseNames.join(', ')}</p>
           )}
         </div>
       )}

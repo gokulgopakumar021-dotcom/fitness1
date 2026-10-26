@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Flame,
   Dumbbell,
@@ -40,6 +40,7 @@ import {
 import { NavTab } from '../layout/Navbar';
 import { Badge, Button, Card, PageHeader, ProgressBar, SectionHeading } from '../ui';
 import { AiRecoveryInsightsPanel } from './AiRecoveryInsightsPanel';
+import { MuscleMapSection } from '../recovery/MuscleMapSection';
 import { GymConsistencyStreakCalendar } from './GymConsistencyStreakCalendar';
 import { ExercisePostureModal } from '../posture/ExercisePostureModal';
 import { DynamicWarmupModal } from '../trainer/DynamicWarmupModal';
@@ -92,6 +93,15 @@ export const DashboardView: React.FC<DashboardProps> = ({
     setMetrics(db.getBodyMetrics());
     setPendingRecommendations(db.getRecommendations().filter((r) => r.userAction === 'pending'));
   }, []);
+
+  // "Load demo data" is clicked from this dashboard: the parent flips `isDemoMode` while this view stays
+  // mounted, so the sessions read once on mount are stale. Re-read them when (and only when) the flag changes.
+  const syncedDemoMode = useRef(isDemoMode);
+  useEffect(() => {
+    if (syncedDemoMode.current === isDemoMode) return;
+    syncedDemoMode.current = isDemoMode;
+    setRecentSessions(db.getSessions().filter((s) => s.status === 'completed'));
+  }, [isDemoMode]);
 
   // Onboarding checklist steps
   const hasProfile = Boolean(profile.name && profile.name.trim().length > 0);
@@ -404,6 +414,9 @@ export const DashboardView: React.FC<DashboardProps> = ({
         activePlan={activePlan}
         onNavigate={onNavigate}
       />
+
+      {/* MUSCLE TRAINING MAP (local logged-volume view; independent of the AI panel above) */}
+      <MuscleMapSection sessions={recentSessions} isDemoMode={isDemoMode} />
 
       {/* SETUP CHECKLIST (until complete) */}
       {checklistPercent < 100 && (

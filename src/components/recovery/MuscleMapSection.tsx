@@ -67,8 +67,13 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ sessions, is
       ) : null}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
-        <MuscleMap summary={summary} view={view} onViewChange={setView} selectedRegion={selected} onSelectRegion={handleSelect} />
-        <MuscleDetailPanel summary={summary} region={selected} />
+        {/* min-w-0: grid items otherwise refuse to shrink below their content width on narrow screens */}
+        <div className="min-w-0">
+          <MuscleMap summary={summary} view={view} onViewChange={setView} selectedRegion={selected} onSelectRegion={handleSelect} />
+        </div>
+        <div className="min-w-0">
+          <MuscleDetailPanel summary={summary} region={selected} />
+        </div>
       </div>
     </Card>
   );
