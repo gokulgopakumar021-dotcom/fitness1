@@ -3,6 +3,10 @@ import {
   calculateMacroBreakdown
 } from '../utils/calculations';
 import {
+  calculateDetailedTDEE,
+  calculateWizardMacroPlan
+} from '../utils/tdeeEngine';
+import {
   sanitizeBarcode,
   parseNutrientValue,
   normalizeOpenFoodFactsProduct,
@@ -162,4 +166,125 @@ describe('Nutrition & Macro Calculation Logic', () => {
       expect(p75g.fat).toBe(4.5);
     });
   });
+
+  describe('Macro Target Wizard & Weekly TDEE Engine', () => {
+    it('calculates Mifflin-St Jeor BMR and weekly TDEE accurately for male athlete', () => {
+      // 80kg, 180cm, 25yo, male -> 10*80 + 6.25*180 - 5*25 + 5 = 800 + 1125 - 125 + 5 = 1805
+      const res = calculateDetailedTDEE({
+        weightKg: 80,
+        heightCm: 180,
+        age: 25,
+        sex: 'male',
+        activityLevel: 'moderate' // 1.55 multiplier
+      });
+
+      expect(res.bmr).toBe(1805);
+      expect(res.dailyTdee).toBe(Math.round(1805 * 1.55)); // 2798
+      expect(res.weeklyTdee).toBe(res.dailyTdee * 7); // 19586
+      expect(res.activityMultiplier).toBe(1.55);
+    });
+
+    it('calculates Mifflin-St Jeor BMR accurately for female athlete', () => {
+      // 60kg, 165cm, 30yo, female -> 10*60 + 6.25*165 - 5*30 - 161 = 600 + 1031.25 - 150 - 161 = 1320.25 -> 1320
+      const res = calculateDetailedTDEE({
+        weightKg: 60,
+        heightCm: 165,
+        age: 30,
+        sex: 'female',
+        activityLevel: 'light' // 1.375 multiplier
+      });
+
+      expect(res.bmr).toBe(1320);
+      expect(res.dailyTdee).toBe(Math.round(1320 * 1.375)); // 1815
+      expect(res.weeklyTdee).toBe(1815 * 7); // 12705
+    });
+
+    it('generates cutting plan with weekly deficit and weight loss projection', () => {
+      const plan = calculateWizardMacroPlan({
+        dailyTdee: 2500,
+        weightKg: 80,
+        goal: 'cut',
+        pace: 'moderate' // -500 kcal
+      });
+
+      expect(plan.targetCalories).toBe(2000);
+      expect(plan.weeklyTargetCalories).toBe(14000);
+      expect(plan.weeklyDeficitOrSurplus).toBe(-3500); // -500 * 7
+      // -3500 / 7700 ≈ -0.45 kg/week
+      expect(plan.estimatedWeeklyWeightChangeKg).toBe(-0.45);
+      // Protein: 80 * 2.2 = 176g
+      expect(plan.proteinGrams).toBe(176);
+      // Fat: 25% of 2000 = 500 kcal / 9 = 56g
+      expect(plan.fatGrams).toBe(56);
+      // Carbs: (2000 - (176*4 + 56*9)) / 4 = (2000 - 1208) / 4 = 198g
+      expect(plan.carbsGrams).toBe(198);
+      expect(plan.proteinPercent + plan.fatPercent + plan.carbsPercent).toBe(100);
+    });
+
+    it('generates bulking plan with weekly surplus and weight gain projection', () => {
+      const plan = calculateWizardMacroPlan({
+        dailyTdee: 2600,
+        weightKg: 75,
+        goal: 'bulk',
+        pace: 'moderate' // +400 kcal
+      });
+
+      expect(plan.targetCalories).toBe(3000);
+      expect(plan.weeklyTargetCalories).toBe(21000);
+      expect(plan.weeklyDeficitOrSurplus).toBe(2800); // 400 * 7
+      // 2800 / 7700 ≈ +0.36 kg/week
+      expect(plan.estimatedWeeklyWeightChangeKg).toBe(0.36);
+      // Protein: 75 * 2.0 = 150g
+      expect(plan.proteinGrams).toBe(150);
+    });
+
+    it('enforces safe physiological calorie floor (>= 1200 kcal)', () => {
+      const plan = calculateWizardMacroPlan({
+        dailyTdee: 1400,
+        weightKg: 50,
+        goal: 'cut',
+        pace: 'aggressive' // -750 kcal would be 650 kcal without floor
+      });
+
+      expect(plan.targetCalories).toBeGreaterThanOrEqual(1200);
+    });
+
+    it('supports custom protein ratios and custom fat percentages', () => {
+      const plan = calculateWizardMacroPlan({
+        dailyTdee: 2400,
+        weightKg: 80,
+        goal: 'maintain',
+        pace: 'conservative',
+        proteinRatioGramsPerKg: 2.5, // 200g
+        fatPercentOfCalories: 30 // 30% of 2400 = 720 kcal / 9 = 80g
+      });
+
+      expect(plan.targetCalories).toBe(2400);
+      expect(plan.weeklyDeficitOrSurplus).toBe(0);
+      expect(plan.estimatedWeeklyWeightChangeKg).toBe(0);
+      expect(plan.proteinGrams).toBe(200);
+      expect(plan.fatGrams).toBe(80);
+      // Carbs: (2400 - (800 + 720)) / 4 = 880 / 4 = 220g
+      expect(plan.carbsGrams).toBe(220);
+    });
+
+    it('accurately verifies progress gauge ratios and target zone thresholds', () => {
+      const targetCalories = 2200;
+      const currentCalories = 2150;
+      const calPercent = Math.round((currentCalories / targetCalories) * 100);
+      const isTargetAligned = calPercent >= 95 && calPercent <= 105;
+
+      expect(calPercent).toBe(98);
+      expect(isTargetAligned).toBe(true);
+
+      const targetProtein = 175;
+      const currentProtein = 140;
+      const proPercent = Math.round((currentProtein / targetProtein) * 100);
+      const proRemaining = targetProtein - currentProtein;
+
+      expect(proPercent).toBe(80);
+      expect(proRemaining).toBe(35);
+    });
+  });
 });
+

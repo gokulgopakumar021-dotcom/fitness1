@@ -148,7 +148,7 @@ export default function App() {
             )}
 
             {currentTab === 'nutrition' && (
-              <NutritionView profile={profile} />
+              <NutritionView profile={profile} onProfileUpdated={setProfile} />
             )}
 
             {currentTab === 'body' && (

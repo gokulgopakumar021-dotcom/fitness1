@@ -15,7 +15,9 @@ import {
   Layers,
   Sparkles,
   RotateCcw,
-  Camera
+  Camera,
+  Sliders,
+  Target
 } from 'lucide-react';
 import {
   DailyNutritionLog,
@@ -26,9 +28,13 @@ import {
 } from '../../types';
 import { db } from '../../storage/db';
 import { BarcodeScanner } from './BarcodeScanner';
+import { NutritionGoalWizard } from './NutritionGoalWizard';
+import { NutritionGoalGauge } from './NutritionGoalGauge';
+import { MacroTargetWizardModal } from './MacroTargetWizardModal';
 
 interface NutritionViewProps {
   profile: UserProfile;
+  onProfileUpdated?: (p: UserProfile) => void;
 }
 
 const MEAL_CATEGORIES: { id: MealCategory; label: string }[] = [
@@ -41,7 +47,7 @@ const MEAL_CATEGORIES: { id: MealCategory; label: string }[] = [
   { id: 'custom', label: 'Custom Meals' }
 ];
 
-export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
+export const NutritionView: React.FC<NutritionViewProps> = ({ profile, onProfileUpdated }) => {
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
@@ -76,6 +82,9 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
 
   // Barcode Scanner modal state
   const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState<boolean>(false);
+
+  // Macro Target Wizard modal state
+  const [isWizardOpen, setIsWizardOpen] = useState<boolean>(false);
 
   useEffect(() => {
     setFoodDatabase(db.getAllFoods());
@@ -357,6 +366,15 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
               <span>Scan Barcode</span>
             </button>
 
+            <button
+              onClick={() => setIsWizardOpen(true)}
+              className="touch-press px-4 py-2.5 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] border border-[var(--border-card)] text-[var(--text-primary)] font-nrc font-bold text-sm rounded-2xl flex items-center gap-2 transition-transform"
+              title="Calibrate nutrition targets with Goal & TDEE Wizard"
+            >
+              <Sliders className="w-4 h-4 text-volt-adaptive stroke-[2.5]" />
+              <span>Goal Wizard</span>
+            </button>
+
             {/* Date Selector Navigation */}
             <div className="flex items-center gap-1.5 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-2xl p-1.5 font-mono text-xs">
               <button
@@ -500,6 +518,20 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
           </div>
         </div>
       </div>
+
+      {/* VISUAL PROGRESS GAUGE COMPONENT (INTAKE VS WIZARD GOALS) */}
+      <NutritionGoalGauge
+        currentCalories={totalCalories}
+        targetCalories={calTarget}
+        currentProtein={totalProtein}
+        targetProtein={proTarget}
+        currentCarbs={totalCarbs}
+        targetCarbs={carbTarget}
+        currentFat={totalFat}
+        targetFat={fatTarget}
+        profile={profile}
+        onOpenWizard={() => setIsWizardOpen(true)}
+      />
 
       {/* MEALS LIST BY CATEGORY */}
       <div className="space-y-4">
@@ -954,6 +986,22 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile }) => {
           onOpenManualCustomFood={handleOpenCustomWithBarcode}
         />
       )}
+
+      {/* NUTRITION GOAL & TDEE WIZARD MODAL */}
+      <NutritionGoalWizard
+        isOpen={isWizardOpen}
+        onClose={() => setIsWizardOpen(false)}
+        profile={profile}
+        currentLog={currentLog}
+        onTargetsUpdated={(newProfile, newLog) => {
+          if (newLog) {
+            setCurrentLog(newLog);
+          }
+          if (onProfileUpdated) {
+            onProfileUpdated(newProfile);
+          }
+        }}
+      />
     </div>
   );
 };

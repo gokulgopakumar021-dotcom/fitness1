@@ -17,6 +17,7 @@ export interface UserProfile {
   trainingExperience: TrainingExperience;
   trainingDaysPerWeek: number;
   preferredUnit: PreferredUnit;
+  bodyFatPercentage?: number;
   dailyCalorieTarget: number;
   dailyProteinTarget: number;
   dailyCarbsTarget: number;
