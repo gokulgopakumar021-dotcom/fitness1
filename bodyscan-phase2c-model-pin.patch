@@ -1,0 +1,386 @@
+From 5070832c61cf806cad95c61044e863775e0f76c5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 25 Oct 2026 13:55:28 +0000
+Subject: [PATCH] Pin pose model by SHA-256, record size/hash, add Apache-2.0
+ notice and integrity test
+
+---
+ THIRD_PARTY_NOTICES.md                   |  17 ++
+ docs/body-scan-pose-model.md             |  20 ++-
+ licenses/Apache-2.0.txt                  | 202 +++++++++++++++++++++++
+ scripts/fetch-pose-model.mjs             |  15 +-
+ src/services/poseModel.integrity.test.ts |  42 +++++
+ 5 files changed, 285 insertions(+), 11 deletions(-)
+ create mode 100644 THIRD_PARTY_NOTICES.md
+ create mode 100644 licenses/Apache-2.0.txt
+ create mode 100644 src/services/poseModel.integrity.test.ts
+
+diff --git a/THIRD_PARTY_NOTICES.md b/THIRD_PARTY_NOTICES.md
+new file mode 100644
+index 0000000..2993ba7
+--- /dev/null
++++ b/THIRD_PARTY_NOTICES.md
+@@ -0,0 +1,17 @@
++# Third-party notices
++
++## MediaPipe Pose Landmarker model (Body Scan)
++
++- **File:** `public/models/pose_landmarker_full.task`
++- **Credit:** MediaPipe Pose Landmarker (BlazePose GHUM 3D), Google, Apache-2.0
++- **Licence:** Apache License 2.0, as stated on Google's model card
++  (https://storage.googleapis.com/mediapipe-assets/Model%20Card%20BlazePose%20GHUM%203D.pdf).
++  Full licence text: [`licenses/Apache-2.0.txt`](licenses/Apache-2.0.txt).
++- **Source and integrity:** see `docs/body-scan-pose-model.md` (source URL, size and SHA-256).
++- The model is distributed unmodified.
++
++## @mediapipe/tasks-vision 0.10.35 (Body Scan runtime)
++
++- **Credit:** MediaPipe Tasks Vision, Google
++- **Licence:** Apache-2.0 (from the package metadata). Full text: [`licenses/Apache-2.0.txt`](licenses/Apache-2.0.txt).
++- The JavaScript and WASM files are bundled unmodified by Vite.
+diff --git a/docs/body-scan-pose-model.md b/docs/body-scan-pose-model.md
+index 047d185..a332c04 100644
+--- a/docs/body-scan-pose-model.md
++++ b/docs/body-scan-pose-model.md
+@@ -73,11 +73,14 @@ message with a retry button, and the rest of Iron Log is unaffected.
+ 
+ | Recorded value | |
+ | --- | --- |
+-| Downloaded on | _not yet recorded_ |
+-| Size in bytes | _not yet recorded_ |
+-| SHA-256 | _not yet recorded_ |
++| Downloaded on | _date not recorded_ |
++| Source URL | `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task` |
++| Size in bytes | 9398198 |
++| SHA-256 | `4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad` |
+ 
+-> `latest` in the URL is a moving alias. Recording the SHA-256 is what pins the model.
++These values were reported by the maintainer after downloading the file with the source URL above. They were not independently re-downloaded or confirmed against Google's model card by whoever wrote this record. `scripts/fetch-pose-model.mjs` is pinned to this hash (`EXPECTED_SHA256`) and refuses any download that differs, and `src/services/poseModel.integrity.test.ts` checks the committed file against it.
++
++> `latest` in the URL is a moving alias. The SHA-256 is what pins the model: the fetch script rejects any other bytes.
+ 
+ ### Redistribution
+ The model card states Apache License 2.0. Apache-2.0 permits redistribution provided the
+@@ -126,9 +129,12 @@ least one iOS and one Android device, and record the outcomes.
+ 
+ ## Completion status
+ 
+-Not complete. The model file has not been added: it could not be downloaded from the
+-build environment, so its size, SHA-256 and licence notice are still unrecorded in the
+-table above, and no real-model inference has been run.
++Not complete until the real-model checks below are done. The model file is committed and
++pinned (size and SHA-256 above; licence in `THIRD_PARTY_NOTICES.md` and
++`licenses/Apache-2.0.txt`), but no real-model inference, real-photo test, production-build
++serving check or browser network trace has been recorded yet. Still to record here: the
++outcome of real front and side photos, a DevTools network trace showing only same-origin
++requests, and testing on at least one iOS and one Android device.
+ 
+ ## Known limitations
+ - `detect()` is synchronous inside MediaPipe, so analysis runs on the main thread and the
+diff --git a/licenses/Apache-2.0.txt b/licenses/Apache-2.0.txt
+new file mode 100644
+index 0000000..d645695
+--- /dev/null
++++ b/licenses/Apache-2.0.txt
+@@ -0,0 +1,202 @@
++
++                                 Apache License
++                           Version 2.0, January 2004
++                        http://www.apache.org/licenses/
++
++   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
++
++   1. Definitions.
++
++      "License" shall mean the terms and conditions for use, reproduction,
++      and distribution as defined by Sections 1 through 9 of this document.
++
++      "Licensor" shall mean the copyright owner or entity authorized by
++      the copyright owner that is granting the License.
++
++      "Legal Entity" shall mean the union of the acting entity and all
++      other entities that control, are controlled by, or are under common
++      control with that entity. For the purposes of this definition,
++      "control" means (i) the power, direct or indirect, to cause the
++      direction or management of such entity, whether by contract or
++      otherwise, or (ii) ownership of fifty percent (50%) or more of the
++      outstanding shares, or (iii) beneficial ownership of such entity.
++
++      "You" (or "Your") shall mean an individual or Legal Entity
++      exercising permissions granted by this License.
++
++      "Source" form shall mean the preferred form for making modifications,
++      including but not limited to software source code, documentation
++      source, and configuration files.
++
++      "Object" form shall mean any form resulting from mechanical
++      transformation or translation of a Source form, including but
++      not limited to compiled object code, generated documentation,
++      and conversions to other media types.
++
++      "Work" shall mean the work of authorship, whether in Source or
++      Object form, made available under the License, as indicated by a
++      copyright notice that is included in or attached to the work
++      (an example is provided in the Appendix below).
++
++      "Derivative Works" shall mean any work, whether in Source or Object
++      form, that is based on (or derived from) the Work and for which the
++      editorial revisions, annotations, elaborations, or other modifications
++      represent, as a whole, an original work of authorship. For the purposes
++      of this License, Derivative Works shall not include works that remain
++      separable from, or merely link (or bind by name) to the interfaces of,
++      the Work and Derivative Works thereof.
++
++      "Contribution" shall mean any work of authorship, including
++      the original version of the Work and any modifications or additions
++      to that Work or Derivative Works thereof, that is intentionally
++      submitted to Licensor for inclusion in the Work by the copyright owner
++      or by an individual or Legal Entity authorized to submit on behalf of
++      the copyright owner. For the purposes of this definition, "submitted"
++      means any form of electronic, verbal, or written communication sent
++      to the Licensor or its representatives, including but not limited to
++      communication on electronic mailing lists, source code control systems,
++      and issue tracking systems that are managed by, or on behalf of, the
++      Licensor for the purpose of discussing and improving the Work, but
++      excluding communication that is conspicuously marked or otherwise
++      designated in writing by the copyright owner as "Not a Contribution."
++
++      "Contributor" shall mean Licensor and any individual or Legal Entity
++      on behalf of whom a Contribution has been received by Licensor and
++      subsequently incorporated within the Work.
++
++   2. Grant of Copyright License. Subject to the terms and conditions of
++      this License, each Contributor hereby grants to You a perpetual,
++      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
++      copyright license to reproduce, prepare Derivative Works of,
++      publicly display, publicly perform, sublicense, and distribute the
++      Work and such Derivative Works in Source or Object form.
++
++   3. Grant of Patent License. Subject to the terms and conditions of
++      this License, each Contributor hereby grants to You a perpetual,
++      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
++      (except as stated in this section) patent license to make, have made,
++      use, offer to sell, sell, import, and otherwise transfer the Work,
++      where such license applies only to those patent claims licensable
++      by such Contributor that are necessarily infringed by their
++      Contribution(s) alone or by combination of their Contribution(s)
++      with the Work to which such Contribution(s) was submitted. If You
++      institute patent litigation against any entity (including a
++      cross-claim or counterclaim in a lawsuit) alleging that the Work
++      or a Contribution incorporated within the Work constitutes direct
++      or contributory patent infringement, then any patent licenses
++      granted to You under this License for that Work shall terminate
++      as of the date such litigation is filed.
++
++   4. Redistribution. You may reproduce and distribute copies of the
++      Work or Derivative Works thereof in any medium, with or without
++      modifications, and in Source or Object form, provided that You
++      meet the following conditions:
++
++      (a) You must give any other recipients of the Work or
++          Derivative Works a copy of this License; and
++
++      (b) You must cause any modified files to carry prominent notices
++          stating that You changed the files; and
++
++      (c) You must retain, in the Source form of any Derivative Works
++          that You distribute, all copyright, patent, trademark, and
++          attribution notices from the Source form of the Work,
++          excluding those notices that do not pertain to any part of
++          the Derivative Works; and
++
++      (d) If the Work includes a "NOTICE" text file as part of its
++          distribution, then any Derivative Works that You distribute must
++          include a readable copy of the attribution notices contained
++          within such NOTICE file, excluding those notices that do not
++          pertain to any part of the Derivative Works, in at least one
++          of the following places: within a NOTICE text file distributed
++          as part of the Derivative Works; within the Source form or
++          documentation, if provided along with the Derivative Works; or,
++          within a display generated by the Derivative Works, if and
++          wherever such third-party notices normally appear. The contents
++          of the NOTICE file are for informational purposes only and
++          do not modify the License. You may add Your own attribution
++          notices within Derivative Works that You distribute, alongside
++          or as an addendum to the NOTICE text from the Work, provided
++          that such additional attribution notices cannot be construed
++          as modifying the License.
++
++      You may add Your own copyright statement to Your modifications and
++      may provide additional or different license terms and conditions
++      for use, reproduction, or distribution of Your modifications, or
++      for any such Derivative Works as a whole, provided Your use,
++      reproduction, and distribution of the Work otherwise complies with
++      the conditions stated in this License.
++
++   5. Submission of Contributions. Unless You explicitly state otherwise,
++      any Contribution intentionally submitted for inclusion in the Work
++      by You to the Licensor shall be under the terms and conditions of
++      this License, without any additional terms or conditions.
++      Notwithstanding the above, nothing herein shall supersede or modify
++      the terms of any separate license agreement you may have executed
++      with Licensor regarding such Contributions.
++
++   6. Trademarks. This License does not grant permission to use the trade
++      names, trademarks, service marks, or product names of the Licensor,
++      except as required for reasonable and customary use in describing the
++      origin of the Work and reproducing the content of the NOTICE file.
++
++   7. Disclaimer of Warranty. Unless required by applicable law or
++      agreed to in writing, Licensor provides the Work (and each
++      Contributor provides its Contributions) on an "AS IS" BASIS,
++      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
++      implied, including, without limitation, any warranties or conditions
++      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
++      PARTICULAR PURPOSE. You are solely responsible for determining the
++      appropriateness of using or redistributing the Work and assume any
++      risks associated with Your exercise of permissions under this License.
++
++   8. Limitation of Liability. In no event and under no legal theory,
++      whether in tort (including negligence), contract, or otherwise,
++      unless required by applicable law (such as deliberate and grossly
++      negligent acts) or agreed to in writing, shall any Contributor be
++      liable to You for damages, including any direct, indirect, special,
++      incidental, or consequential damages of any character arising as a
++      result of this License or out of the use or inability to use the
++      Work (including but not limited to damages for loss of goodwill,
++      work stoppage, computer failure or malfunction, or any and all
++      other commercial damages or losses), even if such Contributor
++      has been advised of the possibility of such damages.
++
++   9. Accepting Warranty or Additional Liability. While redistributing
++      the Work or Derivative Works thereof, You may choose to offer,
++      and charge a fee for, acceptance of support, warranty, indemnity,
++      or other liability obligations and/or rights consistent with this
++      License. However, in accepting such obligations, You may act only
++      on Your own behalf and on Your sole responsibility, not on behalf
++      of any other Contributor, and only if You agree to indemnify,
++      defend, and hold each Contributor harmless for any liability
++      incurred by, or claims asserted against, such Contributor by reason
++      of your accepting any such warranty or additional liability.
++
++   END OF TERMS AND CONDITIONS
++
++   APPENDIX: How to apply the Apache License to your work.
++
++      To apply the Apache License to your work, attach the following
++      boilerplate notice, with the fields enclosed by brackets "[]"
++      replaced with your own identifying information. (Don't include
++      the brackets!)  The text should be enclosed in the appropriate
++      comment syntax for the file format. We also recommend that a
++      file or class name and description of purpose be included on the
++      same "printed page" as the copyright notice for easier
++      identification within third-party archives.
++
++   Copyright [yyyy] [name of copyright owner]
++
++   Licensed under the Apache License, Version 2.0 (the "License");
++   you may not use this file except in compliance with the License.
++   You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++   Unless required by applicable law or agreed to in writing, software
++   distributed under the License is distributed on an "AS IS" BASIS,
++   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++   See the License for the specific language governing permissions and
++   limitations under the License.
+diff --git a/scripts/fetch-pose-model.mjs b/scripts/fetch-pose-model.mjs
+index 1aac9ec..92d39f9 100644
+--- a/scripts/fetch-pose-model.mjs
++++ b/scripts/fetch-pose-model.mjs
+@@ -4,7 +4,7 @@
+  * serve it from its own origin. Run once on a machine with normal internet access:
+  *
+  *   npm run fetch:pose-model
+- *   npm run fetch:pose-model -- --expect <sha256>     # verify against a recorded hash
++ *   npm run fetch:pose-model -- --expect <sha256>     # override the pinned hash (deliberate model change only)
+  *
+  * This is a developer tool. The app itself never downloads from this URL; at
+  * runtime it only fetches /models/pose_landmarker_full.task from its own origin.
+@@ -19,10 +19,16 @@ const VARIANT = 'pose_landmarker_full';
+ const SOURCE = `https://storage.googleapis.com/mediapipe-models/pose_landmarker/${VARIANT}/float16/latest/${VARIANT}.task`;
+ const MIN_BYTES = 100_000; // keep in sync with MIN_MODEL_BYTES in src/services/poseLandmarker.ts
+ 
++// The model is pinned by content, not by URL: `latest` is a moving alias, so the bytes are only accepted if they
++// match this hash. To adopt a new model deliberately, run with `--expect <new sha256>`, then update these two
++// constants and the table in docs/body-scan-pose-model.md together (a test checks they agree).
++export const EXPECTED_SHA256 = '4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad';
++export const EXPECTED_BYTES = 9398198;
++
+ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+ const dest = join(root, 'public', 'models', `${VARIANT}.task`);
+ const argIndex = process.argv.indexOf('--expect');
+-const expected = argIndex > -1 ? process.argv[argIndex + 1]?.toLowerCase() : undefined;
++const expected = (argIndex > -1 ? process.argv[argIndex + 1] : EXPECTED_SHA256)?.toLowerCase();
+ 
+ let res;
+ try {
+@@ -42,8 +48,9 @@ if (bytes.length < MIN_BYTES || bytes[0] === 0x3c /* '<' = a web page */) {
+   process.exit(1);
+ }
+ const sha256 = createHash('sha256').update(bytes).digest('hex');
+-if (expected && expected !== sha256) {
++if (expected !== sha256) {
+   console.error(`SHA-256 mismatch.\n  expected ${expected}\n  actual   ${sha256}\nNothing was written.`);
++  console.error('The `latest` URL may now serve a different model. Do not use it until the new file has been reviewed; then pass --expect <new sha256> and update the pinned constants and docs.');
+   process.exit(1);
+ }
+ 
+@@ -57,4 +64,4 @@ console.log(`Wrote ${dest}`);
+ console.log(`  source : ${SOURCE}`);
+ console.log(`  bytes  : ${bytes.length}`);
+ console.log(`  sha256 : ${sha256}`);
+-console.log('Record the bytes and sha256 in docs/body-scan-pose-model.md before committing the file.');
++console.log(`  pinned : ${sha256 === EXPECTED_SHA256 && bytes.length === EXPECTED_BYTES ? 'matches EXPECTED_SHA256 / EXPECTED_BYTES' : 'DIFFERS from EXPECTED_SHA256 / EXPECTED_BYTES: update them and the docs together'}`);
+diff --git a/src/services/poseModel.integrity.test.ts b/src/services/poseModel.integrity.test.ts
+new file mode 100644
+index 0000000..7cf4dbc
+--- /dev/null
++++ b/src/services/poseModel.integrity.test.ts
+@@ -0,0 +1,42 @@
++import { createHash } from 'node:crypto';
++import { existsSync, readFileSync, statSync } from 'node:fs';
++import { join } from 'node:path';
++import { describe, expect, it } from 'vitest';
++
++// Keeps the pinned model record honest: the fetch script, the docs and (when present) the committed file must agree.
++const root = process.cwd();
++const script = readFileSync(join(root, 'scripts/fetch-pose-model.mjs'), 'utf8');
++const doc = readFileSync(join(root, 'docs/body-scan-pose-model.md'), 'utf8');
++const modelPath = join(root, 'public/models/pose_landmarker_full.task');
++
++const pinnedHash = /EXPECTED_SHA256 = '([0-9a-f]{64})'/.exec(script)?.[1];
++const pinnedBytes = Number(/EXPECTED_BYTES = (\d+)/.exec(script)?.[1]);
++
++describe('pose model pin', () => {
++  it('the fetch script pins a full SHA-256 and a byte size', () => {
++    expect(pinnedHash).toMatch(/^[0-9a-f]{64}$/);
++    expect(pinnedBytes).toBeGreaterThan(100_000);
++  });
++
++  it('the docs record the same hash and size as the script', () => {
++    expect(doc).toContain(pinnedHash!);
++    expect(doc).toContain(String(pinnedBytes));
++  });
++
++  it('the script refuses any download whose hash differs from the pin (no unverified write path)', () => {
++    expect(script).toMatch(/if \(expected !== sha256\)/);
++    expect(script).not.toMatch(/if \(expected && expected !== sha256\)/);
++  });
++
++  it('licence text and attribution ship with the repo', () => {
++    expect(existsSync(join(root, 'licenses/Apache-2.0.txt'))).toBe(true);
++    const notices = readFileSync(join(root, 'THIRD_PARTY_NOTICES.md'), 'utf8');
++    expect(notices).toContain('MediaPipe Pose Landmarker (BlazePose GHUM 3D), Google, Apache-2.0');
++  });
++
++  // Runs wherever the binary has been added. Absent file = skipped, so this proves nothing in a checkout without it.
++  it.skipIf(!existsSync(modelPath))('the committed model file matches the pinned size and SHA-256', () => {
++    expect(statSync(modelPath).size).toBe(pinnedBytes);
++    expect(createHash('sha256').update(readFileSync(modelPath)).digest('hex')).toBe(pinnedHash);
++  });
++});
+-- 
+2.43.0
+

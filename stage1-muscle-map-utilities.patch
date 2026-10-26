@@ -1,0 +1,1623 @@
+diff --git a/src/utils/muscleMap/index.ts b/src/utils/muscleMap/index.ts
+new file mode 100644
+index 0000000..ddc9805
+--- /dev/null
++++ b/src/utils/muscleMap/index.ts
+@@ -0,0 +1,4 @@
++export * from './regions';
++export * from './resolveRegion';
++export * from './localDay';
++export * from './trainingLoad';
+diff --git a/src/utils/muscleMap/localDay.test.ts b/src/utils/muscleMap/localDay.test.ts
+new file mode 100644
+index 0000000..69425f5
+--- /dev/null
++++ b/src/utils/muscleMap/localDay.test.ts
+@@ -0,0 +1,62 @@
++import { describe, expect, it } from 'vitest';
++import { addDays, dayKeyFromNumber, dayNumber, getSessionDay, isValidDayKey, localDayKey } from './localDay';
++
++// All Date objects below are built with LOCAL-time constructors so these tests do not depend on the
++// timezone of the machine running them.
++const localIso = (y: number, m: number, d: number, h = 12, min = 0) => new Date(y, m - 1, d, h, min).toISOString();
++
++describe('day keys', () => {
++  it('validates real calendar dates only', () => {
++    expect(isValidDayKey('2026-10-25')).toBe(true);
++    expect(isValidDayKey('2028-02-29')).toBe(true);
++    for (const bad of ['2026-02-29', '2026-13-01', '2026-00-10', '2026-10-32', '26-10-25', '2026-10-25T10:00:00Z', '', null, undefined, 20261025])
++      expect(isValidDayKey(bad)).toBe(false);
++  });
++
++  it('does calendar arithmetic across month, year, leap-day and DST boundaries', () => {
++    expect(addDays('2026-10-25', -35)).toBe('2026-09-20');
++    expect(addDays('2026-10-25', -7)).toBe('2026-10-18');
++    expect(addDays('2026-12-31', 1)).toBe('2027-01-01');
++    expect(addDays('2028-02-28', 1)).toBe('2028-02-29');
++    expect(addDays('2027-02-28', 1)).toBe('2027-03-01');
++    expect(addDays('2026-03-08', 1)).toBe('2026-03-09'); // US DST start
++    expect(addDays('2026-11-01', -1)).toBe('2026-10-31'); // US DST end
++    expect(dayKeyFromNumber(dayNumber('2026-10-25'))).toBe('2026-10-25');
++    expect(dayNumber('2026-10-26') - dayNumber('2026-10-25')).toBe(1);
++  });
++
++  it('rejects invalid keys in dayNumber', () => {
++    expect(() => dayNumber('2026-02-30')).toThrow(RangeError);
++    expect(() => dayNumber('nope')).toThrow(RangeError);
++  });
++
++  it('names the LOCAL calendar day of an instant', () => {
++    expect(localDayKey(new Date(2026, 9, 25, 0, 5))).toBe('2026-10-25');
++    expect(localDayKey(new Date(2026, 9, 25, 23, 55))).toBe('2026-10-25');
++    expect(localDayKey(new Date('not a date'))).toBeNull();
++  });
++});
++
++describe('getSessionDay', () => {
++  it('prefers startTime (local day) over the stored date-only value', () => {
++    const r = getSessionDay({ startTime: localIso(2026, 10, 20, 23, 30), date: '2026-10-21' });
++    expect(r).toEqual({ day: '2026-10-20', precision: 'start-time' });
++    const early = getSessionDay({ startTime: localIso(2026, 10, 20, 0, 30), date: '2026-10-19' });
++    expect(early).toEqual({ day: '2026-10-20', precision: 'start-time' });
++  });
++
++  it('falls back to the date-only value and says so', () => {
++    expect(getSessionDay({ startTime: '', date: '2026-10-20' })).toEqual({ day: '2026-10-20', precision: 'date-only' });
++    expect(getSessionDay({ startTime: 'garbage', date: '2026-10-20' })).toEqual({ day: '2026-10-20', precision: 'date-only' });
++  });
++
++  it('treats a date-only startTime as date-only (it would otherwise parse as UTC midnight)', () => {
++    expect(getSessionDay({ startTime: '2026-10-20', date: '' })).toEqual({ day: '2026-10-20', precision: 'date-only' });
++  });
++
++  it('returns null when nothing usable exists, and never invents a day', () => {
++    expect(getSessionDay({ startTime: '', date: '' })).toBeNull();
++    expect(getSessionDay({ startTime: 'x', date: '2026-02-31' })).toBeNull();
++    expect(getSessionDay(undefined as never)).toBeNull();
++  });
++});
+diff --git a/src/utils/muscleMap/localDay.ts b/src/utils/muscleMap/localDay.ts
+new file mode 100644
+index 0000000..71a1ab5
+--- /dev/null
++++ b/src/utils/muscleMap/localDay.ts
+@@ -0,0 +1,77 @@
++import type { WorkoutSession } from '../../types';
++
++/**
++ * Local calendar-day helpers for the muscle map.
++ *
++ * A "day key" is a 'YYYY-MM-DD' string naming a LOCAL calendar day. Arithmetic is done on whole
++ * calendar days (via UTC day numbers), so it is not affected by DST or by the host timezone.
++ *
++ * Why not just use `session.date`: it is written with toISOString().split('T')[0] (a UTC date) and
++ * `new Date('YYYY-MM-DD')` parses as UTC midnight, so it can be a day off for users far from UTC.
++ * `startTime` is a full ISO instant, so converting it with local getters gives the user's own day.
++ */
++
++const DAY_KEY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
++const MS_PER_DAY = 86_400_000;
++
++/** True for a real calendar date in 'YYYY-MM-DD' form (rejects e.g. 2026-02-31). */
++export function isValidDayKey(value: unknown): value is string {
++  if (typeof value !== 'string') return false;
++  const m = DAY_KEY_RE.exec(value);
++  if (!m) return false;
++  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
++  const t = new Date(Date.UTC(y, mo - 1, d));
++  return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d;
++}
++
++/** Whole days since 1970-01-01 for a valid day key. */
++export function dayNumber(key: string): number {
++  const m = DAY_KEY_RE.exec(key);
++  if (!m || !isValidDayKey(key)) throw new RangeError(`Invalid day key: ${key}`);
++  return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / MS_PER_DAY;
++}
++
++export function dayKeyFromNumber(n: number): string {
++  return new Date(n * MS_PER_DAY).toISOString().slice(0, 10);
++}
++
++export function addDays(key: string, days: number): string {
++  return dayKeyFromNumber(dayNumber(key) + days);
++}
++
++/** The LOCAL calendar day of an instant, or null for an invalid Date. */
++export function localDayKey(date: Date): string | null {
++  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
++  const y = String(date.getFullYear()).padStart(4, '0');
++  const m = String(date.getMonth() + 1).padStart(2, '0');
++  const d = String(date.getDate()).padStart(2, '0');
++  return `${y}-${m}-${d}`;
++}
++
++export type DayPrecision = 'start-time' | 'date-only';
++
++export interface SessionDay {
++  /** Local calendar day, 'YYYY-MM-DD'. */
++  day: string;
++  /**
++   * 'start-time': derived from the session's start instant (local day).
++   * 'date-only': fell back to the stored date-only value, which may be off by a day.
++   */
++  precision: DayPrecision;
++}
++
++/**
++ * Establishes the calendar day of a session. Prefers `startTime` (local day); falls back to the
++ * date-only `date`. Returns null when neither is usable. Never fabricates a time of day.
++ */
++export function getSessionDay(session: Pick<WorkoutSession, 'startTime' | 'date'>): SessionDay | null {
++  const start = session?.startTime;
++  // A date-only string in startTime would be parsed as UTC midnight; treat it as date-only instead.
++  if (typeof start === 'string' && start.length > 0 && !DAY_KEY_RE.test(start)) {
++    const key = localDayKey(new Date(start));
++    if (key) return { day: key, precision: 'start-time' };
++  }
++  if (isValidDayKey(session?.date)) return { day: session.date, precision: 'date-only' };
++  if (typeof start === 'string' && isValidDayKey(start)) return { day: start, precision: 'date-only' };
++  return null;
++}
+diff --git a/src/utils/muscleMap/regions.test.ts b/src/utils/muscleMap/regions.test.ts
+new file mode 100644
+index 0000000..891d06b
+--- /dev/null
++++ b/src/utils/muscleMap/regions.test.ts
+@@ -0,0 +1,65 @@
++import { describe, expect, it } from 'vitest';
++import {
++  MUSCLE_REGIONS,
++  MUSCLE_REGION_IDS,
++  getRegion,
++  getRegionLabel,
++  isMuscleRegionId,
++  regionsForView,
++  viewsForRegion,
++  type BodyView,
++} from './regions';
++
++describe('canonical muscle regions', () => {
++  it('defines exactly the eight V1 regions with stable ids and the specified labels', () => {
++    expect(MUSCLE_REGION_IDS).toEqual([
++      'chest', 'back', 'shoulders', 'arms', 'core', 'quadriceps', 'hamstrings_glutes', 'calves',
++    ]);
++    expect(MUSCLE_REGIONS.map((r) => r.label)).toEqual([
++      'Chest', 'Back / Lats', 'Shoulders', 'Arms', 'Core / Lower Back', 'Quadriceps', 'Hamstrings / Glutes', 'Calves',
++    ]);
++    expect(new Set(MUSCLE_REGION_IDS).size).toBe(8);
++  });
++
++  it('keeps ids independent of labels and in the same order as the region list', () => {
++    expect(MUSCLE_REGIONS.map((r) => r.id)).toEqual([...MUSCLE_REGION_IDS]);
++    for (const id of MUSCLE_REGION_IDS) {
++      expect(getRegion(id).id).toBe(id);
++      expect(getRegionLabel(id)).toBe(getRegion(id).label);
++      expect(id).not.toBe(getRegionLabel(id));
++    }
++  });
++
++  it('validates ids', () => {
++    for (const id of MUSCLE_REGION_IDS) expect(isMuscleRegionId(id)).toBe(true);
++    for (const bad of ['Chest', 'legs', '', null, undefined, 3, {}]) expect(isMuscleRegionId(bad)).toBe(false);
++  });
++
++  it('gives every region at least one drawable part in some view, and calves in both', () => {
++    for (const r of MUSCLE_REGIONS) {
++      expect(r.svgParts.front.length + r.svgParts.back.length).toBeGreaterThan(0);
++      expect(viewsForRegion(r.id).length).toBeGreaterThan(0);
++    }
++    expect(viewsForRegion('calves')).toEqual(['front', 'back']);
++  });
++
++  it('never assigns one svg part key to two different regions within a view', () => {
++    for (const view of ['front', 'back'] as BodyView[]) {
++      const owner = new Map<string, string>();
++      for (const r of MUSCLE_REGIONS) {
++        for (const part of r.svgParts[view]) {
++          expect(owner.get(part) ?? r.id).toBe(r.id);
++          owner.set(part, r.id);
++        }
++      }
++    }
++  });
++
++  it('lists which regions are visible per view (so the UI can say where to find the rest)', () => {
++    expect(regionsForView('front').map((r) => r.id)).toEqual(['chest', 'shoulders', 'arms', 'core', 'quadriceps', 'calves']);
++    expect(regionsForView('back').map((r) => r.id)).toEqual(['back', 'shoulders', 'arms', 'core', 'hamstrings_glutes', 'calves']);
++    // every region is reachable from at least one view
++    const all = new Set([...regionsForView('front'), ...regionsForView('back')].map((r) => r.id));
++    expect(all.size).toBe(8);
++  });
++});
+diff --git a/src/utils/muscleMap/regions.ts b/src/utils/muscleMap/regions.ts
+new file mode 100644
+index 0000000..daa17bb
+--- /dev/null
++++ b/src/utils/muscleMap/regions.ts
+@@ -0,0 +1,73 @@
++/**
++ * Canonical regions for the Interactive Muscle Map (V1).
++ *
++ * IDs are stable and independent of display labels. The same IDs are used by the resolver,
++ * the training-load utilities, the map and the detail panel.
++ *
++ * Granularity note: logged workouts do not reliably separate biceps from triceps or
++ * hamstrings from glutes, so those pairs are single regions. Do not split them in the UI.
++ */
++
++export type BodyView = 'front' | 'back';
++
++export const MUSCLE_REGION_IDS = [
++  'chest',
++  'back',
++  'shoulders',
++  'arms',
++  'core',
++  'quadriceps',
++  'hamstrings_glutes',
++  'calves',
++] as const;
++
++export type MuscleRegionId = (typeof MUSCLE_REGION_IDS)[number];
++
++export interface MuscleRegion {
++  readonly id: MuscleRegionId;
++  /** Human-readable label shown in the UI. */
++  readonly label: string;
++  /**
++   * Stable SVG part keys that belong to this region, per body view. An empty array means the
++   * region is not visible from that view (the UI should say which view shows it).
++   */
++  readonly svgParts: Readonly<Record<BodyView, readonly string[]>>;
++}
++
++export const MUSCLE_REGIONS: readonly MuscleRegion[] = [
++  { id: 'chest', label: 'Chest', svgParts: { front: ['chest'], back: [] } },
++  { id: 'back', label: 'Back / Lats', svgParts: { front: [], back: ['upper-back', 'lats'] } },
++  { id: 'shoulders', label: 'Shoulders', svgParts: { front: ['front-delts'], back: ['rear-delts'] } },
++  { id: 'arms', label: 'Arms', svgParts: { front: ['biceps', 'forearms'], back: ['triceps', 'forearms'] } },
++  { id: 'core', label: 'Core / Lower Back', svgParts: { front: ['abs', 'obliques'], back: ['lower-back'] } },
++  { id: 'quadriceps', label: 'Quadriceps', svgParts: { front: ['quads'], back: [] } },
++  { id: 'hamstrings_glutes', label: 'Hamstrings / Glutes', svgParts: { front: [], back: ['glutes', 'hamstrings'] } },
++  { id: 'calves', label: 'Calves', svgParts: { front: ['calves-front'], back: ['calves-back'] } },
++];
++
++const BY_ID: Readonly<Record<MuscleRegionId, MuscleRegion>> = Object.fromEntries(
++  MUSCLE_REGIONS.map((r) => [r.id, r])
++) as Record<MuscleRegionId, MuscleRegion>;
++
++export function isMuscleRegionId(value: unknown): value is MuscleRegionId {
++  return typeof value === 'string' && (MUSCLE_REGION_IDS as readonly string[]).includes(value);
++}
++
++export function getRegion(id: MuscleRegionId): MuscleRegion {
++  return BY_ID[id];
++}
++
++export function getRegionLabel(id: MuscleRegionId): string {
++  return BY_ID[id].label;
++}
++
++/** Regions that have at least one drawable part in the given view. */
++export function regionsForView(view: BodyView): MuscleRegion[] {
++  return MUSCLE_REGIONS.filter((r) => r.svgParts[view].length > 0);
++}
++
++/** The view(s) in which a region is visible, front first. */
++export function viewsForRegion(id: MuscleRegionId): BodyView[] {
++  const r = BY_ID[id];
++  return (['front', 'back'] as const).filter((v) => r.svgParts[v].length > 0);
++}
+diff --git a/src/utils/muscleMap/resolveRegion.test.ts b/src/utils/muscleMap/resolveRegion.test.ts
+new file mode 100644
+index 0000000..8c4a7b0
+--- /dev/null
++++ b/src/utils/muscleMap/resolveRegion.test.ts
+@@ -0,0 +1,182 @@
++import { describe, expect, it } from 'vitest';
++import { STARTER_PPL_PLAN, STARTER_UPPER_LOWER_PLAN } from '../../data/starterPlans';
++import { inferMuscleGroup } from '../recoveryAnalytics';
++import { MUSCLE_REGION_IDS, type MuscleRegionId } from './regions';
++import { normalizeText, resolveRegion } from './resolveRegion';
++
++const region = (name: string, label?: string) => resolveRegion(name, label).regionId;
++
++describe('normalizeText', () => {
++  it('lower-cases, strips punctuation/accents and collapses whitespace', () => {
++    expect(normalizeText('  Weighted Pull-Up / Bodyweight   Pull-Up ')).toBe('weighted pull up bodyweight pull up');
++    expect(normalizeText('Romanian Deadlift (RDL)')).toBe('romanian deadlift rdl');
++    expect(normalizeText('Back & Lats')).toBe('back lats');
++    expect(normalizeText('Café Row')).toBe('cafe row');
++    expect(normalizeText(undefined)).toBe('');
++    expect(normalizeText(42)).toBe('');
++  });
++});
++
++describe('1. explicit labels', () => {
++  const cases: [string, MuscleRegionId][] = [
++    // starter-plan labels
++    ['Chest', 'chest'], ['Back', 'back'], ['Shoulders', 'shoulders'], ['Arms', 'arms'],
++    ['Quads', 'quadriceps'], ['Hamstrings', 'hamstrings_glutes'], ['Calves', 'calves'],
++    // add-exercise dropdown labels
++    ['Glutes', 'hamstrings_glutes'], ['Biceps', 'arms'], ['Triceps', 'arms'], ['Abs', 'core'],
++    // labels the existing global resolver emits
++    ['Back / Lats', 'back'], ['Quads', 'quadriceps'], ['Hamstrings & Glutes', 'hamstrings_glutes'],
++    ['Arms (Biceps & Triceps)', 'arms'], ['Core & Lower Back', 'core'],
++    // canonical display labels and plausible free text
++    ['Core / Lower Back', 'core'], ['Quadriceps', 'quadriceps'], ['Hamstrings / Glutes', 'hamstrings_glutes'],
++    ['Lower Back', 'core'], ['Lats', 'back'], ['Traps', 'back'], ['Delts', 'shoulders'], ['Forearms', 'arms'],
++    ['Pecs', 'chest'], ['Calf', 'calves'],
++  ];
++  it.each(cases)('label %s -> %s (explicit-label, high)', (label, expected) => {
++    expect(resolveRegion('Some Unknown Movement', label)).toEqual({ regionId: expected, source: 'explicit-label', confidence: 'high' });
++  });
++
++  it('ignores case and extra whitespace', () => {
++    expect(region('x', '  qUaDs  ')).toBe('quadriceps');
++    expect(region('x', 'HAMSTRINGS   &   GLUTES')).toBe('hamstrings_glutes');
++  });
++
++  it('every canonical region is reachable through at least one explicit label', () => {
++    const reached = new Set(cases.map(([l]) => region('x', l)));
++    for (const id of MUSCLE_REGION_IDS) expect(reached.has(id)).toBe(true);
++  });
++
++  it('an explicit label wins over a conflicting exercise name', () => {
++    const r = resolveRegion('Barbell Bench Press', 'Quads');
++    expect(r.regionId).toBe('quadriceps');
++    expect(r.source).toBe('explicit-label');
++  });
++
++  it("treats 'General', blank and unrecognised labels as no label and falls through to the name", () => {
++    for (const label of ['General', '', '   ', 'Cardio', 'Full Body', 'Legs', undefined, null, 7]) {
++      expect(resolveRegion('Lat Pulldown', label as never).source).toBe('exact-name');
++      expect(resolveRegion('Mystery Move', label as never)).toMatchObject({ regionId: null, source: 'unmapped' });
++    }
++  });
++
++  it("maps 'Lower Back' to Core / Lower Back (the global resolver sends it to Back / Lats)", () => {
++    expect(region('x', 'Lower Back')).toBe('core');
++    expect(inferMuscleGroup('x', 'Lower Back')).toBe('Back / Lats'); // documents the difference
++  });
++});
++
++describe('2. exact names and 3. bounded name rules (no label)', () => {
++  const table: [string, MuscleRegionId | null][] = [
++    // starter exercises
++    ['Barbell Bench Press', 'chest'], ['Incline Dumbbell Press', 'chest'], ['Dumbbell Flat Bench Press', 'chest'], ['Incline Cable Flye', 'chest'],
++    ['Barbell Bent Over Row', 'back'], ['Chest Supported Dumbbell Row', 'back'], ['Seated Cable Row', 'back'], ['Lat Pulldown', 'back'],
++    ['Weighted Pull-Up / Bodyweight Pull-Up', 'back'],
++    ['Standing Overhead Barbell Press', 'shoulders'], ['Dumbbell Seated Shoulder Press', 'shoulders'], ['Cable Lateral Raise', 'shoulders'], ['Face Pull', 'shoulders'],
++    ['Barbell Bicep Curl', 'arms'], ['Hammer Curl', 'arms'], ['Incline Dumbbell Curl', 'arms'], ['Triceps Rope Pushdown', 'arms'],
++    ['Barbell Back Squat', 'quadriceps'], ['Bulgarian Split Squat', 'quadriceps'], ['Leg Press', 'quadriceps'], ['Leg Extension', 'quadriceps'],
++    ['Lying Leg Curl', 'hamstrings_glutes'], ['Romanian Deadlift (RDL)', 'hamstrings_glutes'],
++    ['Seated Calf Raise', 'calves'], ['Standing Calf Raise', 'calves'],
++    // variants handled by whole-word rules
++    ['Machine Chest Press', 'chest'], ['Push-Up', 'chest'], ['Pushups', 'chest'], ['Pec Deck', 'chest'], ['Cable Fly', 'chest'], ['Cable Crossover', 'chest'], ['Decline Dumbbell Press', 'chest'],
++    ['T-Bar Row', 'back'], ['Pull Ups', 'back'], ['Chin-Up', 'back'], ['Straight Arm Pulldown', 'back'], ['Straight-Arm Pushdown', 'back'], ['Dumbbell Shrug', 'back'],
++    ['Lateral Raise', 'shoulders'], ['Dumbbell Side Raise', 'shoulders'], ['Front Raise', 'shoulders'], ['Military Press', 'shoulders'], ['Arnold Press', 'shoulders'], ['Reverse Fly', 'shoulders'], ['Rear Delt Fly', 'shoulders'], ['Reverse Pec Deck', 'shoulders'], ['Push Press', 'shoulders'],
++    ['EZ Bar Curl', 'arms'], ['Overhead Triceps Extension', 'arms'], ['Skull Crusher', 'arms'], ['Cable Pushdown', 'arms'], ['Preacher Curls', 'arms'],
++    ['Plank', 'core'], ['Cable Crunch', 'core'], ['Hanging Leg Raise', 'core'], ['Ab Wheel', 'core'], ['Back Extension', 'core'], ['Hyperextensions', 'core'], ['Russian Twist', 'core'], ['Sit-Up', 'core'],
++    ['Front Squat', 'quadriceps'], ['Hack Squat', 'quadriceps'], ['Goblet Squat', 'quadriceps'],
++    ['Seated Leg Curl', 'hamstrings_glutes'], ['Hip Thrust', 'hamstrings_glutes'], ['Glute Bridge', 'hamstrings_glutes'], ['Stiff-Leg Deadlift', 'hamstrings_glutes'], ['Good Morning', 'hamstrings_glutes'], ['Nordic Curl', 'hamstrings_glutes'], ['Cable Pull-Through', 'hamstrings_glutes'],
++    ['Donkey Calf Raise', 'calves'], ['Leg Press Calf Raise', 'calves'],
++    // deliberately unmapped (ambiguous or unknown) -- never defaulted to Chest
++    ['Conventional Barbell Deadlift', null], ['Deadlift', null], ['Sumo Deadlift', null], ['Dips (Chest / Triceps)', null], ['Dips', null],
++    ['Walking Lunge', null], ['Dumbbell Pullover', null], ['Upright Row', null], ['Close-Grip Bench Press', null],
++    ['Burpees', null], ['Treadmill', null], ['Rowing Machine', null], ['Mystery Move', null], ['', null],
++  ];
++  it.each(table)('%s -> %s', (name, expected) => {
++    expect(region(name)).toBe(expected);
++  });
++
++  it('reports the resolution source, confidence and reason', () => {
++    expect(resolveRegion('Barbell Bench Press')).toEqual({ regionId: 'chest', source: 'exact-name', confidence: 'high' });
++    expect(resolveRegion('Machine Chest Press')).toEqual({ regionId: 'chest', source: 'name-rule', confidence: 'medium' });
++    expect(resolveRegion('Burpees')).toEqual({ regionId: null, source: 'unmapped', confidence: 'none', reason: 'no-match' });
++    expect(resolveRegion('')).toEqual({ regionId: null, source: 'unmapped', confidence: 'none', reason: 'empty' });
++    // two rules fire for different regions -> ambiguous -> unmapped
++    expect(resolveRegion('Squat to Row')).toMatchObject({ regionId: null, source: 'unmapped', reason: 'ambiguous' });
++    // a triceps mention next to "chest" is deliberately not trusted, so this stays unmapped
++    expect(resolveRegion('Dips (Chest / Triceps)')).toMatchObject({ regionId: null, source: 'unmapped', reason: 'no-match' });
++  });
++});
++
++describe('substring collisions the global resolver gets wrong', () => {
++  it("'lateral' is not 'lat', so lateral raises are Shoulders, not Back", () => {
++    expect(region('Cable Lateral Raise')).toBe('shoulders');
++    expect(region('Lateral Raise')).toBe('shoulders');
++    expect(inferMuscleGroup('Cable Lateral Raise')).toBe('Back / Lats'); // documents the old bug
++  });
++  it('Romanian deadlifts are Hamstrings / Glutes, not Back', () => {
++    expect(region('Romanian Deadlift')).toBe('hamstrings_glutes');
++    expect(inferMuscleGroup('Romanian Deadlift')).toBe('Back / Lats');
++  });
++  it('calf raises are Calves, not Chest', () => {
++    expect(region('Calf Raise')).toBe('calves');
++    expect(inferMuscleGroup('Calf Raise')).toBe('Chest');
++  });
++  it("'cable' is not 'ab': cable crossover is Chest, not Core; unknown cable moves are unmapped", () => {
++    expect(region('Cable Crossover')).toBe('chest');
++    expect(inferMuscleGroup('Cable Crossover')).toBe('Core & Lower Back');
++    expect(region('Cable Wizard Thing')).toBeNull();
++    expect(region('Crab Walk')).toBeNull();
++    expect(region('Table Top Hold')).toBeNull();
++  });
++  it('face pulls and triceps extensions land where they belong', () => {
++    expect(region('Face Pull')).toBe('shoulders');
++    expect(region('Triceps Extension')).toBe('arms');
++  });
++  it("'curl' needs context: leg curls are not Arms, and curl-ups are not Arms", () => {
++    expect(region('Leg Curl')).toBe('hamstrings_glutes');
++    expect(region('Hamstring Curl')).toBe('hamstrings_glutes');
++    expect(region('Curl Up')).toBeNull();
++  });
++  it('is not fooled by words that merely contain a keyword', () => {
++    expect(region('Rowing Machine')).toBeNull();
++    expect(region('Pressing Nonsense')).toBeNull();
++    expect(region('Squatting Stance Drill')).toBeNull();
++    expect(region('Backstroke Swim')).toBeNull();
++  });
++});
++
++describe('never defaults to a region', () => {
++  it('returns unmapped for a spread of unknown names and junk input', () => {
++    for (const n of ['Yoga Flow', 'Sled Push', 'Farmers Walk', 'Kettlebell Swing', 'Jump Rope', 'xyz', '   ', '123']) {
++      expect(resolveRegion(n)).toMatchObject({ regionId: null, source: 'unmapped' });
++    }
++    for (const junk of [undefined, null, 5, {}, [], true]) {
++      expect(resolveRegion(junk as never, junk as never)).toMatchObject({ regionId: null, source: 'unmapped' });
++    }
++  });
++});
++
++describe('agreement with the real starter plans', () => {
++  const plans = [STARTER_PPL_PLAN, STARTER_UPPER_LOWER_PLAN];
++  const exercises = plans.flatMap((p) => p.days.flatMap((d) => d.exercises));
++
++  it('finds the starter exercises', () => {
++    expect(exercises.length).toBeGreaterThan(20);
++  });
++
++  it('every starter label resolves through the explicit-label path', () => {
++    for (const e of exercises) {
++      expect(resolveRegion(e.name, e.muscleGroup).source, `${e.name} / ${e.muscleGroup}`).toBe('explicit-label');
++    }
++  });
++
++  it('where the name alone resolves, it agrees with the label the plan itself uses', () => {
++    const labelled = exercises.map((e) => ({ name: e.name, byLabel: resolveRegion(e.name, e.muscleGroup).regionId, byName: resolveRegion(e.name).regionId }));
++    const disagreements = labelled.filter((x) => x.byName !== null && x.byName !== x.byLabel).map((x) => `${x.name}: name=${x.byName} label=${x.byLabel}`);
++    expect(disagreements).toEqual([]);
++  });
++
++  it('only the documented ambiguous starter exercises are unmapped by name', () => {
++    const unmappedByName = [...new Set(exercises.filter((e) => resolveRegion(e.name).regionId === null).map((e) => e.name))].sort();
++    expect(unmappedByName).toEqual(['Conventional Barbell Deadlift', 'Dips (Chest / Triceps)'].sort());
++  });
++});
+diff --git a/src/utils/muscleMap/resolveRegion.ts b/src/utils/muscleMap/resolveRegion.ts
+new file mode 100644
+index 0000000..a8a13b6
+--- /dev/null
++++ b/src/utils/muscleMap/resolveRegion.ts
+@@ -0,0 +1,233 @@
++import type { MuscleRegionId } from './regions';
++
++/**
++ * Exercise -> muscle-map region resolver (dedicated to the map; independent of the global
++ * `inferMuscleGroup` in recoveryAnalytics.ts, which is deliberately left unchanged).
++ *
++ * Resolution order:
++ *   1. A recognised explicit muscle-group label on the logged exercise        -> 'explicit-label'
++ *   2. A curated exact exercise name (the starter-plan names)                 -> 'exact-name'
++ *   3. Bounded whole-word rules on the exercise name                          -> 'name-rule'
++ *   4. Otherwise `unmapped`. NEVER a default region (the old resolver fell back to Chest).
++ *
++ * Design rules:
++ *   - Matching is on whole normalised WORDS, never substrings: 'lateral' does not match 'lat',
++ *     'cable' does not match 'ab', 'crab' does not match 'ab'.
++ *   - If name rules point at more than one region, the exercise is `unmapped` (ambiguous).
++ *   - Primary muscle only. No secondary-muscle credit is invented.
++ *   - Deliberately left unmapped without an explicit label because the primary mover is ambiguous:
++ *     conventional/sumo deadlifts, lunges, dips, pullovers, upright rows, close-grip bench press.
++ */
++
++export type ResolutionSource = 'explicit-label' | 'exact-name' | 'name-rule' | 'unmapped';
++export type ResolutionConfidence = 'high' | 'medium' | 'none';
++export type UnmappedReason = 'no-match' | 'ambiguous' | 'empty';
++
++export type RegionResolution =
++  | { regionId: MuscleRegionId; source: Exclude<ResolutionSource, 'unmapped'>; confidence: 'high' | 'medium' }
++  | { regionId: null; source: 'unmapped'; confidence: 'none'; reason: UnmappedReason };
++
++/** Lower-cases, strips accents, turns every non-alphanumeric run into one space. */
++export function normalizeText(input: unknown): string {
++  if (typeof input !== 'string') return '';
++  return input
++    .toLowerCase()
++    .normalize('NFKD')
++    .replace(/[\u0300-\u036f]/g, '')
++    .replace(/[^a-z0-9]+/g, ' ')
++    .trim();
++}
++
++// ---------------------------------------------------------------------------------------------
++// 1. Explicit labels (compared after normalisation, with the word "and" removed)
++// ---------------------------------------------------------------------------------------------
++
++const LABELS: Readonly<Record<MuscleRegionId, readonly string[]>> = {
++  chest: ['chest', 'pecs', 'pec', 'pectorals', 'upper chest', 'lower chest'],
++  back: ['back', 'lats', 'lat', 'back lats', 'upper back', 'mid back', 'traps', 'trapezius', 'rhomboids'],
++  shoulders: ['shoulders', 'shoulder', 'delts', 'deltoids', 'front delts', 'side delts', 'rear delts'],
++  arms: ['arms', 'arm', 'biceps', 'bicep', 'triceps', 'tricep', 'arms biceps triceps', 'biceps triceps', 'forearms', 'forearm'],
++  core: ['core', 'abs', 'abdominals', 'obliques', 'lower back', 'core lower back', 'erectors', 'spinal erectors'],
++  quadriceps: ['quads', 'quad', 'quadriceps', 'quadricep'],
++  hamstrings_glutes: ['hamstrings', 'hamstring', 'hams', 'glutes', 'glute', 'hamstrings glutes', 'glutes hamstrings'],
++  calves: ['calves', 'calf'],
++};
++
++const LABEL_TO_REGION: ReadonlyMap<string, MuscleRegionId> = new Map(
++  (Object.entries(LABELS) as [MuscleRegionId, readonly string[]][]).flatMap(([region, labels]) =>
++    labels.map((l) => [l, region] as const)
++  )
++);
++
++function normalizeLabel(label: unknown): string {
++  return normalizeText(label)
++    .split(' ')
++    .filter((w) => w !== 'and')
++    .join(' ');
++}
++
++// ---------------------------------------------------------------------------------------------
++// 2. Curated exact names (the starter-plan exercises)
++// ---------------------------------------------------------------------------------------------
++
++const EXACT_NAMES: Readonly<Record<string, MuscleRegionId>> = {
++  'barbell bench press': 'chest',
++  'dumbbell flat bench press': 'chest',
++  'incline dumbbell press': 'chest',
++  'incline cable flye': 'chest',
++  'barbell bent over row': 'back',
++  'chest supported dumbbell row': 'back',
++  'seated cable row': 'back',
++  'lat pulldown': 'back',
++  'weighted pull up bodyweight pull up': 'back',
++  'standing overhead barbell press': 'shoulders',
++  'dumbbell seated shoulder press': 'shoulders',
++  'cable lateral raise': 'shoulders',
++  'face pull': 'shoulders',
++  'barbell bicep curl': 'arms',
++  'hammer curl': 'arms',
++  'incline dumbbell curl': 'arms',
++  'triceps rope pushdown': 'arms',
++  'barbell back squat': 'quadriceps',
++  'bulgarian split squat': 'quadriceps',
++  'leg press': 'quadriceps',
++  'leg extension': 'quadriceps',
++  'lying leg curl': 'hamstrings_glutes',
++  'romanian deadlift rdl': 'hamstrings_glutes',
++  'seated calf raise': 'calves',
++  'standing calf raise': 'calves',
++};
++
++// ---------------------------------------------------------------------------------------------
++// 3. Whole-word rules. A rule matches when EVERY `all` entry is present as a word and NO `none`
++//    entry is. Entries may list alternatives separated by '|'.
++// ---------------------------------------------------------------------------------------------
++
++interface NameRule {
++  readonly region: MuscleRegionId;
++  readonly all: readonly string[];
++  readonly none?: readonly string[];
++}
++
++const NAME_RULES: readonly NameRule[] = [
++  // Chest
++  { region: 'chest', all: ['bench', 'press'], none: ['close'] },
++  { region: 'chest', all: ['chest', 'press|fly|flye|flies|flyes'] },
++  { region: 'chest', all: ['incline|decline|flat', 'press'], none: ['shoulder', 'overhead', 'military', 'arnold'] },
++  { region: 'chest', all: ['push', 'up|ups'] },
++  { region: 'chest', all: ['pushup|pushups'] },
++  { region: 'chest', all: ['pec', 'deck|fly|flye|press'], none: ['reverse', 'rear'] },
++  { region: 'chest', all: ['fly|flye|flies|flyes'], none: ['reverse', 'rear', 'delt', 'face', 'bent'] },
++  { region: 'chest', all: ['crossover|crossovers'], none: ['reverse'] },
++
++  // Back / lats (traps are filed under Back)
++  { region: 'back', all: ['pulldown|pulldowns'], none: ['tricep|triceps'] },
++  { region: 'back', all: ['straight', 'arm|arms', 'pushdown|pushdowns'] },
++  { region: 'back', all: ['pull', 'up|ups'] },
++  { region: 'back', all: ['pullup|pullups'] },
++  { region: 'back', all: ['chin', 'up|ups'] },
++  { region: 'back', all: ['chinup|chinups'] },
++  { region: 'back', all: ['row|rows'], none: ['upright', 'rear', 'delt'] },
++  { region: 'back', all: ['shrug|shrugs'] },
++
++  // Shoulders
++  { region: 'shoulders', all: ['lateral|side', 'raise|raises'], none: ['calf|calves'] },
++  { region: 'shoulders', all: ['front', 'raise|raises'], none: ['calf|calves'] },
++  { region: 'shoulders', all: ['shoulder', 'press'] },
++  { region: 'shoulders', all: ['overhead', 'press'], none: ['tricep|triceps'] },
++  { region: 'shoulders', all: ['military', 'press'] },
++  { region: 'shoulders', all: ['arnold', 'press'] },
++  { region: 'shoulders', all: ['push', 'press'] },
++  { region: 'shoulders', all: ['ohp'] },
++  { region: 'shoulders', all: ['face', 'pull|pulls'] },
++  { region: 'shoulders', all: ['reverse|rear', 'fly|flye|flies|flyes'] },
++  { region: 'shoulders', all: ['reverse|rear', 'pec|deck'] },
++  { region: 'shoulders', all: ['delt|delts|deltoid|deltoids'] },
++
++  // Arms
++  { region: 'arms', all: ['curl|curls'], none: ['leg', 'hamstring|hamstrings', 'nordic', 'up'] },
++  { region: 'arms', all: ['tricep|triceps'], none: ['chest'] },
++  { region: 'arms', all: ['bicep|biceps'] },
++  { region: 'arms', all: ['pushdown|pushdowns|pressdown|pressdowns'], none: ['straight'] },
++  { region: 'arms', all: ['skull', 'crusher|crushers'] },
++  { region: 'arms', all: ['skullcrusher|skullcrushers'] },
++  { region: 'arms', all: ['forearm|forearms'] },
++
++  // Core / lower back
++  { region: 'core', all: ['plank|planks'] },
++  { region: 'core', all: ['crunch|crunches'] },
++  { region: 'core', all: ['sit', 'up|ups'] },
++  { region: 'core', all: ['situp|situps'] },
++  { region: 'core', all: ['ab|abs|abdominal|abdominals'] },
++  { region: 'core', all: ['russian', 'twist|twists'] },
++  { region: 'core', all: ['leg', 'raise|raises'], none: ['calf|calves'] },
++  { region: 'core', all: ['woodchop|woodchops|woodchopper|woodchoppers'] },
++  { region: 'core', all: ['rollout|rollouts'] },
++  { region: 'core', all: ['pallof'] },
++  { region: 'core', all: ['hyperextension|hyperextensions'] },
++  { region: 'core', all: ['back', 'extension|extensions'] },
++  { region: 'core', all: ['core'] },
++
++  // Quadriceps
++  { region: 'quadriceps', all: ['squat|squats'] },
++  { region: 'quadriceps', all: ['leg', 'press'], none: ['calf|calves'] },
++  { region: 'quadriceps', all: ['leg', 'extension|extensions'] },
++  { region: 'quadriceps', all: ['quad|quads|quadricep|quadriceps'] },
++
++  // Hamstrings / glutes
++  { region: 'hamstrings_glutes', all: ['romanian|rdl'] },
++  { region: 'hamstrings_glutes', all: ['stiff', 'leg', 'deadlift'] },
++  { region: 'hamstrings_glutes', all: ['leg', 'curl|curls'] },
++  { region: 'hamstrings_glutes', all: ['hamstring|hamstrings'] },
++  { region: 'hamstrings_glutes', all: ['nordic'] },
++  { region: 'hamstrings_glutes', all: ['hip', 'thrust|thrusts'] },
++  { region: 'hamstrings_glutes', all: ['glute|glutes'] },
++  { region: 'hamstrings_glutes', all: ['good', 'morning|mornings'] },
++  { region: 'hamstrings_glutes', all: ['pull', 'through'] },
++
++  // Calves
++  { region: 'calves', all: ['calf|calves'] },
++];
++
++function hasAny(words: ReadonlySet<string>, spec: string): boolean {
++  return spec.split('|').some((w) => words.has(w));
++}
++
++function ruleMatches(rule: NameRule, words: ReadonlySet<string>): boolean {
++  if (!rule.all.every((spec) => hasAny(words, spec))) return false;
++  if (rule.none && rule.none.some((spec) => hasAny(words, spec))) return false;
++  return true;
++}
++
++const UNMAPPED = (reason: UnmappedReason): RegionResolution => ({
++  regionId: null,
++  source: 'unmapped',
++  confidence: 'none',
++  reason,
++});
++
++/**
++ * Resolves a logged exercise to a map region, or reports it as unmapped.
++ * `muscleGroup` is the exercise's own label (may be missing, free text, or 'General').
++ */
++export function resolveRegion(exerciseName: unknown, muscleGroup?: unknown): RegionResolution {
++  const label = normalizeLabel(muscleGroup);
++  const fromLabel = label ? LABEL_TO_REGION.get(label) : undefined;
++  if (fromLabel) return { regionId: fromLabel, source: 'explicit-label', confidence: 'high' };
++
++  const name = normalizeText(exerciseName);
++  if (!name) return UNMAPPED('empty');
++
++  const exact = Object.prototype.hasOwnProperty.call(EXACT_NAMES, name) ? EXACT_NAMES[name] : undefined;
++  if (exact) return { regionId: exact, source: 'exact-name', confidence: 'high' };
++
++  const words = new Set(name.split(' '));
++  const matched = new Set<MuscleRegionId>();
++  for (const rule of NAME_RULES) {
++    if (ruleMatches(rule, words)) matched.add(rule.region);
++  }
++  if (matched.size === 1) {
++    return { regionId: [...matched][0], source: 'name-rule', confidence: 'medium' };
++  }
++  return UNMAPPED(matched.size === 0 ? 'no-match' : 'ambiguous');
++}
+diff --git a/src/utils/muscleMap/trainingLoad.test.ts b/src/utils/muscleMap/trainingLoad.test.ts
+new file mode 100644
+index 0000000..b746032
+--- /dev/null
++++ b/src/utils/muscleMap/trainingLoad.test.ts
+@@ -0,0 +1,518 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import type { LoggedExercise, LoggedSet, SetType, WorkoutSession } from '../../types';
++import { addDays } from './localDay';
++import { MUSCLE_REGION_IDS } from './regions';
++import {
++  BASELINE_WEEKS,
++  CURRENT_PERIOD_DAYS,
++  HEAVIER_ABOVE_RATIO,
++  LIGHTER_BELOW_RATIO,
++  LOAD_DISCLAIMER,
++  LOAD_STATUS_LABELS,
++  MIN_USABLE_BASELINE_WEEKS,
++  buildMuscleMapSummary,
++  formatAverage,
++  formatLoadSummary,
++  type RegionTrainingSummary,
++} from './trainingLoad';
++
++/*
++ * Reference clock: Sunday 25 Oct 2026, 15:00 LOCAL. Everything is built with local-time
++ * constructors, so results do not depend on the timezone of the machine running the tests.
++ *
++ *   baseline weeks: w0 = Sep 20-26 (today-35..-29), w1 = Sep 27-Oct 3, w2 = Oct 4-10, w3 = Oct 11-17
++ *   current window: Oct 18-24 (today-7..-1)         today: Oct 25 (partial, never in a window)
++ */
++const NOW = new Date(2026, 9, 25, 15, 0, 0);
++const TODAY = '2026-10-25';
++const day = (offset: number) => addDays(TODAY, offset);
++/** Offset (from today) of a day inside baseline week w (0 = oldest), `inWeek` days after its start. */
++const weekDay = (w: number, inWeek = 2) => -35 + 7 * w + inWeek;
++
++let seq = 0;
++const startOf = (dayKey: string, hour = 18, min = 0) => {
++  const [y, m, d] = dayKey.split('-').map(Number);
++  return new Date(y, m - 1, d, hour, min, 0).toISOString();
++};
++const mkSet = (over: Partial<LoggedSet> = {}): LoggedSet => ({
++  id: `s${++seq}`, setNumber: 1, type: 'working', weight: 50, reps: 10, completed: true, timestamp: '', ...over,
++});
++const mkEx = (name: string, muscleGroup: string, n: number, setOver: Partial<LoggedSet> = {}): LoggedExercise => ({
++  id: `e${++seq}`, name, muscleGroup, equipment: 'barbell', repRange: '8-12', targetRir: 2, restSeconds: 90,
++  sets: Array.from({ length: n }, () => mkSet(setOver)),
++});
++const mkSession = (dayKey: string, exercises: LoggedExercise[], over: Partial<WorkoutSession> = {}): WorkoutSession => ({
++  id: `sess${++seq}`, dayName: 'Test', date: dayKey, startTime: startOf(dayKey), status: 'completed', exercises, ...over,
++});
++/** n eligible Chest sets on the given offset from today. */
++const chest = (offset: number, n: number, over: Partial<WorkoutSession> = {}) =>
++  mkSession(day(offset), [mkEx('Barbell Bench Press', 'Chest', n)], over);
++/**
++ * A completed session far outside both windows whose only set is a warm-up. It proves the user was
++ * tracking since that day (so all four baseline weeks are usable) without adding any counted sets.
++ */
++const anchor = (offset = -60) =>
++  mkSession(day(offset), [mkEx('Barbell Bench Press', 'Chest', 1, { type: 'warmup' })]);
++/** Put `perWeek[w]` chest sets in baseline week w. */
++const baseline = (perWeek: number[]) =>
++  perWeek.flatMap((n, w) => (n > 0 ? [chest(weekDay(w), n)] : []));
++
++const run = (sessions: WorkoutSession[], opts?: Parameters<typeof buildMuscleMapSummary>[2]) =>
++  buildMuscleMapSummary(sessions, NOW, opts);
++const chestOf = (sessions: WorkoutSession[], opts?: Parameters<typeof buildMuscleMapSummary>[2]) => run(sessions, opts).regions.chest;
++
++afterEach(() => {
++  vi.useRealTimers();
++});
++
++describe('constants', () => {
++  it('uses the specified band, windows and history requirement', () => {
++    expect(LIGHTER_BELOW_RATIO).toBe(0.75);
++    expect(HEAVIER_ABOVE_RATIO).toBe(1.25);
++    expect(CURRENT_PERIOD_DAYS).toBe(7);
++    expect(BASELINE_WEEKS).toBe(4);
++    expect(MIN_USABLE_BASELINE_WEEKS).toBe(2);
++  });
++});
++
++describe('windows', () => {
++  it('current = the 7 complete local days before today; baseline = the 28 days before that; no overlap', () => {
++    const s = run([]);
++    expect(s.today).toBe(TODAY);
++    expect(s.currentPeriod).toEqual({ startDay: '2026-10-18', endDay: '2026-10-24' });
++    expect(s.baselinePeriod).toEqual({ startDay: '2026-09-20', endDay: '2026-10-17' });
++    expect(addDays(s.baselinePeriod.endDay, 1)).toBe(s.currentPeriod.startDay);
++  });
++
++  it('current window boundaries: -7 and -1 are in; -8 and today are out', () => {
++    const base = [anchor()];
++    expect(chestOf([...base, chest(-7, 2)]).currentPeriodSets).toBe(2);
++    expect(chestOf([...base, chest(-1, 3)]).currentPeriodSets).toBe(3);
++    expect(chestOf([...base, chest(-8, 4)]).currentPeriodSets).toBe(0);
++    const today = chestOf([...base, chest(0, 5)]);
++    expect(today.currentPeriodSets).toBe(0); // today is a partial day, never in the window
++    expect(today.setsToday).toBe(5); // but it is reported separately and counted for last-trained
++    expect(today.lastTrainedDay).toBe(TODAY);
++  });
++
++  it('baseline boundaries: -35 and -8 are in (as weeks 0 and 3); -36 and -7 are not', () => {
++    // 4 baseline weeks usable. Single session, so average = sets / 4.
++    expect(chestOf([anchor(), chest(-35, 8)]).baselineWeeklyAverage).toBe(2); // week 0
++    expect(chestOf([anchor(), chest(-8, 8)]).baselineWeeklyAverage).toBe(2); // week 3
++    expect(chestOf([anchor(), chest(-36, 8)]).baselineWeeklyAverage).toBe(0); // before the window
++    const atMinus7 = chestOf([anchor(), chest(-7, 8)]);
++    expect(atMinus7.baselineWeeklyAverage).toBe(0); // -7 is current, not baseline
++    expect(atMinus7.currentPeriodSets).toBe(8);
++  });
++
++  it('week boundaries inside the baseline: -29 and -28 fall in adjacent weeks of the same average', () => {
++    // all four weeks usable -> average = total / 4 wherever the sets fall inside the window
++    expect(chestOf([anchor(), chest(-29, 4), chest(-28, 4)]).baselineWeeklyAverage).toBe(2);
++    expect(chestOf([anchor(), chest(-22, 4), chest(-21, 4)]).baselineWeeklyAverage).toBe(2);
++    expect(chestOf([chest(-35, 4)]).baselineWeeksUsed).toBe(4);
++  });
++});
++
++describe('history sufficiency', () => {
++  it('empty history -> every region is Insufficient data, with no division by zero', () => {
++    const s = run([]);
++    expect(s.history).toEqual({ firstTrackedDay: null, usableBaselineWeeks: 0, requiredBaselineWeeks: 2, sufficient: false });
++    for (const id of MUSCLE_REGION_IDS) {
++      expect(s.regions[id]).toMatchObject({
++        status: 'insufficient_data', currentPeriodSets: 0, baselineWeeklyAverage: null, ratio: null, lastTrainedDay: null, recentExercises: [],
++      });
++    }
++  });
++
++  it('non-array / null input behaves like empty history', () => {
++    expect(run(null as never).history.sufficient).toBe(false);
++    expect(run(undefined as never).regions.chest.status).toBe('insufficient_data');
++  });
++
++  it('exactly 21 tracked days (first session at today-21) is the minimum; 20 is not enough', () => {
++    const enough = run([chest(-21, 5), chest(-3, 3)]);
++    expect(enough.history).toMatchObject({ firstTrackedDay: day(-21), usableBaselineWeeks: 2, sufficient: true });
++    expect(enough.regions.chest).toMatchObject({ baselineWeeksUsed: 2, baselineWeeklyAverage: 2.5, currentPeriodSets: 3, status: 'typical' });
++
++    const notEnough = run([chest(-20, 5), chest(-3, 3)]);
++    expect(notEnough.history).toMatchObject({ firstTrackedDay: day(-20), usableBaselineWeeks: 1, sufficient: false });
++    expect(notEnough.regions.chest).toMatchObject({ status: 'insufficient_data', baselineWeeklyAverage: null, ratio: null, baselineWeeksUsed: 0 });
++  });
++
++  it('counts 3 and 4 usable weeks when the first session is at -28 and -35', () => {
++    expect(run([chest(-28, 6)]).history.usableBaselineWeeks).toBe(3);
++    expect(run([chest(-35, 6)]).history.usableBaselineWeeks).toBe(4);
++    expect(run([chest(-60, 6)]).history.usableBaselineWeeks).toBe(4);
++  });
++
++  it('does not treat days before the first session as zero-training weeks', () => {
++    // First session at -21: only weeks 2 and 3 are usable, so weeks 0-1 (no tracking) are NOT averaged in.
++    const r = chestOf([chest(-21, 6), chest(-2, 3)]);
++    expect(r.baselineWeeksUsed).toBe(2);
++    expect(r.baselineWeeklyAverage).toBe(3); // 6 sets / 2 weeks, not 6 / 4
++  });
++
++  it('DOES count empty weeks after the first session as zero-volume weeks (logged volume only)', () => {
++    const r = chestOf([chest(-35, 5), chest(-3, 5)]); // 5 sets in w0 only; w1-w3 empty but tracked
++    expect(r.baselineWeeksUsed).toBe(4);
++    expect(r.baselineWeeklyAverage).toBe(1.25);
++    expect(r.status).toBe('heavier'); // 5 / 1.25 = 400%
++  });
++
++  it('incomplete history with a lot of data in a single week is still insufficient', () => {
++    const r = chestOf([chest(-13, 30), chest(-2, 3)]);
++    expect(r.status).toBe('insufficient_data');
++  });
++
++  it('only sessions in the chosen dataset, completed, and datable count as tracking evidence', () => {
++    const early = (over: Partial<WorkoutSession>) => chest(-40, 5, over);
++    expect(run([early({ isDemo: true })]).history.firstTrackedDay).toBeNull();
++    expect(run([early({ status: 'abandoned' })]).history.firstTrackedDay).toBeNull();
++    expect(run([early({ status: 'in_progress' })]).history.firstTrackedDay).toBeNull();
++    expect(run([early({ startTime: '', date: '' })]).history.firstTrackedDay).toBeNull();
++  });
++});
++
++describe('statuses', () => {
++  it('No recent work: sufficient history but nothing in the current window', () => {
++    const r = chestOf([anchor(), ...baseline([4, 4, 4, 4])]);
++    expect(r).toMatchObject({ status: 'no_recent_work', currentPeriodSets: 0, baselineWeeklyAverage: 4, ratio: 0 });
++    expect(LOAD_STATUS_LABELS[r.status]).toBe('No recent work');
++  });
++
++  it('Insufficient data (not "No recent work") when history is too short to interpret an absence', () => {
++    const r = chestOf([chest(-10, 5)]);
++    expect(r.currentPeriodSets).toBe(0);
++    expect(r.status).toBe('insufficient_data');
++  });
++
++  it('zero baseline with recent work -> No historical baseline (no division, no category)', () => {
++    const r = chestOf([anchor(), chest(-2, 3)]);
++    expect(r).toMatchObject({ status: 'no_baseline', baselineWeeklyAverage: 0, ratio: null, currentPeriodSets: 3 });
++    expect(Number.isFinite(r.baselineWeeklyAverage as number)).toBe(true);
++  });
++
++  it('zero baseline and zero current -> No recent work with a null ratio', () => {
++    const r = run([anchor()]).regions.chest;
++    expect(r).toMatchObject({ status: 'no_recent_work', baselineWeeklyAverage: 0, ratio: null, currentPeriodSets: 0 });
++  });
++
++  describe('thresholds with a baseline average of 8 sets/week (6 = exactly 75%, 10 = exactly 125%)', () => {
++    const hist = () => [anchor(), ...baseline([8, 8, 8, 8])];
++    const at = (current: number) => chestOf([...hist(), chest(-2, current)]);
++
++    it('exactly 75% is Typical', () => {
++      const r = at(6);
++      expect(r.ratio).toBe(0.75);
++      expect(r.status).toBe('typical');
++    });
++    it('just below 75% is Lighter than usual', () => {
++      const r = at(5);
++      expect(r.ratio).toBe(0.625);
++      expect(r.status).toBe('lighter');
++    });
++    it('exactly 125% is Typical', () => {
++      const r = at(10);
++      expect(r.ratio).toBe(1.25);
++      expect(r.status).toBe('typical');
++    });
++    it('just above 125% is Heavier than usual', () => {
++      const r = at(11);
++      expect(r.ratio).toBe(1.375);
++      expect(r.status).toBe('heavier');
++    });
++    it('100% is Typical', () => {
++      expect(at(8).status).toBe('typical');
++    });
++  });
++
++  describe('thresholds with a baseline average of 4 sets/week (3 = 75%, 5 = 125%)', () => {
++    const hist = () => [anchor(), ...baseline([4, 4, 4, 4])];
++    const at = (n: number) => chestOf([...hist(), chest(-3, n)]).status;
++    it.each([[1, 'lighter'], [2, 'lighter'], [3, 'typical'], [4, 'typical'], [5, 'typical'], [6, 'heavier'], [20, 'heavier']] as const)(
++      '%i sets -> %s', (n, expected) => expect(at(n)).toBe(expected)
++    );
++  });
++
++  describe('fractional baseline average (22 sets over 4 weeks = 5.5/week)', () => {
++    const hist = () => [anchor(), ...baseline([6, 5, 6, 5])];
++    const at = (n: number) => chestOf([...hist(), chest(-3, n)]);
++    it('uses the exact average, not a rounded one', () => {
++      const r = at(7);
++      expect(r.baselineWeeklyAverage).toBe(5.5);
++      expect(r.ratio).toBeCloseTo(7 / 5.5, 10);
++    });
++    it.each([[4, 'lighter'], [5, 'typical'], [6, 'typical'], [7, 'heavier']] as const)('%i sets -> %s', (n, expected) =>
++      expect(at(n).status).toBe(expected)
++    );
++  });
++
++  describe('three usable weeks (first session at -28), so averages are not whole numbers of weeks', () => {
++    const hist = (perWeek: [number, number, number]) => [chest(-28, perWeek[0]), chest(-21, perWeek[1]), chest(-14, perWeek[2])];
++    it('sum 12 over 3 weeks = 4/week: 3 sets is exactly 75%, 5 is exactly 125%', () => {
++      const at = (n: number) => chestOf([...hist([4, 4, 4]), chest(-2, n)]);
++      expect(at(5).baselineWeeksUsed).toBe(3);
++      expect(at(5).baselineWeeklyAverage).toBe(4);
++      expect(at(3).status).toBe('typical');
++      expect(at(2).status).toBe('lighter');
++      expect(at(5).status).toBe('typical');
++      expect(at(6).status).toBe('heavier');
++    });
++    it('sum 10 over 3 weeks = 3.33/week: compares against the exact value', () => {
++      const at = (n: number) => chestOf([...hist([4, 3, 3]), chest(-2, n)]);
++      expect(at(1).baselineWeeklyAverage).toBeCloseTo(10 / 3, 10);
++      expect(at(2).status).toBe('lighter'); // 2 / 3.33 = 60%
++      expect(at(3).status).toBe('typical'); // 90%
++      expect(at(4).status).toBe('typical'); // 120%
++      expect(at(5).status).toBe('heavier'); // 150%
++    });
++  });
++});
++
++describe('what counts as a set', () => {
++  const countFor = (exercises: LoggedExercise[], over: Partial<WorkoutSession> = {}) =>
++    chestOf([anchor(), mkSession(day(-2), exercises, over)]).currentPeriodSets;
++
++  it('counts completed working, drop and failure sets once each', () => {
++    const ex = mkEx('Barbell Bench Press', 'Chest', 0);
++    ex.sets = (['working', 'drop', 'failure'] as SetType[]).map((type) => mkSet({ type }));
++    expect(countFor([ex])).toBe(3);
++  });
++  it('excludes warm-up sets', () => {
++    expect(countFor([mkEx('Barbell Bench Press', 'Chest', 3, { type: 'warmup' })])).toBe(0);
++  });
++  it('excludes incomplete sets', () => {
++    expect(countFor([mkEx('Barbell Bench Press', 'Chest', 3, { completed: false })])).toBe(0);
++  });
++  it('excludes skipped sets even when marked completed (matches calculateVolumeLoad)', () => {
++    expect(countFor([mkEx('Barbell Bench Press', 'Chest', 3, { skipped: true, completed: true })])).toBe(0);
++  });
++  it('counts bodyweight sets recorded with zero weight', () => {
++    expect(countFor([mkEx('Weighted Pull-Up / Bodyweight Pull-Up', 'Back', 4, { weight: 0 })])).toBe(0); // back, not chest
++    const r = run([anchor(), mkSession(day(-2), [mkEx('Push-Up', 'Chest', 4, { weight: 0, reps: 15 })])]).regions.chest;
++    expect(r.currentPeriodSets).toBe(4);
++  });
++  it('mixes eligible and ineligible sets in one exercise correctly', () => {
++    const ex = mkEx('Barbell Bench Press', 'Chest', 0);
++    ex.sets = [mkSet({ type: 'warmup' }), mkSet(), mkSet({ completed: false }), mkSet({ skipped: true }), mkSet({ type: 'drop' })];
++    expect(countFor([ex])).toBe(2);
++  });
++  it('ignores sessions that are abandoned or in progress', () => {
++    expect(countFor([mkEx('Barbell Bench Press', 'Chest', 3)], { status: 'abandoned' })).toBe(0);
++    expect(countFor([mkEx('Barbell Bench Press', 'Chest', 3)], { status: 'in_progress' })).toBe(0);
++  });
++  it('survives malformed stored data without throwing', () => {
++    const broken = [
++      null,
++      42,
++      { id: 'x', status: 'completed', startTime: startOf(day(-2)), date: day(-2), exercises: undefined },
++      { id: 'y', status: 'completed', startTime: startOf(day(-2)), date: day(-2), exercises: [null, { name: 5, sets: 'no' }, { name: 'Barbell Bench Press', muscleGroup: 'Chest', sets: [null, undefined, mkSet()] }] },
++    ] as unknown as WorkoutSession[];
++    expect(chestOf([anchor(), ...broken]).currentPeriodSets).toBe(1);
++  });
++});
++
++describe('demo vs real data', () => {
++  const real = chest(-2, 3);
++  const demo = chest(-3, 7, { isDemo: true });
++  const old = chest(-40, 1, { isDemo: true });
++
++  it("'real' (the default) ignores demo sessions entirely", () => {
++    const s = run([anchor(), real, demo]);
++    expect(s.regions.chest.currentPeriodSets).toBe(3);
++    expect(s.diagnostics.excludedWrongDataset).toBe(1);
++    expect(s.dataset).toBe('real');
++  });
++  it("'demo' uses only demo sessions", () => {
++    const s = run([anchor(), real, demo, old], { dataset: 'demo' });
++    expect(s.dataset).toBe('demo');
++    expect(s.regions.chest.currentPeriodSets).toBe(7);
++    expect(s.history.firstTrackedDay).toBe(day(-40));
++  });
++  it('never mixes: demo volume does not leak into the real baseline or history', () => {
++    const s = run([demo, old]);
++    expect(s.history.firstTrackedDay).toBeNull();
++    expect(s.regions.chest.status).toBe('insufficient_data');
++  });
++});
++
++describe('dates', () => {
++  it('uses the startTime LOCAL day even when the stored date-only value is stale or UTC-shifted', () => {
++    const s = mkSession(day(-2), [mkEx('Barbell Bench Press', 'Chest', 2)], { date: day(-20), startTime: startOf(day(-2), 23, 30) });
++    const r = chestOf([anchor(), s]);
++    expect(r.currentPeriodSets).toBe(2);
++    expect(r.lastTrainedDay).toBe(day(-2));
++    expect(r.lastTrainedDayPrecision).toBe('start-time');
++  });
++  it('a session at 00:30 local on the first current day is in; 23:30 the day before is out', () => {
++    expect(chestOf([anchor(), mkSession(day(-7), [mkEx('Barbell Bench Press', 'Chest', 2)], { startTime: startOf(day(-7), 0, 30) })]).currentPeriodSets).toBe(2);
++    expect(chestOf([anchor(), mkSession(day(-8), [mkEx('Barbell Bench Press', 'Chest', 2)], { startTime: startOf(day(-8), 23, 30) })]).currentPeriodSets).toBe(0);
++  });
++  it('falls back to the date-only value when startTime is unusable, and flags it', () => {
++    const s = mkSession(day(-3), [mkEx('Barbell Bench Press', 'Chest', 2)], { startTime: 'not a time', date: day(-3) });
++    const r = chestOf([anchor(), s]);
++    expect(r.currentPeriodSets).toBe(2);
++    expect(r.lastTrainedDay).toBe(day(-3));
++    expect(r.lastTrainedDayPrecision).toBe('date-only');
++  });
++  it('excludes sessions with no usable date and reports them', () => {
++    const s = run([anchor(), mkSession(day(-2), [mkEx('Barbell Bench Press', 'Chest', 2)], { startTime: '', date: 'garbage' })]);
++    expect(s.regions.chest.currentPeriodSets).toBe(0);
++    expect(s.diagnostics.excludedNoUsableDate).toBe(1);
++  });
++  it('excludes future-dated sessions (clock skew) from every figure', () => {
++    const s = run([anchor(), chest(+3, 9)]);
++    expect(s.regions.chest.currentPeriodSets).toBe(0);
++    expect(s.regions.chest.lastTrainedDay).toBeNull();
++    expect(s.diagnostics.excludedFutureDated).toBe(1);
++  });
++  it('lastTrainedDay is the latest eligible day for the region, even outside both windows', () => {
++    const r = chestOf([anchor(-60), chest(-45, 2), chest(-50, 2)]);
++    expect(r.lastTrainedDay).toBe(day(-45));
++    expect(r.currentPeriodSets).toBe(0);
++  });
++  it('never exposes hours-since or a time of day', () => {
++    const r = chestOf([anchor(), chest(-2, 2)]) as unknown as Record<string, unknown>;
++    expect(Object.keys(r).filter((k) => /hour|time(?!s)/i.test(k))).toEqual([]);
++  });
++});
++
++describe('regions, exercises and unmapped work', () => {
++  it('attributes sets by the new resolver, not the old fallback (calf raises are not Chest)', () => {
++    const s = run([
++      anchor(),
++      mkSession(day(-2), [
++        mkEx('Standing Calf Raise', 'General', 4),
++        mkEx('Cable Lateral Raise', 'General', 3),
++        mkEx('Romanian Deadlift (RDL)', 'General', 2),
++      ]),
++    ]);
++    expect(s.regions.calves.currentPeriodSets).toBe(4);
++    expect(s.regions.shoulders.currentPeriodSets).toBe(3);
++    expect(s.regions.hamstrings_glutes.currentPeriodSets).toBe(2);
++    expect(s.regions.chest.currentPeriodSets).toBe(0);
++    expect(s.regions.back.currentPeriodSets).toBe(0);
++  });
++
++  it('counts unmapped work separately and attributes it to no region', () => {
++    const s = run([
++      anchor(),
++      mkSession(day(-2), [mkEx('Burpees', 'General', 5), mkEx('Conventional Barbell Deadlift', '', 3), mkEx('Barbell Bench Press', 'Chest', 2)]),
++      mkSession(day(-12), [mkEx('Burpees', 'General', 4)]),
++    ]);
++    expect(s.unmapped).toEqual({ currentPeriodSets: 8, baselinePeriodSets: 4, exerciseNames: ['Burpees', 'Conventional Barbell Deadlift'] });
++    const attributed = MUSCLE_REGION_IDS.reduce((n, id) => n + s.regions[id].currentPeriodSets, 0);
++    expect(attributed).toBe(2);
++  });
++
++  it('does not count unmapped sets that fall outside both windows', () => {
++    const s = run([anchor(), mkSession(day(-50), [mkEx('Burpees', 'General', 5)])]);
++    expect(s.unmapped).toEqual({ currentPeriodSets: 0, baselinePeriodSets: 0, exerciseNames: [] });
++  });
++
++  it('lists recent exercises distinct (case-insensitive), most recent first, with session counts', () => {
++    const s = run([
++      anchor(),
++      mkSession(day(-5), [mkEx('Barbell Bench Press', 'Chest', 3)]),
++      mkSession(day(-2), [mkEx('Incline Dumbbell Press', 'Chest', 3)]),
++      mkSession(day(-3), [mkEx('barbell bench press', 'Chest', 3)]),
++      mkSession(day(-12), [mkEx('Cable Fly', 'Chest', 3)]), // baseline, not "recent"
++    ]);
++    expect(s.regions.chest.recentExercises).toEqual(['Incline Dumbbell Press', 'barbell bench press']);
++    expect(s.regions.chest.currentPeriodSessions).toBe(3);
++    expect(s.regions.chest.currentPeriodSets).toBe(9);
++  });
++
++  it('counts a session once per region even if the region appears in several exercises', () => {
++    const s = run([anchor(), mkSession(day(-2), [mkEx('Barbell Bench Press', 'Chest', 2), mkEx('Incline Dumbbell Press', 'Chest', 2)])]);
++    expect(s.regions.chest).toMatchObject({ currentPeriodSets: 4, currentPeriodSessions: 1 });
++  });
++
++  it('always returns all eight regions with the same shape', () => {
++    const s = run([]);
++    expect(Object.keys(s.regions).sort()).toEqual([...MUSCLE_REGION_IDS].sort());
++    for (const id of MUSCLE_REGION_IDS) expect(s.regions[id].regionId).toBe(id);
++  });
++});
++
++describe('determinism and purity', () => {
++  const fixture = () => [
++    anchor(),
++    ...baseline([5, 6, 7, 8]),
++    chest(-2, 6),
++    mkSession(day(-4), [mkEx('Standing Calf Raise', 'Calves', 3), mkEx('Burpees', 'General', 2)]),
++  ];
++
++  it('returns identical results for identical input, regardless of input order', () => {
++    const a = fixture();
++    const first = run(a);
++    expect(run(a)).toEqual(first);
++    expect(run([...a].reverse())).toEqual(first);
++  });
++
++  it('does not mutate its input', () => {
++    const a = fixture();
++    const snapshot = JSON.stringify(a);
++    run(a);
++    expect(JSON.stringify(a)).toBe(snapshot);
++  });
++
++  it('depends only on the `now` argument, never on the wall clock', () => {
++    const a = fixture();
++    const expected = run(a);
++    vi.useFakeTimers();
++    vi.setSystemTime(new Date(2031, 0, 1));
++    expect(run(a)).toEqual(expected);
++    vi.setSystemTime(new Date(2001, 5, 5));
++    expect(run(a)).toEqual(expected);
++  });
++
++  it('moves the windows when `now` moves', () => {
++    const a = [anchor(), chest(-2, 4)];
++    expect(buildMuscleMapSummary(a, NOW).regions.chest.currentPeriodSets).toBe(4);
++    const later = new Date(2026, 10, 3, 9, 0); // 9 days later: the session is now baseline, not current
++    expect(buildMuscleMapSummary(a, later).regions.chest.currentPeriodSets).toBe(0);
++  });
++
++  it('rejects an invalid `now` instead of guessing', () => {
++    expect(() => buildMuscleMapSummary([], new Date('nope'))).toThrow(RangeError);
++  });
++});
++
++describe('text helpers and wording', () => {
++  const summary = (over: Partial<RegionTrainingSummary>): RegionTrainingSummary => ({
++    regionId: 'chest', status: 'typical', currentPeriodSets: 7, currentPeriodSessions: 2, baselineWeeklyAverage: 5.5, baselineWeeksUsed: 4,
++    ratio: 7 / 5.5, lastTrainedDay: day(-2), lastTrainedDayPrecision: 'start-time', setsToday: 0, recentExercises: [], ...over,
++  });
++
++  it('formats the summary line from real values', () => {
++    expect(formatLoadSummary(summary({}))).toBe('7 working sets in the last 7 days · usual weekly average: 5.5 sets');
++    expect(formatLoadSummary(summary({ currentPeriodSets: 1, baselineWeeklyAverage: 1 }))).toBe('1 working set in the last 7 days · usual weekly average: 1 set');
++    expect(formatLoadSummary(summary({ currentPeriodSets: 0, baselineWeeklyAverage: 4 }))).toBe('0 working sets in the last 7 days · usual weekly average: 4 sets');
++    expect(formatLoadSummary(summary({ baselineWeeklyAverage: null }))).toBe('7 working sets in the last 7 days');
++  });
++
++  it('formats averages to at most one decimal', () => {
++    expect(formatAverage(4)).toBe('4');
++    expect(formatAverage(5.5)).toBe('5.5');
++    expect(formatAverage(2.3333)).toBe('2.3');
++    expect(formatAverage(0)).toBe('0');
++  });
++
++  it('uses the specified labels and avoids physiological-recovery wording', () => {
++    expect(LOAD_STATUS_LABELS).toEqual({
++      insufficient_data: 'Insufficient data',
++      no_recent_work: 'No recent work',
++      no_baseline: 'No historical baseline',
++      lighter: 'Lighter than usual',
++      typical: 'Typical',
++      heavier: 'Heavier than usual',
++    });
++    const forbidden = /recovered|fatigue|fresh|heal|injur|damage|risk|sore|rest day/i;
++    for (const label of Object.values(LOAD_STATUS_LABELS)) expect(label).not.toMatch(forbidden);
++  });
++
++  it('carries the required disclaimer verbatim', () => {
++    expect(LOAD_DISCLAIMER).toBe('Training load compares your logged workout volume. It does not measure muscle recovery or diagnose injury.');
++  });
++});
+diff --git a/src/utils/muscleMap/trainingLoad.ts b/src/utils/muscleMap/trainingLoad.ts
+new file mode 100644
+index 0000000..89b962a
+--- /dev/null
++++ b/src/utils/muscleMap/trainingLoad.ts
+@@ -0,0 +1,355 @@
++import type { WorkoutSession } from '../../types';
++import { MUSCLE_REGION_IDS, type MuscleRegionId } from './regions';
++import { resolveRegion } from './resolveRegion';
++import { dayKeyFromNumber, dayNumber, getSessionDay, localDayKey, type DayPrecision } from './localDay';
++
++/**
++ * Recent training load per muscle region (pure, deterministic, local only).
++ *
++ * This compares LOGGED WORKING-SET COUNTS. It does not measure physiological recovery, and nothing
++ * here may be presented as such.
++ *
++ * Windows (all LOCAL calendar days; `today` is the local day of the `now` argument and is a partial
++ * day, so it is never part of either window):
++ *
++ *     baseline (4 x 7 days)                      current (7 days)      today
++ *   [today-35 .............. today-8] | [today-7 .......... today-1] | today
++ *
++ * The windows do not overlap. Each baseline week is a full 7-day span.
++ *
++ * Eligibility of a session: dataset matches (real vs demo), status 'completed', and a usable day.
++ * Eligibility of a set: completed, not skipped, not a warm-up. 'working', 'drop' and 'failure' sets
++ * each count once (the data model stores each as its own set, so nothing is double-counted).
++ * Weight is never required: bodyweight sets recorded with weight 0 count.
++ *
++ * Insufficient history: days before the user's first completed session are NOT treated as zero-
++ * training. A baseline week is "usable" only if the first completed session is on or before that
++ * week's first day. A comparison needs MIN_USABLE_BASELINE_WEEKS usable weeks, i.e. the 7-day
++ * current window plus 2 baseline weeks = about three weeks of tracked history. Weeks after the
++ * first session with no logged work do count as zero-volume weeks (the comparison is of logged
++ * volume only).
++ */
++
++// ---- Named constants -------------------------------------------------------------------------
++export const DAYS_PER_WEEK = 7;
++/** Length of the current window, in complete local days ending yesterday. */
++export const CURRENT_PERIOD_DAYS = DAYS_PER_WEEK;
++/** Number of 7-day weeks in the baseline window that sits directly before the current window. */
++export const BASELINE_WEEKS = 4;
++/** Fewest usable baseline weeks needed before any comparison is made (~3 weeks incl. current). */
++export const MIN_USABLE_BASELINE_WEEKS = 2;
++/** Below this share of the baseline average: "Lighter than usual" (exclusive). */
++export const LIGHTER_BELOW_RATIO = 0.75;
++/** Above this share of the baseline average: "Heavier than usual" (exclusive). 125% is Typical. */
++export const HEAVIER_ABOVE_RATIO = 1.25;
++
++// ---- Types -----------------------------------------------------------------------------------
++export type LoadStatus =
++  | 'insufficient_data'
++  | 'no_recent_work'
++  | 'no_baseline'
++  | 'lighter'
++  | 'typical'
++  | 'heavier';
++
++export const LOAD_STATUS_LABELS: Readonly<Record<LoadStatus, string>> = {
++  insufficient_data: 'Insufficient data',
++  no_recent_work: 'No recent work',
++  no_baseline: 'No historical baseline',
++  lighter: 'Lighter than usual',
++  typical: 'Typical',
++  heavier: 'Heavier than usual',
++};
++
++export type Dataset = 'real' | 'demo';
++
++export interface BuildOptions {
++  /** 'real' (default) uses sessions without isDemo; 'demo' uses only isDemo sessions. Never mixed. */
++  dataset?: Dataset;
++}
++
++export interface RegionTrainingSummary {
++  regionId: MuscleRegionId;
++  status: LoadStatus;
++  /** Eligible working sets in the current 7-day window. */
++  currentPeriodSets: number;
++  /** Distinct sessions that trained this region in the current window. */
++  currentPeriodSessions: number;
++  /** Average weekly sets over the usable baseline weeks; null when history is insufficient. */
++  baselineWeeklyAverage: number | null;
++  baselineWeeksUsed: number;
++  /** currentPeriodSets / baselineWeeklyAverage; null when not computable (no division by zero). */
++  ratio: number | null;
++  /** Most recent local day with eligible work for this region (includes today); null if none. */
++  lastTrainedDay: string | null;
++  /** 'date-only' means that day came from the stored date and may be off by one. */
++  lastTrainedDayPrecision: DayPrecision | null;
++  /** Eligible sets logged today (a partial day, shown separately, not in either window). */
++  setsToday: number;
++  /** Distinct exercise names in the current window, most recent first. */
++  recentExercises: string[];
++}
++
++export interface UnmappedSummary {
++  /** Eligible sets in the current window whose exercise could not be mapped to a region. */
++  currentPeriodSets: number;
++  /** Same, for the 28-day baseline window. */
++  baselinePeriodSets: number;
++  /** Distinct unmapped exercise names seen in either window (sorted). */
++  exerciseNames: string[];
++}
++
++export interface MuscleMapSummary {
++  dataset: Dataset;
++  /** Local day of `now`. */
++  today: string;
++  currentPeriod: { startDay: string; endDay: string };
++  baselinePeriod: { startDay: string; endDay: string };
++  history: {
++    /** Day of the first eligible completed session; null when there is none. */
++    firstTrackedDay: string | null;
++    usableBaselineWeeks: number;
++    requiredBaselineWeeks: number;
++    sufficient: boolean;
++  };
++  regions: Record<MuscleRegionId, RegionTrainingSummary>;
++  unmapped: UnmappedSummary;
++  diagnostics: {
++    sessionsUsed: number;
++    excludedWrongDataset: number;
++    excludedNotCompleted: number;
++    excludedNoUsableDate: number;
++    excludedFutureDated: number;
++  };
++}
++
++// ---- Helpers ---------------------------------------------------------------------------------
++function isEligibleSet(s: unknown): boolean {
++  if (!s || typeof s !== 'object') return false;
++  const set = s as { completed?: unknown; skipped?: unknown; type?: unknown };
++  return Boolean(set.completed) && !set.skipped && set.type !== 'warmup';
++}
++
++function classify(
++  currentSets: number,
++  baselineSum: number,
++  weeks: number,
++  sufficient: boolean
++): { status: LoadStatus; average: number | null; ratio: number | null } {
++  if (!sufficient || weeks <= 0) return { status: 'insufficient_data', average: null, ratio: null };
++  const average = baselineSum / weeks;
++  if (currentSets === 0) return { status: 'no_recent_work', average, ratio: baselineSum > 0 ? 0 : null };
++  if (baselineSum === 0) return { status: 'no_baseline', average, ratio: null };
++  // Single division of exact integers: current / (sum / weeks) === current * weeks / sum.
++  const ratio = (currentSets * weeks) / baselineSum;
++  if (ratio < LIGHTER_BELOW_RATIO) return { status: 'lighter', average, ratio };
++  if (ratio > HEAVIER_ABOVE_RATIO) return { status: 'heavier', average, ratio };
++  return { status: 'typical', average, ratio };
++}
++
++interface Accum {
++  currentSets: number;
++  sessionIds: Set<string>;
++  weekSets: number[];
++  lastN: number | null;
++  lastPrecision: DayPrecision | null;
++  setsToday: number;
++  /** exercise name (lower-cased key) -> { name, sortKey } for the current window */
++  exercises: Map<string, { name: string; sortKey: string }>;
++}
++
++const newAccum = (): Accum => ({
++  currentSets: 0,
++  sessionIds: new Set(),
++  weekSets: Array.from({ length: BASELINE_WEEKS }, () => 0),
++  lastN: null,
++  lastPrecision: null,
++  setsToday: 0,
++  exercises: new Map(),
++});
++
++/**
++ * Builds the per-region training summary. `now` is an explicit argument; the function never reads
++ * the wall clock and never mutates its input.
++ */
++export function buildMuscleMapSummary(
++  sessions: readonly WorkoutSession[],
++  now: Date,
++  options: BuildOptions = {}
++): MuscleMapSummary {
++  const dataset: Dataset = options.dataset ?? 'real';
++  const today = localDayKey(now);
++  if (!today) throw new RangeError('buildMuscleMapSummary: `now` must be a valid Date');
++  const todayN = dayNumber(today);
++
++  const currentStartN = todayN - CURRENT_PERIOD_DAYS;
++  const currentEndN = todayN - 1;
++  const baselineStartN = currentStartN - BASELINE_WEEKS * DAYS_PER_WEEK;
++  const baselineEndN = currentStartN - 1;
++
++  const diagnostics = {
++    sessionsUsed: 0,
++    excludedWrongDataset: 0,
++    excludedNotCompleted: 0,
++    excludedNoUsableDate: 0,
++    excludedFutureDated: 0,
++  };
++
++  // 1. Select eligible sessions.
++  interface Eligible {
++    session: WorkoutSession;
++    dayN: number;
++    precision: DayPrecision;
++    index: number;
++  }
++  const eligible: Eligible[] = [];
++  (Array.isArray(sessions) ? sessions : []).forEach((session, index) => {
++    if (!session || typeof session !== 'object') return;
++    const isDemo = session.isDemo === true;
++    if ((dataset === 'demo') !== isDemo) {
++      diagnostics.excludedWrongDataset += 1;
++      return;
++    }
++    if (session.status !== 'completed') {
++      diagnostics.excludedNotCompleted += 1;
++      return;
++    }
++    const sd = getSessionDay(session);
++    if (!sd) {
++      diagnostics.excludedNoUsableDate += 1;
++      return;
++    }
++    const dayN = dayNumber(sd.day);
++    if (dayN > todayN) {
++      diagnostics.excludedFutureDated += 1;
++      return;
++    }
++    eligible.push({ session, dayN, precision: sd.precision, index });
++  });
++  diagnostics.sessionsUsed = eligible.length;
++
++  // Deterministic order: newest day first, then startTime, then original position.
++  eligible.sort(
++    (a, b) =>
++      b.dayN - a.dayN ||
++      String(b.session.startTime ?? '').localeCompare(String(a.session.startTime ?? '')) ||
++      a.index - b.index
++  );
++
++  const firstTrackedN = eligible.length ? Math.min(...eligible.map((e) => e.dayN)) : null;
++
++  // 2. Accumulate eligible sets.
++  const acc = Object.fromEntries(MUSCLE_REGION_IDS.map((id) => [id, newAccum()])) as Record<MuscleRegionId, Accum>;
++  const unmappedNames = new Map<string, string>();
++  const unmapped = { currentPeriodSets: 0, baselinePeriodSets: 0 };
++
++  eligible.forEach(({ session, dayN, precision }, order) => {
++    const exercises = Array.isArray(session.exercises) ? session.exercises : [];
++    for (const ex of exercises) {
++      if (!ex || typeof ex !== 'object') continue;
++      const sets = Array.isArray(ex.sets) ? ex.sets : [];
++      const n = sets.filter(isEligibleSet).length;
++      if (n === 0) continue;
++
++      const name = typeof ex.name === 'string' ? ex.name.trim() : '';
++      const inCurrent = dayN >= currentStartN && dayN <= currentEndN;
++      const inBaseline = dayN >= baselineStartN && dayN <= baselineEndN;
++      const resolution = resolveRegion(ex.name, ex.muscleGroup);
++
++      if (resolution.regionId === null) {
++        if (inCurrent) unmapped.currentPeriodSets += n;
++        if (inBaseline) unmapped.baselinePeriodSets += n;
++        if ((inCurrent || inBaseline) && name) unmappedNames.set(name.toLowerCase(), name);
++        continue;
++      }
++
++      const a = acc[resolution.regionId];
++      if (a.lastN === null || dayN > a.lastN) {
++        a.lastN = dayN;
++        a.lastPrecision = precision;
++      } else if (dayN === a.lastN && precision === 'start-time') {
++        a.lastPrecision = 'start-time';
++      }
++      if (dayN === todayN) a.setsToday += n;
++      if (inCurrent) {
++        a.currentSets += n;
++        a.sessionIds.add(String(session.id ?? `#${order}`));
++        if (name && !a.exercises.has(name.toLowerCase())) {
++          a.exercises.set(name.toLowerCase(), { name, sortKey: String(order).padStart(6, '0') });
++        }
++      }
++      if (inBaseline) {
++        const week = Math.floor((dayN - baselineStartN) / DAYS_PER_WEEK);
++        a.weekSets[week] += n;
++      }
++    }
++  });
++
++  // 3. History sufficiency: which baseline weeks are usable?
++  const usableWeek = (w: number): boolean =>
++    firstTrackedN !== null && firstTrackedN <= baselineStartN + w * DAYS_PER_WEEK;
++  const usableWeekIdx = Array.from({ length: BASELINE_WEEKS }, (_, w) => w).filter(usableWeek);
++  const usableBaselineWeeks = usableWeekIdx.length;
++  const sufficient = usableBaselineWeeks >= MIN_USABLE_BASELINE_WEEKS;
++
++  // 4. Per-region summaries.
++  const regions = Object.fromEntries(
++    MUSCLE_REGION_IDS.map((id) => {
++      const a = acc[id];
++      const baselineSum = usableWeekIdx.reduce((sum, w) => sum + a.weekSets[w], 0);
++      const { status, average, ratio } = classify(a.currentSets, baselineSum, usableBaselineWeeks, sufficient);
++      const summary: RegionTrainingSummary = {
++        regionId: id,
++        status,
++        currentPeriodSets: a.currentSets,
++        currentPeriodSessions: a.sessionIds.size,
++        baselineWeeklyAverage: average,
++        baselineWeeksUsed: sufficient ? usableBaselineWeeks : 0,
++        ratio,
++        lastTrainedDay: a.lastN === null ? null : dayKeyFromNumber(a.lastN),
++        lastTrainedDayPrecision: a.lastPrecision,
++        setsToday: a.setsToday,
++        recentExercises: [...a.exercises.values()].sort((x, y) => x.sortKey.localeCompare(y.sortKey)).map((e) => e.name),
++      };
++      return [id, summary];
++    })
++  ) as Record<MuscleRegionId, RegionTrainingSummary>;
++
++  return {
++    dataset,
++    today,
++    currentPeriod: { startDay: dayKeyFromNumber(currentStartN), endDay: dayKeyFromNumber(currentEndN) },
++    baselinePeriod: { startDay: dayKeyFromNumber(baselineStartN), endDay: dayKeyFromNumber(baselineEndN) },
++    history: {
++      firstTrackedDay: firstTrackedN === null ? null : dayKeyFromNumber(firstTrackedN),
++      usableBaselineWeeks,
++      requiredBaselineWeeks: MIN_USABLE_BASELINE_WEEKS,
++      sufficient,
++    },
++    regions,
++    unmapped: {
++      ...unmapped,
++      exerciseNames: [...unmappedNames.values()].sort((a, b) => a.localeCompare(b)),
++    },
++    diagnostics,
++  };
++}
++
++// ---- Presentation helpers (text only; no UI) ---------------------------------------------------
++const formatCount = (n: number): string => `${n} working ${n === 1 ? 'set' : 'sets'}`;
++
++/** Average shown with at most one decimal, e.g. 5.5 or 4 (not 4.0). */
++export function formatAverage(avg: number): string {
++  return String(Number(avg.toFixed(1)));
++}
++
++/** e.g. "7 working sets in the last 7 days · usual weekly average: 5.5 sets". Uses real values. */
++export function formatLoadSummary(r: RegionTrainingSummary): string {
++  const current = `${formatCount(r.currentPeriodSets)} in the last ${CURRENT_PERIOD_DAYS} days`;
++  if (r.baselineWeeklyAverage === null) return current;
++  const avg = r.baselineWeeklyAverage;
++  return `${current} · usual weekly average: ${formatAverage(avg)} ${Number(avg.toFixed(1)) === 1 ? 'set' : 'sets'}`;
++}
++
++export const LOAD_DISCLAIMER =
++  'Training load compares your logged workout volume. It does not measure muscle recovery or diagnose injury.';
