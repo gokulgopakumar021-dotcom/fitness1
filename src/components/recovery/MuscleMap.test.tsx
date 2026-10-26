@@ -115,7 +115,9 @@ describe('region list and accessible names', () => {
     expect(svgRegion('shoulders')!.getAttribute('aria-label')).toBe('Shoulders, Heavier than usual');
     expect(svgRegion('calves')!.getAttribute('aria-label')).toBe('Calves, Lighter than usual');
     expect(svgRegion('quadriceps')!.getAttribute('aria-label')).toBe('Quadriceps, No recent work');
-    expect(chest.getAttribute('class')).toContain('focus-visible:outline');
+    // Focus is drawn on the shapes (an SVG <g> outline would box the whole group): thicker stroke + glow.
+    expect(chest.getAttribute('class')).toContain('focus-visible:[&_path]:[stroke-width:3px]');
+    expect(chest.getAttribute('class')).toContain('focus-visible:[&_path]:[filter:');
   });
 
   it('the region list says which view a region lives on when it is not on the current figure', async () => {

@@ -109,7 +109,7 @@ export const MuscleMap: React.FC<MuscleMapProps> = ({ summary, view, onViewChang
                 data-selected={selected ? 'true' : 'false'}
                 onClick={() => select(id)}
                 onKeyDown={onRegionKeyDown(id)}
-                className="cursor-pointer outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:[&_path]:stroke-[var(--text-primary)]"
+                className="cursor-pointer outline-none focus-visible:[&_path]:stroke-[var(--text-primary)] focus-visible:[&_path]:[stroke-width:3px] focus-visible:[&_path]:[filter:drop-shadow(0_0_3px_var(--text-primary))]"
               >
                 <title>{name}</title>
                 {parts.map((p) => {
