@@ -492,6 +492,18 @@ describe('text helpers and wording', () => {
     expect(formatLoadSummary(summary({ baselineWeeklyAverage: null }))).toBe('7 working sets in the last 7 days');
   });
 
+  it('zero baseline never prints "usual weekly average: 0 sets"; it still shows the real counts', () => {
+    expect(formatLoadSummary(summary({ status: 'no_baseline', currentPeriodSets: 3, baselineWeeklyAverage: 0, baselineWeeksUsed: 4 }))).toBe(
+      '3 working sets in the last 7 days · none logged in the previous 4 weeks'
+    );
+    expect(formatLoadSummary(summary({ status: 'no_baseline', currentPeriodSets: 1, baselineWeeklyAverage: 0, baselineWeeksUsed: 1 }))).toBe(
+      '1 working set in the last 7 days · none logged in the previous week'
+    );
+    expect(formatLoadSummary(summary({ currentPeriodSets: 0, baselineWeeklyAverage: 0, baselineWeeksUsed: 3 }))).toBe(
+      '0 working sets in the last 7 days · none logged in the previous 3 weeks'
+    );
+  });
+
   it('formats averages to at most one decimal', () => {
     expect(formatAverage(4)).toBe('4');
     expect(formatAverage(5.5)).toBe('5.5');

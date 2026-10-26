@@ -343,11 +343,16 @@ export function formatAverage(avg: number): string {
   return String(Number(avg.toFixed(1)));
 }
 
-/** e.g. "7 working sets in the last 7 days · usual weekly average: 5.5 sets". Uses real values. */
+/** e.g. "7 working sets in the last 7 days · usual weekly average: 5.5 sets", or "... · none logged in the previous 4 weeks" for a zero baseline. Uses real values. */
 export function formatLoadSummary(r: RegionTrainingSummary): string {
   const current = `${formatCount(r.currentPeriodSets)} in the last ${CURRENT_PERIOD_DAYS} days`;
   if (r.baselineWeeklyAverage === null) return current;
   const avg = r.baselineWeeklyAverage;
+  if (avg === 0) {
+    // No earlier work for this region: an average of "0 sets" would read like a measured norm, so say what the counts mean.
+    const w = r.baselineWeeksUsed;
+    return `${current} · none logged in the ${w === 1 ? 'previous week' : `previous ${w} weeks`}`;
+  }
   return `${current} · usual weekly average: ${formatAverage(avg)} ${Number(avg.toFixed(1)) === 1 ? 'set' : 'sets'}`;
 }
 

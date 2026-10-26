@@ -265,6 +265,17 @@ describe('states: empty, insufficient, sufficient, no-record, unmapped', () => {
     expect(panel).not.toContain('usual weekly average');
   });
 
+  it('no historical baseline: shows the real counts without a misleading "0 sets" average', async () => {
+    await section([...rich(), sess(day(-3), [ex('Barbell Curl', 'Arms', 3)])]);
+    expect(svgRegion('arms')!.getAttribute('data-status')).toBe('no_baseline');
+    await click(svgRegion('arms')!);
+    const panel = container.querySelector('[data-testid="muscle-detail-panel"]')!.textContent!;
+    expect(panel).toContain('No historical baseline');
+    expect(panel).toContain('3 working sets in the last 7 days · none logged in the previous 4 weeks');
+    expect(panel).not.toMatch(/usual weekly average/i);
+    expect(panel).not.toMatch(/average: 0/i);
+  });
+
   it('sufficient history shows no banner', async () => {
     await section(rich());
     expect(container.querySelector('[data-testid="history-banner"]')).toBeNull();

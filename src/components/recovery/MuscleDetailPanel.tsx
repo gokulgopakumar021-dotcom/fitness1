@@ -69,7 +69,7 @@ export const MuscleDetailPanel: React.FC<MuscleDetailPanelProps> = ({ summary, r
           ) : (
             <>
               <p className="text-sm font-medium text-white tabular">{formatLoadSummary(r)}</p>
-              {r.baselineWeeklyAverage !== null && (
+              {r.baselineWeeklyAverage !== null && r.baselineWeeklyAverage > 0 && (
                 <p className="text-xs text-zinc-400">
                   Usual weekly average: {formatAverage(r.baselineWeeklyAverage)} {Number(formatAverage(r.baselineWeeklyAverage)) === 1 ? 'set' : 'sets'}, from the{' '}
                   {r.baselineWeeksUsed} {r.baselineWeeksUsed === 1 ? 'week' : 'weeks'} before the last {CURRENT_PERIOD_DAYS} days.
