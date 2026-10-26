@@ -25,6 +25,7 @@ import {
 import {
   BodyMetricEntry,
   DailyNutritionLog,
+  DailySleepLog,
   ProgressiveOverloadRecommendation,
   UserProfile,
   WorkoutPlan,
@@ -42,6 +43,8 @@ import { Badge, Button, Card, PageHeader, ProgressBar, SectionHeading } from '..
 import { AiRecoveryInsightsPanel } from './AiRecoveryInsightsPanel';
 import { MuscleMapSection } from '../recovery/MuscleMapSection';
 import { GymConsistencyStreakCalendar } from './GymConsistencyStreakCalendar';
+import { DailyScorecardSection } from './DailyScorecardSection';
+import { useLocalDayRollover } from './useLocalDayRollover';
 import { ExercisePostureModal } from '../posture/ExercisePostureModal';
 import { DynamicWarmupModal } from '../trainer/DynamicWarmupModal';
 import { DreamPhysiqueModal } from '../trainer/DreamPhysiqueModal';
@@ -55,6 +58,19 @@ interface DashboardProps {
   isDemoMode: boolean;
   onLoadDemoData: () => void;
 }
+
+/**
+ * Source records for the Daily Health Scorecard. Unlike `recentSessions` this keeps EVERY session status
+ * (the scorecard tells in-progress and abandoned sessions apart). The db getters return unvalidated parsed
+ * JSON, so anything that is not an array is treated as empty here; the scoring engine validates the records.
+ */
+const asList = <T,>(value: T[] | null | undefined): T[] => (Array.isArray(value) ? value : []);
+const loadScorecardSources = () => ({
+  sessions: asList(db.getSessions()),
+  plans: asList(db.getPlans()),
+  nutritionLogs: asList<DailyNutritionLog>(db.getNutritionLogs()),
+  sleepLogs: asList<DailySleepLog>(db.getSleepLogs())
+});
 
 export const DashboardView: React.FC<DashboardProps> = ({
   profile,
@@ -102,6 +118,17 @@ export const DashboardView: React.FC<DashboardProps> = ({
     syncedDemoMode.current = isDemoMode;
     setRecentSessions(db.getSessions().filter((s) => s.status === 'completed'));
   }, [isDemoMode]);
+
+  // Scorecard sources are read on mount and again when demo mode flips (same pattern as above).
+  const [scorecardSources, setScorecardSources] = useState(loadScorecardSources);
+  const scorecardDemoMode = useRef(isDemoMode);
+  useEffect(() => {
+    if (scorecardDemoMode.current === isDemoMode) return;
+    scorecardDemoMode.current = isDemoMode;
+    setScorecardSources(loadScorecardSources());
+  }, [isDemoMode]);
+  // Local-midnight rollover: `scorecardNow` changes (and the sources are re-read once) only when the local day changes.
+  const scorecardNow = useLocalDayRollover(() => setScorecardSources(loadScorecardSources()));
 
   // Onboarding checklist steps
   const hasProfile = Boolean(profile.name && profile.name.trim().length > 0);
@@ -399,6 +426,9 @@ export const DashboardView: React.FC<DashboardProps> = ({
           </div>
         </Card>
       )}
+
+      {/* DAILY HEALTH SCORECARD */}
+      <DailyScorecardSection {...scorecardSources} profile={profile} isDemoMode={isDemoMode} now={scorecardNow} />
 
       {/* CONSISTENCY CALENDAR */}
       <GymConsistencyStreakCalendar
