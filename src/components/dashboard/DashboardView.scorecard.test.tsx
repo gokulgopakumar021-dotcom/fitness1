@@ -321,7 +321,7 @@ describe('date navigation inside the dashboard', () => {
   });
 });
 
-describe('local midnight rollover (re-render driven: there is no timer)', () => {
+describe('local midnight rollover (picked up when the page becomes visible; the timer path is covered in DashboardView.rollover.test.tsx)', () => {
   it('when the dashboard re-renders after midnight, "today" is the new local day and yesterday is the old one', async () => {
     vi.setSystemTime(new Date(2026, 9, 26, 23, 59, 0));
     db.saveSleepLogs([sleepLog('2026-10-26', 8), sleepLog('2026-10-27', 6)]);
@@ -330,7 +330,7 @@ describe('local midnight rollover (re-render driven: there is no timer)', () => 
     expect(cardText('sleep')).toContain('8 h');
 
     vi.setSystemTime(new Date(2026, 9, 27, 0, 1, 0));
-    await rerender();
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
     expect(shownDay()).toBe('2026-10-27');
     expect(dateLabel()).toContain('Today');
     expect(cardText('sleep')).toContain('6 h');
