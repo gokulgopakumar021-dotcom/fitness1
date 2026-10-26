@@ -20,7 +20,8 @@ import {
   Trophy,
   Gauge,
   HeartPulse,
-  BatteryCharging
+  BatteryCharging,
+  History
 } from 'lucide-react';
 import {
   BodyMetricEntry,
@@ -253,6 +254,14 @@ export const DashboardView: React.FC<DashboardProps> = ({
       icon: <Eye className="w-5 h-5" />,
       onClick: () => setPostureModalExercise('Barbell Back Squat'),
       badge: <Badge tone="info">Biomechanics</Badge>
+    },
+    {
+      key: 'timeline',
+      title: 'Progress Timeline',
+      description: 'Long-term period comparisons, multi-month body composition trends, and verified exercise strength curves.',
+      icon: <History className="w-5 h-5" />,
+      onClick: () => onNavigate('timeline'),
+      badge: <Badge tone="accent">Timeline</Badge>
     }
   ];
 

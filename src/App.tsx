@@ -14,6 +14,7 @@ import { NutritionView } from './components/nutrition/NutritionView';
 import { BodyMetricsView } from './components/body/BodyMetricsView';
 import { PlansUploadView } from './components/plans/PlansUploadView';
 import { ReportsView } from './components/reports/ReportsView';
+import { ProgressTimelineView } from './components/timeline/ProgressTimelineView';
 import { SettingsView } from './components/settings/SettingsView';
 import { AiTrainerView } from './components/trainer/AiTrainerView';
 import { FloatingTrainerWidget } from './components/trainer/FloatingTrainerWidget';
@@ -169,6 +170,13 @@ export default function App() {
 
             {currentTab === 'reports' && (
               <ReportsView profile={profile} />
+            )}
+
+            {currentTab === 'timeline' && (
+              <ProgressTimelineView
+                profile={profile}
+                isDemoMode={isDemoMode}
+              />
             )}
 
             {currentTab === 'settings' && (

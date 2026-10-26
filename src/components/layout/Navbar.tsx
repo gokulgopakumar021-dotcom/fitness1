@@ -16,7 +16,8 @@ import {
   Menu,
   ChevronRight,
   Sun,
-  Moon
+  Moon,
+  History
 } from 'lucide-react';
 import { UserProfile, WorkoutSession } from '../../types';
 import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
@@ -32,6 +33,7 @@ export type NavTab =
   | 'body'
   | 'plans'
   | 'reports'
+  | 'timeline'
   | 'trainer'
   | 'settings';
 
@@ -53,6 +55,7 @@ export const NAV_ITEMS = [
   { id: 'progression' as NavTab, label: 'Overload Engine', icon: TrendingUp },
   { id: 'nutrition' as NavTab, label: 'Nutrition', icon: Apple },
   { id: 'body' as NavTab, label: 'Body & BMI', icon: Activity },
+  { id: 'timeline' as NavTab, label: 'Timeline', icon: History },
   { id: 'plans' as NavTab, label: 'Routines', icon: FileSpreadsheet },
   { id: 'reports' as NavTab, label: 'Analytics', icon: BarChart3 },
   { id: 'settings' as NavTab, label: 'Settings', icon: Settings },
@@ -67,7 +70,7 @@ const NAV_BY_ID = Object.fromEntries(NAV_ITEMS.map((i) => [i.id, i])) as Record<
 export const NAV_GROUPS: { label: string; items: NavTab[] }[] = [
   { label: 'Overview', items: ['dashboard'] },
   { label: 'Train', items: ['workouts', 'plans', 'trainer'] },
-  { label: 'Track', items: ['progression', 'nutrition', 'body', 'reports'] },
+  { label: 'Track', items: ['progression', 'nutrition', 'body', 'reports', 'timeline'] },
   { label: 'Account', items: ['settings'] },
 ];
 
@@ -80,6 +83,7 @@ const MOBILE_PRIMARY: { id: NavTab; label: string }[] = [
 ];
 
 const MOBILE_MORE: { id: NavTab; label: string; desc: string }[] = [
+  { id: 'timeline', label: 'Progress Timeline', desc: 'Long-term trends, body history & period comparisons' },
   { id: 'progression', label: 'Overload Engine', desc: 'Prescribed weight jumps & 1RM calculator' },
   { id: 'body', label: 'Body Metrics & BMI', desc: 'Smoothed weight trends and silhouette data' },
   { id: 'plans', label: 'Routines & Uploads', desc: 'Custom splits, micro-cycles and CSV import' },
