@@ -1,0 +1,80 @@
+diff --git a/src/components/recovery/MuscleDetailPanel.tsx b/src/components/recovery/MuscleDetailPanel.tsx
+index 62a376d..b8844bb 100644
+--- a/src/components/recovery/MuscleDetailPanel.tsx
++++ b/src/components/recovery/MuscleDetailPanel.tsx
+@@ -69,7 +69,7 @@ export const MuscleDetailPanel: React.FC<MuscleDetailPanelProps> = ({ summary, r
+           ) : (
+             <>
+               <p className="text-sm font-medium text-white tabular">{formatLoadSummary(r)}</p>
+-              {r.baselineWeeklyAverage !== null && (
++              {r.baselineWeeklyAverage !== null && r.baselineWeeklyAverage > 0 && (
+                 <p className="text-xs text-zinc-400">
+                   Usual weekly average: {formatAverage(r.baselineWeeklyAverage)} {Number(formatAverage(r.baselineWeeklyAverage)) === 1 ? 'set' : 'sets'}, from the{' '}
+                   {r.baselineWeeksUsed} {r.baselineWeeksUsed === 1 ? 'week' : 'weeks'} before the last {CURRENT_PERIOD_DAYS} days.
+diff --git a/src/components/recovery/MuscleMap.test.tsx b/src/components/recovery/MuscleMap.test.tsx
+index b6ea3f4..fc002fd 100644
+--- a/src/components/recovery/MuscleMap.test.tsx
++++ b/src/components/recovery/MuscleMap.test.tsx
+@@ -265,6 +265,17 @@ describe('states: empty, insufficient, sufficient, no-record, unmapped', () => {
+     expect(panel).not.toContain('usual weekly average');
+   });
+ 
++  it('no historical baseline: shows the real counts without a misleading "0 sets" average', async () => {
++    await section([...rich(), sess(day(-3), [ex('Barbell Curl', 'Arms', 3)])]);
++    expect(svgRegion('arms')!.getAttribute('data-status')).toBe('no_baseline');
++    await click(svgRegion('arms')!);
++    const panel = container.querySelector('[data-testid="muscle-detail-panel"]')!.textContent!;
++    expect(panel).toContain('No historical baseline');
++    expect(panel).toContain('3 working sets in the last 7 days · none logged in the previous 4 weeks');
++    expect(panel).not.toMatch(/usual weekly average/i);
++    expect(panel).not.toMatch(/average: 0/i);
++  });
++
+   it('sufficient history shows no banner', async () => {
+     await section(rich());
+     expect(container.querySelector('[data-testid="history-banner"]')).toBeNull();
+diff --git a/src/utils/muscleMap/trainingLoad.test.ts b/src/utils/muscleMap/trainingLoad.test.ts
+index b746032..7a0e4b5 100644
+--- a/src/utils/muscleMap/trainingLoad.test.ts
++++ b/src/utils/muscleMap/trainingLoad.test.ts
+@@ -492,6 +492,18 @@ describe('text helpers and wording', () => {
+     expect(formatLoadSummary(summary({ baselineWeeklyAverage: null }))).toBe('7 working sets in the last 7 days');
+   });
+ 
++  it('zero baseline never prints "usual weekly average: 0 sets"; it still shows the real counts', () => {
++    expect(formatLoadSummary(summary({ status: 'no_baseline', currentPeriodSets: 3, baselineWeeklyAverage: 0, baselineWeeksUsed: 4 }))).toBe(
++      '3 working sets in the last 7 days · none logged in the previous 4 weeks'
++    );
++    expect(formatLoadSummary(summary({ status: 'no_baseline', currentPeriodSets: 1, baselineWeeklyAverage: 0, baselineWeeksUsed: 1 }))).toBe(
++      '1 working set in the last 7 days · none logged in the previous week'
++    );
++    expect(formatLoadSummary(summary({ currentPeriodSets: 0, baselineWeeklyAverage: 0, baselineWeeksUsed: 3 }))).toBe(
++      '0 working sets in the last 7 days · none logged in the previous 3 weeks'
++    );
++  });
++
+   it('formats averages to at most one decimal', () => {
+     expect(formatAverage(4)).toBe('4');
+     expect(formatAverage(5.5)).toBe('5.5');
+diff --git a/src/utils/muscleMap/trainingLoad.ts b/src/utils/muscleMap/trainingLoad.ts
+index 89b962a..614689a 100644
+--- a/src/utils/muscleMap/trainingLoad.ts
++++ b/src/utils/muscleMap/trainingLoad.ts
+@@ -343,11 +343,16 @@ export function formatAverage(avg: number): string {
+   return String(Number(avg.toFixed(1)));
+ }
+ 
+-/** e.g. "7 working sets in the last 7 days · usual weekly average: 5.5 sets". Uses real values. */
++/** e.g. "7 working sets in the last 7 days · usual weekly average: 5.5 sets", or "... · none logged in the previous 4 weeks" for a zero baseline. Uses real values. */
+ export function formatLoadSummary(r: RegionTrainingSummary): string {
+   const current = `${formatCount(r.currentPeriodSets)} in the last ${CURRENT_PERIOD_DAYS} days`;
+   if (r.baselineWeeklyAverage === null) return current;
+   const avg = r.baselineWeeklyAverage;
++  if (avg === 0) {
++    // No earlier work for this region: an average of "0 sets" would read like a measured norm, so say what the counts mean.
++    const w = r.baselineWeeksUsed;
++    return `${current} · none logged in the ${w === 1 ? 'previous week' : `previous ${w} weeks`}`;
++  }
+   return `${current} · usual weekly average: ${formatAverage(avg)} ${Number(avg.toFixed(1)) === 1 ? 'set' : 'sets'}`;
+ }
+ 
