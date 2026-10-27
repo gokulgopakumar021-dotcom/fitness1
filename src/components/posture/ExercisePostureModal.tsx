@@ -20,19 +20,23 @@ import {
   getBiomechanicsForExercise
 } from '../../data/exerciseBiomechanics';
 import { UserProfile } from '../../types';
+import { ExerciseVideoSection } from '../video/ExerciseVideoSection';
 
 interface ExercisePostureModalProps {
   exerciseName: string;
   isOpen: boolean;
   onClose: () => void;
   profile?: UserProfile;
+  /** Open the exercise video section immediately (the Watch video button). */
+  openVideoFirst?: boolean;
 }
 
 export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
   exerciseName,
   isOpen,
   onClose,
-  profile
+  profile,
+  openVideoFirst = false
 }) => {
   const [data, setData] = useState<ExerciseBiomechanicsData | null>(null);
   const [activeTab, setActiveTab] = useState<'visual' | 'checkpoints' | 'mistakes' | 'tempo' | 'ai_coach'>('visual');
@@ -404,6 +408,9 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Exercise video (approved catalog videos only; keyed by the workout's own exercise name) */}
+        <ExerciseVideoSection exerciseName={exerciseName} defaultOpen={openVideoFirst} />
 
         {/* Tab Selection */}
         <div className="flex items-center gap-1 p-1 bg-surface-2 border border-line rounded-xl overflow-x-auto text-xs font-semibold scrollbar-none">

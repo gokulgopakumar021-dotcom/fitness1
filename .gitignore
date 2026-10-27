@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Video library working directory (manifests, state, temp extraction). Never commit.
+.video-library/
