@@ -17,7 +17,8 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  History
+  History,
+  Home
 } from 'lucide-react';
 import { UserProfile, WorkoutSession } from '../../types';
 import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
@@ -26,6 +27,7 @@ import { Modal } from '../ui/Modal';
 import { cn } from '../ui/cn';
 
 export type NavTab =
+  | 'home'
   | 'dashboard'
   | 'workouts'
   | 'progression'
@@ -49,6 +51,7 @@ interface HeaderProps {
 }
 
 export const NAV_ITEMS = [
+  { id: 'home' as NavTab, label: 'Home', icon: Home },
   { id: 'dashboard' as NavTab, label: 'Overview', icon: Flame },
   { id: 'workouts' as NavTab, label: 'Workouts', icon: Dumbbell },
   { id: 'trainer' as NavTab, label: 'AI Coach', icon: Bot },
@@ -68,7 +71,7 @@ const NAV_BY_ID = Object.fromEntries(NAV_ITEMS.map((i) => [i.id, i])) as Record<
 
 /** Desktop sidebar grouping. Every NavTab appears exactly once. */
 export const NAV_GROUPS: { label: string; items: NavTab[] }[] = [
-  { label: 'Overview', items: ['dashboard'] },
+  { label: 'Overview', items: ['home', 'dashboard'] },
   { label: 'Train', items: ['workouts', 'plans', 'trainer'] },
   { label: 'Track', items: ['progression', 'nutrition', 'body', 'reports', 'timeline'] },
   { label: 'Account', items: ['settings'] },
@@ -76,9 +79,9 @@ export const NAV_GROUPS: { label: string; items: NavTab[] }[] = [
 
 /** Mobile: four thumb-reach destinations (short labels) + a "More" sheet. */
 const MOBILE_PRIMARY: { id: NavTab; label: string }[] = [
+  { id: 'home', label: 'Home' },
   { id: 'dashboard', label: 'Overview' },
   { id: 'workouts', label: 'Workouts' },
-  { id: 'trainer', label: 'Coach' },
   { id: 'nutrition', label: 'Nutrition' },
 ];
 
@@ -118,9 +121,9 @@ export const TopHeader: React.FC<HeaderProps> = ({
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
-            onClick={() => onSelectTab('dashboard')}
+            onClick={() => onSelectTab('home')}
             className="flex items-center gap-2.5 select-none shrink-0"
-            aria-label="Iron Log overview"
+            aria-label="Iron Log home"
           >
             <span className="w-8 h-8 rounded-lg bg-accent text-accent-ink flex items-center justify-center text-[13px] font-extrabold tracking-tight">
               IL

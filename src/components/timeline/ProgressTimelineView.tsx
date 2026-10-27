@@ -15,7 +15,8 @@ import {
   CheckCircle2,
   Scan,
   ShieldCheck,
-  Filter
+  Filter,
+  Target
 } from 'lucide-react';
 import {
   BodyMetricEntry,
@@ -41,17 +42,21 @@ import {
 import { formatWeight, kgToLbs, calculateVolumeLoad } from '../../utils/calculations';
 import { LineChart, BarChart } from '../common/Charts';
 import { listScans } from '../../storage/bodyScanStore';
+import { NutritionConsistencyView } from './NutritionConsistencyView';
+import { NutritionGoalWizard } from '../nutrition/NutritionGoalWizard';
 
 interface ProgressTimelineViewProps {
   profile: UserProfile;
   isDemoMode?: boolean;
+  onProfileUpdated?: (p: UserProfile) => void;
 }
 
-type TimelineCategory = 'overview' | 'body' | 'workouts' | 'nutrition' | 'recovery' | 'audit';
+type TimelineCategory = 'overview' | 'body' | 'workouts' | 'nutrition' | 'consistency' | 'recovery' | 'audit';
 
 export const ProgressTimelineView: React.FC<ProgressTimelineViewProps> = ({
   profile,
-  isDemoMode = false
+  isDemoMode = false,
+  onProfileUpdated
 }) => {
   // State for date range and preset
   const [rangePreset, setRangePreset] = useState<TimeRangePreset>('30d');
@@ -59,6 +64,12 @@ export const ProgressTimelineView: React.FC<ProgressTimelineViewProps> = ({
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [showComparison, setShowComparison] = useState<boolean>(true);
   const [activeCategory, setActiveCategory] = useState<TimelineCategory>('overview');
+  const [showWizard, setShowWizard] = useState<boolean>(false);
+  const [currentProfile, setCurrentProfile] = useState<UserProfile>(profile);
+
+  useEffect(() => {
+    setCurrentProfile(profile);
+  }, [profile]);
 
   // Raw data from DB
   const [metrics, setMetrics] = useState<BodyMetricEntry[]>([]);
@@ -427,6 +438,7 @@ export const ProgressTimelineView: React.FC<ProgressTimelineViewProps> = ({
           { id: 'body' as TimelineCategory, label: 'Body Metrics', icon: Activity },
           { id: 'workouts' as TimelineCategory, label: 'Workouts & Strength', icon: Dumbbell },
           { id: 'nutrition' as TimelineCategory, label: 'Nutrition Trends', icon: Apple },
+          { id: 'consistency' as TimelineCategory, label: 'Nutrition Consistency', icon: Target },
           { id: 'recovery' as TimelineCategory, label: 'Sleep & Recovery', icon: Moon },
           { id: 'audit' as TimelineCategory, label: 'Data Audit & Body Scan', icon: ShieldCheck },
         ].map((tab) => {
@@ -895,13 +907,47 @@ export const ProgressTimelineView: React.FC<ProgressTimelineViewProps> = ({
                     Note: Unlogged days are not assumed to be zero calorie intake and are excluded from averages to prevent artificial depression of intake stats.
                   </p>
                 </div>
+
+                {/* Direct Link to Nutrition Consistency Analysis */}
+                <div className="p-4 rounded-xl bg-gradient-to-r from-[var(--chip-bg)] to-[var(--bg-canvas)] border border-[var(--border-card)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-volt-adaptive/10 border border-volt-adaptive/30 flex items-center justify-center shrink-0">
+                      <Target className="w-5 h-5 text-volt-adaptive" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-[var(--text-primary)]">
+                        Evaluate Nutrition Consistency (±10% Target Band)
+                      </h4>
+                      <p className="text-[11px] text-[var(--text-secondary)]">
+                        Calculate what percentage of recorded days your calories and macros remained within a 10% variance of wizard targets.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveCategory('consistency')}
+                    className="px-3.5 py-1.5 text-xs font-mono font-bold rounded-lg bg-[#CEFF00] text-black hover:bg-[#CEFF00]/90 transition-colors shrink-0 shadow-sm"
+                  >
+                    View Consistency Analysis →
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Tab 5: Sleep & Recovery Detailed View */}
+      {/* Tab 5: Nutrition Consistency Detailed View */}
+      {activeCategory === 'consistency' && (
+        <NutritionConsistencyView
+          logs={nutritionLogs}
+          profile={currentProfile}
+          dateRange={dateRange}
+          onOpenWizard={() => setShowWizard(true)}
+        />
+      )}
+
+      {/* Tab 6: Sleep & Recovery Detailed View */}
       {activeCategory === 'recovery' && (
         <div className="space-y-6">
           <div className="reshape-card p-5 space-y-5">
@@ -1039,6 +1085,24 @@ export const ProgressTimelineView: React.FC<ProgressTimelineViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Target Wizard Modal from Consistency View */}
+      {showWizard && (
+        <NutritionGoalWizard
+          isOpen={showWizard}
+          onClose={() => setShowWizard(false)}
+          profile={currentProfile}
+          onTargetsUpdated={(updatedProfile, updatedLog) => {
+            setCurrentProfile(updatedProfile);
+            if (onProfileUpdated) {
+              onProfileUpdated(updatedProfile);
+            }
+            if (updatedLog) {
+              setNutritionLogs(db.getNutritionLogs());
+            }
+          }}
+        />
       )}
     </div>
   );

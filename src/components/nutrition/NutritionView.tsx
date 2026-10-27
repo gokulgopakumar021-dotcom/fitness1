@@ -32,7 +32,9 @@ import { resolveDiaryTargets, targetSourceCaption } from '../../utils/nutritionT
 import { BarcodeScanner } from './BarcodeScanner';
 import { NutritionGoalWizard } from './NutritionGoalWizard';
 import { NutritionGoalGauge } from './NutritionGoalGauge';
+import { WaterIntakeLogger } from './WaterIntakeLogger';
 import { MacroTargetWizardModal } from './MacroTargetWizardModal';
+import { calculateHydrationGoal } from '../../utils/calculations';
 
 interface NutritionViewProps {
   profile: UserProfile;
@@ -557,6 +559,16 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile, onProfile
         targetFat={fatTarget}
         profile={profile}
         onOpenWizard={() => setIsWizardOpen(true)}
+      />
+
+      {/* ONE-TAP WATER INTAKE & HYDRATION GOAL LOGGER */}
+      <WaterIntakeLogger
+        waterMl={currentLog.waterMl || 0}
+        onUpdateWater={(newWater) => {
+          const updated = { ...currentLog, waterMl: newWater };
+          saveLog(updated);
+        }}
+        profile={profile}
       />
 
       {/* MEALS LIST BY CATEGORY */}

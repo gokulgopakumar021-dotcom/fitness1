@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  calculateMacroBreakdown
+  calculateMacroBreakdown,
+  calculateHydrationGoal
 } from '../utils/calculations';
 import {
   calculateDetailedTDEE,
@@ -284,6 +285,47 @@ describe('Nutrition & Macro Calculation Logic', () => {
 
       expect(proPercent).toBe(80);
       expect(proRemaining).toBe(35);
+    });
+  });
+
+  describe('Hydration Goal & Water Tracking Calculations', () => {
+    it('calculates personalized daily hydration goal from weight and training frequency', () => {
+      // 80kg athlete, 4 training days -> 80 * 35 = 2800ml + 650ml = 3450ml
+      const hydration = calculateHydrationGoal(80, 4);
+      expect(hydration.baselineMl).toBe(2800);
+      expect(hydration.activityBonusMl).toBe(650);
+      expect(hydration.dailyGoalMl).toBe(3450);
+      expect(hydration.dailyGoalOz).toBe(Math.round(3450 * 0.033814));
+    });
+
+    it('scales hydration replenishment with higher activity levels', () => {
+      // 75kg athlete, very_active (900ml bonus) -> 75 * 35 = 2625ml + 900ml = 3525ml -> rounded to 3550ml
+      const hydration = calculateHydrationGoal(75, 5, 'very_active');
+      expect(hydration.baselineMl).toBe(2625);
+      expect(hydration.activityBonusMl).toBe(900);
+      expect(hydration.dailyGoalMl).toBe(3550);
+    });
+
+    it('enforces safety physiological floor of at least 2,000 ml', () => {
+      // 45kg athlete, sedentary (250ml bonus) -> 45 * 35 = 1575ml + 250ml = 1825ml -> clamped to 2000ml floor
+      const hydration = calculateHydrationGoal(45, 1, 'sedentary');
+      expect(hydration.dailyGoalMl).toBe(2000);
+    });
+
+    it('accurately computes one-tap water intake progress and remaining amounts', () => {
+      const goalMl = 3200;
+      const loggedWaterMl = 2400;
+      const progressPercent = Math.min(100, Math.round((loggedWaterMl / goalMl) * 100));
+      const remainingMl = Math.max(0, goalMl - loggedWaterMl);
+
+      expect(progressPercent).toBe(75);
+      expect(remainingMl).toBe(800);
+
+      // When goal is exceeded
+      const overWaterMl = 3600;
+      const overRemaining = Math.max(0, goalMl - overWaterMl);
+      expect(overRemaining).toBe(0);
+      expect(overWaterMl >= goalMl).toBe(true);
     });
   });
 });

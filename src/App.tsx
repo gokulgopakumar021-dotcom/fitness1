@@ -7,6 +7,7 @@ import {
   MobileBottomNav,
   NavTab
 } from './components/layout/Navbar';
+import { HomeView } from './components/home/HomeView';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { WorkoutSessionTracker } from './components/workouts/WorkoutSessionTracker';
 import { ProgressionView } from './components/progression/ProgressionView';
@@ -26,7 +27,7 @@ import { AuthGate } from './components/auth/AuthGate';
 
 /** The private application. Only ever mounted by AuthGate, after storage is scoped to the signed-in account. */
 function AppShell() {
-  const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
+  const [currentTab, setCurrentTab] = useState<NavTab>('home');
   const [profile, setProfile] = useState<UserProfile>(() => db.getProfile());
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(() =>
     db.getActiveSession()
@@ -113,6 +114,18 @@ function AppShell() {
             tabIndex={-1}
             className="flex-1 px-4 sm:px-6 lg:px-8 pt-5 lg:pt-7 min-w-0 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-12 overflow-x-hidden outline-none"
           >
+            {currentTab === 'home' && (
+              <HomeView
+                profile={profile}
+                activeSession={activeSession}
+                onNavigate={setCurrentTab}
+                onResumeActiveSession={handleResumeActiveSession}
+                isDemoMode={isDemoMode}
+                onLoadDemoData={handleLoadDemoData}
+                onClearDemoData={handleClearDemoData}
+              />
+            )}
+
             {currentTab === 'dashboard' && (
               <DashboardView
                 profile={profile}
@@ -167,6 +180,10 @@ function AppShell() {
                   // Refresh active session or prompt
                 }}
                 onNavigateToProgression={handleNavigateToProgressionWithPlan}
+                onStartWorkout={(session) => {
+                  setActiveSession(session);
+                  setCurrentTab('workouts');
+                }}
               />
             )}
 
@@ -178,6 +195,7 @@ function AppShell() {
               <ProgressTimelineView
                 profile={profile}
                 isDemoMode={isDemoMode}
+                onProfileUpdated={setProfile}
               />
             )}
 

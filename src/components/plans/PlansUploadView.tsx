@@ -27,24 +27,30 @@ import {
   UploadedDoc,
   UserProfile,
   WorkoutDay,
-  WorkoutPlan
+  WorkoutPlan,
+  WorkoutSession
 } from '../../types';
 import { db } from '../../storage/db';
+import { AiRoutineBuilderModal } from './AiRoutineBuilderModal';
 
-interface PlansUploadProps {
+export interface PlansUploadProps {
   profile: UserProfile;
   onPlanActivated: (planId: string) => void;
   onNavigateToProgression?: (planId: string) => void;
+  onStartWorkout?: (session: WorkoutSession) => void;
 }
 
 export const PlansUploadView: React.FC<PlansUploadProps> = ({
   profile,
   onPlanActivated,
-  onNavigateToProgression
+  onNavigateToProgression,
+  onStartWorkout
 }) => {
   const [plans, setPlans] = useState<WorkoutPlan[]>([]);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>([]);
+  const [isAiBuilderOpen, setIsAiBuilderOpen] = useState<boolean>(false);
+  const [allSessions, setAllSessions] = useState<WorkoutSession[]>(() => db.getSessions());
 
   // Active view: 'plans_list' | 'upload_file' | 'review_extracted' | 'manual_builder'
   const [subView, setSubView] = useState<
@@ -904,7 +910,16 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsAiBuilderOpen(true)}
+              className="min-h-[44px] px-4 py-2.5 bg-accent/15 hover:bg-accent/25 text-accent text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all border border-accent/40 shadow-sm"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>AI Routine Builder</span>
+            </button>
+
             <button
               onClick={() => setSubView('manual_builder')}
               className="min-h-[44px] px-4 py-2.5 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] text-[var(--text-primary)] text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors border border-[var(--border-card)]"
@@ -928,6 +943,36 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
               className="hidden"
             />
           </div>
+        </div>
+
+        {/* AI Routine Builder Spotlight Banner */}
+        <div className="mt-5 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-accent/10 via-surface-2 to-surface-2 border border-accent/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-accent text-zinc-950 flex items-center justify-center shrink-0 shadow-lg shadow-accent/20">
+              <Sparkles className="w-5 h-5 text-zinc-950" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold font-mono text-zinc-100">
+                  AI Muscle Heatmap &amp; Gear-Adaptive Routine Builder
+                </h3>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-accent/20 text-accent font-bold">
+                  HEATMAP ADAPTIVE
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 mt-0.5 max-w-xl">
+                Automatically scans your logged 7-day muscle fatigue heatmap to target fresh muscle groups, protect recovering stabilizers, and filter exercises exclusively to your available equipment inventory.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsAiBuilderOpen(true)}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-accent hover:brightness-110 text-zinc-950 font-mono font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 shrink-0"
+          >
+            <span>Launch AI Builder</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
 
         {/* Processing State */}
@@ -1106,6 +1151,25 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
           </div>
         </div>
       )}
+
+      {/* AI Muscle Heatmap & Gear-Adaptive Routine Builder Modal */}
+      <AiRoutineBuilderModal
+        isOpen={isAiBuilderOpen}
+        onClose={() => setIsAiBuilderOpen(false)}
+        profile={profile}
+        sessions={allSessions}
+        onStartWorkout={(session) => {
+          setIsAiBuilderOpen(false);
+          if (onStartWorkout) {
+            onStartWorkout(session);
+          }
+        }}
+        onPlanSaved={(newPlan) => {
+          setPlans(db.getPlans());
+          setActivePlanId(newPlan.id);
+          onPlanActivated(newPlan.id);
+        }}
+      />
     </div>
   );
 };

@@ -44,9 +44,16 @@ const Probe: React.FC = () => {
 const emit = async (event: string, s: unknown) => {
   await act(async () => { h.listeners.forEach((cb) => cb(event, s)); });
 };
-const mountApp = async (children: React.ReactNode = <Probe />) => {
+const mountApp = async (
+  children: React.ReactNode = <Probe />,
+  initialUnauthScreen: 'home' | 'signin' | 'signup' = 'signin'
+) => {
   await act(async () => {
-    root.render(<AuthProvider><AuthGate>{children}</AuthGate></AuthProvider>);
+    root.render(
+      <AuthProvider>
+        <AuthGate initialUnauthScreen={initialUnauthScreen}>{children}</AuthGate>
+      </AuthProvider>
+    );
   });
 };
 const text = () => container.textContent ?? '';
@@ -338,3 +345,73 @@ describe('sign out, account switching and stale state', () => {
     expect(text()).toContain('Welcome back');
   });
 });
+
+describe('homepage before sign in and sign up', () => {
+  it('defaults to rendering the homepage before auth screens when unauthenticated', async () => {
+    // Mount without initialUnauthScreen override so it exercises default 'home'
+    await act(async () => {
+      root.render(
+        <AuthProvider>
+          <AuthGate>
+            <Probe />
+          </AuthGate>
+        </AuthProvider>
+      );
+    });
+    await emit('INITIAL_SESSION', null);
+
+    // Verifies homepage content is rendered first
+    expect(text()).toContain('IRON LOG');
+    expect(text()).toContain('OS v2.4');
+    expect(text()).toContain('Precision Training');
+    expect(text()).toContain('THE 8 CORE ATHLETIC ENGINES');
+    expect(q('[data-testid="private"]')).toBeNull();
+  });
+
+  it('navigates from homepage to sign in and allows returning to homepage', async () => {
+    await act(async () => {
+      root.render(
+        <AuthProvider>
+          <AuthGate>
+            <Probe />
+          </AuthGate>
+        </AuthProvider>
+      );
+    });
+    await emit('INITIAL_SESSION', null);
+
+    // Click Sign In on the homepage
+    await click('Sign in');
+    expect(text()).toContain('Welcome back');
+    expect(text()).toContain('Sign in to your Iron Log account');
+
+    // Click Back to Homepage
+    await click('Back to Homepage');
+    expect(text()).toContain('Precision Training');
+    expect(text()).toContain('THE 8 CORE ATHLETIC ENGINES');
+  });
+
+  it('navigates from homepage to sign up and allows returning to homepage', async () => {
+    await act(async () => {
+      root.render(
+        <AuthProvider>
+          <AuthGate>
+            <Probe />
+          </AuthGate>
+        </AuthProvider>
+      );
+    });
+    await emit('INITIAL_SESSION', null);
+
+    // Click Create account on the homepage
+    await click('Create account');
+    expect(text()).toContain('Create your account');
+    expect(text()).toContain('Track training, nutrition and progress');
+
+    // Click Back to Homepage
+    await click('Back to Homepage');
+    expect(text()).toContain('Precision Training');
+    expect(text()).toContain('THE 8 CORE ATHLETIC ENGINES');
+  });
+});
+

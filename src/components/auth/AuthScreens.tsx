@@ -1,5 +1,5 @@
 import React, { useId, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Dumbbell, Eye, EyeOff, Loader2, MailCheck } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Dumbbell, Eye, EyeOff, Loader2, MailCheck } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -13,14 +13,33 @@ import {
 
 /* ---------- layout ---------- */
 
-const AuthLayout: React.FC<{ title: string; subtitle?: string; children: React.ReactNode }> = ({ title, subtitle, children }) => (
+const AuthLayout: React.FC<{
+  title: string;
+  subtitle?: string;
+  onBackToHome?: () => void;
+  children: React.ReactNode;
+}> = ({ title, subtitle, onBackToHome, children }) => (
   <div className="min-h-dvh bg-[var(--bg-canvas)] text-[var(--text-primary)] font-sans flex items-center justify-center px-4 py-10">
     <main className="w-full max-w-md">
-      <div className="flex items-center gap-2 mb-6 justify-center text-accent">
-        <Dumbbell className="w-6 h-6" aria-hidden />
-        <span className="font-mono font-bold tracking-widest text-sm">IRON LOG</span>
+      <div className="flex items-center justify-between mb-6 px-1">
+        {onBackToHome ? (
+          <button
+            type="button"
+            onClick={onBackToHome}
+            className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-zinc-400 hover:text-accent transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" aria-hidden />
+            <span>BACK TO HOME</span>
+          </button>
+        ) : (
+          <div />
+        )}
+        <div className="flex items-center gap-2 text-accent">
+          <Dumbbell className="w-5 h-5" aria-hidden />
+          <span className="font-mono font-bold tracking-widest text-xs">IRON LOG</span>
+        </div>
       </div>
-      <div className="bg-surface border border-line rounded-2xl p-5 sm:p-7">
+      <div className="bg-surface border border-line rounded-2xl p-5 sm:p-7 shadow-xl">
         <h1 className="text-xl font-bold text-zinc-100">{title}</h1>
         {subtitle && <p className="text-sm text-zinc-400 mt-1">{subtitle}</p>}
         <div className="mt-5">{children}</div>
@@ -144,26 +163,75 @@ function useSubmitGuard() {
 
 type Mode = 'signin' | 'signup' | 'forgot' | 'verify' | 'reset-sent';
 
-export const AuthScreen: React.FC = () => {
-  const [mode, setMode] = useState<Mode>('signin');
+export interface AuthScreenProps {
+  initialMode?: Mode;
+  onBackToHome?: () => void;
+}
+
+export const AuthScreen: React.FC<AuthScreenProps> = ({
+  initialMode = 'signin',
+  onBackToHome
+}) => {
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState('');
   const { callbackError, clearCallbackError } = useAuth();
   const go = (m: Mode) => { clearCallbackError(); setMode(m); };
 
   return (
     <>
-      {mode === 'signin' && <SignInForm email={email} setEmail={setEmail} go={go} callbackError={callbackError} />}
-      {mode === 'signup' && <SignUpForm email={email} setEmail={setEmail} go={go} />}
-      {mode === 'forgot' && <ForgotForm email={email} setEmail={setEmail} go={go} callbackError={callbackError} />}
-      {mode === 'verify' && <VerifyNotice email={email} go={go} />}
-      {mode === 'reset-sent' && <ResetSentNotice email={email} go={go} />}
+      {mode === 'signin' && (
+        <SignInForm
+          email={email}
+          setEmail={setEmail}
+          go={go}
+          callbackError={callbackError}
+          onBackToHome={onBackToHome}
+        />
+      )}
+      {mode === 'signup' && (
+        <SignUpForm
+          email={email}
+          setEmail={setEmail}
+          go={go}
+          onBackToHome={onBackToHome}
+        />
+      )}
+      {mode === 'forgot' && (
+        <ForgotForm
+          email={email}
+          setEmail={setEmail}
+          go={go}
+          callbackError={callbackError}
+          onBackToHome={onBackToHome}
+        />
+      )}
+      {mode === 'verify' && (
+        <VerifyNotice
+          email={email}
+          go={go}
+          onBackToHome={onBackToHome}
+        />
+      )}
+      {mode === 'reset-sent' && (
+        <ResetSentNotice
+          email={email}
+          go={go}
+          onBackToHome={onBackToHome}
+        />
+      )}
     </>
   );
 };
 
-interface FormProps { email: string; setEmail: (v: string) => void; go: (m: Mode) => void; callbackError?: string | null }
+interface FormProps {
+  email: string;
+  setEmail: (v: string) => void;
+  go: (m: Mode) => void;
+  callbackError?: string | null;
+  onBackToHome?: () => void;
+}
 
-const SignInForm: React.FC<FormProps> = ({ email, setEmail, go, callbackError }) => {
+const SignInForm: React.FC<FormProps> = ({ email, setEmail, go, callbackError, onBackToHome }) => {
   const { signIn, resendVerification } = useAuth();
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
@@ -195,7 +263,7 @@ const SignInForm: React.FC<FormProps> = ({ email, setEmail, go, callbackError })
   });
 
   return (
-    <AuthLayout title="Welcome back" subtitle="Sign in to your Iron Log account.">
+    <AuthLayout title="Welcome back" subtitle="Sign in to your Iron Log account." onBackToHome={onBackToHome}>
       <form onSubmit={submit} noValidate className="space-y-4" aria-busy={busy}>
         <FormError message={callbackError ?? formError} />
         <Field label="Email" type="email" value={email} onChange={setEmail} error={errors.email} autoComplete="email" disabled={busy} autoFocus />
@@ -211,11 +279,22 @@ const SignInForm: React.FC<FormProps> = ({ email, setEmail, go, callbackError })
         <LinkButton onClick={() => go('forgot')}>Forgot password?</LinkButton>
         <span>New here? <LinkButton onClick={() => go('signup')}>Create account</LinkButton></span>
       </div>
+      {onBackToHome && (
+        <div className="mt-4 pt-4 border-t border-line/60 text-center">
+          <button
+            type="button"
+            onClick={onBackToHome}
+            className="text-xs font-mono text-zinc-400 hover:text-accent transition-colors"
+          >
+            ← Back to Homepage
+          </button>
+        </div>
+      )}
     </AuthLayout>
   );
 };
 
-const SignUpForm: React.FC<FormProps> = ({ email, setEmail, go }) => {
+const SignUpForm: React.FC<FormProps> = ({ email, setEmail, go, onBackToHome }) => {
   const { signUp } = useAuth();
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
@@ -239,7 +318,7 @@ const SignUpForm: React.FC<FormProps> = ({ email, setEmail, go }) => {
   };
 
   return (
-    <AuthLayout title="Create your account" subtitle="Track training, nutrition and progress.">
+    <AuthLayout title="Create your account" subtitle="Track training, nutrition and progress." onBackToHome={onBackToHome}>
       <form onSubmit={submit} noValidate className="space-y-4" aria-busy={busy}>
         <FormError message={formError} />
         <Field label="Full name" value={fullName} onChange={setFullName} error={errors.fullName} autoComplete="name" disabled={busy} autoFocus />
@@ -250,11 +329,22 @@ const SignUpForm: React.FC<FormProps> = ({ email, setEmail, go }) => {
         <Button type="submit" fullWidth loading={busy}>Create account</Button>
       </form>
       <p className="mt-5 text-sm text-zinc-400 text-center">Already have an account? <LinkButton onClick={() => go('signin')}>Sign in</LinkButton></p>
+      {onBackToHome && (
+        <div className="mt-4 pt-4 border-t border-line/60 text-center">
+          <button
+            type="button"
+            onClick={onBackToHome}
+            className="text-xs font-mono text-zinc-400 hover:text-accent transition-colors"
+          >
+            ← Back to Homepage
+          </button>
+        </div>
+      )}
     </AuthLayout>
   );
 };
 
-const VerifyNotice: React.FC<{ email: string; go: (m: Mode) => void }> = ({ email, go }) => {
+const VerifyNotice: React.FC<{ email: string; go: (m: Mode) => void; onBackToHome?: () => void }> = ({ email, go, onBackToHome }) => {
   const { resendVerification } = useAuth();
   const [state, setState] = useState<'idle' | 'sent'>('idle');
   const [err, setErr] = useState<string | null>(null);
@@ -265,7 +355,7 @@ const VerifyNotice: React.FC<{ email: string; go: (m: Mode) => void }> = ({ emai
     if (r.ok) setState('sent'); else setErr(r.error ?? 'Could not resend.');
   });
   return (
-    <AuthLayout title="Check your email">
+    <AuthLayout title="Check your email" onBackToHome={onBackToHome}>
       <div className="flex gap-3 text-sm text-zinc-300">
         <MailCheck className="w-5 h-5 text-accent shrink-0" aria-hidden />
         <p>If <span className="font-semibold text-zinc-100">{email}</span> can be registered, we've sent a confirmation link. Open it to verify your address, then sign in. Check spam if it doesn't arrive.</p>
@@ -280,7 +370,7 @@ const VerifyNotice: React.FC<{ email: string; go: (m: Mode) => void }> = ({ emai
   );
 };
 
-const ForgotForm: React.FC<FormProps> = ({ email, setEmail, go, callbackError }) => {
+const ForgotForm: React.FC<FormProps> = ({ email, setEmail, go, callbackError, onBackToHome }) => {
   const { requestPasswordReset } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -296,7 +386,7 @@ const ForgotForm: React.FC<FormProps> = ({ email, setEmail, go, callbackError })
     });
   };
   return (
-    <AuthLayout title="Reset your password" subtitle="We'll email you a link to choose a new one.">
+    <AuthLayout title="Reset your password" subtitle="We'll email you a link to choose a new one." onBackToHome={onBackToHome}>
       <form onSubmit={submit} noValidate className="space-y-4" aria-busy={busy}>
         <FormError message={callbackError ?? formError} />
         <Field label="Email" type="email" value={email} onChange={setEmail} error={error} autoComplete="email" disabled={busy} autoFocus />
@@ -307,8 +397,8 @@ const ForgotForm: React.FC<FormProps> = ({ email, setEmail, go, callbackError })
   );
 };
 
-const ResetSentNotice: React.FC<{ email: string; go: (m: Mode) => void }> = ({ email, go }) => (
-  <AuthLayout title="Check your email">
+const ResetSentNotice: React.FC<{ email: string; go: (m: Mode) => void; onBackToHome?: () => void }> = ({ email, go, onBackToHome }) => (
+  <AuthLayout title="Check your email" onBackToHome={onBackToHome}>
     <div className="flex gap-3 text-sm text-zinc-300">
       <MailCheck className="w-5 h-5 text-accent shrink-0" aria-hidden />
       <p>If an account exists for <span className="font-semibold text-zinc-100">{email}</span>, a password-reset link is on its way. Open it in this same browser.</p>

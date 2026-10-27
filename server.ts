@@ -268,6 +268,152 @@ Respond strictly with valid JSON matching:
   }
 });
 
+// AI Feature: Muscle Fatigue Heatmap & Equipment-Adaptive Routine Builder
+app.post('/api/generate-ai-routine', async (req, res) => {
+  const {
+    muscleRecoveryData,
+    availableEquipment,
+    recentEquipmentUsed,
+    equipmentNotes,
+    trainingSplitFocus,
+    sessionDurationMinutes,
+    targetExerciseCount,
+    experienceLevel,
+    primaryGoal,
+    injuriesOrDeload
+  } = req.body;
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({
+      success: false,
+      error: 'GEMINI_API_KEY is not configured on the server. Using deterministic adaptive engine.'
+    });
+  }
+
+  try {
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build'
+        }
+      }
+    });
+
+    const muscleBreakdown = Array.isArray(muscleRecoveryData)
+      ? muscleRecoveryData
+          .map((m: any) => `- ${m.label || m.regionId}: ${m.recoveryStatus || 'recovered'} (${m.setsPast7Days ?? 0} working sets in past 7d, last trained ${m.daysSinceLastTrained !== null && m.daysSinceLastTrained !== undefined ? `${m.daysSinceLastTrained}d ago` : 'not recently'}). Recommendation: ${m.recommendation || 'evaluate'}`)
+          .join('\n')
+      : 'No detailed muscle heatmap data available.';
+
+    const gearList = Array.isArray(availableEquipment) && availableEquipment.length > 0
+      ? availableEquipment.join(', ')
+      : 'Barbell, Dumbbell, Machine, Cable, Bodyweight';
+
+    const recentGear = Array.isArray(recentEquipmentUsed) && recentEquipmentUsed.length > 0
+      ? recentEquipmentUsed.join(', ')
+      : 'None recorded';
+
+    const prompt = `You are an elite strength-and-conditioning specialist, exercise physiologist, and master programmer.
+Design an evidence-based, highly customized workout session based directly on this athlete's logged muscle fatigue heatmap and their equipment inventory.
+
+ATHLETE RECOVERY HEATMAP (LOGGED REAL-WORLD WORKLOAD):
+${muscleBreakdown}
+
+EQUIPMENT SPECIFICATIONS:
+- Currently Available Equipment: ${gearList}
+- Equipment Recently Used in Logs: ${recentGear}
+- Equipment Constraints / Notes: ${equipmentNotes || 'None'}
+
+SESSION PARAMETERS:
+- Requested Split Focus: ${trainingSplitFocus || 'Auto-Optimized for Fresh Muscles'}
+- Session Duration: ~${sessionDurationMinutes || 55} minutes
+- Target Exercise Count: ${targetExerciseCount || (sessionDurationMinutes && sessionDurationMinutes <= 40 ? 4 : 5-6)} exercises
+- Experience Level: ${experienceLevel || 'Intermediate'}
+- Primary Goal: ${primaryGoal || 'Hypertrophy & Strength'}
+- Special Limitations / Deload: ${injuriesOrDeload || 'None'}
+
+CRITICAL PROGRAMMING INSTRUCTIONS:
+1. MUSCLE RECOVERY PRIORITY:
+   - Prioritize fresh / under-trained muscle regions (low 7-day sets, >72h rest) with heavy compound loading and high mechanical tension.
+   - Rest, deload, or minimize compound strain on fatigued / recovering muscle regions (high 7-day sets or trained in the past 24-48 hours).
+2. EQUIPMENT COMPLIANCE:
+   - ONLY select exercises that utilize the athlete's Available Equipment: [${gearList}]. Do NOT prescribe exercises for equipment that is not available.
+3. BIOMECHANICAL RATIONALE:
+   - For every single exercise, write a clear, 1-2 sentence "fatigueRationale" explaining why this movement is optimal given their current muscle recovery state and equipment.
+4. SUBSTITUTE EXERCISES:
+   - Provide 2 alternative exercises matching available equipment if the primary station is occupied in the gym.
+
+Return STRICTLY a JSON object matching this schema:
+{
+  "routineName": "string (e.g. Adaptive Push: Chest & Medial Delts)",
+  "targetSplit": "string",
+  "durationMinutes": number,
+  "summaryRationale": "string (2-3 sentences explaining the overarching periodization strategy connecting the muscle heatmap to today's exercise choices)",
+  "targetedMuscles": ["string (e.g. Chest, Shoulders, Arms)"],
+  "restedMuscles": ["string (e.g. Lower Back, Hamstrings)"],
+  "exercises": [
+    {
+      "name": "string (standard exercise name)",
+      "muscleGroup": "string (Chest, Back, Quads, Hamstrings, Shoulders, Arms, Calves, Core)",
+      "muscleRegionId": "string (chest, back, shoulders, arms, core, quadriceps, hamstrings_glutes, calves)",
+      "equipment": "string (barbell, dumbbell, machine, cable, bodyweight)",
+      "workingSets": number (typically 2-4),
+      "repRange": "string (e.g. 6-8, 8-12, 10-15)",
+      "targetRir": number (typically 1-3),
+      "restSeconds": number (typically 60-150),
+      "tempo": "string (e.g. 3-0-1-0)",
+      "notes": "string (technical execution cues)",
+      "fatigueRationale": "string (why chosen relative to muscle recovery heatmap and available gear)",
+      "substitutes": [
+        {
+          "name": "string",
+          "equipment": "string",
+          "reason": "string"
+        }
+      ]
+    }
+  ]
+}`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.3
+      }
+    });
+
+    const responseText = response.text || '';
+    let parsedData;
+    try {
+      parsedData = JSON.parse(responseText);
+    } catch {
+      const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      parsedData = JSON.parse(cleaned);
+    }
+
+    return res.json({
+      success: true,
+      routine: {
+        ...parsedData,
+        id: `routine-ai-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        isAiGenerated: true,
+        equipmentUsed: Array.from(new Set(parsedData.exercises?.map((e: any) => e.equipment) || []))
+      }
+    });
+  } catch (error: any) {
+    console.error('AI Routine generation error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to generate adaptive AI routine'
+    });
+  }
+});
+
 // --- Open Food Facts Barcode Lookup with In-Memory Cache & Compliant User-Agent ---
 interface CachedBarcodeEntry {
   timestamp: number;

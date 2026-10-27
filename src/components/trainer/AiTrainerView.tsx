@@ -24,6 +24,8 @@ import { ExercisePostureModal } from '../posture/ExercisePostureModal';
 import { DynamicWarmupModal } from './DynamicWarmupModal';
 import { DreamPhysiqueModal } from './DreamPhysiqueModal';
 import { AdaptiveReviewModal } from './AdaptiveReviewModal';
+import { AiRoutineBuilderModal } from '../plans/AiRoutineBuilderModal';
+import { db } from '../../storage/db';
 import { NavTab } from '../layout/Navbar';
 
 interface ChatMessage {

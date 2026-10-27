@@ -247,3 +247,69 @@ export function calculateMacroBreakdown(
   };
 }
 
+export interface HydrationGoalResult {
+  dailyGoalMl: number;
+  dailyGoalOz: number;
+  baselineMl: number;
+  activityBonusMl: number;
+  formulaDescription: string;
+}
+
+/**
+ * Calculates daily hydration requirement based on body mass and activity intensity:
+ * - Baseline: 35 ml per kg bodyweight (standard sports medicine baseline)
+ * - Activity Replenishment: scales with training frequency and physical workload
+ * - Enforces minimum 2,000 ml safety baseline
+ */
+export function calculateHydrationGoal(
+  weightKg: number,
+  trainingDaysPerWeek: number = 4,
+  activityLevel?: string
+): HydrationGoalResult {
+  const safeWeight = Math.max(40, weightKg || 75);
+  const baselineMl = Math.round(safeWeight * 35);
+
+  let activityBonusMl = 650; // default moderate
+  if (activityLevel) {
+    switch (activityLevel) {
+      case 'sedentary':
+        activityBonusMl = 250;
+        break;
+      case 'light':
+        activityBonusMl = 450;
+        break;
+      case 'moderate':
+        activityBonusMl = 650;
+        break;
+      case 'very_active':
+        activityBonusMl = 900;
+        break;
+      case 'extra_active':
+        activityBonusMl = 1200;
+        break;
+      default:
+        activityBonusMl = 650;
+    }
+  } else {
+    if (trainingDaysPerWeek <= 2) activityBonusMl = 300;
+    else if (trainingDaysPerWeek <= 3) activityBonusMl = 450;
+    else if (trainingDaysPerWeek <= 5) activityBonusMl = 650;
+    else if (trainingDaysPerWeek === 6) activityBonusMl = 900;
+    else activityBonusMl = 1200;
+  }
+
+  const rawGoal = baselineMl + activityBonusMl;
+  // Round to nearest 50 ml
+  const dailyGoalMl = Math.max(2000, Math.round(rawGoal / 50) * 50);
+  const dailyGoalOz = Math.round(dailyGoalMl * 0.033814);
+
+  return {
+    dailyGoalMl,
+    dailyGoalOz,
+    baselineMl,
+    activityBonusMl,
+    formulaDescription: `${safeWeight}kg × 35ml baseline (${baselineMl}ml) + ${activityBonusMl}ml training replenishment`
+  };
+}
+
+
