@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ManifestRecord } from '../../src/types/video';
 import { AGREED_UNMATCHED_TITLES, agreedManifest, makeRecord, parseCsv, sha, toJsonl } from './manifestFixture.testutil';
-import { buildSample, EXPECTED_SAMPLE, runSample, SAMPLE_PLAN_HEADER, SampleDiscrepancyError } from './sample';
+import { buildSample, EXPECTED_SAMPLE, runSample, SAMPLE_PLAN_HEADER, SampleDiscrepancyError, UNMATCHED_PATH_CANDIDATES } from './sample';
 import { validateSampleText } from './sampleFile';
 
 const discrepancies = (records: ManifestRecord[]): string[] => {
@@ -83,9 +83,45 @@ describe('buildSample: stops with a discrepancy report instead of substituting',
     expect(discrepancies(seven).join('\n')).toContain('expected 8 needs_review video(s), the manifest has 7');
   });
 
+  it('resolves known duplicate basenames only when exact permitted paths and the agreed byte total identify one selection', () => {
+    const titles: readonly string[] = EXPECTED_SAMPLE.unmatchedTitles;
+    const records = agreedManifest().map((r) => {
+      if (!titles.includes(r.title) || r.title === 'Weighted Standing Curl (weights or lever)') return r;
+      const paths = UNMATCHED_PATH_CANDIDATES[r.title];
+      return { ...r, entryName: paths[0] };
+    });
+    let n = 2000;
+    for (const title of titles) {
+      if (title === 'Weighted Standing Curl (weights or lever)') continue;
+      const paths = UNMATCHED_PATH_CANDIDATES[title];
+      const base = records.find((r) => r.title === title)!;
+      records.push({ ...base, entryIndex: ++n, entryName: paths[1], sha256: sha(n), sizeBytes: (base.sizeBytes ?? 0) + 1 });
+    }
+    const sample = buildSample(records);
+    expect(sample.records.slice(18).map((r) => r.entryName)).toEqual(titles.map((title) => {
+      const path = UNMATCHED_PATH_CANDIDATES[title]?.[0];
+      return path ?? records.find((r) => r.title === title)!.entryName;
+    }));
+  });
+
+  it('refuses duplicate path candidates when the byte invariant cannot uniquely resolve them', () => {
+    const titles: readonly string[] = EXPECTED_SAMPLE.unmatchedTitles;
+    const records = agreedManifest().map((r) => {
+      if (!titles.includes(r.title) || r.title === 'Weighted Standing Curl (weights or lever)') return r;
+      return { ...r, entryName: UNMATCHED_PATH_CANDIDATES[r.title][0] };
+    });
+    let n = 3000;
+    for (const title of titles) {
+      if (title === 'Weighted Standing Curl (weights or lever)') continue;
+      const base = records.find((r) => r.title === title)!;
+      records.push({ ...base, entryIndex: ++n, entryName: UNMATCHED_PATH_CANDIDATES[title][1], sha256: sha(n), sizeBytes: base.sizeBytes });
+    }
+    expect(discrepancies(records).join('\n')).toContain('have 64 combinations matching the agreed unmatched byte total');
+  });
+
   it('reports a title shared by two different videos as ambiguous', () => {
     const records = [...agreedManifest(), makeRecord({ n: 901, title: 'Treadmill Running', review: 'unmatched', path: 'Other/Treadmill Running.mp4' })];
-    expect(discrepancies(records).join('\n')).toMatch(/"Treadmill Running" is ambiguous: 2 distinct videos/);
+    expect(discrepancies(records).join('\n')).toMatch(/"Treadmill Running" is ambiguous/);
   });
 
   it('reports a title whose video is no longer unmatched', () => {

@@ -36,6 +36,34 @@ export const EXPECTED_SAMPLE = {
 
 export type SampleExpectation = typeof EXPECTED_SAMPLE;
 
+/** Explicit archive paths permitted for titles duplicated across the girl/men folders. Never resolve by basename. */
+export const UNMATCHED_PATH_CANDIDATES: Readonly<Record<string, readonly string[]>> = {
+  'Barbell Reverse Wrist Curl (over-grip)': [
+    'Exercise (whitout watermark)/exercise (whitout watermark)/girl/Forearms/Barbell Reverse Wrist Curl (over-grip).mp4',
+    'Exercise (whitout watermark)/exercise (whitout watermark)/men/Forearms/Barbell Reverse Wrist Curl (over-grip).mp4'
+  ],
+  'Dumbbell Behind Back Wrist Curl': [
+    'Exercise (whitout watermark)/exercise (whitout watermark)/girl/Forearms/Dumbbell Behind Back Wrist Curl.mp4',
+    'Exercise (whitout watermark)/exercise (whitout watermark)/men/Forearms/Dumbbell Behind Back Wrist Curl.mp4'
+  ],
+  'Cable Standing Inner Curl': [
+    'Exercise (whitout watermark)/exercise (whitout watermark)/girl/Biceps/Cable Standing Inner Curl.mp4',
+    'Exercise (whitout watermark)/exercise (whitout watermark)/men/biceps/Cable Standing Inner Curl.mp4'
+  ],
+  'Band Standing Calf Raise': [
+    'Exercise (whitout watermark)/exercise (whitout watermark)/girl/Calves/Band Standing Calf Raise.mp4',
+    'Exercise (whitout watermark)/exercise (whitout watermark)/men/calves/Band Standing Calf Raise.mp4'
+  ],
+  'Stretching - Wrist Circles': [
+    'Exercise (whitout watermark)/exercise (whitout watermark)/girl/Forearms/Stretching - Wrist Circles.mp4',
+    'Exercise (whitout watermark)/exercise (whitout watermark)/men/Forearms/Stretching - Wrist Circles.mp4'
+  ],
+  'Treadmill Running': [
+    'Exercise (whitout watermark)/exercise (whitout watermark)/girl/Cardio/Treadmill Running.mp4',
+    'Exercise (whitout watermark)/exercise (whitout watermark)/men/cardio/Treadmill Running.mp4'
+  ]
+};
+
 export class SampleDiscrepancyError extends Error {
   constructor(readonly discrepancies: string[], readonly facts: string[] = []) {
     super(
@@ -72,6 +100,7 @@ export function buildSample(records: ManifestRecord[], expected: SampleExpectati
   if (needsReview.length !== expected.needsReview) d.push(`expected ${expected.needsReview} needs_review video(s), the manifest has ${needsReview.length}`);
 
   const unmatched: ManifestRecord[] = [];
+  const ambiguousGroups: Array<{ title: string; candidates: ManifestRecord[] }> = [];
   for (const title of expected.unmatchedTitles) {
     const withTitle = records.filter((r) => r.title === title);
     const okWithTitle = withTitle.filter((r) => r.status === 'ok' && r.sha256);
@@ -79,13 +108,49 @@ export function buildSample(records: ManifestRecord[], expected: SampleExpectati
       d.push(withTitle.length === 0
         ? `title not found (exact match required): "${title}"`
         : `"${title}" exists only as non-ok manifest entries (${[...new Set(withTitle.map((r) => r.status))].join(', ')})`);
-    } else if (okWithTitle.length > 1) {
-      d.push(`"${title}" is ambiguous: ${okWithTitle.length} distinct videos share it (${okWithTitle.map((r) => r.entryName).join('; ')})`);
+      continue;
+    }
+    const candidates = UNMATCHED_PATH_CANDIDATES[title];
+    if (okWithTitle.length > 1) {
+      const permitted = candidates ? okWithTitle.filter((r) => candidates.includes(r.entryName.replace(/\\/g, '/'))) : [];
+      if (permitted.length !== okWithTitle.length || permitted.length !== candidates?.length) {
+        d.push(`"${title}" is ambiguous and does not exactly match the explicitly permitted archive paths (${okWithTitle.map((r) => r.entryName).join('; ')})`);
+      } else {
+        ambiguousGroups.push({ title, candidates: permitted });
+      }
+      continue;
+    }
+    const r = okWithTitle[0];
+    if (reviewOf(r) !== 'unmatched') d.push(`"${title}" is ${reviewOf(r)} in the manifest, expected unmatched`);
+    else if (r.match?.exerciseKey) d.push(`"${title}" unexpectedly carries exercise key ${r.match.exerciseKey}`);
+    else unmatched.push(r);
+  }
+
+  // When duplicate basenames are known, choose only if the agreed per-status byte total uniquely identifies
+  // one combination. This uses explicit archive paths plus the pre-agreed invariant, never folder-name heuristics.
+  if (d.length === 0 && ambiguousGroups.length) {
+    const combinations: ManifestRecord[][] = [];
+    const enumerate = (index: number, chosen: ManifestRecord[]) => {
+      if (index === ambiguousGroups.length) { combinations.push([...chosen]); return; }
+      for (const candidate of ambiguousGroups[index].candidates) enumerate(index + 1, [...chosen, candidate]);
+    };
+    enumerate(0, []);
+    const valid = combinations.filter((choice) => {
+      const all = [...unmatched, ...choice];
+      return all.length === expected.unmatchedTitles.length &&
+        new Set(all.map((r) => r.sha256)).size === all.length &&
+        all.every((r) => reviewOf(r) === 'unmatched' && !r.match?.exerciseKey) &&
+        sum(all) === expected.bytesByStatus.unmatched;
+    });
+    if (valid.length !== 1) {
+      d.push(valid.length === 0
+        ? `the explicit girl/men path candidates have no unique combination matching the agreed unmatched byte total ${expected.bytesByStatus.unmatched}`
+        : `the explicit girl/men path candidates have ${valid.length} combinations matching the agreed unmatched byte total; refusing to choose arbitrarily`);
     } else {
-      const r = okWithTitle[0];
-      if (reviewOf(r) !== 'unmatched') d.push(`"${title}" is ${reviewOf(r)} in the manifest, expected unmatched`);
-      else if (r.match?.exerciseKey) d.push(`"${title}" unexpectedly carries exercise key ${r.match.exerciseKey}`);
-      else unmatched.push(r);
+      unmatched.push(...valid[0]);
+      // Preserve the agreed title ordering regardless of which path was selected.
+      const unmatchedOrder = new Map<string, number>(expected.unmatchedTitles.map((title, index) => [title, index]));
+      unmatched.sort((a, b) => (unmatchedOrder.get(a.title) ?? Number.MAX_SAFE_INTEGER) - (unmatchedOrder.get(b.title) ?? Number.MAX_SAFE_INTEGER));
     }
   }
 

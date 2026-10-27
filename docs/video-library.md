@@ -73,3 +73,48 @@ duplicate_titles, titles_differ, proposed_canonical_title, review_decision`. Sev
 chosen from manifest order. `review_decision` is always blank for you to fill in. Rows with conflicting titles come first.
 
 On Windows `cmd`, set environment variables with `set NAME=value` instead of `export`.
+
+## ffprobe enrichment (`video:probe`, optional)
+
+A separate, optional step. For the videos named in a sample file it extracts each file to a temporary path, runs
+`ffprobe`, and records what it found in a **sidecar**. It reads the ZIP locally; it makes no network calls, never
+touches Supabase, and **never modifies `manifest.jsonl`**. `video:ingest` does not read the sidecar.
+
+```bash
+npm run video:probe -- --zip /path/to/library.zip --sample-file .video-library/sample.txt --workdir .video-library
+#    -> .video-library/probe.jsonl and .video-library/probe-flags.csv
+```
+
+`--zip` and `--sample-file` are both required (probing is limited to a named sample). The sample file is validated
+exactly as for ingest (malformed, unknown, repeated or non-`ok` hashes abort before anything is read). Each extracted
+file is re-hashed against the manifest; a file whose bytes no longer match is not probed and is flagged
+`archive_mismatch`. Extracted files are deleted straight after probing.
+
+**If ffprobe is not installed** the step is skipped, not failed: it prints a message, exits 0 and writes nothing (an
+earlier `probe.jsonl` is left exactly as it was). Check with `ffprobe -version` in the same terminal, install ffmpeg
+(which includes ffprobe) and make sure it is on PATH, then run it again.
+
+**`probe.jsonl`** holds one record per video, keyed by SHA-256: container name and major brand, duration, and for the
+first video stream codec, profile, level, pixel format, width, height and display rotation, plus the first audio
+stream's codec, profile, sample rate and channels, stream counts, the flags, and a `probedAt` timestamp. A new run
+replaces the records for its own videos and keeps earlier results for other videos.
+
+**`probe-flags.csv`** has one row per flag (errors first) and lists only videos that need attention.
+
+| Flag | Severity | Meaning |
+|---|---|---|
+| `no_video_stream` | error | No real video stream (audio-only, or only cover art) |
+| `invalid_duration` | error | Duration missing, zero or negative |
+| `invalid_dimensions` | error | Width or height missing, zero or negative |
+| `ffprobe_unreadable` | error | ffprobe could not read the file |
+| `archive_mismatch` | error | The archive content no longer matches the manifest (not probed) |
+| `not_in_archive` | error | The entry was not found in the archive (name, CRC and size must match) |
+| `unexpected_video_codec` | warning | Video codec is not H.264 |
+| `unexpected_pixel_format` | warning | Pixel format is not yuv420p (includes 4:2:2, 4:4:4, 10-bit, yuvj420p) |
+| `unexpected_audio_codec` | warning | Audio is present and is not AAC (a silent video is fine) |
+
+The baseline (H.264 / yuv420p / AAC) is `EXPECTED_MEDIA` in `scripts/video-library/probeAnalysis.ts`. It is an advisory
+compatibility baseline, not a guarantee. A video with no flags can still fail to play on a particular device, and a
+flagged one can still play. **Real-device testing in iPhone Safari is still required before anything is published.**
+The probe also cannot tell whether the MP4's index (moov atom) sits at the start of the file, which affects how
+quickly it starts streaming.
