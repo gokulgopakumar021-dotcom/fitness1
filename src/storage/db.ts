@@ -11,8 +11,9 @@ import {
 } from '../types';
 import { STARTER_PPL_PLAN, STARTER_UPPER_LOWER_PLAN } from '../data/starterPlans';
 import { COMMON_FOOD_DATABASE } from '../data/foodDatabase';
+import { scopedKey, keysInCurrentScope } from './storageScope';
 
-const STORAGE_KEYS = {
+const BASE_KEYS = {
   PROFILE: 'ironlog_profile_v1',
   PLANS: 'ironlog_plans_v1',
   ACTIVE_PLAN_ID: 'ironlog_active_plan_id_v1',
@@ -26,6 +27,15 @@ const STORAGE_KEYS = {
   DEMO_MODE: 'ironlog_demo_mode_active_v1',
   SLEEP_LOGS: 'ironlog_sleep_logs_v1',
 };
+
+/**
+ * Resolved on every access so the key follows the active account scope (see storageScope.ts).
+ * With no scope set the names are exactly the legacy ones.
+ */
+const STORAGE_KEYS = {} as Record<keyof typeof BASE_KEYS, string>;
+for (const name of Object.keys(BASE_KEYS) as (keyof typeof BASE_KEYS)[]) {
+  Object.defineProperty(STORAGE_KEYS, name, { enumerable: true, get: () => scopedKey(BASE_KEYS[name]) });
+}
 
 export const DEFAULT_PROFILE: UserProfile = {
   name: '',
@@ -62,6 +72,20 @@ class IronLogDB {
       console.error('Failed reading profile', e);
     }
     return { ...DEFAULT_PROFILE };
+  }
+
+  /**
+   * First-run seed for a freshly scoped account: writes the default profile (with the account's display name)
+   * only when this scope has no stored profile at all. Never overwrites existing data. Returns true if it wrote.
+   */
+  initProfileIfAbsent(displayName: string): boolean {
+    try {
+      if (localStorage.getItem(STORAGE_KEYS.PROFILE) !== null) return false;
+    } catch (e) {
+      console.error('Failed checking profile', e);
+      return false;
+    }
+    return this.saveProfile({ ...DEFAULT_PROFILE, name: displayName });
   }
 
   /** Returns true only when the write actually succeeded. */
@@ -927,7 +951,9 @@ class IronLogDB {
   }
 
   resetAllData(): void {
-    localStorage.clear();
+    // Only the active scope's keys: with an account signed in this must not wipe other accounts' or the
+    // legacy on-device data. With no scope it clears the legacy keys (previously: everything).
+    for (const k of keysInCurrentScope()) localStorage.removeItem(k);
     this.saveProfile({ ...DEFAULT_PROFILE });
     this.savePlans([{ ...STARTER_PPL_PLAN }, { ...STARTER_UPPER_LOWER_PLAN }]);
   }

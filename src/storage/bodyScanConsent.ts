@@ -1,11 +1,13 @@
 import { BODY_SCAN_CONSENT_VERSION, BodyScanConsent } from '../types/bodyScan';
+import { scopedKey } from './storageScope';
 
 /** Contains no images, only the user's consent choices. */
 export const BODY_SCAN_CONSENT_KEY = 'ironlog_bodyscan_consent_v1';
+const consentKey = () => scopedKey(BODY_SCAN_CONSENT_KEY);
 
 export function getBodyScanConsent(): BodyScanConsent | null {
   try {
-    const raw = localStorage.getItem(BODY_SCAN_CONSENT_KEY);
+    const raw = localStorage.getItem(consentKey());
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (
@@ -55,7 +57,7 @@ export function acceptBodyScanConsent(input: AcceptConsentInput): BodyScanConsen
     acceptedAt: now,
     photoStorageUpdatedAt: now,
   };
-  localStorage.setItem(BODY_SCAN_CONSENT_KEY, JSON.stringify(consent));
+  localStorage.setItem(consentKey(), JSON.stringify(consent));
   return consent;
 }
 
@@ -70,10 +72,10 @@ export function setPhotoStorageConsent(enabled: boolean): BodyScanConsent {
     photoStorage: enabled === true,
     photoStorageUpdatedAt: new Date().toISOString(),
   };
-  localStorage.setItem(BODY_SCAN_CONSENT_KEY, JSON.stringify(updated));
+  localStorage.setItem(consentKey(), JSON.stringify(updated));
   return updated;
 }
 
 export function clearBodyScanConsent(): void {
-  localStorage.removeItem(BODY_SCAN_CONSENT_KEY);
+  localStorage.removeItem(consentKey());
 }

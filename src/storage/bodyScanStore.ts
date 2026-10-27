@@ -6,6 +6,7 @@ import {
   StoredScanPhoto,
 } from '../types/bodyScan';
 import { clearBodyScanConsent, getBodyScanConsent } from './bodyScanConsent';
+import { scopedDbName } from './storageScope';
 
 /**
  * On-device Body Scan storage (IndexedDB). Photos are Blobs and cannot live in
@@ -14,6 +15,8 @@ import { clearBodyScanConsent, getBodyScanConsent } from './bodyScanConsent';
  */
 
 export const BODY_SCAN_DB_NAME = 'ironlog_bodyscan';
+/** The database name for the active account scope (equals BODY_SCAN_DB_NAME when no scope is set). */
+const activeDbName = () => scopedDbName(BODY_SCAN_DB_NAME);
 const DB_VERSION = 1;
 const SCANS = 'scans';
 const PHOTOS = 'photos';
@@ -53,7 +56,7 @@ function openDb(): Promise<IDBDatabase> {
       reject(new BodyScanStorageUnavailableError());
       return;
     }
-    const req = indexedDB.open(BODY_SCAN_DB_NAME, DB_VERSION);
+    const req = indexedDB.open(activeDbName(), DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(SCANS)) {
@@ -266,7 +269,7 @@ export function deleteBodyScanDatabase(): Promise<void> {
       resolve(); // nothing can have been stored
       return;
     }
-    const req = indexedDB.deleteDatabase(BODY_SCAN_DB_NAME);
+    const req = indexedDB.deleteDatabase(activeDbName());
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error ?? new Error('Failed to delete Body Scan data'));
     req.onblocked = () => reject(new BodyScanDeleteBlockedError());

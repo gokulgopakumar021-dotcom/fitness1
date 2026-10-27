@@ -12,7 +12,8 @@ import {
   Play,
   FileSpreadsheet,
   Trash2,
-  Check
+  Check,
+  LogOut
 } from 'lucide-react';
 import {
   PreferredUnit,
@@ -24,6 +25,7 @@ import {
 import { db } from '../../storage/db';
 import { runAllAutomatedTests, TestResult } from '../../utils/testSuite';
 import { resetAllAppData } from '../../storage/resetAll';
+import { useAuth } from '../../context/AuthContext';
 
 interface SettingsProps {
   profile: UserProfile;
@@ -40,6 +42,9 @@ export const SettingsView: React.FC<SettingsProps> = ({
   onLoadDemoData,
   onClearDemoData
 }) => {
+  const { user, signOut } = useAuth();
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const [formData, setFormData] = useState<UserProfile>({ ...profile });
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
 
@@ -54,6 +59,18 @@ export const SettingsView: React.FC<SettingsProps> = ({
 
   // Automated Tests Runner state
   const [testResults, setTestResults] = useState<TestResult[] | null>(null);
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    setSignOutError(null);
+    const r = await signOut();
+    // On success AuthGate unmounts this view, so only the failure path needs to reset state.
+    if (!r.ok) {
+      setSignOutError(r.error ?? 'Could not sign out.');
+      setSigningOut(false);
+    }
+  };
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,6 +190,30 @@ export const SettingsView: React.FC<SettingsProps> = ({
           Configure profile biometrics, progression rule thresholds, data backups, and automated tests.
         </p>
       </div>
+
+      {/* ACCOUNT */}
+      {user && (
+        <section aria-labelledby="account-heading" className="bg-surface-2 border border-line rounded-2xl p-5 lg:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 id="account-heading" className="font-bold text-zinc-100 text-base flex items-center gap-2">
+              <Shield className="w-4 h-4 text-lime-400" aria-hidden />
+              <span>Account</span>
+            </h3>
+            <p className="text-xs text-zinc-400 mt-1 truncate">Signed in as {user.email}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Signing out keeps your data on this device.</p>
+            {signOutError && <p role="alert" className="text-xs text-danger mt-1">{signOutError}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="inline-flex items-center justify-center gap-2 h-11 px-4 rounded-xl border border-line-strong text-sm font-medium text-zinc-100 hover:bg-surface-3 disabled:opacity-50"
+          >
+            <LogOut className="w-4 h-4" aria-hidden />
+            {signingOut ? 'Signing out…' : 'Sign out'}
+          </button>
+        </section>
+      )}
 
       {/* ATHLETE PROFILE FORM */}
       <form

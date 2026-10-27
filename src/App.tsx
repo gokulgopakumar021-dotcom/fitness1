@@ -21,8 +21,11 @@ import { FloatingTrainerWidget } from './components/trainer/FloatingTrainerWidge
 import { BluetoothGadgetProvider } from './context/BluetoothGadgetContext';
 import { BluetoothGadgetModal } from './components/bluetooth/BluetoothGadgetModal';
 import { ThemeProvider } from './context/ThemeContext';
+import { AuthProvider } from './context/AuthContext';
+import { AuthGate } from './components/auth/AuthGate';
 
-export default function App() {
+/** The private application. Only ever mounted by AuthGate, after storage is scoped to the signed-in account. */
+function AppShell() {
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
   const [profile, setProfile] = useState<UserProfile>(() => db.getProfile());
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(() =>
@@ -76,7 +79,6 @@ export default function App() {
   };
 
   return (
-    <ThemeProvider>
       <BluetoothGadgetProvider profile={profile}>
         <div className="min-h-dvh bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col font-sans transition-colors duration-200">
           <a
@@ -210,6 +212,17 @@ export default function App() {
         <BluetoothGadgetModal />
       </div>
     </BluetoothGadgetProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <AuthGate>
+          <AppShell />
+        </AuthGate>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
