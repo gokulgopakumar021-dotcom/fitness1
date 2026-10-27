@@ -33,3 +33,43 @@ Re-running is safe: objects are content-addressed (`videos/<sha[0:2]>/<sha256>.m
 Exact key, name or alias match -> `matched`. Equipment conflicts and ties -> `needs_review`. Fuzzy matches only ever
 produce a *suggestion* (`suggested_exercise_key`), never an exercise key. Everything else is `unmatched`. Only
 `matched` + `uploaded` rows are visible to signed-in users.
+
+## Validation sample and duplicate review (read-only helpers)
+
+None of these commands touch Supabase, the ZIP or the network unless noted. They only read `manifest.jsonl`.
+
+```bash
+# Build the agreed 25-video validation sample (10 matched, 8 needs_review, 7 named unmatched videos).
+npm run video:sample -- --workdir .video-library
+#    -> .video-library/sample.txt (one SHA-256 per line) and sample-plan.csv
+
+# Duplicate review sidecar (no database column exists for duplicate paths, so it stays a CSV).
+npm run video:duplicates -- --workdir .video-library
+#    -> .video-library/duplicates.csv
+
+# Dry run of exactly those videos (default; add --execute only after separate approval):
+npm run video:ingest -- --zip /path/to/library.zip --workdir .video-library --sample-file .video-library/sample.txt
+```
+
+**`video:sample`** selects every `matched` video, every `needs_review` video, and seven `unmatched` videos by *exact*
+title (see `EXPECTED_SAMPLE` in `scripts/video-library/sample.ts`). It checks the counts (10/8/7), 25 distinct hashes
+and the byte totals. If anything differs it stops with a discrepancy report and writes nothing; it never substitutes
+another video. Being in the sample means nothing for publishing: it maps nothing and approves nothing, and the seven
+unmatched videos keep `exercise_key = null`.
+
+**`--sample-file <path>`** restricts ingest to the listed hashes. Every hash is checked against the manifest first:
+malformed (must be 64 lowercase hex characters), unknown, listed twice, or not an `ok` entry are all rejected, with
+every problem reported together. Blank lines and lines starting with `#` are ignored. A hash whose bytes also appear
+as `duplicate` records resolves to the kept (`ok`) entry. `ingest-state.json` and every other ingest protection still
+apply. The run prints a per-file plan (SHA-256, file, path, review status, suggested key, size, intended catalog row).
+It cannot be combined with `--limit` or `--only-matched`: those filters apply after the state filter and would silently
+drop listed videos, so the combination is rejected instead of guessed at. `--limit` must now be a whole number (a
+non-number used to select nothing without any message).
+
+**`duplicates.csv`** has one row per SHA-256 with duplicates: `sha256, kept_path, duplicate_paths, kept_title,
+duplicate_titles, titles_differ, proposed_canonical_title, review_decision`. Several values in a cell are joined with
+` | ` (`duplicate_titles` follows the order of `duplicate_paths`). `titles_differ` ignores case and extra whitespace.
+`proposed_canonical_title` is blank whenever titles differ (and when titles differ only by case/spacing); no title is ever
+chosen from manifest order. `review_decision` is always blank for you to fill in. Rows with conflicting titles come first.
+
+On Windows `cmd`, set environment variables with `set NAME=value` instead of `export`.

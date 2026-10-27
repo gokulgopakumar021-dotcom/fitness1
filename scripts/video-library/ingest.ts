@@ -4,6 +4,10 @@ import { pathToFileURL } from 'node:url';
 import type { ManifestRecord } from '../../src/types/video';
 import { parseManifest, storageKeyFor } from '../../src/utils/videoLibrary/manifest';
 import { checkEntryName, extractEntry, looksLikeMp4, walkZip } from './zipScan';
+import { optionValue, UsageError } from './cli';
+import { loadSampleFile, SampleFileError } from './sampleFile';
+
+export { SampleFileError, loadSampleFile, parseSampleText, validateSampleHashes, validateSampleText } from './sampleFile';
 
 /**
  * Resumable, idempotent upload of inventoried videos. Separate from inventory on purpose.
@@ -41,6 +45,12 @@ export interface IngestOptions {
   limit?: number;
   /** Only upload videos whose automatic match is 'matched' (useful for the sample stage). */
   onlyMatched?: boolean;
+  /**
+   * Path of a sample file (one SHA-256 per line). When set, ONLY those videos are candidates. Every hash is validated
+   * against the manifest first (malformed, unknown, duplicate or non-ok hashes abort the run). The file replaces the
+   * selection filters, so it cannot be combined with `limit` or `onlyMatched`. Existing ingest-state is still honoured.
+   */
+  sampleFile?: string;
   maxFileBytes?: number;
   maxRetries?: number;
   sleep?: (ms: number) => Promise<void>;
@@ -56,6 +66,21 @@ export interface IngestSummary {
   failed: number;
   bytesToUpload: number;
   bytesUploaded: number;
+  /** Present only with a sample file: what each video would become in the catalog. */
+  plan?: PlanItem[];
+}
+
+export interface PlanItem {
+  sha256: string;
+  entryName: string;
+  originalFilename: string;
+  reviewStatus: string;
+  suggestedExerciseKey: string | null;
+  sizeBytes: number | null;
+  /** True only for matched videos: the sole rows users can ever see (and only once uploaded). */
+  visibleToUsers: boolean;
+  alreadyUploaded: boolean;
+  intendedRow: Record<string, unknown>;
 }
 
 function loadState(p: string): State {
@@ -94,7 +119,41 @@ export function catalogRow(r: ManifestRecord): Record<string, unknown> {
   };
 }
 
+function planFor(records: ManifestRecord[], state: State): PlanItem[] {
+  return records.map((r) => {
+    const row = catalogRow(r);
+    return {
+      sha256: r.sha256!,
+      entryName: r.entryName,
+      originalFilename: r.originalFilename,
+      reviewStatus: String(row.review_status),
+      suggestedExerciseKey: (row.suggested_exercise_key as string | null) ?? null,
+      sizeBytes: r.sizeBytes,
+      visibleToUsers: row.review_status === 'matched',
+      alreadyUploaded: state.items[r.sha256!]?.status === 'uploaded',
+      intendedRow: row
+    };
+  });
+}
+
+function logPlan(plan: PlanItem[], execute: boolean, log: (m: string) => void) {
+  const total = plan.reduce((n, p) => n + (p.sizeBytes ?? 0), 0);
+  log(`SAMPLE PLAN: ${plan.length} video(s), ${total} bytes. ${execute ? 'EXECUTE mode.' : 'Dry run: nothing is written.'}`);
+  log('Each row is inserted as status=pending and only flipped to uploaded after its object is stored. exercise_key stays null unless review_status=matched.');
+  plan.forEach((p, i) => {
+    log(`[${i + 1}/${plan.length}] sha256: ${p.sha256}`);
+    log(`    file: ${p.originalFilename}`);
+    log(`    path: ${p.entryName}`);
+    log(`    review_status: ${p.reviewStatus} | exercise_key: ${String(p.intendedRow.exercise_key ?? '(none)')} | suggested_exercise_key: ${p.suggestedExerciseKey ?? '(none)'}`);
+    log(`    size_bytes: ${p.sizeBytes} | visible to users once uploaded: ${p.visibleToUsers ? 'yes' : 'no'} | already uploaded (ingest-state.json): ${p.alreadyUploaded ? 'yes' : 'no'}`);
+    log(`    intended row: ${JSON.stringify(p.intendedRow)}`);
+  });
+}
+
 export async function runIngest(opts: IngestOptions): Promise<IngestSummary> {
+  if (opts.sampleFile !== undefined && (opts.limit !== undefined || opts.onlyMatched)) {
+    throw new SampleFileError('--sample-file cannot be combined with --limit or --only-matched: the sample file already names exactly which videos to process.');
+  }
   const log = opts.log ?? (() => {});
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const maxRetries = opts.maxRetries ?? 3;
@@ -107,8 +166,15 @@ export async function runIngest(opts: IngestOptions): Promise<IngestSummary> {
   if (errors.length) log(`manifest: ${errors.length} unreadable line(s) ignored`);
   const state = loadState(statePath);
 
-  let candidates = records.filter((r) => r.status === 'ok' && r.sha256);
-  if (opts.onlyMatched) candidates = candidates.filter((r) => r.match?.reviewStatus === 'matched');
+  let candidates: ManifestRecord[];
+  if (opts.sampleFile !== undefined) {
+    // Strict: a manifest with unreadable lines may be hiding records, so a sample cannot be trusted against it.
+    if (errors.length) throw new SampleFileError(`manifest has ${errors.length} unreadable line(s); refusing to use a sample file against an incomplete manifest. Re-run the inventory.`);
+    candidates = loadSampleFile(opts.sampleFile, records);
+  } else {
+    candidates = records.filter((r) => r.status === 'ok' && r.sha256);
+    if (opts.onlyMatched) candidates = candidates.filter((r) => r.match?.reviewStatus === 'matched');
+  }
   const pending = candidates.filter((r) => state.items[r.sha256!]?.status !== 'uploaded');
   const work = opts.limit !== undefined ? pending.slice(0, opts.limit) : pending;
 
@@ -122,6 +188,10 @@ export async function runIngest(opts: IngestOptions): Promise<IngestSummary> {
     bytesToUpload: work.reduce((n, r) => n + (r.sizeBytes ?? 0), 0),
     bytesUploaded: 0
   };
+  if (opts.sampleFile !== undefined) {
+    summary.plan = planFor(candidates, state);
+    logPlan(summary.plan, opts.execute, log);
+  }
   if (!opts.execute) { log('DRY RUN: nothing was uploaded or written to the catalog.'); return summary; }
   if (!opts.uploader || !opts.catalog) throw new Error('execute mode needs an uploader and a catalog writer');
   const { uploader, catalog } = opts;
@@ -184,30 +254,57 @@ export async function runIngest(opts: IngestOptions): Promise<IngestSummary> {
   return summary;
 }
 
-function arg(name: string): string | undefined {
-  const i = process.argv.indexOf(`--${name}`);
-  return i !== -1 ? process.argv[i + 1] : undefined;
+export const INGEST_USAGE = 'Usage: npm run video:ingest -- --zip <archive.zip> [--workdir .video-library] [--limit N | --only-matched | --sample-file <sample.txt>] [--execute]';
+
+export interface IngestCliOptions {
+  zipPath: string;
+  workDir: string;
+  execute: boolean;
+  limit?: number;
+  onlyMatched: boolean;
+  sampleFile?: string;
+}
+
+/** Parses and validates the CLI flags. Pure, so it can be tested. Throws UsageError with a clear message. */
+export function parseIngestArgs(argv: readonly string[]): IngestCliOptions {
+  const zipPath = optionValue(argv, 'zip');
+  if (!zipPath) throw new UsageError('--zip <archive.zip> is required');
+  const limitRaw = optionValue(argv, 'limit');
+  let limit: number | undefined;
+  if (limitRaw !== undefined) {
+    limit = Number(limitRaw);
+    if (!/^\d+$/.test(limitRaw) || !Number.isSafeInteger(limit)) throw new UsageError(`--limit must be a whole number, got "${limitRaw}"`);
+  }
+  const sampleFile = optionValue(argv, 'sample-file');
+  const onlyMatched = argv.includes('--only-matched');
+  if (sampleFile !== undefined && (limit !== undefined || onlyMatched)) {
+    throw new UsageError('--sample-file cannot be combined with --limit or --only-matched: the sample file already names exactly which videos to process.');
+  }
+  return { zipPath, workDir: optionValue(argv, 'workdir') ?? '.video-library', execute: argv.includes('--execute'), limit, onlyMatched, sampleFile };
 }
 
 async function main() {
-  const zipPath = arg('zip');
-  if (!zipPath) {
-    console.error('Usage: npm run video:ingest -- --zip <archive.zip> [--workdir .video-library] [--limit N] [--only-matched] [--execute]');
-    process.exit(2);
+  let cli: IngestCliOptions;
+  try {
+    cli = parseIngestArgs(process.argv.slice(2));
+  } catch (e) {
+    if (e instanceof UsageError) { console.error(`${e.message}\n${INGEST_USAGE}`); process.exit(2); }
+    throw e;
   }
-  const execute = process.argv.includes('--execute');
-  const workDir = arg('workdir') ?? '.video-library';
+  const { execute } = cli;
   const common = {
-    zipPath,
-    workDir,
+    zipPath: cli.zipPath,
+    workDir: cli.workDir,
     execute,
-    limit: arg('limit') ? Number(arg('limit')) : undefined,
-    onlyMatched: process.argv.includes('--only-matched'),
+    limit: cli.limit,
+    onlyMatched: cli.onlyMatched,
+    sampleFile: cli.sampleFile,
     log: (m: string) => console.log(m)
   };
 
   if (!execute) {
-    console.log(JSON.stringify(await runIngest(common), null, 2));
+    const { plan: _plan, ...dry } = await runIngest(common);
+    console.log(JSON.stringify(dry, null, 2));
     console.log('\nDry run only. Add --execute (with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY set) to upload.');
     return;
   }
@@ -241,7 +338,8 @@ async function main() {
       await sb.from('exercise_videos').update({ status: 'failed' }).eq('content_sha256', sha).neq('status', 'uploaded');
     }
   };
-  console.log(JSON.stringify(await runIngest({ ...common, uploader, catalog }), null, 2));
+  const { plan: _plan, ...done } = await runIngest({ ...common, uploader, catalog });
+  console.log(JSON.stringify(done, null, 2));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
