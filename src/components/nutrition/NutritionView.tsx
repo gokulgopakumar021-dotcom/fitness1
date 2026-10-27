@@ -27,6 +27,8 @@ import {
   UserProfile
 } from '../../types';
 import { db } from '../../storage/db';
+import { getCurrentDayKey } from '../../storage/nutritionTargetCommit';
+import { resolveDiaryTargets, targetSourceCaption } from '../../utils/nutritionTargets';
 import { BarcodeScanner } from './BarcodeScanner';
 import { NutritionGoalWizard } from './NutritionGoalWizard';
 import { NutritionGoalGauge } from './NutritionGoalGauge';
@@ -156,10 +158,24 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile, onProfile
   const totalCarbs = Math.round(currentLog.entries.reduce((acc, curr) => acc + (curr.carbs || 0), 0));
   const totalFat = Math.round(currentLog.entries.reduce((acc, curr) => acc + (curr.fat || 0), 0));
 
-  const calTarget = profile.dailyCalorieTarget || 2600;
-  const proTarget = profile.dailyProteinTarget || 165;
-  const carbTarget = profile.dailyCarbsTarget || 300;
-  const fatTarget = profile.dailyFatTarget || 70;
+  // Targets for the day being viewed. Today keeps using the live profile targets. A past day uses the
+  // targets saved with its STORED log; getNutritionLogForDate fabricates an unsaved log (stamped with the
+  // current profile targets) for days that have none, so only a stored log counts as a snapshot.
+  const todayKey = getCurrentDayKey();
+  const logIsStored =
+    selectedDate < todayKey && db.getNutritionLogs().some((l) => l.date === selectedDate);
+  const resolvedTargets = resolveDiaryTargets({
+    date: selectedDate,
+    today: todayKey,
+    profile,
+    log: currentLog,
+    logIsStored
+  });
+  const calTarget = resolvedTargets.calories;
+  const proTarget = resolvedTargets.protein;
+  const carbTarget = resolvedTargets.carbs;
+  const fatTarget = resolvedTargets.fat;
+  const targetCaption = targetSourceCaption(resolvedTargets.source);
 
   const calRemaining = calTarget - totalCalories;
   const proRemaining = proTarget - totalProtein;
@@ -398,6 +414,16 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile, onProfile
             </div>
           </div>
         </div>
+
+        {targetCaption && (
+          <p
+            data-testid="target-source-caption"
+            data-target-source={resolvedTargets.source}
+            className="mt-4 text-[11px] leading-relaxed text-[var(--text-muted)]"
+          >
+            {targetCaption}
+          </p>
+        )}
 
         {/* Macro Overview Bars & Target Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mt-6">

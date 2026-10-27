@@ -17,7 +17,11 @@ export interface NutritionTargetStore {
 export interface NutritionTargetCommitInput {
   /** Fully built profile to persist. */
   profile: UserProfile;
-  /** The diary log currently shown in NutritionView (may be a past date). Only used if it is today's. */
+  /**
+   * The diary log currently shown in NutritionView (may be a past date). Used ONLY to detect that a past
+   * date is being viewed. It is never the base for a write: today's log is re-read from storage at commit
+   * time, so a save or a retry cannot overwrite food entries or water saved after the view loaded it.
+   */
   viewedLog?: DailyNutritionLog;
   targets: { calories: number; protein: number; carbs: number; fat: number };
   /** Metric to upsert for today's date. Omit optional fields the user did not provide. */
@@ -45,7 +49,7 @@ const FAILURE_MESSAGES: Record<NutritionCommitStage, string> = {
   profile:
     'Your targets could not be saved, and nothing was changed. Check that your device has free storage and try again.',
   todayLog:
-    "Your profile targets were saved, but today's diary targets could not be saved. Try again to finish.",
+    "Your profile targets were saved, but today's diary targets and today's body measurement were not. Try again to finish.",
   bodyMetric:
     "Your targets were saved, but today's body measurement could not be saved. Try again to finish."
 };
@@ -89,13 +93,11 @@ export function commitNutritionTargets(
   if (!attempt(() => store.saveProfile(input.profile))) return fail('profile');
   persisted.profile = true;
 
-  // 2. Today's log only (food entries and every other field preserved via spread)
+  // 2. Today's log only. Re-read from storage (never from the view's copy) so entries saved since the
+  //    view loaded are preserved; only the four target fields change, everything else survives via spread.
   let base: DailyNutritionLog | undefined;
   try {
-    base =
-      input.viewedLog && input.viewedLog.date === dayKey
-        ? input.viewedLog
-        : store.getNutritionLogForDate(dayKey);
+    base = store.getNutritionLogForDate(dayKey);
   } catch {
     base = undefined;
   }

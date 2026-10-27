@@ -173,6 +173,22 @@ class IronLogDB {
     }
   }
 
+  /**
+   * True when the key holds nothing yet or a JSON array. False when it holds data that cannot be read as
+   * an array (corrupt JSON, wrong shape) or storage cannot be read at all. Read-modify-write methods
+   * check this first: the getters return [] for unreadable data, so writing back would replace everything
+   * previously stored under the key with a single record and destroy what could have been recovered.
+   */
+  private storedArrayIsWritable(key: string): boolean {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw === null) return true;
+      return Array.isArray(JSON.parse(raw));
+    } catch {
+      return false;
+    }
+  }
+
   // --- Nutrition Logs ---
   getNutritionLogs(): DailyNutritionLog[] {
     try {
@@ -215,6 +231,10 @@ class IronLogDB {
 
   /** Returns true only when the write actually succeeded. */
   saveNutritionLogForDate(log: DailyNutritionLog): boolean {
+    if (!this.storedArrayIsWritable(STORAGE_KEYS.NUTRITION_LOGS)) {
+      console.error('Refusing to overwrite unreadable nutrition logs');
+      return false;
+    }
     const logs = this.getNutritionLogs();
     const idx = logs.findIndex((l) => l.date === log.date);
     if (idx >= 0) {
@@ -286,6 +306,10 @@ class IronLogDB {
    * Returns true only when the write actually succeeded.
    */
   addOrUpdateBodyMetric(entry: BodyMetricEntry): boolean {
+    if (!this.storedArrayIsWritable(STORAGE_KEYS.BODY_METRICS)) {
+      console.error('Refusing to overwrite unreadable body metrics');
+      return false;
+    }
     const list = this.getBodyMetrics();
     const idx = list.findIndex((m) => m.date === entry.date);
     let next: BodyMetricEntry[];

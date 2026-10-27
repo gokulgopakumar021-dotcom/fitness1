@@ -328,8 +328,25 @@ function scoreNutrition(input: ScorecardInput, isToday: boolean): CategoryResult
     );
   }
 
-  const calRatio = calories / calTarget;
-  const proRatio = protein / proTarget;
+  // A past day is scored against the targets saved with its own stored log when it has usable ones.
+  // Today keeps using the live profile targets. A past day without a usable snapshot falls back to the
+  // current profile targets and says so, because those may differ from what applied on that day.
+  // The profile gate above is unchanged: without personal targets nothing is scored.
+  let calUsed: number = calTarget;
+  let proUsed: number = proTarget;
+  if (!isToday) {
+    const snapCal = (log as { targetCalories?: unknown }).targetCalories;
+    const snapPro = (log as { targetProtein?: unknown }).targetProtein;
+    if (isFiniteNumber(snapCal) && snapCal > 0 && isFiniteNumber(snapPro) && snapPro > 0) {
+      calUsed = snapCal;
+      proUsed = snapPro;
+    } else {
+      notes.push('No targets were saved with this day’s log, so your current targets were used. They may differ from what applied then.');
+    }
+  }
+
+  const calRatio = calories / calUsed;
+  const proRatio = protein / proUsed;
   const calPoints = NUTRITION_CALORIE_POINTS * calorieFraction(calRatio);
   const proPoints = NUTRITION_PROTEIN_POINTS * Math.min(1, proRatio);
   const partial = isToday;
@@ -337,8 +354,8 @@ function scoreNutrition(input: ScorecardInput, isToday: boolean): CategoryResult
 
   const remaining: string[] = [];
   if (isToday) {
-    if (calories < calTarget) remaining.push(`${Math.round(calTarget - calories)} kcal`);
-    if (protein < proTarget) remaining.push(`${Math.round(proTarget - protein)} g protein`);
+    if (calories < calUsed) remaining.push(`${Math.round(calUsed - calories)} kcal`);
+    if (protein < proUsed) remaining.push(`${Math.round(proUsed - protein)} g protein`);
   }
   const action: ScorecardAction | null =
     remaining.length > 0 ? { kind: 'remaining_targets', message: `${remaining.join(' and ')} remaining to reach your daily targets.` } : null;
@@ -347,10 +364,10 @@ function scoreNutrition(input: ScorecardInput, isToday: boolean): CategoryResult
     res,
     calPoints + proPoints,
     `Calories earn full points within 90–110% of target; protein earns points up to 100% of target. ` +
-      `Logged ${Math.round(calories)} of ${Math.round(calTarget)} kcal and ${Math.round(protein)} of ${Math.round(proTarget)} g protein.`,
+      `Logged ${Math.round(calories)} of ${Math.round(calUsed)} kcal and ${Math.round(protein)} of ${Math.round(proUsed)} g protein.`,
     {
       raw,
-      target: { calories: calTarget, proteinG: proTarget },
+      target: { calories: calUsed, proteinG: proUsed },
       progress: calRatio,
       partial,
       notes,

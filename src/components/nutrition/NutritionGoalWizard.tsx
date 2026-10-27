@@ -29,7 +29,8 @@ import {
   DeficitOrSurplusPace,
   INPUT_BOUNDS,
   NutritionGoal,
-  parseNumericInput
+  parseNumericInput,
+  SUPPORTED_SEXES
 } from '../../utils/tdeeEngine';
 import { commitNutritionTargets, getCurrentDayKey } from '../../storage/nutritionTargetCommit';
 import { kgToLbs, lbsToKg } from '../../utils/calculations';
@@ -87,7 +88,12 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
     profile.heightCm > 0 ? String(profile.heightCm) : ''
   );
   const [ageInput, setAgeInput] = useState<string>(() => (profile.age > 0 ? String(profile.age) : ''));
-  const [sex, setSex] = useState<'male' | 'female' | 'other' | 'unspecified'>(profile.sex || 'male');
+  // A supported stored value is shown as-is. A missing or unsupported stored value becomes '' (the "Select"
+  // placeholder) in this local state only: it fails validation and is never displayed as, or silently
+  // converted to, 'male'. The stored profile is not touched unless the user saves a valid plan.
+  const [sex, setSex] = useState<string>(() =>
+    (SUPPORTED_SEXES as readonly string[]).includes(profile.sex) ? profile.sex : ''
+  );
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>('moderate');
   const [bodyFatInput, setBodyFatInput] = useState<string>(() => {
     const bf = initialBodyFat();
@@ -177,7 +183,7 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
       currentWeightKg: Number(weightKg.toFixed(1)),
       heightCm,
       age,
-      sex,
+      sex: sex as UserProfile['sex'], // validated by computeNutritionPlan (computed.ok) before reaching here
       primaryGoal: mappedGoal,
       // A blank body-fat field never erases a stored value
       bodyFatPercentage: bodyFat !== undefined ? bodyFat : profile.bodyFatPercentage,
@@ -494,12 +500,18 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
                   </label>
                   <select
                     value={sex}
-                    onChange={(e) => setSex(e.target.value as any)}
+                    aria-label="Biological Sex"
+                    aria-invalid={!!inputErrors.sex}
+                    onChange={(e) => setSex(e.target.value)}
                     className="w-full text-sm font-semibold bg-transparent text-[var(--text-primary)] border-b border-[var(--border-card)] focus:border-[#CEFF00] outline-none pt-1"
                   >
+                    {!(SUPPORTED_SEXES as readonly string[]).includes(sex) && (
+                      <option value="" disabled className="bg-zinc-900 text-white">Select…</option>
+                    )}
                     <option value="male" className="bg-zinc-900 text-white">Male</option>
                     <option value="female" className="bg-zinc-900 text-white">Female</option>
-                    <option value="other" className="bg-zinc-900 text-white">Other</option>
+                    <option value="other" className="bg-zinc-900 text-white">Other (neutral estimate)</option>
+                    <option value="unspecified" className="bg-zinc-900 text-white">Unspecified (neutral estimate)</option>
                   </select>
                 </div>
               </div>

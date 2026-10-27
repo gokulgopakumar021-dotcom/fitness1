@@ -228,7 +228,7 @@ describe('NutritionGoalWizard: save flow', () => {
       return realSet.call(this, k, v);
     });
     await click(saveButton());
-    expect(container.textContent).toMatch(/profile targets were saved, but today's diary targets could not be saved/i);
+    expect(container.textContent).toMatch(/profile targets were saved, but today's diary targets and today's body measurement were not/i);
     expect(onClose).not.toHaveBeenCalled();
     expect(onTargetsUpdated).toHaveBeenCalledTimes(1); // profile did persist; parent mirrors storage
     expect(onTargetsUpdated.mock.calls[0][1]).toBeUndefined(); // no log was written
