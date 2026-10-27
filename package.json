@@ -12,7 +12,9 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "fetch:pose-model": "node scripts/fetch-pose-model.mjs"
+    "fetch:pose-model": "node scripts/fetch-pose-model.mjs",
+    "video:inventory": "tsx scripts/video-library/inventory.ts",
+    "video:ingest": "tsx scripts/video-library/ingest.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -35,6 +37,7 @@
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/yauzl": "^3.4.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.28.0",
     "fake-indexeddb": "^6.2.6",
@@ -42,6 +45,7 @@
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "yauzl": "^3.4.0"
   }
 }
