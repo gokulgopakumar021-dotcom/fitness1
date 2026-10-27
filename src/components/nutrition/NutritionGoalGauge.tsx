@@ -53,7 +53,7 @@ export const NutritionGoalGauge: React.FC<NutritionGoalGaugeProps> = ({
     weightKg: profile.currentWeightKg || 78,
     heightCm: profile.heightCm || 178,
     age: profile.age || 26,
-    sex: profile.sex || 'male',
+    sex: profile.sex, // no silent 'male' default: a missing sex uses the same neutral estimate as every other path
     activityLevel: 'moderate',
     bodyFatPercentage: profile.bodyFatPercentage
   });

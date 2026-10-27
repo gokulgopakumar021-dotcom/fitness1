@@ -1,16 +1,32 @@
 import { BodyMetricEntry, DailyNutritionLog, DynamicExpenditureEstimate, UserProfile } from '../types';
 
 /**
+ * The single source of truth for the sex term of the Mifflin-St Jeor equation. Every formula path
+ * (static baseline, adaptive fallback, wizard, gauge) must use it so one profile never yields two BMRs.
+ *
+ * - male:   +5
+ * - female: -161
+ * - anything else (other, unspecified, missing or unsupported stored values): -78, the midpoint of the
+ *   two published constants. A neutral estimate is the honest choice when the user has not said male or
+ *   female; silently treating them as male overstated BMR by 83 kcal/day.
+ */
+export const MIFFLIN_SEX_OFFSET = { male: 5, female: -161, neutral: -78 } as const;
+
+export function mifflinStJeorSexOffset(sex: unknown): number {
+  if (sex === 'male') return MIFFLIN_SEX_OFFSET.male;
+  if (sex === 'female') return MIFFLIN_SEX_OFFSET.female;
+  return MIFFLIN_SEX_OFFSET.neutral;
+}
+
+/**
  * Calculates baseline Basal Metabolic Rate (BMR) using the Mifflin-St Jeor equation.
  */
 export function calculateMifflinStJeorBMR(profile: UserProfile): number {
   const weight = profile.currentWeightKg || 78;
   const height = profile.heightCm || 178;
   const age = profile.age || 26;
-  const isFemale = profile.sex === 'female';
 
-  let bmr = 10 * weight + 6.25 * height - 5 * age;
-  bmr = isFemale ? bmr - 161 : bmr + 5;
+  const bmr = 10 * weight + 6.25 * height - 5 * age + mifflinStJeorSexOffset(profile.sex);
   return Math.round(bmr);
 }
 
@@ -257,14 +273,7 @@ export function calculateDetailedTDEE(params: {
   const { weightKg, heightCm, age, sex, activityLevel, bodyFatPercentage } = params;
   
   // Mifflin-St Jeor formula
-  let mifflinBmr = 10 * weightKg + 6.25 * heightCm - 5 * age;
-  if (sex === 'male') {
-    mifflinBmr += 5;
-  } else if (sex === 'female') {
-    mifflinBmr -= 161;
-  } else {
-    mifflinBmr -= 78; // neutral midpoint
-  }
+  let mifflinBmr = 10 * weightKg + 6.25 * heightCm - 5 * age + mifflinStJeorSexOffset(sex);
   mifflinBmr = Math.max(900, Math.round(mifflinBmr));
 
   let finalBmr = mifflinBmr;
