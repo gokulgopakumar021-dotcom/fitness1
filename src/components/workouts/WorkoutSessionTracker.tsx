@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Zap,
   Eye,
+  Video,
   Bluetooth,
   Heart
 } from 'lucide-react';
@@ -75,6 +76,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
 
   // Posture & Form Preview modal state
   const [posturePreviewExercise, setPosturePreviewExercise] = useState<string | null>(null);
+  const [posturePreviewShowVideo, setPosturePreviewShowVideo] = useState<boolean>(false);
 
   // Bluetooth Gadget hook
   const { isConnected, liveHeartRate, currentZone, activeCaloriesBurned, setIsGadgetModalOpen } = useBluetoothGadget();
@@ -870,12 +872,28 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   {/* Form & Posture Preview Button */}
                   <button
-                    onClick={() => setPosturePreviewExercise(exercise.name)}
+                    onClick={() => {
+                      setPosturePreviewShowVideo(false);
+                      setPosturePreviewExercise(exercise.name);
+                    }}
                     className="px-2.5 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors"
                     title="Preview correct posture, joint angles, and workout form"
                   >
                     <Eye className="w-3.5 h-3.5 text-sky-400" />
                     <span>Biomechanics</span>
+                  </button>
+
+                  {/* Watch Video Button (opens the same modal with the video section expanded) */}
+                  <button
+                    onClick={() => {
+                      setPosturePreviewShowVideo(true);
+                      setPosturePreviewExercise(exercise.name);
+                    }}
+                    className="px-2.5 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors"
+                    title="Watch an exercise demonstration video"
+                  >
+                    <Video className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Watch video</span>
                   </button>
 
                   {/* AI Coach & Substitutions Button */}
@@ -1418,6 +1436,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
           isOpen={Boolean(posturePreviewExercise)}
           onClose={() => setPosturePreviewExercise(null)}
           profile={profile}
+          openVideoFirst={posturePreviewShowVideo}
         />
       )}
 
