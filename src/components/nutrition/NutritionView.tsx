@@ -994,7 +994,8 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile, onProfile
         profile={profile}
         currentLog={currentLog}
         onTargetsUpdated={(newProfile, newLog) => {
-          if (newLog) {
+          // Adopt the returned log only if it is the diary day being viewed
+          if (newLog && newLog.date === selectedDate) {
             setCurrentLog(newLog);
           }
           if (onProfileUpdated) {

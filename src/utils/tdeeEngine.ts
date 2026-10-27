@@ -199,7 +199,40 @@ export interface WizardMacroPlan {
   rationale: string;
   leanBodyMassKg?: number;
   bodyFatPercentage?: number;
+  /** Deficit (-) or surplus (+) the chosen goal/pace asked for, before any guardrail. */
+  requestedCalorieDelta: number;
+  /** Final target minus estimated maintenance. Differs from the request when the calorie floor applies. */
+  actualCalorieDelta: number;
+  calorieFloorApplied: boolean;
+  /** protein*4 + carbs*4 + fat*9 using the final gram values. */
+  macroCalories: number;
+  /** macroCalories - targetCalories (positive = macros exceed the calorie target). */
+  macroCalorieMismatch: number;
+  /** True when |macroCalorieMismatch| <= MACRO_RECONCILE_TOLERANCE_KCAL. */
+  macrosReconciled: boolean;
+  /** True when a guardrail changed the requested result or the macros do not reconcile. Saving needs explicit confirmation. */
+  constrained: boolean;
+  warnings: string[];
 }
+
+/** Software calorie floor. A guardrail in this app, not a medically validated minimum. */
+export const CALORIE_FLOOR_KCAL = 1200;
+/** Rounding tolerance for 4/4/9 reconciliation (each gram figure is rounded to whole grams). */
+export const MACRO_RECONCILE_TOLERANCE_KCAL = 10;
+/** Minimum carbohydrate target applied by the engine (existing behavior). */
+export const CARB_FLOOR_GRAMS = 50;
+
+/** Supported input ranges. Mirrors the wizard's controls; enforced in code, not only via HTML attributes. */
+export const INPUT_BOUNDS = {
+  weightKg: { min: 30, max: 300 },
+  heightCm: { min: 100, max: 230 },
+  age: { min: 14, max: 99 },
+  bodyFatPercentage: { min: 3, max: 60 },
+  proteinGramsPerKg: { min: 1.6, max: 2.8 },
+  fatPercentOfCalories: { min: 18, max: 35 }
+} as const;
+
+export const SUPPORTED_SEXES = ['male', 'female', 'other', 'unspecified'] as const;
 
 export const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, { multiplier: number; label: string; desc: string }> = {
   sedentary: { multiplier: 1.2, label: 'Sedentary', desc: 'Desk job, <5,000 steps/day, minimal deliberate movement' },
@@ -266,8 +299,147 @@ export function calculateDetailedTDEE(params: {
   };
 }
 
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+function inRange(v: unknown, b: { min: number; max: number }): v is number {
+  return isFiniteNumber(v) && v >= b.min && v <= b.max;
+}
+
+export function isActivityLevel(v: unknown): v is ActivityLevel {
+  return typeof v === 'string' && Object.prototype.hasOwnProperty.call(ACTIVITY_MULTIPLIERS, v);
+}
+
+/** Parses a text field. Empty or malformed text (including Infinity) returns NaN; it never becomes 0. */
+export function parseNumericInput(raw: string): number {
+  const t = (raw ?? '').trim();
+  if (t === '') return NaN;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+export type WizardInputField =
+  | 'weight'
+  | 'height'
+  | 'age'
+  | 'sex'
+  | 'bodyFat'
+  | 'activityLevel'
+  | 'proteinRatio'
+  | 'fatPercent'
+  | 'customCalorieAdjustment'
+  | 'calculation';
+
+export type WizardInputErrors = Partial<Record<WizardInputField, string>>;
+
+export interface WizardInputs {
+  weightKg: number;
+  heightCm: number;
+  age: number;
+  sex: string;
+  activityLevel: string;
+  /** undefined = not provided (Mifflin-St Jeor fallback). NaN or out-of-range = invalid. */
+  bodyFatPercentage?: number;
+  proteinRatioGramsPerKg: number;
+  fatPercentOfCalories: number;
+  goal: NutritionGoal;
+  pace: DeficitOrSurplusPace;
+  customCalorieAdjustment?: number;
+}
+
 /**
- * Computes calibrated calories and macros for Cut, Maintain, and Bulk goals
+ * Validates wizard inputs against INPUT_BOUNDS. Required fields are never defaulted;
+ * an omitted body-fat value is valid (fallback formula), a malformed or out-of-range one is not.
+ */
+export function validateWizardInputs(
+  i: WizardInputs,
+  opts: { weightUnit?: 'kg' | 'lbs' } = {}
+): { valid: boolean; errors: WizardInputErrors } {
+  const errors: WizardInputErrors = {};
+  const b = INPUT_BOUNDS;
+  if (!inRange(i.weightKg, b.weightKg)) {
+    errors.weight =
+      opts.weightUnit === 'lbs'
+        ? `Enter a weight between ${Math.ceil(b.weightKg.min * 2.20462)} and ${Math.floor(b.weightKg.max * 2.20462)} lbs.`
+        : `Enter a weight between ${b.weightKg.min} and ${b.weightKg.max} kg.`;
+  }
+  if (!inRange(i.heightCm, b.heightCm)) {
+    errors.height = `Enter a height between ${b.heightCm.min} and ${b.heightCm.max} cm.`;
+  }
+  if (!inRange(i.age, b.age) || !Number.isInteger(i.age)) {
+    errors.age = `Enter a whole-number age between ${b.age.min} and ${b.age.max}.`;
+  }
+  if (!(SUPPORTED_SEXES as readonly string[]).includes(i.sex)) {
+    errors.sex = 'Select a supported option.';
+  }
+  if (i.bodyFatPercentage !== undefined && !inRange(i.bodyFatPercentage, b.bodyFatPercentage)) {
+    errors.bodyFat = `Body fat must be between ${b.bodyFatPercentage.min}% and ${b.bodyFatPercentage.max}%, or leave it blank if you don't know it.`;
+  }
+  if (!isActivityLevel(i.activityLevel)) {
+    errors.activityLevel = 'Select an activity level.';
+  }
+  if (!inRange(i.proteinRatioGramsPerKg, b.proteinGramsPerKg)) {
+    errors.proteinRatio = `Protein must be between ${b.proteinGramsPerKg.min} and ${b.proteinGramsPerKg.max} g/kg.`;
+  }
+  if (!inRange(i.fatPercentOfCalories, b.fatPercentOfCalories)) {
+    errors.fatPercent = `Fat must be between ${b.fatPercentOfCalories.min}% and ${b.fatPercentOfCalories.max}% of calories.`;
+  }
+  if (i.customCalorieAdjustment !== undefined && !isFiniteNumber(i.customCalorieAdjustment)) {
+    errors.customCalorieAdjustment = 'Calorie adjustment must be a finite number.';
+  }
+  return { valid: Object.keys(errors).length === 0, errors };
+}
+
+export type NutritionPlanResult =
+  | { ok: true; tdee: DetailedTDEEResult; plan: WizardMacroPlan }
+  | { ok: false; errors: WizardInputErrors };
+
+/**
+ * Validated entry point used by the wizard. Never throws: invalid input or a non-finite derived
+ * value yields { ok: false } so nothing downstream can display or persist it.
+ */
+export function computeNutritionPlan(
+  i: WizardInputs,
+  opts: { weightUnit?: 'kg' | 'lbs' } = {}
+): NutritionPlanResult {
+  const v = validateWizardInputs(i, opts);
+  if (!v.valid) return { ok: false, errors: v.errors };
+  try {
+    const tdee = calculateDetailedTDEE({
+      weightKg: i.weightKg,
+      heightCm: i.heightCm,
+      age: i.age,
+      sex: i.sex as 'male' | 'female' | 'other' | 'unspecified',
+      activityLevel: i.activityLevel as ActivityLevel,
+      bodyFatPercentage: i.bodyFatPercentage
+    });
+    if (![tdee.bmr, tdee.dailyTdee, tdee.weeklyTdee].every((n) => isFiniteNumber(n) && n > 0)) {
+      return { ok: false, errors: { calculation: 'The energy estimate could not be calculated from these inputs.' } };
+    }
+    const plan = calculateWizardMacroPlan({
+      dailyTdee: tdee.dailyTdee,
+      weightKg: i.weightKg,
+      goal: i.goal,
+      pace: i.pace,
+      customCalorieAdjustment: i.customCalorieAdjustment,
+      proteinRatioGramsPerKg: i.proteinRatioGramsPerKg,
+      fatPercentOfCalories: i.fatPercentOfCalories,
+      bodyFatPercentage: i.bodyFatPercentage
+    });
+    return { ok: true, tdee, plan };
+  } catch {
+    return { ok: false, errors: { calculation: 'The targets could not be calculated from these inputs.' } };
+  }
+}
+
+const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+
+/**
+ * Computes calibrated calories and macros for Cut, Maintain, and Bulk goals.
+ * Throws RangeError on invalid or non-finite input and never returns negative or non-finite targets.
+ * When a guardrail (calorie floor, fat floor, carb floor) changes the requested result, the plan
+ * reports the actual values and sets `constrained`.
  */
 export function calculateWizardMacroPlan(params: {
   dailyTdee: number;
@@ -290,13 +462,24 @@ export function calculateWizardMacroPlan(params: {
     bodyFatPercentage
   } = params;
 
-  // Lean body mass if body fat percentage is valid
-  const leanBodyMassKg =
-    typeof bodyFatPercentage === 'number' && bodyFatPercentage >= 3 && bodyFatPercentage <= 60
-      ? Number((weightKg * (1 - bodyFatPercentage / 100)).toFixed(1))
-      : undefined;
+  if (!isFiniteNumber(dailyTdee) || dailyTdee <= 0) throw new RangeError('dailyTdee must be a positive finite number');
+  if (!inRange(weightKg, INPUT_BOUNDS.weightKg)) throw new RangeError('weightKg is outside the supported range');
+  if (proteinRatioGramsPerKg !== undefined && !inRange(proteinRatioGramsPerKg, INPUT_BOUNDS.proteinGramsPerKg)) {
+    throw new RangeError('proteinRatioGramsPerKg is outside the supported range');
+  }
+  if (fatPercentOfCalories !== undefined && !inRange(fatPercentOfCalories, INPUT_BOUNDS.fatPercentOfCalories)) {
+    throw new RangeError('fatPercentOfCalories is outside the supported range');
+  }
+  if (customCalorieAdjustment !== undefined && !isFiniteNumber(customCalorieAdjustment)) {
+    throw new RangeError('customCalorieAdjustment must be finite');
+  }
 
-  // Calorie Delta
+  // Lean body mass only when body fat is valid
+  const leanBodyMassKg = inRange(bodyFatPercentage, INPUT_BOUNDS.bodyFatPercentage)
+    ? Number((weightKg * (1 - bodyFatPercentage / 100)).toFixed(1))
+    : undefined;
+
+  // Requested calorie delta
   let calorieDelta = 0;
   if (customCalorieAdjustment !== undefined) {
     calorieDelta = customCalorieAdjustment;
@@ -308,52 +491,97 @@ export function calculateWizardMacroPlan(params: {
     if (pace === 'conservative') calorieDelta = 250;
     else if (pace === 'moderate') calorieDelta = 400;
     else calorieDelta = 600;
-  } else {
-    calorieDelta = 0; // maintain
   }
 
-  // Target calories with physiological lower safety floor
-  const rawTarget = dailyTdee + calorieDelta;
-  const targetCalories = Math.max(1200, Math.round(rawTarget));
+  // Final calorie target after the calorie floor; every budget below derives from this value
+  const rawTarget = Math.round(dailyTdee + calorieDelta);
+  const calorieFloorApplied = rawTarget < CALORIE_FLOOR_KCAL;
+  const targetCalories = calorieFloorApplied ? CALORIE_FLOOR_KCAL : rawTarget;
+  const actualCalorieDelta = targetCalories - dailyTdee;
   const weeklyTargetCalories = targetCalories * 7;
   const weeklyTdee = dailyTdee * 7;
   const weeklyDeficitOrSurplus = weeklyTargetCalories - weeklyTdee;
 
-  // 1 kg of adipose/tissue tissue flux ≈ 7,700 kcal
+  // Approximation: 1 kg of body-weight change ~ 7,700 kcal
   const estimatedWeeklyWeightChangeKg = Number((weeklyDeficitOrSurplus / 7700).toFixed(2));
 
-  // Protein calculation
+  // Protein (total body weight basis)
   const defaultProteinRatio = goal === 'cut' ? 2.2 : goal === 'bulk' ? 2.0 : 1.9;
-  const finalProteinRatio = proteinRatioGramsPerKg || defaultProteinRatio;
+  const finalProteinRatio = proteinRatioGramsPerKg ?? defaultProteinRatio;
   const proteinGrams = Math.round(weightKg * finalProteinRatio);
   const proteinCals = proteinGrams * 4;
 
-  // Fat calculation (default 25% of calories or custom)
-  const finalFatPercent = fatPercentOfCalories !== undefined ? fatPercentOfCalories : 25;
+  // Fat: percent of calories, with a grams/day floor
+  const finalFatPercent = fatPercentOfCalories ?? 25;
   const fatCals = Math.round(targetCalories * (finalFatPercent / 100));
-  // Keep fat at least 45g or 0.6g/kg for endocrine health
   const fatFloor = Math.max(40, Math.round(weightKg * 0.6));
-  const fatGrams = Math.max(fatFloor, Math.round(fatCals / 9));
+  const unflooredFat = Math.round(fatCals / 9);
+  const fatFloorApplied = fatFloor > unflooredFat;
+  const fatGrams = Math.max(fatFloor, unflooredFat);
   const actualFatCals = fatGrams * 9;
 
-  // Carbs = Remaining calories
+  // Carbs: remainder, with a minimum
   const remainingCals = targetCalories - (proteinCals + actualFatCals);
-  const carbsGrams = Math.max(50, Math.round(remainingCals / 4));
+  const unflooredCarbs = Math.round(remainingCals / 4);
+  const carbFloorApplied = unflooredCarbs < CARB_FLOOR_GRAMS;
+  const carbsGrams = Math.max(CARB_FLOOR_GRAMS, unflooredCarbs);
   const actualCarbCals = carbsGrams * 4;
 
-  // Re-normalize exact percentages based on actual macronutrient calories
+  // 4/4/9 reconciliation against the final calorie target
+  const macroCalories = proteinCals + actualCarbCals + actualFatCals;
+  const macroCalorieMismatch = macroCalories - targetCalories;
+  const macrosReconciled = Math.abs(macroCalorieMismatch) <= MACRO_RECONCILE_TOLERANCE_KCAL;
+
+  const warnings: string[] = [];
+  if (calorieFloorApplied) {
+    const requestedLabel = calorieDelta < 0 ? 'deficit' : calorieDelta > 0 ? 'surplus' : 'adjustment';
+    warnings.push(
+      `Calorie floor applied: the requested ${Math.abs(calorieDelta)} kcal/day ${requestedLabel} would give ${rawTarget} kcal, so the target is held at ${CALORIE_FLOOR_KCAL} kcal. ` +
+        `The actual change versus estimated maintenance is ${signed(Math.round(actualCalorieDelta))} kcal/day (${signed(weeklyDeficitOrSurplus)} kcal/week), not the requested ${signed(calorieDelta)}. ` +
+        `The floor is a software safeguard, not a medically validated minimum.`
+    );
+    if (goal === 'cut' && actualCalorieDelta >= 0) {
+      warnings.push('After the floor this target is not below estimated maintenance, so it is not a calorie deficit.');
+    }
+    if (goal === 'bulk' && actualCalorieDelta <= 0) {
+      warnings.push('After the floor this target is not above estimated maintenance, so it is not a calorie surplus.');
+    }
+  }
+  if (!macrosReconciled) {
+    const causes: string[] = [];
+    if (carbFloorApplied) causes.push(`carbohydrates are held at the ${CARB_FLOOR_GRAMS} g minimum`);
+    if (fatFloorApplied) causes.push(`fat is held at the ${fatFloor} g minimum`);
+    warnings.push(
+      `Macros do not reconcile: protein, carbohydrate and fat add up to ${macroCalories} kcal, ` +
+        `${Math.abs(macroCalorieMismatch)} kcal ${macroCalorieMismatch > 0 ? 'above' : 'below'} the ${targetCalories} kcal target` +
+        `${causes.length ? ` because ${causes.join(' and ')}` : ''}. ` +
+        `Lowering the protein setting or raising calories would bring them closer.`
+    );
+  }
+  const constrained = calorieFloorApplied || !macrosReconciled;
+
+  // Re-normalize percentages on actual macro calories
   const totalMacroCals = proteinCals + actualCarbCals + actualFatCals;
   const proteinPercent = Math.round((proteinCals / totalMacroCals) * 100);
   const fatPercent = Math.round((actualFatCals / totalMacroCals) * 100);
   const carbsPercent = Math.max(0, 100 - (proteinPercent + fatPercent));
 
+  const actualRounded = Math.round(actualCalorieDelta);
   let rationale = '';
-  if (goal === 'cut') {
-    rationale = `Targeting a ${Math.abs(calorieDelta)} kcal/day deficit (${Math.abs(weeklyDeficitOrSurplus).toLocaleString()} kcal/week) for an estimated ~${Math.abs(estimatedWeeklyWeightChangeKg)} kg/week fat reduction while holding protein high (${finalProteinRatio}g/kg${leanBodyMassKg ? ` / ${(proteinGrams / leanBodyMassKg).toFixed(1)}g per kg LBM` : ''}) to safeguard muscle tissue.`;
+  if (calorieFloorApplied) {
+    rationale = `Calorie floor applied: target ${targetCalories} kcal/day is ${signed(actualRounded)} kcal/day versus estimated maintenance (${signed(weeklyDeficitOrSurplus)} kcal/week), not the requested ${signed(calorieDelta)}.`;
+  } else if (goal === 'cut') {
+    rationale = `Targeting a ${Math.abs(actualRounded)} kcal/day deficit (${Math.abs(weeklyDeficitOrSurplus).toLocaleString()} kcal/week), roughly ${Math.abs(estimatedWeeklyWeightChangeKg)} kg/week of scale-weight change (an approximation, not a guaranteed result), with protein at ${finalProteinRatio}g/kg${leanBodyMassKg ? ` / ${(proteinGrams / leanBodyMassKg).toFixed(1)}g per kg LBM` : ''}.`;
   } else if (goal === 'bulk') {
-    rationale = `Targeting a controlled +${calorieDelta} kcal/day surplus (+${weeklyDeficitOrSurplus.toLocaleString()} kcal/week) to maximize lean myofibrillar hypertrophy while keeping adipose accumulation minimal.`;
+    rationale = `Targeting a ${signed(actualRounded)} kcal/day surplus (${signed(weeklyDeficitOrSurplus)} kcal/week), roughly ${estimatedWeeklyWeightChangeKg} kg/week of scale-weight change (an approximation, not a guaranteed result).`;
   } else {
-    rationale = `Targeting exact energy balance at ${dailyTdee} kcal/day (${weeklyTdee.toLocaleString()} kcal/week) to maintain body mass, optimize glycogen replenishment, and elevate gym training output.`;
+    rationale = `Targeting estimated energy balance at ${dailyTdee} kcal/day (${weeklyTdee.toLocaleString()} kcal/week) to maintain body weight.`;
+  }
+
+  // Never hand back negative or non-finite values
+  const outputs = [targetCalories, weeklyTargetCalories, proteinGrams, carbsGrams, fatGrams, macroCalories];
+  if (!outputs.every((n) => isFiniteNumber(n) && n >= 0) || !(targetCalories > 0)) {
+    throw new RangeError('Calculated targets are not valid');
   }
 
   return {
@@ -373,7 +601,14 @@ export function calculateWizardMacroPlan(params: {
     fatPercent,
     rationale,
     leanBodyMassKg,
-    bodyFatPercentage
+    bodyFatPercentage,
+    requestedCalorieDelta: calorieDelta,
+    actualCalorieDelta: Math.round(actualCalorieDelta),
+    calorieFloorApplied,
+    macroCalories,
+    macroCalorieMismatch,
+    macrosReconciled,
+    constrained,
+    warnings
   };
 }
-

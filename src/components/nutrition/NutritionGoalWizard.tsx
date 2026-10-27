@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Sparkles,
   Calculator,
@@ -25,13 +25,13 @@ import { db } from '../../storage/db';
 import {
   ActivityLevel,
   ACTIVITY_MULTIPLIERS,
-  calculateDetailedTDEE,
-  calculateWizardMacroPlan,
+  computeNutritionPlan,
   DeficitOrSurplusPace,
-  DetailedTDEEResult,
+  INPUT_BOUNDS,
   NutritionGoal,
-  WizardMacroPlan
+  parseNumericInput
 } from '../../utils/tdeeEngine';
+import { commitNutritionTargets, getCurrentDayKey } from '../../storage/nutritionTargetCommit';
 import { kgToLbs, lbsToKg } from '../../utils/calculations';
 
 export interface NutritionGoalWizardProps {
@@ -77,50 +77,98 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
   const [customCalorieOffset, setCustomCalorieOffset] = useState<number | undefined>(undefined);
 
   // Step 2: Physical Metrics, Activity & Body Fat %
-  const [weight, setWeight] = useState<number>(() => {
-    return unit === 'lbs' ? kgToLbs(profile.currentWeightKg || 78) : (profile.currentWeightKg || 78);
-  });
-  const [heightCm, setHeightCm] = useState<number>(profile.heightCm || 178);
-  const [age, setAge] = useState<number>(profile.age || 26);
+  // Numeric fields are held as text so an empty or malformed field can never silently become 0.
+  const [weightInput, setWeightInput] = useState<string>(() =>
+    profile.currentWeightKg > 0
+      ? String(unit === 'lbs' ? kgToLbs(profile.currentWeightKg) : profile.currentWeightKg)
+      : ''
+  );
+  const [heightInput, setHeightInput] = useState<string>(() =>
+    profile.heightCm > 0 ? String(profile.heightCm) : ''
+  );
+  const [ageInput, setAgeInput] = useState<string>(() => (profile.age > 0 ? String(profile.age) : ''));
   const [sex, setSex] = useState<'male' | 'female' | 'other' | 'unspecified'>(profile.sex || 'male');
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>('moderate');
-  const [bodyFat, setBodyFat] = useState<number | undefined>(initialBodyFat());
+  const [bodyFatInput, setBodyFatInput] = useState<string>(() => {
+    const bf = initialBodyFat();
+    return bf === undefined ? '' : String(bf);
+  });
 
   // Step 3 & 4: Macro Distribution
   const [proteinRatio, setProteinRatio] = useState<number>(goal === 'cut' ? 2.2 : goal === 'bulk' ? 2.0 : 1.9);
   const [fatPercent, setFatPercent] = useState<number>(25);
-  const [isSavedSuccess, setIsSavedSuccess] = useState<boolean>(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [confirmedPlanKey, setConfirmedPlanKey] = useState<string>('');
+  const savingRef = useRef<boolean>(false);
+
+  // Each time the wizard opens, clear save state from any previous session.
+  useEffect(() => {
+    if (isOpen) {
+      savingRef.current = false;
+      setSaveStatus('idle');
+      setSaveError(null);
+      setConfirmedPlanKey('');
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  // Convert weight to kg for physiological calculations
-  const weightKg = unit === 'lbs' ? lbsToKg(weight) : weight;
+  // Parse text inputs. Empty or malformed text is NaN (invalid), never 0 or a default.
+  const weightDisplay = parseNumericInput(weightInput);
+  const weightKg = unit === 'lbs' ? lbsToKg(weightDisplay) : weightDisplay;
+  const heightCm = parseNumericInput(heightInput);
+  const age = parseNumericInput(ageInput);
+  // Blank body fat = not provided (Mifflin-St Jeor fallback); malformed text stays NaN and is flagged.
+  const bodyFat: number | undefined = bodyFatInput.trim() === '' ? undefined : parseNumericInput(bodyFatInput);
 
-  // Calculate detailed TDEE using Katch-McArdle (if body fat % provided) or Mifflin-St Jeor
-  const tdeeResult: DetailedTDEEResult = calculateDetailedTDEE({
-    weightKg,
-    heightCm,
-    age,
-    sex,
-    activityLevel,
-    bodyFatPercentage: bodyFat
-  });
+  // Validated calculation: invalid inputs produce errors and no plan.
+  const computed = computeNutritionPlan(
+    {
+      weightKg,
+      heightCm,
+      age,
+      sex,
+      activityLevel,
+      bodyFatPercentage: bodyFat,
+      proteinRatioGramsPerKg: proteinRatio,
+      fatPercentOfCalories: fatPercent,
+      goal,
+      pace,
+      customCalorieAdjustment: customCalorieOffset
+    },
+    { weightUnit: unit }
+  );
+  const tdeeResult = computed.ok ? computed.tdee : undefined;
+  const plan = computed.ok ? computed.plan : undefined;
+  const inputErrors = computed.ok ? {} : computed.errors;
+  const planKey = plan
+    ? `${plan.targetCalories}|${plan.proteinGrams}|${plan.carbsGrams}|${plan.fatGrams}|${plan.requestedCalorieDelta}`
+    : '';
+  const needsConfirmation = !!plan?.constrained && confirmedPlanKey !== planKey;
 
-  // Calculate macro plan
-  const plan: WizardMacroPlan = calculateWizardMacroPlan({
-    dailyTdee: tdeeResult.dailyTdee,
-    weightKg,
-    goal,
-    pace,
-    customCalorieAdjustment: customCalorieOffset,
-    proteinRatioGramsPerKg: proteinRatio,
-    fatPercentOfCalories: fatPercent,
-    bodyFatPercentage: bodyFat
-  });
+  const dayKey = getCurrentDayKey();
+  const viewingPastDate = !!currentLog && currentLog.date !== dayKey;
+  const weightMinDisplay = unit === 'lbs' ? Math.ceil(kgToLbs(INPUT_BOUNDS.weightKg.min)) : INPUT_BOUNDS.weightKg.min;
+  const weightMaxDisplay = unit === 'lbs' ? Math.floor(kgToLbs(INPUT_BOUNDS.weightKg.max)) : INPUT_BOUNDS.weightKg.max;
 
-  // Apply changes to database and parent
+  // Apply changes to storage and parent. Success is reported only after every required write succeeded.
   const handleApplyPlan = () => {
-    // Map goal to PrimaryGoal
+    if (savingRef.current || saveStatus !== 'idle') return; // block duplicate submissions
+    if (!computed.ok) {
+      setStep(2);
+      return;
+    }
+    const p = computed.plan;
+    if (p.constrained && confirmedPlanKey !== planKey) {
+      setSaveError('Please confirm that you understand these targets differ from what was requested.');
+      return;
+    }
+
+    savingRef.current = true;
+    setSaveStatus('saving');
+    setSaveError(null);
+
     const mappedGoal: PrimaryGoal =
       goal === 'cut' ? 'fat_loss' : goal === 'bulk' ? 'muscle_gain' : 'maintenance';
 
@@ -131,48 +179,55 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
       age,
       sex,
       primaryGoal: mappedGoal,
-      bodyFatPercentage: bodyFat,
-      dailyCalorieTarget: plan.targetCalories,
-      dailyProteinTarget: plan.proteinGrams,
-      dailyCarbsTarget: plan.carbsGrams,
-      dailyFatTarget: plan.fatGrams
+      // A blank body-fat field never erases a stored value
+      bodyFatPercentage: bodyFat !== undefined ? bodyFat : profile.bodyFatPercentage,
+      dailyCalorieTarget: p.targetCalories,
+      dailyProteinTarget: p.proteinGrams,
+      dailyCarbsTarget: p.carbsGrams,
+      dailyFatTarget: p.fatGrams
     };
 
-    // 1. Save updated UserProfile to database
-    db.saveProfile(updatedProfile);
-
-    // 2. Save current day's log target if passed
-    let updatedLog: DailyNutritionLog | undefined = undefined;
-    if (currentLog) {
-      updatedLog = {
-        ...currentLog,
-        targetCalories: plan.targetCalories,
-        targetProtein: plan.proteinGrams,
-        targetCarbs: plan.carbsGrams,
-        targetFat: plan.fatGrams
-      };
-      db.saveNutritionLogForDate(updatedLog);
-    }
-
-    // 3. Record or update latest body metric in database with weight and body fat %
-    const todayStr = new Date().toISOString().split('T')[0];
-    const bmiVal = Number((weightKg / Math.pow(heightCm / 100, 2)).toFixed(1));
+    const existingToday = db.getBodyMetrics().find((m) => m.date === dayKey);
     const metricEntry: BodyMetricEntry = {
       id: `metric_${Date.now()}`,
-      date: todayStr,
+      date: dayKey,
       weightKg: Number(weightKg.toFixed(1)),
-      bodyFatPercentage: bodyFat,
-      bmi: bmiVal,
-      notes: `Updated via Nutrition Goal Wizard (${goal.toUpperCase()})`
+      ...(bodyFat !== undefined ? { bodyFatPercentage: bodyFat } : {}),
+      bmi: Number((weightKg / Math.pow(heightCm / 100, 2)).toFixed(1)),
+      // Do not replace notes the user already wrote on today's entry
+      ...(existingToday?.notes ? {} : { notes: `Updated via Nutrition Goal Wizard (${goal.toUpperCase()})` })
     };
-    db.addOrUpdateBodyMetric(metricEntry);
 
-    // 4. Notify parent state
-    setIsSavedSuccess(true);
-    setTimeout(() => {
-      onTargetsUpdated(updatedProfile, updatedLog);
+    const result = commitNutritionTargets(db, {
+      profile: updatedProfile,
+      viewedLog: currentLog,
+      targets: {
+        calories: p.targetCalories,
+        protein: p.proteinGrams,
+        carbs: p.carbsGrams,
+        fat: p.fatGrams
+      },
+      metric: metricEntry,
+      dayKey
+    });
+
+    // Only today's log is ever handed back for the view to adopt
+    const logForParent = result.viewingPastDate ? undefined : result.todayLog;
+
+    if (result.ok) {
+      setSaveStatus('saved');
+      onTargetsUpdated(result.profile, logForParent);
       onClose();
-    }, 600);
+      return;
+    }
+
+    // Failure: stay open and allow retry. If the profile did persist, keep the parent mirroring storage.
+    savingRef.current = false;
+    setSaveStatus('idle');
+    setSaveError(result.message ?? 'Your targets could not be saved. Please try again.');
+    if (result.persisted.profile) {
+      onTargetsUpdated(result.profile, logForParent);
+    }
   };
 
   const bodyFatPresets = [
@@ -227,7 +282,7 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
             <button
               key={s.num}
               type="button"
-              onClick={() => setStep(s.num as any)}
+              onClick={() => setStep(s.num >= 3 && !computed.ok ? 2 : (s.num as 1 | 2 | 3 | 4))}
               className={`py-2.5 px-1 border-b-2 transition-all flex flex-col sm:flex-row items-center justify-center gap-1 text-[11px] ${
                 step === s.num
                   ? 'border-[#CEFF00] text-volt-adaptive font-bold'
@@ -393,10 +448,11 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
                   <input
                     type="number"
                     step="0.5"
-                    min="30"
-                    max="300"
-                    value={weight}
-                    onChange={(e) => setWeight(parseFloat(e.target.value) || 0)}
+                    min={weightMinDisplay}
+                    max={weightMaxDisplay}
+                    value={weightInput}
+                    aria-invalid={!!inputErrors.weight}
+                    onChange={(e) => setWeightInput(e.target.value)}
                     className="w-full text-lg font-mono font-bold bg-transparent text-[var(--text-primary)] border-b border-[var(--border-card)] focus:border-[#CEFF00] outline-none"
                   />
                 </div>
@@ -407,10 +463,11 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
                   </label>
                   <input
                     type="number"
-                    min="100"
-                    max="230"
-                    value={heightCm}
-                    onChange={(e) => setHeightCm(parseInt(e.target.value, 10) || 178)}
+                    min={INPUT_BOUNDS.heightCm.min}
+                    max={INPUT_BOUNDS.heightCm.max}
+                    value={heightInput}
+                    aria-invalid={!!inputErrors.height}
+                    onChange={(e) => setHeightInput(e.target.value)}
                     className="w-full text-lg font-mono font-bold bg-transparent text-[var(--text-primary)] border-b border-[var(--border-card)] focus:border-[#CEFF00] outline-none"
                   />
                 </div>
@@ -421,10 +478,12 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
                   </label>
                   <input
                     type="number"
-                    min="14"
-                    max="99"
-                    value={age}
-                    onChange={(e) => setAge(parseInt(e.target.value, 10) || 25)}
+                    min={INPUT_BOUNDS.age.min}
+                    max={INPUT_BOUNDS.age.max}
+                    step="1"
+                    value={ageInput}
+                    aria-invalid={!!inputErrors.age}
+                    onChange={(e) => setAgeInput(e.target.value)}
                     className="w-full text-lg font-mono font-bold bg-transparent text-[var(--text-primary)] border-b border-[var(--border-card)] focus:border-[#CEFF00] outline-none"
                   />
                 </div>
@@ -445,6 +504,16 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
                 </div>
               </div>
 
+              {(inputErrors.weight || inputErrors.height || inputErrors.age || inputErrors.sex || inputErrors.activityLevel || inputErrors.calculation) && (
+                <div role="alert" className="text-xs text-red-400 space-y-1">
+                  {[inputErrors.weight, inputErrors.height, inputErrors.age, inputErrors.sex, inputErrors.activityLevel, inputErrors.calculation]
+                    .filter(Boolean)
+                    .map((msg) => (
+                      <p key={msg}>{msg}</p>
+                    ))}
+                </div>
+              )}
+
               {/* Body Fat Percentage Input & Lean Mass Breakdown */}
               <div className="reshape-card-subtle p-4 space-y-3 border border-[var(--border-card)]">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -462,19 +531,23 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
                     <input
                       type="number"
                       step="0.5"
-                      min="3"
-                      max="55"
+                      min={INPUT_BOUNDS.bodyFatPercentage.min}
+                      max={INPUT_BOUNDS.bodyFatPercentage.max}
                       placeholder="e.g. 15"
-                      value={bodyFat !== undefined ? bodyFat : ''}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        setBodyFat(isNaN(val) ? undefined : val);
-                      }}
+                      value={bodyFatInput}
+                      aria-invalid={!!inputErrors.bodyFat}
+                      onChange={(e) => setBodyFatInput(e.target.value)}
                       className="w-24 text-right px-3 py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)] font-mono font-bold text-base text-[var(--text-primary)] focus:border-[#CEFF00] outline-none"
                     />
                     <span className="text-sm font-mono font-bold text-[var(--text-secondary)]">%</span>
                   </div>
                 </div>
+
+                {inputErrors.bodyFat && (
+                  <p role="alert" className="text-xs text-red-400">
+                    {inputErrors.bodyFat}
+                  </p>
+                )}
 
                 {/* Body Fat Presets */}
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
@@ -482,7 +555,7 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
                     <button
                       key={b.value}
                       type="button"
-                      onClick={() => setBodyFat(b.value)}
+                      onClick={() => setBodyFatInput(String(b.value))}
                       className={`p-2 rounded-xl text-left border transition-all ${
                         bodyFat === b.value
                           ? 'bg-[#CEFF00]/15 border-[#CEFF00] text-[var(--text-primary)]'
@@ -497,11 +570,11 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
 
                 {/* Live Lean Body Mass & Formula Notice */}
                 <div className="pt-2 border-t border-[var(--border-card)] flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
-                  {tdeeResult.leanBodyMassKg ? (
+                  {tdeeResult?.leanBodyMassKg ? (
                     <div className="flex items-center gap-2 text-emerald-400">
                       <ShieldCheck className="w-4 h-4" />
                       <span>
-                        Lean Mass: <strong>{tdeeResult.leanBodyMassKg} kg</strong> · Fat Mass: <strong>{(weightKg - tdeeResult.leanBodyMassKg).toFixed(1)} kg</strong>
+                        Lean Mass: <strong>{tdeeResult.leanBodyMassKg} kg</strong> · Fat Mass: <strong>{(weightKg - (tdeeResult?.leanBodyMassKg ?? 0)).toFixed(1)} kg</strong>
                       </span>
                     </div>
                   ) : (
@@ -512,7 +585,11 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
                   )}
 
                   <span className="px-2 py-0.5 rounded bg-[var(--bg-canvas)] border border-[var(--border-card)] text-[10px] text-volt-adaptive font-semibold uppercase">
-                    {tdeeResult.formulaUsed === 'katch_mcardle' ? 'Katch-McArdle Formula' : 'Mifflin-St Jeor Formula'}
+                    {!tdeeResult
+                      ? 'Check inputs'
+                      : tdeeResult.formulaUsed === 'katch_mcardle'
+                      ? 'Katch-McArdle Formula'
+                      : 'Mifflin-St Jeor Formula'}
                   </span>
                 </div>
               </div>
@@ -556,8 +633,14 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
             </div>
           )}
 
+          {(step === 3 || step === 4) && !plan && (
+            <div role="alert" className="text-sm text-red-400">
+              Some inputs in step 2 are missing or out of range, so no targets can be calculated yet. Go back and correct them.
+            </div>
+          )}
+
           {/* STEP 3: TDEE Estimate & Caloric Budget */}
-          {step === 3 && (
+          {step === 3 && plan && tdeeResult && (
             <div className="space-y-6">
               <div className="text-xs text-[var(--text-secondary)] leading-relaxed">
                 Here is your calculated Total Daily Energy Expenditure (TDEE) and target caloric budget for your chosen goal ({goal.toUpperCase()}).
@@ -656,16 +739,61 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
                 <p className="text-xs font-mono text-[var(--text-secondary)] leading-relaxed pt-1">
                   💡 {plan.rationale}
                 </p>
+                <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                  TDEE and scale-weight figures are estimates from population equations and a fixed 7,700 kcal/kg approximation; they are not a precise prediction for you.
+                </p>
+                {plan.warnings.length > 0 && (
+                  <div role="alert" className="text-xs text-amber-400 space-y-1.5 border border-amber-500/30 rounded-xl p-3">
+                    {plan.warnings.map((w) => (
+                      <p key={w}>{w}</p>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
 
           {/* STEP 4: Macronutrient Targets & Database Update */}
-          {step === 4 && (
+          {step === 4 && plan && (
             <div className="space-y-6">
               <div className="text-xs text-[var(--text-secondary)] leading-relaxed">
                 Fine-tune your protein and fat targets. Carbohydrates automatically adjust to absorb the exact remainder of your daily {plan.targetCalories} kcal budget. Review and save to update your database.
               </div>
+
+              <div role="note" className="text-xs text-[var(--text-muted)] leading-relaxed border border-[var(--border-card)] rounded-xl p-3">
+                Saving updates your profile targets and today&apos;s ({dayKey}) diary targets.
+                {viewingPastDate && currentLog
+                  ? ` The diary for ${currentLog.date}, which you are viewing, will not be changed.`
+                  : ''}
+              </div>
+
+              {plan.warnings.length > 0 && (
+                <div role="alert" className="text-xs text-amber-400 space-y-1.5 border border-amber-500/30 rounded-xl p-3">
+                  {plan.warnings.map((w) => (
+                    <p key={w}>{w}</p>
+                  ))}
+                </div>
+              )}
+
+              {plan.constrained && (
+                <label className="flex items-start gap-2 text-xs text-[var(--text-primary)] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={confirmedPlanKey === planKey}
+                    onChange={(e) => setConfirmedPlanKey(e.target.checked ? planKey : '')}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    I understand these targets differ from the requested pace or do not fully add up, and I want to save them as shown.
+                  </span>
+                </label>
+              )}
+
+              {saveError && (
+                <div role="alert" className="text-xs text-red-400 border border-red-500/30 rounded-xl p-3">
+                  {saveError}
+                </div>
+              )}
 
               {/* Protein Slider & Presets */}
               <div className="reshape-card-subtle p-4 space-y-3">
@@ -904,8 +1032,9 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
             {step < 4 ? (
               <button
                 type="button"
-                onClick={() => setStep((s) => (s + 1) as any)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#CEFF00] hover:bg-[#b8e600] text-black font-bold text-xs uppercase tracking-wider transition-colors shadow-sm"
+                disabled={step === 2 && !computed.ok}
+                onClick={() => setStep((s) => (s + 1) as 1 | 2 | 3 | 4)}
+                className="disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#CEFF00] hover:bg-[#b8e600] text-black font-bold text-xs uppercase tracking-wider transition-colors shadow-sm"
               >
                 <span>Continue</span>
                 <ArrowRight className="w-4 h-4" />
@@ -913,12 +1042,12 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
             ) : (
               <button
                 type="button"
-                disabled={isSavedSuccess}
+                disabled={saveStatus !== 'idle' || !plan || needsConfirmation}
                 onClick={handleApplyPlan}
                 className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#CEFF00] hover:bg-[#b8e600] text-black font-bold text-xs uppercase tracking-wider transition-colors shadow-md shadow-[#CEFF00]/20 disabled:opacity-80"
               >
                 <Check className="w-4 h-4 stroke-[3]" />
-                <span>{isSavedSuccess ? 'Targets Saved!' : 'Update Daily Targets in Database'}</span>
+                <span>{saveStatus === 'saved' ? 'Targets Saved!' : saveStatus === 'saving' ? 'Saving…' : 'Update Daily Targets in Database'}</span>
               </button>
             )}
           </div>

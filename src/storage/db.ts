@@ -64,11 +64,14 @@ class IronLogDB {
     return { ...DEFAULT_PROFILE };
   }
 
-  saveProfile(profile: UserProfile): void {
+  /** Returns true only when the write actually succeeded. */
+  saveProfile(profile: UserProfile): boolean {
     try {
       localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(profile));
+      return true;
     } catch (e) {
       console.error('Failed saving profile', e);
+      return false;
     }
   }
 
@@ -181,11 +184,14 @@ class IronLogDB {
     return [];
   }
 
-  saveNutritionLogs(logs: DailyNutritionLog[]): void {
+  /** Returns true only when the write actually succeeded. */
+  saveNutritionLogs(logs: DailyNutritionLog[]): boolean {
     try {
       localStorage.setItem(STORAGE_KEYS.NUTRITION_LOGS, JSON.stringify(logs));
+      return true;
     } catch (e) {
       console.error('Failed saving nutrition logs', e);
+      return false;
     }
   }
 
@@ -207,7 +213,8 @@ class IronLogDB {
     };
   }
 
-  saveNutritionLogForDate(log: DailyNutritionLog): void {
+  /** Returns true only when the write actually succeeded. */
+  saveNutritionLogForDate(log: DailyNutritionLog): boolean {
     const logs = this.getNutritionLogs();
     const idx = logs.findIndex((l) => l.date === log.date);
     if (idx >= 0) {
@@ -215,7 +222,7 @@ class IronLogDB {
     } else {
       logs.push(log);
     }
-    this.saveNutritionLogs(logs);
+    return this.saveNutritionLogs(logs);
   }
 
   // --- Custom Foods ---
@@ -257,24 +264,53 @@ class IronLogDB {
     return [];
   }
 
-  saveBodyMetrics(metrics: BodyMetricEntry[]): void {
+  /** Returns true only when the write actually succeeded. */
+  saveBodyMetrics(metrics: BodyMetricEntry[]): boolean {
     try {
       localStorage.setItem(STORAGE_KEYS.BODY_METRICS, JSON.stringify(metrics));
+      return true;
     } catch (e) {
       console.error('Failed saving body metrics', e);
+      return false;
     }
   }
 
-  addOrUpdateBodyMetric(entry: BodyMetricEntry): void {
+  /**
+   * One record per date. An update to an existing same-day record is merged:
+   * - the existing id is kept;
+   * - fields the new entry leaves undefined (waist, notes, body fat, ...) keep their stored values,
+   *   so a blank optional input never erases a stored measurement (no UI currently clears a single
+   *   field; delete the entry with deleteBodyMetric instead);
+   * - a real entry replaces a same-day demo record outright rather than inheriting its fabricated
+   *   fields, and a demo entry never overwrites a real record.
+   * Returns true only when the write actually succeeded.
+   */
+  addOrUpdateBodyMetric(entry: BodyMetricEntry): boolean {
     const list = this.getBodyMetrics();
     const idx = list.findIndex((m) => m.date === entry.date);
-    if (idx >= 0) {
-      list[idx] = entry;
+    let next: BodyMetricEntry[];
+    if (idx < 0) {
+      next = [...list, entry];
     } else {
-      list.push(entry);
+      const existing = list[idx];
+      let merged: BodyMetricEntry;
+      if (existing.isDemo && !entry.isDemo) {
+        merged = entry;
+      } else if (!existing.isDemo && entry.isDemo) {
+        return true; // real data wins; nothing to write
+      } else {
+        merged = { ...existing };
+        (Object.keys(entry) as (keyof BodyMetricEntry)[]).forEach((k) => {
+          if (entry[k] !== undefined) {
+            (merged as unknown as Record<string, unknown>)[k] = entry[k];
+          }
+        });
+        merged.id = existing.id;
+      }
+      next = list.map((m, i) => (i === idx ? merged : m));
     }
-    list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    this.saveBodyMetrics(list);
+    next = [...next].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return this.saveBodyMetrics(next);
   }
 
   deleteBodyMetric(id: string): void {
