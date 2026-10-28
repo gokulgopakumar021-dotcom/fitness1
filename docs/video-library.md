@@ -115,6 +115,46 @@ Per batch, in this order (you run every step yourself):
 5. Same command with `--execute` (you set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in your own shell).
 6. Review `batch-NN.publish.sql`, then run it in the Supabase SQL Editor. It refuses unless every hash is `uploaded`.
 
+## Mapping videos to exercise keys (manual review, key-first)
+
+The app only knows a few dozen exercise keys (the exercise index), so you review "which videos show this exercise?"
+once per key instead of judging every video. Both commands are offline: they read `manifest.jsonl`, write local files,
+and never connect to Supabase.
+
+```bash
+# 1. For every exercise key, the best-scoring videos (title overlap). Writes mapping/candidates-NN.csv, never overwrites.
+npm run video:map-candidates -- --workdir .video-library            # --per-key 6 --min-score 0.4 by default
+
+# 2. Open the CSV in a spreadsheet and fill ONLY the decision column, then save it as CSV:
+#      map                 this video shows this exercise
+#      map_equipment_ok    same, and the equipment really differs on purpose (e.g. dumbbell video for a cable exercise)
+#      skip                not this exercise (it will not be offered for this key again)
+#      (blank)             decide later; nothing is recorded
+#    Optional: sort_order (whole number) to put one video first. Blank = after existing videos, in file order.
+
+# 3. Validate it and write the SQL:
+npm run video:map-sql -- --csv .video-library/mapping/candidates-01.csv --workdir .video-library
+#    -> candidates-01.map.sql (guarded, run it yourself) and mapping/decisions.jsonl (append-only ledger)
+```
+
+Run the generated `.map.sql` in the SQL Editor only after those videos are uploaded. It is all-or-nothing and sets
+`exercise_key`, `review_status = 'matched'`, `match_method = 'manual'`, `match_confidence = 1`, `sort_order`, and adds a
+`demo:female` / `demo:male` tag from the archive folder (`girl/` / `men/`). It never sets `published`: the posture modal
+shows a video only when it is matched AND published, so run `publish_videos.sql` for it as usual.
+
+Decisions are never overwritten:
+- the SQL only changes rows that are still `needs_review` or `unmatched`; one row that is already matched (automatically
+  or manually, with another key) or rejected stops the whole run and changes nothing;
+- the ledger refuses a different key for a video it already mapped, and a damaged ledger stops every command;
+- candidate files skip mapped videos, auto-matched videos and every (video, key) pair you skipped;
+- a CSV with any problem is rejected as a whole, with every problem listed, and records nothing.
+
+The ledger records what you decided when the SQL was generated, not whether you ran it. The database is the source of
+truth: the SQL's guards check the live rows. Re-running the same SQL is harmless.
+
+A key must exist in the exercise index (`src/data/exerciseIndex.ts`) to be accepted: a video mapped to a key the workout
+screen can never resolve would never be shown. Adding keys is a code change to that index, not a CSV edit.
+
 ## Validation sample and duplicate review (read-only helpers)
 
 None of these commands touch Supabase, the ZIP or the network unless noted. They only read `manifest.jsonl`.
