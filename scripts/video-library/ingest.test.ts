@@ -166,3 +166,21 @@ describe('catalogRow', () => {
     }
   });
 });
+
+describe('publishing is never part of ingestion', () => {
+  it('catalog rows never carry a published value, so the database default (false) applies', () => {
+    const { records } = parseManifest(readFileSync(path.join(work, 'manifest.jsonl'), 'utf8'));
+    for (const r of records) expect(catalogRow(r)).not.toHaveProperty('published');
+  });
+  it('a full ingest run writes no published value; visibility stays a separate, deliberate step', async () => {
+    const f = fakes();
+    await runIngest({ ...base(), execute: true, uploader: f.uploader, catalog: f.catalog });
+    expect(f.rows.size).toBeGreaterThan(0);
+    for (const r of f.rows.values()) expect(r).not.toHaveProperty('published');
+  });
+  it('the script source never assigns published = true', () => {
+    const src = readFileSync(path.join(import.meta.dirname, 'ingest.ts'), 'utf8');
+    expect(src).not.toMatch(/published\s*[:=]\s*true/);
+  });
+});
+

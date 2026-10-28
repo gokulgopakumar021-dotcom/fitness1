@@ -17,6 +17,7 @@ import { PlansUploadView } from './components/plans/PlansUploadView';
 import { ReportsView } from './components/reports/ReportsView';
 import { ProgressTimelineView } from './components/timeline/ProgressTimelineView';
 import { SettingsView } from './components/settings/SettingsView';
+import { VideoLibraryView } from './components/video/VideoLibraryView';
 import { AiTrainerView } from './components/trainer/AiTrainerView';
 import { FloatingTrainerWidget } from './components/trainer/FloatingTrainerWidget';
 import { BluetoothGadgetProvider } from './context/BluetoothGadgetContext';
@@ -154,6 +155,8 @@ function AppShell() {
                 onProfileUpdated={setProfile}
               />
             )}
+
+            {currentTab === 'videos' && <VideoLibraryView />}
 
             {currentTab === 'progression' && (
               <ProgressionView

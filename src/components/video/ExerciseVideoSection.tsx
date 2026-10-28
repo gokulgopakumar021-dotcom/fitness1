@@ -22,7 +22,7 @@ type PlayerPhase = { kind: 'signing' } | { kind: 'ready'; url: string } | { kind
 
 const PLAYER_ERROR = 'This video could not be played. Check your connection and try again.';
 
-const VideoPlayer: React.FC<{ video: ExerciseVideo }> = ({ video }) => {
+export const VideoPlayer: React.FC<{ video: ExerciseVideo }> = ({ video }) => {
   const [phase, setPhase] = useState<PlayerPhase>({ kind: 'signing' });
   const [attempt, setAttempt] = useState(0);
   // A failed load most often means the signed URL expired, so the first failure re-signs once automatically.

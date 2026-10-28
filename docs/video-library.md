@@ -2,10 +2,13 @@
 
 Video binaries never go in Git or the app bundle. Metadata lives in Postgres (`public.exercise_videos`), files live
 in the private `exercise-videos` Storage bucket, and both are written only by the offline scripts below using the
-service role. The browser can read published rows and sign playback URLs for them, nothing else.
+service role. The browser can read published rows and sign playback URLs for them, nothing else. A row is
+"published" only after you run `supabase/manual/publish_videos.sql` yourself; ingestion never publishes (see "Publishing").
 
 ## One-time setup (you run these; nothing is applied automatically)
-1. Review and apply the two migrations in `supabase/migrations/20261027010000_*` and `..._0100_*`.
+1. Review and apply the migrations in `supabase/migrations/` in order: `20261027010000_*`, `20261027010100_*`, then
+   `20261028000000_exercise_videos_published.sql` (adds the `published` flag and switches the table and storage
+   policies to it; its header has the rollback).
 2. Install ffmpeg (for `ffprobe`) if you want duration/resolution recorded. Without it the fields stay empty and are
    marked `unavailable`.
 
@@ -59,8 +62,31 @@ Re-running is safe: objects are content-addressed (`videos/<sha[0:2]>/<sha256>.m
 
 ## Matching rules
 Exact key, name or alias match -> `matched`. Equipment conflicts and ties -> `needs_review`. Fuzzy matches only ever
-produce a *suggestion* (`suggested_exercise_key`), never an exercise key. Everything else is `unmatched`. Only
-`matched` + `uploaded` rows are visible to signed-in users.
+produce a *suggestion* (`suggested_exercise_key`), never an exercise key. Everything else is `unmatched`.
+`review_status` only describes the exercise-key mapping. It does not control visibility: signed-in users see a row
+when it is `uploaded` AND `published`. The posture modal additionally asks for `matched` rows, so it never shows a video
+that has no reviewed exercise key.
+
+## Publishing (separate, deliberate, run by you)
+New rows are inserted with `published = false`. To make videos visible in the Video Library screen:
+
+1. Collect the SHA-256 hashes you approve (from `manifest.jsonl` or `sample.txt`).
+2. Open `supabase/manual/publish_videos.sql`, replace the example hashes, review it, and run it in the Supabase SQL
+   Editor. It is all-or-nothing: it refuses (and changes nothing) if any hash is malformed, unknown, or not `uploaded`.
+3. Run the check query at the bottom of the file.
+
+To hide videos again run `supabase/manual/unpublish_videos.sql` the same way. A signed URL someone already holds
+keeps working until it expires (one hour). Nothing in this repository sets `published = true`, and a database
+constraint stops a row that is not `uploaded` from being published.
+
+On Windows PowerShell, turn a hash-per-line `sample.txt` into the quoted list for the SQL file with:
+`(Get-Content .video-library\sample.txt | Where-Object { $_ -match '^[0-9a-f]{64}$' } | ForEach-Object { "'$_'" }) -join ",`n"`
+
+## Video Library screen
+Navigation: Train group in the desktop sidebar, and the mobile "More" sheet. Search is debounced (300 ms, Enter searches
+at once), case-insensitive, matches the start of each typed word in the title (`ben pre` finds "Bench Press"), and
+loads 24 results per page with a "Show more" button. An empty box browses the whole library A to Z, one page at a time.
+Opening a video signs one playback URL for that video only.
 
 ## Validation sample and duplicate review (read-only helpers)
 

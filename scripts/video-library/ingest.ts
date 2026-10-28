@@ -20,6 +20,9 @@ export { SampleFileError, loadSampleFile, parseSampleText, validateSampleHashes,
  * review decisions made by a human survive a re-run. Object keys are content-addressed, so re-uploading the
  * same file cannot create a duplicate.
  *
+ * VISIBILITY: ingestion never publishes. Rows are inserted without a `published` value, so the column default
+ * (false) applies and a video stays invisible to users until you run supabase/manual/publish_videos.sql yourself.
+ *
  * PROBE GATE: a video is only uploaded when probe.jsonl holds a successful ffprobe result for exactly its bytes
  * (see probeGate.ts). Rejected videos are skipped before extraction: no catalog row, no object, no ingest-state entry,
  * so fixing the probe and re-running simply picks them up. Videos already recorded as uploaded are not re-checked.
