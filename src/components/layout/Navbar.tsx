@@ -18,7 +18,8 @@ import {
   Sun,
   Moon,
   History,
-  Home
+  Home,
+  Video
 } from 'lucide-react';
 import { UserProfile, WorkoutSession } from '../../types';
 import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
@@ -37,6 +38,7 @@ export type NavTab =
   | 'reports'
   | 'timeline'
   | 'trainer'
+  | 'videos'
   | 'settings';
 
 interface HeaderProps {
@@ -55,6 +57,7 @@ export const NAV_ITEMS = [
   { id: 'dashboard' as NavTab, label: 'Overview', icon: Flame },
   { id: 'workouts' as NavTab, label: 'Workouts', icon: Dumbbell },
   { id: 'trainer' as NavTab, label: 'AI Coach', icon: Bot },
+  { id: 'videos' as NavTab, label: 'Video Library', icon: Video },
   { id: 'progression' as NavTab, label: 'Overload Engine', icon: TrendingUp },
   { id: 'nutrition' as NavTab, label: 'Nutrition', icon: Apple },
   { id: 'body' as NavTab, label: 'Body & BMI', icon: Activity },
@@ -72,7 +75,7 @@ const NAV_BY_ID = Object.fromEntries(NAV_ITEMS.map((i) => [i.id, i])) as Record<
 /** Desktop sidebar grouping. Every NavTab appears exactly once. */
 export const NAV_GROUPS: { label: string; items: NavTab[] }[] = [
   { label: 'Overview', items: ['home', 'dashboard'] },
-  { label: 'Train', items: ['workouts', 'plans', 'trainer'] },
+  { label: 'Train', items: ['workouts', 'plans', 'videos', 'trainer'] },
   { label: 'Track', items: ['progression', 'nutrition', 'body', 'reports', 'timeline'] },
   { label: 'Account', items: ['settings'] },
 ];
@@ -86,6 +89,7 @@ const MOBILE_PRIMARY: { id: NavTab; label: string }[] = [
 ];
 
 const MOBILE_MORE: { id: NavTab; label: string; desc: string }[] = [
+  { id: 'videos', label: 'Video Library', desc: 'Search exercise videos and watch them' },
   { id: 'timeline', label: 'Progress Timeline', desc: 'Long-term trends, body history & period comparisons' },
   { id: 'progression', label: 'Overload Engine', desc: 'Prescribed weight jumps & 1RM calculator' },
   { id: 'body', label: 'Body Metrics & BMI', desc: 'Smoothed weight trends and silhouette data' },
