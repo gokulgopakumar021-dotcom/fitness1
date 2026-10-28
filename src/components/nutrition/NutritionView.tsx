@@ -521,24 +521,36 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile, onProfile
             <span>Duplicate Yesterday&apos;s Diary</span>
           </button>
 
-          {/* Hydration Tracking Widget */}
+          {/* Hydration Quick Status in Macro Header */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
               <Droplets className="w-4 h-4 text-sky-400" />
               <span className="font-mono font-bold text-[var(--text-primary)] tabular-nums">
-                {(currentLog.waterMl || 0).toLocaleString()} ml
+                {Math.round((currentLog.waterMl || 0) * 0.033814)} oz
+              </span>
+              <span className="font-mono text-[var(--text-muted)] text-[11px]">
+                ({(currentLog.waterMl || 0).toLocaleString()} ml)
               </span>
             </div>
             <div className="flex items-center gap-1 font-mono text-[11px]">
               <button
-                onClick={() => updateWater(250)}
-                className="px-2.5 py-1 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] rounded-xl text-sky-500 border border-sky-400/20"
+                onClick={() => updateWater(237)}
+                className="px-2.5 py-1 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] rounded-xl text-sky-400 border border-sky-400/20 hover:border-sky-400/40 transition-colors"
+                title="Quick add 8 fl oz (237 ml)"
               >
-                +250ml
+                +8oz
+              </button>
+              <button
+                onClick={() => updateWater(473)}
+                className="px-2.5 py-1 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] rounded-xl text-sky-400 border border-sky-400/20 hover:border-sky-400/40 transition-colors"
+                title="Quick add 16 fl oz (473 ml)"
+              >
+                +16oz
               </button>
               <button
                 onClick={() => updateWater(500)}
-                className="px-2.5 py-1 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] rounded-xl text-sky-500 border border-sky-400/20"
+                className="px-2.5 py-1 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] rounded-xl text-sky-400 border border-sky-400/20 hover:border-sky-400/40 transition-colors hidden sm:inline-block"
+                title="Quick add 500 ml"
               >
                 +500ml
               </button>
@@ -569,6 +581,8 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile, onProfile
           saveLog(updated);
         }}
         profile={profile}
+        selectedDate={selectedDate}
+        onSelectDate={(date) => setSelectedDate(date)}
       />
 
       {/* MEALS LIST BY CATEGORY */}
