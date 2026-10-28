@@ -333,6 +333,30 @@ describe('ExercisePostureModal integration', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('shows a clear message instead of another exercise\'s guide when there is no form guide, and keeps video and close working', async () => {
+    h.rows = () => Promise.resolve({ data: [], error: null });
+    const onClose = vi.fn();
+    await render(<ExercisePostureModal exerciseName="Face Pull" isOpen onClose={onClose} openVideoFirst />);
+    expect(Array.from(container.querySelectorAll('[role="status"]')).some((el) => (el.textContent ?? '').includes('No form guide available for this exercise.'))).toBe(true);
+    expect(text()).toContain('Face Pull');
+    // None of the squat guide's content or tabs may appear.
+    expect(text()).not.toContain('Barbell Back Squat');
+    expect(text()).not.toContain('Visual Model & Angles');
+    expect(text()).not.toContain('Form Mistakes & Fixes');
+    // The video section still works (it is keyed on the workout's own exercise name).
+    expect(h.from).toEqual(['exercise_videos']);
+    expect(text()).toContain('No approved video');
+    await click(buttonByText('Close Form Guide'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('still plays an approved video for an exercise that has no form guide', async () => {
+    h.rows = () => Promise.resolve({ data: [row('v9', 'Face Pull Demo', 'videos/bb/b.mp4')], error: null });
+    await render(<ExercisePostureModal exerciseName="Face Pull" isOpen onClose={() => {}} openVideoFirst />);
+    expect(text()).toContain('No form guide available for this exercise.');
+    expect(text()).toContain('Face Pull Demo');
+  });
+
   it('does not fetch videos when opened via Biomechanics (section collapsed)', async () => {
     await render(<ExercisePostureModal exerciseName="Barbell Back Squat" isOpen onClose={() => {}} />);
     expect(h.from).toEqual([]);

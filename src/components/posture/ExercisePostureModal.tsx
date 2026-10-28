@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   ShieldCheck,
@@ -16,8 +16,8 @@ import {
   Sliders
 } from 'lucide-react';
 import {
-  ExerciseBiomechanicsData,
-  getBiomechanicsForExercise
+  getBiomechanicsForExercise,
+  NO_BIOMECHANICS_GUIDE_MESSAGE
 } from '../../data/exerciseBiomechanics';
 import { UserProfile } from '../../types';
 import { ExerciseVideoSection } from '../video/ExerciseVideoSection';
@@ -38,7 +38,8 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
   profile,
   openVideoFirst = false
 }) => {
-  const [data, setData] = useState<ExerciseBiomechanicsData | null>(null);
+  // Derived from the name (not stored in state) so a changed exercise can never show the previous exercise's guide.
+  const lookup = useMemo(() => (exerciseName ? getBiomechanicsForExercise(exerciseName) : null), [exerciseName]);
   const [activeTab, setActiveTab] = useState<'visual' | 'checkpoints' | 'mistakes' | 'tempo' | 'ai_coach'>('visual');
   const [posturePhase, setPosturePhase] = useState<'setup' | 'bottom'>('setup');
   const [isPlayingAnimation, setIsPlayingAnimation] = useState<boolean>(true);
@@ -48,12 +49,6 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
   const [aiCustomQuestion, setAiCustomQuestion] = useState<string>('');
   const [aiCustomCues, setAiCustomCues] = useState<string | null>(null);
   const [isLoadingAiCues, setIsLoadingAiCues] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (exerciseName) {
-      setData(getBiomechanicsForExercise(exerciseName));
-    }
-  }, [exerciseName]);
 
   // Movement loop animation ticker
   useEffect(() => {
@@ -73,7 +68,49 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
     return () => clearInterval(interval);
   }, [isPlayingAnimation]);
 
-  if (!isOpen || !data) return null;
+  if (!isOpen || !lookup) return null;
+
+  // No verified guide: say so, keep the video section and a way out. Never substitute another exercise's guide.
+  if (lookup.status === 'no_match') {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
+        <div className="bg-surface border border-line rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl relative my-auto space-y-5">
+          <div className="flex items-start justify-between gap-3 pb-3 border-b border-line">
+            <div>
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-lime-400/15 border border-lime-400/30 text-lime-400 font-bold">
+                Biomechanics &amp; Posture Guide
+              </span>
+              <h2 className="mt-1 text-lg sm:text-xl font-extrabold text-zinc-100 tracking-tight">{exerciseName}</h2>
+            </div>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-surface-3 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <ExerciseVideoSection exerciseName={exerciseName} defaultOpen={openVideoFirst} />
+
+          <div role="status" className="flex items-start gap-2 p-3.5 bg-canvas border border-line rounded-xl text-xs text-zinc-300">
+            <Info className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
+            <p>{NO_BIOMECHANICS_GUIDE_MESSAGE}</p>
+          </div>
+
+          <div className="pt-2 flex justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-surface-3 hover:bg-zinc-700 text-zinc-200 font-bold text-xs rounded-xl transition-colors"
+            >
+              Close Form Guide
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  const data = lookup.data;
 
   const handleAskAiCoach = async (promptQuery?: string) => {
     setIsLoadingAiCues(true);

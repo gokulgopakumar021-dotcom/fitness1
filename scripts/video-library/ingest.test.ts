@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseManifest, storageKeyFor } from '../../src/utils/videoLibrary/manifest';
 import { catalogRow, runIngest, type CatalogWriter, type Uploader } from './ingest';
 import { runInventory } from './inventory';
+import { writeCleanProbeSidecar } from './probeSidecar.testutil';
 import { buildZip, fakeMp4 } from './zipFixture.testutil';
 
 let root: string;
@@ -22,6 +23,7 @@ beforeEach(async () => {
     { name: 'Dumbbell Lateral Raise.mp4', data: fakeMp4('lat') }
   ]));
   await runInventory({ zipPath, workDir: work, probe: null });
+  writeCleanProbeSidecar(work); // what a successful `npm run video:probe` leaves behind
 });
 afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
@@ -144,6 +146,7 @@ describe('runIngest', () => {
     // Same entry name, CRC and size but different content cannot be built, so corrupt the recorded hash instead.
     const tampered = records.map((r, i) => (i === 0 ? { ...r, sha256: 'b'.repeat(64) } : r));
     writeFileSync(path.join(work, 'manifest.jsonl'), tampered.map((r) => JSON.stringify(r)).join('\n') + '\n');
+    writeCleanProbeSidecar(work); // probed results exist for the tampered hash too, so the archive re-hash is what refuses it
     const f = fakes();
     const s = await runIngest({ ...base(), execute: true, uploader: f.uploader, catalog: f.catalog });
     expect(s).toMatchObject({ uploaded: 3, failed: 1 });
