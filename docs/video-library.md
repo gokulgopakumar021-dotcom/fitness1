@@ -88,6 +88,33 @@ at once), case-insensitive, matches the start of each typed word in the title (`
 loads 24 results per page with a "Show more" button. An empty box browses the whole library A to Z, one page at a time.
 Opening a video signs one playback URL for that video only.
 
+## Ingesting the rest of the library in batches (`video:batch`)
+
+`video:sample` is fixed to the agreed 25-video validation sample. For everything else, `video:batch` plans the NEXT batch.
+It is offline and read-only on the manifest (no ZIP, no network, no Supabase) and it never overwrites a file.
+
+```bash
+npm run video:batch -- --workdir .video-library            # defaults: 50 videos, 100 MB per batch
+npm run video:batch -- --workdir .video-library --size 40 --max-mb 60
+#    -> .video-library/batches/batch-NN.txt          (sample file for video:probe and video:ingest)
+#       .video-library/batches/batch-NN.plan.csv      (what each video would become in the catalog)
+#       .video-library/batches/batch-NN.publish.sql   (supabase/manual/publish_videos.sql with this batch's hashes)
+```
+
+Eligible videos are `ok` manifest entries that are not already uploaded (`ingest-state.json`), not in `sample.txt` and not in
+an earlier `batch-*.txt`, so each run plans the batch after the previous one and an existing batch file is never renumbered
+or changed. A failed upload is not "uploaded", so it is picked up again. Videos with the same title (the `girl/` and `men/`
+variants) stay in one batch whenever the group fits. Planning a batch maps nothing, approves nothing and publishes nothing.
+
+Per batch, in this order (you run every step yourself):
+
+1. `npm run video:batch -- --workdir .video-library`
+2. `npm run video:probe -- --zip "%ZIP%" --sample-file .video-library\batches\batch-NN.txt --workdir .video-library`
+3. Read `.video-library\probe-flags.csv`. Fix or drop any error-severity video and re-probe. There is no bypass.
+4. Dry run: `npm run video:ingest -- --zip "%ZIP%" --workdir .video-library --sample-file .video-library\batches\batch-NN.txt`
+5. Same command with `--execute` (you set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in your own shell).
+6. Review `batch-NN.publish.sql`, then run it in the Supabase SQL Editor. It refuses unless every hash is `uploaded`.
+
 ## Validation sample and duplicate review (read-only helpers)
 
 None of these commands touch Supabase, the ZIP or the network unless noted. They only read `manifest.jsonl`.
