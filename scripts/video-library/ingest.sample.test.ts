@@ -7,7 +7,11 @@ import { parseManifest } from '../../src/utils/videoLibrary/manifest';
 import { UsageError } from './cli';
 import { catalogRow, parseIngestArgs, runIngest, SampleFileError, type CatalogWriter, type Uploader } from './ingest';
 import { runInventory } from './inventory';
-import { writeCleanProbeSidecar } from './probeSidecar.testutil';
+import { mediaFromMeasurement } from './probeMedia';
+import { goodMeasurement, writeCleanProbeSidecar } from './probeSidecar.testutil';
+
+// The clean sidecar written by these tests carries this measurement, so new rows get its duration and dimensions.
+const cleanMedia = () => mediaFromMeasurement(goodMeasurement());
 import { buildZip, fakeMp4 } from './zipFixture.testutil';
 
 let root: string;
@@ -88,7 +92,7 @@ describe('runIngest with --sample-file: dry run by default', () => {
     expect(lat.intendedRow.exercise_key).toBeNull();
     expect(bench).toMatchObject({ reviewStatus: 'matched', visibleToUsers: true });
     expect(bench.intendedRow.exercise_key).toBeTruthy();
-    expect(bench.intendedRow).toEqual(catalogRow(byFile('Barbell Bench Press.mp4')));
+    expect(bench.intendedRow).toEqual(catalogRow(byFile('Barbell Bench Press.mp4'), cleanMedia()));
     const text = lines.join('\n');
     for (const p of plan!) { expect(text).toContain(p.sha256); expect(text).toContain(p.originalFilename); expect(text).toContain(p.entryName); }
     expect(text).toContain('suggested_exercise_key');
@@ -99,7 +103,7 @@ describe('runIngest with --sample-file: dry run by default', () => {
   it('does not change mapping decisions: the intended rows equal what plain ingest would insert', async () => {
     writeSample(shaOf('Yoga Flow.mp4'), shaOf('Dumbbell Lateral Raise.mp4'));
     const { plan } = await runIngest({ ...base(), sampleFile: samplePath, execute: false });
-    for (const p of plan!) expect(p.intendedRow).toEqual(catalogRow(records().find((r) => r.sha256 === p.sha256 && r.status === 'ok')!));
+    for (const p of plan!) expect(p.intendedRow).toEqual(catalogRow(records().find((r) => r.sha256 === p.sha256 && r.status === 'ok')!, cleanMedia()));
   });
 
   it('accepts the hash of a video that also has a duplicate record, and plans the kept path', async () => {

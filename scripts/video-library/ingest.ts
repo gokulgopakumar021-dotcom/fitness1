@@ -6,6 +6,7 @@ import { parseManifest, storageKeyFor } from '../../src/utils/videoLibrary/manif
 import { checkEntryName, extractEntry, looksLikeMp4, walkZip } from './zipScan';
 import { optionValue, UsageError } from './cli';
 import { loadSampleFile, SampleFileError } from './sampleFile';
+import { mediaFromProbeRecord, NO_MEDIA, type CatalogMedia } from './probeMedia';
 import { evaluateProbeGate, loadProbeGate, probeInstructions, ProbeGateError, type GateDecision } from './probeGate';
 
 export { ProbeGateError } from './probeGate';
@@ -114,7 +115,12 @@ function saveState(p: string, s: State) {
   renameSync(tmp, p); // atomic: a crash never leaves a half-written state file
 }
 
-export function catalogRow(r: ManifestRecord): Record<string, unknown> {
+/**
+ * `media` carries probe-derived duration/width/height. It is applied only to NEW rows: inserts are insert-only, so an
+ * existing row (and any manual review decision on it) is never touched. Without it the three fields are null, because
+ * the manifest never measures media (the inventory only checks the container).
+ */
+export function catalogRow(r: ManifestRecord, media: CatalogMedia = NO_MEDIA): Record<string, unknown> {
   const m = r.match;
   const matched = m?.reviewStatus === 'matched';
   return {
@@ -125,9 +131,9 @@ export function catalogRow(r: ManifestRecord): Record<string, unknown> {
     suggested_exercise_key: !matched ? m?.suggestedKey ?? null : null,
     storage_key: storageKeyFor(r.sha256!),
     size_bytes: r.sizeBytes,
-    duration_seconds: r.durationSeconds,
-    width: r.width,
-    height: r.height,
+    duration_seconds: media.duration_seconds ?? r.durationSeconds,
+    width: media.width ?? r.width,
+    height: media.height ?? r.height,
     match_method: m?.method ?? 'none',
     match_confidence: m?.confidence ?? 0,
     review_status: m?.reviewStatus ?? 'unmatched',
@@ -135,9 +141,9 @@ export function catalogRow(r: ManifestRecord): Record<string, unknown> {
   };
 }
 
-function planFor(records: ManifestRecord[], state: State, probeOf: (r: ManifestRecord) => GateDecision): PlanItem[] {
+function planFor(records: ManifestRecord[], state: State, probeOf: (r: ManifestRecord) => GateDecision, mediaOf: (r: ManifestRecord) => CatalogMedia): PlanItem[] {
   return records.map((r) => {
-    const row = catalogRow(r);
+    const row = catalogRow(r, mediaOf(r));
     return {
       sha256: r.sha256!,
       entryName: r.entryName,
@@ -162,7 +168,7 @@ function logPlan(plan: PlanItem[], execute: boolean, log: (m: string) => void) {
     log(`    file: ${p.originalFilename}`);
     log(`    path: ${p.entryName}`);
     log(`    review_status: ${p.reviewStatus} | exercise_key: ${String(p.intendedRow.exercise_key ?? '(none)')} | suggested_exercise_key: ${p.suggestedExerciseKey ?? '(none)'}`);
-    log(`    size_bytes: ${p.sizeBytes} | reviewed exercise mapping: ${p.visibleToUsers ? 'yes' : 'no'} | visible to users: not until you publish it | already uploaded (ingest-state.json): ${p.alreadyUploaded ? 'yes' : 'no'}`);
+    log(`    size_bytes: ${p.sizeBytes} | duration_seconds: ${String(p.intendedRow.duration_seconds ?? '(none)')} | ${String(p.intendedRow.width ?? '?')}x${String(p.intendedRow.height ?? '?')} | reviewed exercise mapping: ${p.visibleToUsers ? 'yes' : 'no'} | visible to users: not until you publish it | already uploaded (ingest-state.json): ${p.alreadyUploaded ? 'yes' : 'no'}`);
     log(`    probe: ${p.probe.ok ? 'passed' : `REJECTED (${p.probe.code}): ${p.probe.reason}`}`);
     log(`    intended row: ${JSON.stringify(p.intendedRow)}`);
   });
@@ -205,6 +211,8 @@ export async function runIngest(opts: IngestOptions): Promise<IngestSummary> {
     if (!d) { d = evaluateProbeGate(r, gate); decisions.set(r.sha256!, d); }
     return d;
   };
+  // Media fields come from the probe record, and only for videos that passed the gate (rejected ones are never inserted).
+  const mediaOf = (r: ManifestRecord): CatalogMedia => (probeOf(r).ok ? mediaFromProbeRecord(gate.byHash.get(r.sha256!)) : NO_MEDIA);
   const rejections: ProbeRejection[] = selected
     .filter((r) => !probeOf(r).ok)
     .map((r) => ({ sha256: r.sha256!, originalFilename: r.originalFilename, code: probeOf(r).code!, reason: probeOf(r).reason! }));
@@ -223,7 +231,7 @@ export async function runIngest(opts: IngestOptions): Promise<IngestSummary> {
     rejections
   };
   if (opts.sampleFile !== undefined) {
-    summary.plan = planFor(candidates, state, probeOf);
+    summary.plan = planFor(candidates, state, probeOf, mediaOf);
     logPlan(summary.plan, opts.execute, log);
   }
   if (rejections.length) {
@@ -272,7 +280,7 @@ export async function runIngest(opts: IngestOptions): Promise<IngestSummary> {
       let lastError = '';
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          await catalog.insertPending(catalogRow(rec));
+          await catalog.insertPending(catalogRow(rec, mediaOf(rec)));
           await uploader.uploadObject(storageKeyFor(sha), extracted.filePath, extracted.bytes);
           await catalog.markUploaded(sha);
           const prev = state.items[sha];
