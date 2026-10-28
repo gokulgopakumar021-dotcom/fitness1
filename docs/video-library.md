@@ -10,21 +10,49 @@ service role. The browser can read published rows and sign playback URLs for the
    marked `unavailable`.
 
 ## Steps
+Nothing is uploaded or published unless a successful media probe exists for that exact file (see "Probe gate" below).
+Run the steps in this order. Everything before step 6 is read-only and offline.
+
 ```bash
 # 1. Inventory: read-only, no network. Resumable; safe to Ctrl-C and re-run.
 npm run video:inventory -- --zip /path/to/library.zip --workdir .video-library
 #    -> .video-library/manifest.jsonl, summary.json, review.csv
 
-# 2. Look at summary.json (real counts, size, duplicates) and review.csv (what needs a human decision).
+# 2. Review: look at summary.json (real counts, size, duplicates) and review.csv (what needs a human decision).
 
-# 3. Dry run of the upload plan (default, touches nothing):
-npm run video:ingest -- --zip /path/to/library.zip --workdir .video-library --limit 30 --only-matched
+# 3. Choose the videos: build the validation sample (or write your own sample.txt, one SHA-256 per line).
+npm run video:sample -- --workdir .video-library
+#    -> .video-library/sample.txt
 
-# 4. Sample upload, only after the migrations are applied and you approve:
+# 4. Probe exactly those videos (needs ffprobe on PATH: `ffprobe -version`). Read-only, no network.
+npm run video:probe -- --zip /path/to/library.zip --sample-file .video-library/sample.txt --workdir .video-library
+#    -> .video-library/probe.jsonl and probe-flags.csv. Fix or drop any video with an error flag, then re-run.
+
+# 5. Dry run (default, touches nothing). Each video shows "probe: passed" or "probe: REJECTED (...)".
+npm run video:ingest -- --zip /path/to/library.zip --workdir .video-library --sample-file .video-library/sample.txt
+
+# 6. Upload, only after the migrations are applied and you approve:
 export SUPABASE_URL=...            # shell only
 export SUPABASE_SERVICE_ROLE_KEY=...  # shell only. Never a VITE_* variable, never committed.
-npm run video:ingest -- --zip /path/to/library.zip --workdir .video-library --limit 30 --only-matched --execute
+npm run video:ingest -- --zip /path/to/library.zip --workdir .video-library --sample-file .video-library/sample.txt --execute
 ```
+
+`--limit N` / `--only-matched` still work instead of `--sample-file`, but the probe step needs a sample file, so
+list those videos' hashes in one first. Real devices: still test playback in iPhone Safari before publishing.
+
+## Probe gate
+`video:ingest` reads `probe.jsonl` and uploads a video only if its record (looked up by SHA-256, which the probe
+re-checked against the archive bytes) is a successful probe of the same size, with no blocking flag. It rejects a video
+when: `probe.jsonl` is missing (including when ffprobe was not installed, because the probe then writes nothing); there
+is no record for that hash (never probed, or probed before the file changed); the record is `unreadable`,
+`archive_mismatch` or `not_in_archive`; the measurement is incomplete; or any error flag applies (`no_video_stream`,
+`invalid_duration`, `invalid_dimensions`, `ffprobe_unreadable`, ...). Warnings (not H.264, not yuv420p, non-AAC audio)
+and a silent video do not block. There is no bypass flag.
+
+A rejected video is skipped before anything is extracted or written: no catalog row, no object, no `ingest-state.json`
+entry. Dry run lists the rejections and exits normally; `--execute` skips them, uploads the rest and exits with code 1,
+or stops immediately when `probe.jsonl` does not exist. After fixing the problem, re-run the probe and then ingest.
+Videos already recorded as uploaded are skipped and not re-checked.
 
 Re-running is safe: objects are content-addressed (`videos/<sha[0:2]>/<sha256>.mp4`), catalog rows are insert-only
 (manual review decisions are never overwritten), and finished items are skipped using `ingest-state.json`.
@@ -74,11 +102,11 @@ chosen from manifest order. `review_decision` is always blank for you to fill in
 
 On Windows `cmd`, set environment variables with `set NAME=value` instead of `export`.
 
-## ffprobe enrichment (`video:probe`, optional)
+## ffprobe enrichment (`video:probe`, required before upload)
 
-A separate, optional step. For the videos named in a sample file it extracts each file to a temporary path, runs
+A separate step, required before ingest uploads anything. For the videos named in a sample file it extracts each file to a temporary path, runs
 `ffprobe`, and records what it found in a **sidecar**. It reads the ZIP locally; it makes no network calls, never
-touches Supabase, and **never modifies `manifest.jsonl`**. `video:ingest` does not read the sidecar.
+touches Supabase, and **never modifies `manifest.jsonl`**. `video:ingest` reads the sidecar as a safety gate (see "Probe gate" above).
 
 ```bash
 npm run video:probe -- --zip /path/to/library.zip --sample-file .video-library/sample.txt --workdir .video-library

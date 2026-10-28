@@ -550,42 +550,68 @@ export const EXERCISE_BIOMECHANICS: Record<string, ExerciseBiomechanicsData> = {
   }
 };
 
-/**
- * Helper to match an exercise name to our biomechanics database
- */
-export function getBiomechanicsForExercise(exerciseName: string): ExerciseBiomechanicsData {
-  const norm = exerciseName.toLowerCase().trim();
+/** Shown wherever a form guide would be, when no verified guide exists for the exercise. */
+export const NO_BIOMECHANICS_GUIDE_MESSAGE = 'No form guide available for this exercise.';
 
-  for (const key of Object.keys(EXERCISE_BIOMECHANICS)) {
-    const data = EXERCISE_BIOMECHANICS[key];
-    if (data.aliases.some((alias) => norm.includes(alias.toLowerCase()))) {
-      return data;
+export type BiomechanicsMatchSource = 'key' | 'name' | 'alias';
+
+/**
+ * Result of a biomechanics lookup. A guide is returned ONLY for an exact, verified match. There is deliberately no
+ * fallback: a wrong form guide (for example squat cues on a face pull) is worse than none.
+ */
+export type BiomechanicsLookup =
+  | { status: 'match'; key: string; matchedBy: BiomechanicsMatchSource; data: ExerciseBiomechanicsData }
+  | { status: 'no_match'; reason: 'empty' | 'unknown' | 'ambiguous' };
+
+/**
+ * Aliases that exist on an entry (and feed the video matcher, which is unchanged) but whose guide describes
+ * DIFFERENT equipment, so they are not trusted for form guidance. Compared after normalisation.
+ *  - 'Dumbbell Lateral Raise': the guide is the cable version (cable pulley setup, cable tension cues).
+ *  - 'Dumbbell RDL': the guide is the barbell version (unrack the bar, bar tracks the thighs).
+ */
+const UNVERIFIED_GUIDE_ALIASES: readonly string[] = ['dumbbell lateral raise', 'dumbbell rdl'];
+
+/** Lowercase, punctuation and hyphens become single spaces: "Pull-up" and "pull up" are the same text. */
+export function normalizeExerciseLookupText(text: string): string {
+  return text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+
+interface LookupCandidate { key: string; matchedBy: BiomechanicsMatchSource }
+let lookupIndex: Map<string, LookupCandidate[]> | null = null;
+
+function getLookupIndex(): Map<string, LookupCandidate[]> {
+  if (lookupIndex) return lookupIndex;
+  const index = new Map<string, LookupCandidate[]>();
+  const add = (text: string, key: string, matchedBy: BiomechanicsMatchSource) => {
+    const norm = normalizeExerciseLookupText(text);
+    if (!norm) return;
+    const list = index.get(norm) ?? [];
+    if (!list.some((c) => c.key === key)) list.push({ key, matchedBy });
+    index.set(norm, list);
+  };
+  for (const [key, data] of Object.entries(EXERCISE_BIOMECHANICS)) {
+    add(key, key, 'key');
+    add(data.name, key, 'name');
+    for (const alias of data.aliases) {
+      if (UNVERIFIED_GUIDE_ALIASES.includes(normalizeExerciseLookupText(alias))) continue;
+      add(alias, key, 'alias');
     }
   }
+  lookupIndex = index;
+  return index;
+}
 
-  // Fallback heuristic based on movement pattern
-  if (norm.includes('squat') || norm.includes('lunge') || norm.includes('split squat')) {
-    return { ...EXERCISE_BIOMECHANICS['barbell-squat'], name: exerciseName };
-  }
-  if (norm.includes('bench') || norm.includes('push-up') || norm.includes('chest press')) {
-    return { ...EXERCISE_BIOMECHANICS['barbell-bench-press'], name: exerciseName };
-  }
-  if (norm.includes('deadlift') || norm.includes('rdl') || norm.includes('hip thrust')) {
-    return { ...EXERCISE_BIOMECHANICS['deadlift'], name: exerciseName };
-  }
-  if (norm.includes('press') && (norm.includes('shoulder') || norm.includes('overhead') || norm.includes('military'))) {
-    return { ...EXERCISE_BIOMECHANICS['overhead-press'], name: exerciseName };
-  }
-  if (norm.includes('row')) {
-    return { ...EXERCISE_BIOMECHANICS['barbell-row'], name: exerciseName };
-  }
-  if (norm.includes('pull') || norm.includes('chin') || norm.includes('lat')) {
-    return { ...EXERCISE_BIOMECHANICS['lat-pulldown'], name: exerciseName };
-  }
-  if (norm.includes('lateral') || norm.includes('delt') || norm.includes('raise')) {
-    return { ...EXERCISE_BIOMECHANICS['cable-lateral-raise'], name: exerciseName };
-  }
-
-  // Default to Barbell Back Squat structure with updated name
-  return { ...EXERCISE_BIOMECHANICS['barbell-squat'], name: exerciseName };
+/**
+ * Matches an exercise name to the biomechanics database by EXACT normalised key, canonical name or verified alias.
+ * No substring or movement-pattern matching: "Front Squat", "Romanian Deadlift" and "Pull-up" must never pick up the
+ * guide of a different exercise or equipment variant. Anything else (custom exercises, look-alikes) is `no_match`.
+ */
+export function getBiomechanicsForExercise(exerciseName: string): BiomechanicsLookup {
+  const norm = typeof exerciseName === 'string' ? normalizeExerciseLookupText(exerciseName) : '';
+  if (!norm) return { status: 'no_match', reason: 'empty' };
+  const candidates = getLookupIndex().get(norm);
+  if (!candidates) return { status: 'no_match', reason: 'unknown' };
+  if (candidates.length > 1) return { status: 'no_match', reason: 'ambiguous' };
+  const { key, matchedBy } = candidates[0];
+  return { status: 'match', key, matchedBy, data: EXERCISE_BIOMECHANICS[key] };
 }

@@ -6,7 +6,9 @@ import { parseManifest, storageKeyFor } from '../../src/utils/videoLibrary/manif
 import { checkEntryName, extractEntry, looksLikeMp4, walkZip } from './zipScan';
 import { optionValue, UsageError } from './cli';
 import { loadSampleFile, SampleFileError } from './sampleFile';
+import { evaluateProbeGate, loadProbeGate, probeInstructions, ProbeGateError, type GateDecision } from './probeGate';
 
+export { ProbeGateError } from './probeGate';
 export { SampleFileError, loadSampleFile, parseSampleText, validateSampleHashes, validateSampleText } from './sampleFile';
 
 /**
@@ -17,6 +19,10 @@ export { SampleFileError, loadSampleFile, parseSampleText, validateSampleHashes,
  * therefore never visible to users without its object. Existing rows are never overwritten (insert-only), so
  * review decisions made by a human survive a re-run. Object keys are content-addressed, so re-uploading the
  * same file cannot create a duplicate.
+ *
+ * PROBE GATE: a video is only uploaded when probe.jsonl holds a successful ffprobe result for exactly its bytes
+ * (see probeGate.ts). Rejected videos are skipped before extraction: no catalog row, no object, no ingest-state entry,
+ * so fixing the probe and re-running simply picks them up. Videos already recorded as uploaded are not re-checked.
  */
 
 export const BUCKET = 'exercise-videos';
@@ -66,9 +72,14 @@ export interface IngestSummary {
   failed: number;
   bytesToUpload: number;
   bytesUploaded: number;
+  /** Videos skipped because they have no successful probe result. Never uploaded, never written to the catalog. */
+  rejected: number;
+  rejections: ProbeRejection[];
   /** Present only with a sample file: what each video would become in the catalog. */
   plan?: PlanItem[];
 }
+
+export interface ProbeRejection { sha256: string; originalFilename: string; code: string; reason: string }
 
 export interface PlanItem {
   sha256: string;
@@ -80,6 +91,8 @@ export interface PlanItem {
   /** True only for matched videos: the sole rows users can ever see (and only once uploaded). */
   visibleToUsers: boolean;
   alreadyUploaded: boolean;
+  /** Whether a successful probe result exists for this exact file. Only videos that pass can be uploaded. */
+  probe: GateDecision;
   intendedRow: Record<string, unknown>;
 }
 
@@ -119,7 +132,7 @@ export function catalogRow(r: ManifestRecord): Record<string, unknown> {
   };
 }
 
-function planFor(records: ManifestRecord[], state: State): PlanItem[] {
+function planFor(records: ManifestRecord[], state: State, probeOf: (r: ManifestRecord) => GateDecision): PlanItem[] {
   return records.map((r) => {
     const row = catalogRow(r);
     return {
@@ -131,6 +144,7 @@ function planFor(records: ManifestRecord[], state: State): PlanItem[] {
       sizeBytes: r.sizeBytes,
       visibleToUsers: row.review_status === 'matched',
       alreadyUploaded: state.items[r.sha256!]?.status === 'uploaded',
+      probe: probeOf(r),
       intendedRow: row
     };
   });
@@ -146,6 +160,7 @@ function logPlan(plan: PlanItem[], execute: boolean, log: (m: string) => void) {
     log(`    path: ${p.entryName}`);
     log(`    review_status: ${p.reviewStatus} | exercise_key: ${String(p.intendedRow.exercise_key ?? '(none)')} | suggested_exercise_key: ${p.suggestedExerciseKey ?? '(none)'}`);
     log(`    size_bytes: ${p.sizeBytes} | visible to users once uploaded: ${p.visibleToUsers ? 'yes' : 'no'} | already uploaded (ingest-state.json): ${p.alreadyUploaded ? 'yes' : 'no'}`);
+    log(`    probe: ${p.probe.ok ? 'passed' : `REJECTED (${p.probe.code}): ${p.probe.reason}`}`);
     log(`    intended row: ${JSON.stringify(p.intendedRow)}`);
   });
 }
@@ -176,7 +191,21 @@ export async function runIngest(opts: IngestOptions): Promise<IngestSummary> {
     if (opts.onlyMatched) candidates = candidates.filter((r) => r.match?.reviewStatus === 'matched');
   }
   const pending = candidates.filter((r) => state.items[r.sha256!]?.status !== 'uploaded');
-  const work = opts.limit !== undefined ? pending.slice(0, opts.limit) : pending;
+  const selected = opts.limit !== undefined ? pending.slice(0, opts.limit) : pending;
+
+  // Probe gate: only videos with a successful probe result for their exact bytes may be uploaded.
+  const gate = loadProbeGate(opts.workDir);
+  if (gate.skippedLines) log(`probe.jsonl: ${gate.skippedLines} unreadable line(s) ignored (they cannot make a video pass)`);
+  const decisions = new Map<string, GateDecision>();
+  const probeOf = (r: ManifestRecord): GateDecision => {
+    let d = decisions.get(r.sha256!);
+    if (!d) { d = evaluateProbeGate(r, gate); decisions.set(r.sha256!, d); }
+    return d;
+  };
+  const rejections: ProbeRejection[] = selected
+    .filter((r) => !probeOf(r).ok)
+    .map((r) => ({ sha256: r.sha256!, originalFilename: r.originalFilename, code: probeOf(r).code!, reason: probeOf(r).reason! }));
+  const work = selected.filter((r) => probeOf(r).ok);
 
   const summary: IngestSummary = {
     execute: opts.execute,
@@ -186,13 +215,24 @@ export async function runIngest(opts: IngestOptions): Promise<IngestSummary> {
     uploaded: 0,
     failed: 0,
     bytesToUpload: work.reduce((n, r) => n + (r.sizeBytes ?? 0), 0),
-    bytesUploaded: 0
+    bytesUploaded: 0,
+    rejected: rejections.length,
+    rejections
   };
   if (opts.sampleFile !== undefined) {
-    summary.plan = planFor(candidates, state);
+    summary.plan = planFor(candidates, state, probeOf);
     logPlan(summary.plan, opts.execute, log);
   }
+  if (rejections.length) {
+    log(`PROBE GATE: ${rejections.length} video(s) have no successful probe result and will NOT be uploaded:`);
+    for (const r of rejections.slice(0, 20)) log(`  - ${r.originalFilename} (${r.sha256}): ${r.reason}`);
+    if (rejections.length > 20) log(`  ...and ${rejections.length - 20} more`);
+    log(probeInstructions(opts.workDir));
+  }
   if (!opts.execute) { log('DRY RUN: nothing was uploaded or written to the catalog.'); return summary; }
+  if (rejections.length && !gate.sidecarExists) {
+    throw new ProbeGateError(`Refusing to ingest: ${gate.sidecarPath} does not exist, so no video has been probed.\n${probeInstructions(opts.workDir)}`);
+  }
   if (!opts.uploader || !opts.catalog) throw new Error('execute mode needs an uploader and a catalog writer');
   const { uploader, catalog } = opts;
 
@@ -305,6 +345,7 @@ async function main() {
   if (!execute) {
     const { plan: _plan, ...dry } = await runIngest(common);
     console.log(JSON.stringify(dry, null, 2));
+    if (dry.rejected) console.log(`\n${dry.rejected} video(s) would be REJECTED by the probe gate (see above). Run the probe first; --execute will not upload them.`);
     console.log('\nDry run only. Add --execute (with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY set) to upload.');
     return;
   }
@@ -340,6 +381,7 @@ async function main() {
   };
   const { plan: _plan, ...done } = await runIngest({ ...common, uploader, catalog });
   console.log(JSON.stringify(done, null, 2));
+  if (done.rejected) { console.error(`\n${done.rejected} video(s) were NOT uploaded because they have no successful probe result.`); process.exitCode = 1; }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

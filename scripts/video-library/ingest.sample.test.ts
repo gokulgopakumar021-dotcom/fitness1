@@ -7,6 +7,7 @@ import { parseManifest } from '../../src/utils/videoLibrary/manifest';
 import { UsageError } from './cli';
 import { catalogRow, parseIngestArgs, runIngest, SampleFileError, type CatalogWriter, type Uploader } from './ingest';
 import { runInventory } from './inventory';
+import { writeCleanProbeSidecar } from './probeSidecar.testutil';
 import { buildZip, fakeMp4 } from './zipFixture.testutil';
 
 let root: string;
@@ -28,6 +29,7 @@ beforeEach(async () => {
     { name: 'Misc/broken.mp4', data: Buffer.from('this is not video data at all') }
   ]));
   await runInventory({ zipPath, workDir: work, probe: null });
+  writeCleanProbeSidecar(work); // what a successful `npm run video:probe` leaves behind
 });
 afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
