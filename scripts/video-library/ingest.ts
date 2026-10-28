@@ -162,7 +162,7 @@ function logPlan(plan: PlanItem[], execute: boolean, log: (m: string) => void) {
     log(`    file: ${p.originalFilename}`);
     log(`    path: ${p.entryName}`);
     log(`    review_status: ${p.reviewStatus} | exercise_key: ${String(p.intendedRow.exercise_key ?? '(none)')} | suggested_exercise_key: ${p.suggestedExerciseKey ?? '(none)'}`);
-    log(`    size_bytes: ${p.sizeBytes} | visible to users once uploaded: ${p.visibleToUsers ? 'yes' : 'no'} | already uploaded (ingest-state.json): ${p.alreadyUploaded ? 'yes' : 'no'}`);
+    log(`    size_bytes: ${p.sizeBytes} | reviewed exercise mapping: ${p.visibleToUsers ? 'yes' : 'no'} | visible to users: not until you publish it | already uploaded (ingest-state.json): ${p.alreadyUploaded ? 'yes' : 'no'}`);
     log(`    probe: ${p.probe.ok ? 'passed' : `REJECTED (${p.probe.code}): ${p.probe.reason}`}`);
     log(`    intended row: ${JSON.stringify(p.intendedRow)}`);
   });
