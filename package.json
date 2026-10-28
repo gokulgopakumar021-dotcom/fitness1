@@ -16,6 +16,7 @@
     "video:inventory": "tsx scripts/video-library/inventory.ts",
     "video:ingest": "tsx scripts/video-library/ingest.ts",
     "video:sample": "tsx scripts/video-library/sample.ts",
+    "video:batch": "tsx scripts/video-library/batch.ts",
     "video:duplicates": "tsx scripts/video-library/duplicates.ts",
     "video:probe": "tsx scripts/video-library/probe.ts",
     "video:backfill-media": "tsx scripts/video-library/probeBackfillSql.ts"
