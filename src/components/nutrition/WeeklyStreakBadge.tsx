@@ -101,7 +101,7 @@ export const WeeklyStreakBadge: React.FC<WeeklyStreakBadgeProps> = ({
             <button
               type="button"
               onClick={onTriggerCelebration}
-              className="px-2.5 py-1.5 rounded-xl bg-[#CEFF00]/10 hover:bg-[#CEFF00]/20 border border-[#CEFF00]/30 text-[#CEFF00] text-xs font-mono font-bold transition-all flex items-center gap-1 shadow-sm shrink-0"
+              className="px-2.5 py-1.5 rounded-xl bg-accent/10 hover:bg-accent/20 border border-accent/30 text-accent text-xs font-mono font-bold transition-all flex items-center gap-1 shadow-sm shrink-0"
               title="Replay Goal Celebration"
             >
               <Sparkles className="w-3.5 h-3.5 animate-spin" />

@@ -22,9 +22,9 @@ Source of truth: `src/index.css` (tokens) and `src/components/ui/` (primitives, 
 ## Components (`components/ui`)
 
 - **Card** — `tone` default/raised/accent/ghost, `pad` none/sm/md/lg, `interactive` for tappable rows.
-- **Button** — primary / secondary / ghost / danger; sm 36px, md/lg ≥44px; `loading`, `icon`.
+- **Button** — primary / secondary / ghost / danger; sm 36px, md/lg ≥44px; `loading`, `icon`; `iconOnly` for square icon buttons (always pass `aria-label`). Don't fight padding with `px-*` overrides.
 - **Input / Select / Textarea / Field** — label, hint, error (announced, `aria-invalid`), `mono` for numeric entry. 44px tall, accent focus border. Use these instead of hand-styled `<input className=…>`.
-- **Modal** — dialog semantics, Esc/backdrop close, scroll lock, focus restore; bottom sheet on phones.
+- **Modal** — dialog semantics, Esc/backdrop close, scroll lock, focus restore; bottom sheet on phones. Inline `onClose` arrows are safe (the latest one is read from a ref, so typing never loses focus). `closeLabel` names the close button.
 - **EmptyState / ErrorState / LoadingState / Skeleton** — one trio for "no data", "failed", "pending"; Skeleton when the layout is known.
 - **Badge, ProgressBar, SegmentedControl, MetricCard, PageHeader, SectionHeading** — unchanged API, now on the radius/label tokens.
 - **Charts** (`components/common/Charts.tsx`) — `LineChart` / `BarChart` use chart tokens, so they follow the theme; each `LineChart` has its own gradient id.
@@ -41,7 +41,14 @@ Legacy `.reshape-card`, `.reshape-card-subtle`, `.reshape-card-interactive` stil
 
 ## Adoption (audit of `main`, Oct 2026)
 
-Screens already on `ui/`: Dashboard (+ scorecard, muscle map), Navbar, Auth, Landing, Video Library, Adaptive Review modal.
-Not yet on `ui/`: Workout tracker, Nutrition, Progression, Reports, Timeline, Body & Body Scan, Coach Iron, Settings, Plans, most modals.
+Screens already on `ui/`: Dashboard (+ scorecard, muscle map), Navbar, Auth, Landing, Video Library, Adaptive Review modal, Nutrition (view, goal gauge, Goal Wizard, hydration).
+Not yet on `ui/`: Workout tracker, Progression, Reports, Timeline, Body & Body Scan, Coach Iron, Settings, Plans, most modals.
 
 Suggested redesign order: (1) Workout tracker, (2) Nutrition, (3) Progression / Overload Engine, (4) Timeline + Reports, (5) Home, (6) Coach Iron, (7) Body & Body Scan, (8) Settings + Plans + remaining modals.
+
+## Nutrition conventions
+
+- Macro colours come from `MACRO_META` in `components/nutrition/MacroBar.tsx` (protein = `--chart-1`, carbs = `--chart-2`, fat = `--chart-4`). Use it for any new macro UI rather than picking colours per screen.
+- Calories and macros are summarised once, in `NutritionGoalGauge`. Don't repeat the same totals in another card on the same screen.
+- Hydration uses `info` for progress and `success` once the target is reached.
+- Nutrition dialogs use `Modal` + `Input`/`Select`/`Textarea`; Barcode Scanner (camera UI) is intentionally untouched and still uses its own styling.

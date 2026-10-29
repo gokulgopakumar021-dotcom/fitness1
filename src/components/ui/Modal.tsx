@@ -10,6 +10,8 @@ interface Props {
   children: React.ReactNode;
   footer?: React.ReactNode;
   size?: 'sm' | 'md' | 'lg';
+  /** Accessible name (and tooltip) of the close button. */
+  closeLabel?: string;
 }
 
 const SIZES = { sm: 'sm:max-w-md', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl' };
@@ -18,10 +20,14 @@ const SIZES = { sm: 'sm:max-w-md', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl' };
  * Accessible dialog. Bottom sheet on phones, centered panel on larger screens.
  * Closes on Escape and backdrop click, locks body scroll, restores focus.
  */
-export const Modal: React.FC<Props> = ({ open, onClose, title, description, children, footer, size = 'md' }) => {
+export const Modal: React.FC<Props> = ({ open, onClose, title, description, children, footer, size = 'md', closeLabel = 'Close' }) => {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
+  // Keep the latest onClose without re-running the focus/scroll-lock effect: callers often pass an
+  // inline arrow, and re-running on every parent render would steal focus from inputs mid-typing.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -30,7 +36,7 @@ export const Modal: React.FC<Props> = ({ open, onClose, title, description, chil
     document.body.style.overflow = 'hidden';
     panelRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     document.addEventListener('keydown', onKey);
     return () => {
@@ -38,7 +44,7 @@ export const Modal: React.FC<Props> = ({ open, onClose, title, description, chil
       document.body.style.overflow = prevOverflow;
       lastFocused.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -65,7 +71,8 @@ export const Modal: React.FC<Props> = ({ open, onClose, title, description, chil
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={closeLabel}
+            title={closeLabel === 'Close' ? undefined : closeLabel}
             className="w-10 h-10 -mr-2 -mt-1 flex items-center justify-center rounded-control text-zinc-400 hover:text-white hover:bg-surface-2 transition-colors"
           >
             <X className="w-5 h-5" />

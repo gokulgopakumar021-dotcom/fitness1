@@ -18,12 +18,21 @@ const SIZES: Record<Size, string> = {
   lg: 'h-12 px-5 text-base gap-2',
 };
 
+// Square variants for icon-only buttons (still >=44px on md/lg)
+const ICON_SIZES: Record<Size, string> = {
+  sm: 'h-9 w-9',
+  md: 'h-11 w-11',
+  lg: 'h-12 w-12',
+};
+
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
   loading?: boolean;
   icon?: React.ReactNode;
   fullWidth?: boolean;
+  /** Square button containing only an icon. Pass an aria-label. */
+  iconOnly?: boolean;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -32,6 +41,7 @@ export const Button: React.FC<ButtonProps> = ({
   loading = false,
   icon,
   fullWidth,
+  iconOnly,
   className,
   disabled,
   children,
@@ -46,7 +56,7 @@ export const Button: React.FC<ButtonProps> = ({
       'inline-flex items-center justify-center rounded-control transition-colors select-none touch-press',
       'disabled:opacity-50 disabled:pointer-events-none',
       VARIANTS[variant],
-      SIZES[size],
+      iconOnly ? ICON_SIZES[size] : SIZES[size],
       fullWidth && 'w-full',
       className
     )}

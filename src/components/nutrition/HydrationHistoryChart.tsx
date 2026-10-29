@@ -79,8 +79,8 @@ const CustomHydrationTooltip = ({
   const varianceMl = data.waterMl - goalMl;
 
   return (
-    <div className="bg-[#12161f]/95 border border-sky-500/30 rounded-xl p-3.5 shadow-2xl backdrop-blur-md min-w-[200px] text-xs font-mono space-y-2 pointer-events-none z-50">
-      <div className="flex items-center justify-between gap-3 pb-1.5 border-b border-white/10">
+    <div className="bg-surface border border-line-strong rounded-control p-3.5 shadow-lg min-w-[200px] text-xs font-mono space-y-2 pointer-events-none z-50">
+      <div className="flex items-center justify-between gap-3 pb-1.5 border-b border-line">
         <div>
           <span className="font-bold text-white text-sm block">
             {data.dayName}, {data.shortDate}
@@ -257,15 +257,15 @@ export const HydrationHistoryChart: React.FC<HydrationHistoryChartProps> = ({
   // Determine bar fill color
   const getBarFill = (entry: HydrationDayPoint) => {
     if (entry.isSelected) {
-      return entry.isGoalMet ? '#10b981' : '#38bdf8';
+      return entry.isGoalMet ? 'var(--success)' : 'var(--chart-2)';
     }
     if (entry.waterDisplay === 0) {
-      return '#334155'; // subtle slate for empty days
+      return 'var(--bg-surface-3)'; // empty days
     }
     if (entry.isGoalMet) {
-      return '#059669'; // rich emerald
+      return 'var(--success)';
     }
-    return '#0284c7'; // solid athletic sky blue
+    return 'var(--chart-2)';
   };
 
   const weightKg = profile?.currentWeightKg || 78;
@@ -396,21 +396,21 @@ export const HydrationHistoryChart: React.FC<HydrationHistoryChartProps> = ({
             >
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="rgba(255, 255, 255, 0.05)"
+                stroke="var(--chart-grid)"
                 vertical={false}
               />
               <XAxis
                 dataKey="displayLabel"
-                stroke="#94a3b8"
+                stroke="var(--chart-axis)"
                 fontSize={11}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
+                axisLine={{ stroke: 'var(--chart-grid)' }}
               />
               <YAxis
-                stroke="#94a3b8"
+                stroke="var(--chart-axis)"
                 fontSize={10}
                 tickLine={false}
-                axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
+                axisLine={{ stroke: 'var(--chart-grid)' }}
                 domain={[0, yAxisMax]}
                 tickFormatter={(val) => (unit === 'oz' ? `${val}` : `${val >= 1000 ? `${(val / 1000).toFixed(1)}k` : val}`)}
               />
@@ -422,19 +422,19 @@ export const HydrationHistoryChart: React.FC<HydrationHistoryChartProps> = ({
                     goalMl={goalMl}
                   />
                 }
-                cursor={{ fill: 'rgba(56, 189, 248, 0.07)' }}
+                cursor={{ fill: 'var(--chart-grid)' }}
               />
               {/* Daily Target Reference Line showing recommended intake based on profile settings */}
               <ReferenceLine
                 y={activeGoal}
-                stroke="#10b981"
+                stroke="var(--success)"
                 strokeDasharray="6 3"
                 strokeWidth={2}
                 ifOverflow="extendDomain"
                 label={{
                   value: `🎯 Target: ${activeGoal} ${unit} (Profile Goal)`,
                   position: 'insideTopRight',
-                  fill: '#34d399',
+                  fill: 'var(--success)',
                   fontSize: 10,
                   fontWeight: 700,
                   offset: 8
@@ -450,7 +450,8 @@ export const HydrationHistoryChart: React.FC<HydrationHistoryChartProps> = ({
                   <Cell
                     key={entry.date}
                     fill={getBarFill(entry)}
-                    stroke={entry.isSelected ? '#38bdf8' : 'transparent'}
+                    stroke={entry.isSelected ? 'var(--chart-2)' : 'transparent'}
+                    fillOpacity={entry.isSelected || entry.waterDisplay === 0 ? 1 : 0.65}
                     strokeWidth={entry.isSelected ? 2 : 0}
                     className="transition-all duration-300 hover:opacity-85 cursor-pointer"
                     onClick={() => {

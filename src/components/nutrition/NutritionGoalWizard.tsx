@@ -1,25 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  Sparkles,
-  Calculator,
-  ArrowRight,
-  ArrowLeft,
-  Check,
-  Flame,
-  Scale,
-  TrendingDown,
-  TrendingUp,
-  Activity,
-  Heart,
-  Info,
-  ChevronRight,
-  Sliders,
-  X,
-  Target,
-  Percent,
-  Zap,
-  ShieldCheck
-} from 'lucide-react';
+import { ArrowRight, ArrowLeft, Check, Scale, TrendingDown, TrendingUp, Info, ShieldCheck } from 'lucide-react';
 import { BodyMetricEntry, DailyNutritionLog, PrimaryGoal, UserProfile } from '../../types';
 import { db } from '../../storage/db';
 import {
@@ -34,6 +14,8 @@ import {
 } from '../../utils/tdeeEngine';
 import { commitNutritionTargets, getCurrentDayKey } from '../../storage/nutritionTargetCommit';
 import { kgToLbs, lbsToKg } from '../../utils/calculations';
+import { Badge, Button, Card, Input, Modal, Select } from '../ui';
+import { MACRO_META } from './MacroBar';
 
 export interface NutritionGoalWizardProps {
   isOpen: boolean;
@@ -244,827 +226,673 @@ export const NutritionGoalWizard: React.FC<NutritionGoalWizardProps> = ({
     { label: '26%+', sub: 'Higher Mass', value: 27 }
   ];
 
+  const stepTitles: Record<1 | 2 | 3 | 4, string> = {
+    1: '1. Set Your Goal & Trajectory',
+    2: '2. Weight, Activity & Body Fat %',
+    3: '3. TDEE Estimate & Caloric Budget',
+    4: '4. Macronutrient Targets & Database Commit'
+  };
+  const stepLabels = [
+    { num: 1, label: 'Goal' },
+    { num: 2, label: 'Composition' },
+    { num: 3, label: 'TDEE' },
+    { num: 4, label: 'Macros & Save' }
+  ];
+  const goalCards: Array<{
+    id: NutritionGoal;
+    title: string;
+    badge: string;
+    desc: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }> = [
+    {
+      id: 'cut',
+      title: 'Cut (Fat Loss)',
+      badge: 'Caloric Deficit',
+      desc: 'Prescribes a targeted energy deficit to oxidize body fat while holding high protein to preserve skeletal muscle mass.',
+      icon: TrendingDown
+    },
+    {
+      id: 'maintain',
+      title: 'Maintain (Equilibrium)',
+      badge: 'Energy Balance',
+      desc: 'Matches exact daily expenditure for stable scale weight, athletic power, rapid recovery, and body recomposition.',
+      icon: Scale
+    },
+    {
+      id: 'bulk',
+      title: 'Bulk (Hypertrophy)',
+      badge: 'Caloric Surplus',
+      desc: 'Prescribes an optimal surplus to fuel progressive overload, glycogen saturation, and myofibrillar muscle hypertrophy.',
+      icon: TrendingUp
+    }
+  ];
+
+  const selectableClass = (selected: boolean) =>
+    `text-left rounded-control border transition-colors ${
+      selected ? 'border-accent bg-accent/10' : 'border-line bg-surface-2 hover:border-line-strong'
+    }`;
+  const fieldErrors = [inputErrors.activityLevel, inputErrors.calculation].filter(Boolean) as string[];
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className="reshape-card w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh] border border-[var(--border-card)] shadow-2xl">
-        {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-[var(--border-card)] bg-[var(--bg-subtle)] flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-accent text-accent-ink flex items-center justify-center font-bold">
-              <Calculator className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-[10px] font-mono tracking-wider uppercase text-[var(--text-muted)] flex items-center gap-1.5">
-                <span>Precision Nutrition Engine</span>
-                <span aria-hidden="true">·</span>
-                <span className="text-volt-adaptive font-semibold">Goal &amp; TDEE Wizard</span>
-              </div>
-              <h2 className="text-lg sm:text-xl font-bold tracking-tight text-[var(--text-primary)]">
-                {step === 1 && '1. Set Your Goal & Trajectory'}
-                {step === 2 && '2. Weight, Activity & Body Fat %'}
-                {step === 3 && '3. TDEE Estimate & Caloric Budget'}
-                {step === 4 && '4. Macronutrient Targets & Database Commit'}
-              </h2>
-            </div>
-          </div>
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      closeLabel="Close Wizard"
+      size="lg"
+      title={stepTitles[step]}
+      description="Goal & TDEE Wizard"
+      footer={
+        <div className="flex w-full items-center justify-between gap-2">
+          {step > 1 ? (
+            <Button variant="ghost" onClick={() => setStep((s) => (s - 1) as 1 | 2 | 3 | 4)} icon={<ArrowLeft className="w-4 h-4" aria-hidden />}>
+              Previous
+            </Button>
+          ) : (
+            <Button variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+          )}
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--chip-bg)] transition-colors"
-            title="Close Wizard"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Wizard Step Indicator Bar */}
-        <div className="grid grid-cols-4 border-b border-[var(--border-card)] bg-[var(--bg-card)]">
-          {[
-            { num: 1, label: 'Goal' },
-            { num: 2, label: 'Composition' },
-            { num: 3, label: 'TDEE' },
-            { num: 4, label: 'Macros & Save' }
-          ].map((s) => (
-            <button
-              key={s.num}
-              type="button"
-              onClick={() => setStep(s.num >= 3 && !computed.ok ? 2 : (s.num as 1 | 2 | 3 | 4))}
-              className={`py-2.5 px-1 border-b-2 transition-all flex flex-col sm:flex-row items-center justify-center gap-1 text-[11px] ${
-                step === s.num
-                  ? 'border-[#CEFF00] text-volt-adaptive font-bold'
-                  : step > s.num
-                  ? 'border-emerald-500/50 text-[var(--text-secondary)]'
-                  : 'border-transparent text-[var(--text-muted)] opacity-60'
-              }`}
+          {step < 4 ? (
+            <Button disabled={step === 2 && !computed.ok} onClick={() => setStep((s) => (s + 1) as 1 | 2 | 3 | 4)}>
+              <span>Continue</span>
+              <ArrowRight className="w-4 h-4" aria-hidden />
+            </Button>
+          ) : (
+            <Button
+              disabled={saveStatus !== 'idle' || !plan || needsConfirmation}
+              loading={saveStatus === 'saving'}
+              onClick={handleApplyPlan}
+              icon={saveStatus === 'saving' ? undefined : <Check className="w-4 h-4" aria-hidden />}
             >
-              <span
-                className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
-                  step === s.num
-                    ? 'bg-[#CEFF00] text-black font-bold'
-                    : step > s.num
-                    ? 'bg-emerald-500 text-black'
-                    : 'bg-[var(--chip-bg)] text-[var(--text-muted)]'
+              <span>
+                {saveStatus === 'saved' ? 'Targets Saved!' : saveStatus === 'saving' ? 'Saving…' : 'Update Daily Targets in Database'}
+              </span>
+            </Button>
+          )}
+        </div>
+      }
+    >
+      <div className="space-y-5">
+        {/* Step indicator */}
+        <nav aria-label="Wizard steps" className="grid grid-cols-4 gap-1 border-b border-line -mx-5 px-5">
+          {stepLabels.map((s) => {
+            const isCurrent = step === s.num;
+            const isDone = step > s.num;
+            return (
+              <button
+                key={s.num}
+                type="button"
+                aria-current={isCurrent ? 'step' : undefined}
+                onClick={() => setStep(s.num >= 3 && !computed.ok ? 2 : (s.num as 1 | 2 | 3 | 4))}
+                className={`min-h-11 py-2 px-1 border-b-2 -mb-px transition-colors flex flex-col sm:flex-row items-center justify-center gap-1 text-label ${
+                  isCurrent
+                    ? 'border-accent text-accent font-semibold'
+                    : isDone
+                    ? 'border-success/50 text-zinc-300'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
                 }`}
               >
-                {step > s.num ? '✓' : s.num}
-              </span>
-              <span className="truncate">{s.label}</span>
-            </button>
-          ))}
-        </div>
+                <span
+                  aria-hidden
+                  className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-semibold ${
+                    isCurrent ? 'bg-accent text-accent-ink' : isDone ? 'bg-success text-accent-ink' : 'bg-surface-3 text-zinc-400'
+                  }`}
+                >
+                  {isDone ? '✓' : s.num}
+                </span>
+                <span className="truncate">{s.label}</span>
+              </button>
+            );
+          })}
+        </nav>
 
-        {/* Scrollable Content Area */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1">
-          {/* STEP 1: Setting Goal (Cut / Maintain / Bulk) & Pace */}
-          {step === 1 && (
-            <div className="space-y-6">
-              <div className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                Choose your primary physical objective. The engine calculates your daily caloric budget and weekly surplus or deficit according to metabolic physics (~7,700 kcal/kg tissue balance).
-              </div>
+        {/* STEP 1: Goal (Cut / Maintain / Bulk) & pace */}
+        {step === 1 && (
+          <div className="space-y-5">
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              Choose your primary objective. The engine calculates your daily calorie budget and weekly surplus or deficit using a ~7,700 kcal/kg tissue balance.
+            </p>
 
-              {/* Goal Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {[
-                  {
-                    id: 'cut' as NutritionGoal,
-                    title: 'Cut (Fat Loss)',
-                    badge: 'Caloric Deficit',
-                    desc: 'Prescribes a targeted energy deficit to oxidize body fat while holding high protein to preserve skeletal muscle mass.',
-                    icon: TrendingDown,
-                    activeClass: 'border-[#CEFF00] bg-[#CEFF00]/10 text-[var(--text-primary)]'
-                  },
-                  {
-                    id: 'maintain' as NutritionGoal,
-                    title: 'Maintain (Equilibrium)',
-                    badge: 'Energy Balance',
-                    desc: 'Matches exact daily expenditure for stable scale weight, athletic power, rapid recovery, and body recomposition.',
-                    icon: Scale,
-                    activeClass: 'border-[#CEFF00] bg-[#CEFF00]/10 text-[var(--text-primary)]'
-                  },
-                  {
-                    id: 'bulk' as NutritionGoal,
-                    title: 'Bulk (Hypertrophy)',
-                    badge: 'Caloric Surplus',
-                    desc: 'Prescribes an optimal surplus to fuel progressive overload, glycogen saturation, and myofibrillar muscle hypertrophy.',
-                    icon: TrendingUp,
-                    activeClass: 'border-[#CEFF00] bg-[#CEFF00]/10 text-[var(--text-primary)]'
-                  }
-                ].map((g) => {
-                  const Icon = g.icon;
-                  const isSel = goal === g.id;
-                  return (
-                    <button
-                      key={g.id}
-                      type="button"
-                      onClick={() => {
-                        setGoal(g.id);
-                        setCustomCalorieOffset(undefined);
-                      }}
-                      className={`text-left p-4 rounded-2xl border transition-all ${
-                        isSel
-                          ? g.activeClass + ' shadow-md'
-                          : 'bg-[var(--chip-bg)] border-[var(--border-card)] text-[var(--text-secondary)] hover:border-[var(--text-muted)]'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div
-                          className={`p-2 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)] ${
-                            isSel ? 'text-volt-adaptive' : 'text-[var(--text-muted)]'
-                          }`}
-                        >
-                          <Icon className="w-5 h-5" />
-                        </div>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[var(--bg-subtle)] border border-[var(--border-card)] text-[var(--text-muted)]">
-                          {g.badge}
-                        </span>
-                      </div>
-                      <h4 className="text-sm font-bold text-[var(--text-primary)]">{g.title}</h4>
-                      <p className="text-xs text-[var(--text-muted)] leading-relaxed mt-1">{g.desc}</p>
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="group" aria-label="Goal">
+              {goalCards.map((g) => {
+                const Icon = g.icon;
+                const isSel = goal === g.id;
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    aria-pressed={isSel}
+                    onClick={() => {
+                      setGoal(g.id);
+                      setCustomCalorieOffset(undefined);
+                    }}
+                    className={`${selectableClass(isSel)} p-4`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className={`p-2 rounded-control bg-canvas border border-line ${isSel ? 'text-accent' : 'text-zinc-500'}`}>
+                        <Icon className="w-5 h-5" />
+                      </span>
+                      <Badge tone={isSel ? 'accent' : 'neutral'}>{g.badge}</Badge>
+                    </div>
+                    <h3 className="text-sm font-semibold text-white">{g.title}</h3>
+                    <p className="text-xs text-zinc-400 leading-relaxed mt-1">{g.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
 
-              {/* Deficit / Surplus Rate Selector (if Cut or Bulk) */}
-              {goal !== 'maintain' && (
-                <div className="space-y-3 reshape-card-subtle p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-                      {goal === 'cut' ? 'Fat Loss Deficit Intensity' : 'Muscle Gain Surplus Rate'}
-                    </span>
-                    <span className="text-xs font-mono text-volt-adaptive font-bold">
-                      {pace.toUpperCase()}
-                    </span>
-                  </div>
+            {goal !== 'maintain' && (
+              <Card tone="raised" pad="md" className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-xs font-semibold text-zinc-300">
+                    {goal === 'cut' ? 'Fat loss deficit intensity' : 'Muscle gain surplus rate'}
+                  </h3>
+                  <span className="text-label font-mono font-semibold text-accent uppercase">{pace}</span>
+                </div>
 
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      {
-                        id: 'conservative' as DeficitOrSurplusPace,
-                        label: goal === 'cut' ? 'Conservative (-300 kcal)' : 'Lean Bulk (+250 kcal)',
-                        rate: goal === 'cut' ? '~0.25 kg/wk' : '~0.2 kg/wk'
-                      },
-                      {
-                        id: 'moderate' as DeficitOrSurplusPace,
-                        label: goal === 'cut' ? 'Moderate (-500 kcal)' : 'Standard (+400 kcal)',
-                        rate: goal === 'cut' ? '~0.45 kg/wk' : '~0.36 kg/wk'
-                      },
-                      {
-                        id: 'aggressive' as DeficitOrSurplusPace,
-                        label: goal === 'cut' ? 'Aggressive (-750 kcal)' : 'Power Bulk (+600 kcal)',
-                        rate: goal === 'cut' ? '~0.7 kg/wk' : '~0.55 kg/wk'
-                      }
-                    ].map((p) => (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="group" aria-label="Pace">
+                  {[
+                    {
+                      id: 'conservative' as DeficitOrSurplusPace,
+                      label: goal === 'cut' ? 'Conservative (-300 kcal)' : 'Lean Bulk (+250 kcal)',
+                      rate: goal === 'cut' ? '~0.25 kg/wk' : '~0.2 kg/wk'
+                    },
+                    {
+                      id: 'moderate' as DeficitOrSurplusPace,
+                      label: goal === 'cut' ? 'Moderate (-500 kcal)' : 'Standard (+400 kcal)',
+                      rate: goal === 'cut' ? '~0.45 kg/wk' : '~0.36 kg/wk'
+                    },
+                    {
+                      id: 'aggressive' as DeficitOrSurplusPace,
+                      label: goal === 'cut' ? 'Aggressive (-750 kcal)' : 'Power Bulk (+600 kcal)',
+                      rate: goal === 'cut' ? '~0.7 kg/wk' : '~0.55 kg/wk'
+                    }
+                  ].map((p) => {
+                    const isSel = pace === p.id && customCalorieOffset === undefined;
+                    return (
                       <button
                         key={p.id}
                         type="button"
+                        aria-pressed={isSel}
                         onClick={() => {
                           setPace(p.id);
                           setCustomCalorieOffset(undefined);
                         }}
-                        className={`p-3 rounded-xl border text-center transition-all ${
-                          pace === p.id && customCalorieOffset === undefined
-                            ? 'bg-[#CEFF00] text-black font-bold border-transparent'
-                            : 'bg-[var(--chip-bg)] text-[var(--text-secondary)] border-[var(--border-card)]'
-                        }`}
+                        className={`${selectableClass(isSel)} p-3 min-h-11 text-center`}
                       >
-                        <div className="text-xs font-mono font-semibold">{p.label}</div>
-                        <div className="text-[10px] opacity-80 mt-0.5">{p.rate}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* STEP 2: Physical Metrics, Activity Level & Body Fat % */}
-          {step === 2 && (
-            <div className="space-y-6">
-              <div className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                Provide your current scale weight, activity level, and body fat percentage. When body fat % is provided, we calculate your Lean Body Mass (LBM) and utilize the elite <strong className="text-[var(--text-primary)]">Katch-McArdle equation</strong>. Otherwise, the validated <strong className="text-[var(--text-primary)]">Mifflin-St Jeor formula</strong> is applied.
-              </div>
-
-              {/* Physical Stats Form */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="reshape-card-subtle p-3.5 space-y-1">
-                  <label className="text-[10px] font-mono uppercase text-[var(--text-muted)] block">
-                    Weight ({unit})
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min={weightMinDisplay}
-                    max={weightMaxDisplay}
-                    value={weightInput}
-                    aria-invalid={!!inputErrors.weight}
-                    onChange={(e) => setWeightInput(e.target.value)}
-                    className="w-full text-lg font-mono font-bold bg-transparent text-[var(--text-primary)] border-b border-[var(--border-card)] focus:border-[#CEFF00] outline-none"
-                  />
-                </div>
-
-                <div className="reshape-card-subtle p-3.5 space-y-1">
-                  <label className="text-[10px] font-mono uppercase text-[var(--text-muted)] block">
-                    Height (cm)
-                  </label>
-                  <input
-                    type="number"
-                    min={INPUT_BOUNDS.heightCm.min}
-                    max={INPUT_BOUNDS.heightCm.max}
-                    value={heightInput}
-                    aria-invalid={!!inputErrors.height}
-                    onChange={(e) => setHeightInput(e.target.value)}
-                    className="w-full text-lg font-mono font-bold bg-transparent text-[var(--text-primary)] border-b border-[var(--border-card)] focus:border-[#CEFF00] outline-none"
-                  />
-                </div>
-
-                <div className="reshape-card-subtle p-3.5 space-y-1">
-                  <label className="text-[10px] font-mono uppercase text-[var(--text-muted)] block">
-                    Age (years)
-                  </label>
-                  <input
-                    type="number"
-                    min={INPUT_BOUNDS.age.min}
-                    max={INPUT_BOUNDS.age.max}
-                    step="1"
-                    value={ageInput}
-                    aria-invalid={!!inputErrors.age}
-                    onChange={(e) => setAgeInput(e.target.value)}
-                    className="w-full text-lg font-mono font-bold bg-transparent text-[var(--text-primary)] border-b border-[var(--border-card)] focus:border-[#CEFF00] outline-none"
-                  />
-                </div>
-
-                <div className="reshape-card-subtle p-3.5 space-y-1">
-                  <label className="text-[10px] font-mono uppercase text-[var(--text-muted)] block">
-                    Biological Sex
-                  </label>
-                  <select
-                    value={sex}
-                    aria-label="Biological Sex"
-                    aria-invalid={!!inputErrors.sex}
-                    onChange={(e) => setSex(e.target.value)}
-                    className="w-full text-sm font-semibold bg-transparent text-[var(--text-primary)] border-b border-[var(--border-card)] focus:border-[#CEFF00] outline-none pt-1"
-                  >
-                    {!(SUPPORTED_SEXES as readonly string[]).includes(sex) && (
-                      <option value="" disabled className="bg-zinc-900 text-white">Select…</option>
-                    )}
-                    <option value="male" className="bg-zinc-900 text-white">Male</option>
-                    <option value="female" className="bg-zinc-900 text-white">Female</option>
-                    <option value="other" className="bg-zinc-900 text-white">Other (neutral estimate)</option>
-                    <option value="unspecified" className="bg-zinc-900 text-white">Unspecified (neutral estimate)</option>
-                  </select>
-                </div>
-              </div>
-
-              {(inputErrors.weight || inputErrors.height || inputErrors.age || inputErrors.sex || inputErrors.activityLevel || inputErrors.calculation) && (
-                <div role="alert" className="text-xs text-red-400 space-y-1">
-                  {[inputErrors.weight, inputErrors.height, inputErrors.age, inputErrors.sex, inputErrors.activityLevel, inputErrors.calculation]
-                    .filter(Boolean)
-                    .map((msg) => (
-                      <p key={msg}>{msg}</p>
-                    ))}
-                </div>
-              )}
-
-              {/* Body Fat Percentage Input & Lean Mass Breakdown */}
-              <div className="reshape-card-subtle p-4 space-y-3 border border-[var(--border-card)]">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <label className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider flex items-center gap-1.5">
-                      <Percent className="w-3.5 h-3.5 text-volt-adaptive" />
-                      <span>Body Fat Percentage (%)</span>
-                    </label>
-                    <span className="text-[11px] text-[var(--text-muted)]">
-                      Enables Lean Body Mass (LBM) calculation and Katch-McArdle metabolic precision.
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      step="0.5"
-                      min={INPUT_BOUNDS.bodyFatPercentage.min}
-                      max={INPUT_BOUNDS.bodyFatPercentage.max}
-                      placeholder="e.g. 15"
-                      value={bodyFatInput}
-                      aria-invalid={!!inputErrors.bodyFat}
-                      onChange={(e) => setBodyFatInput(e.target.value)}
-                      className="w-24 text-right px-3 py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)] font-mono font-bold text-base text-[var(--text-primary)] focus:border-[#CEFF00] outline-none"
-                    />
-                    <span className="text-sm font-mono font-bold text-[var(--text-secondary)]">%</span>
-                  </div>
-                </div>
-
-                {inputErrors.bodyFat && (
-                  <p role="alert" className="text-xs text-red-400">
-                    {inputErrors.bodyFat}
-                  </p>
-                )}
-
-                {/* Body Fat Presets */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
-                  {bodyFatPresets.map((b) => (
-                    <button
-                      key={b.value}
-                      type="button"
-                      onClick={() => setBodyFatInput(String(b.value))}
-                      className={`p-2 rounded-xl text-left border transition-all ${
-                        bodyFat === b.value
-                          ? 'bg-[#CEFF00]/15 border-[#CEFF00] text-[var(--text-primary)]'
-                          : 'bg-[var(--chip-bg)] border-[var(--border-card)] text-[var(--text-muted)] hover:border-[var(--text-secondary)]'
-                      }`}
-                    >
-                      <div className="text-xs font-mono font-bold text-[var(--text-primary)]">{b.label}</div>
-                      <div className="text-[10px] text-[var(--text-muted)] truncate">{b.sub}</div>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Live Lean Body Mass & Formula Notice */}
-                <div className="pt-2 border-t border-[var(--border-card)] flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
-                  {tdeeResult?.leanBodyMassKg ? (
-                    <div className="flex items-center gap-2 text-emerald-400">
-                      <ShieldCheck className="w-4 h-4" />
-                      <span>
-                        Lean Mass: <strong>{tdeeResult.leanBodyMassKg} kg</strong> · Fat Mass: <strong>{(weightKg - (tdeeResult?.leanBodyMassKg ?? 0)).toFixed(1)} kg</strong>
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 text-[var(--text-muted)]">
-                      <Info className="w-3.5 h-3.5" />
-                      <span>Body fat % omitted. Applying standard Mifflin-St Jeor formula.</span>
-                    </div>
-                  )}
-
-                  <span className="px-2 py-0.5 rounded bg-[var(--bg-canvas)] border border-[var(--border-card)] text-[10px] text-volt-adaptive font-semibold uppercase">
-                    {!tdeeResult
-                      ? 'Check inputs'
-                      : tdeeResult.formulaUsed === 'katch_mcardle'
-                      ? 'Katch-McArdle Formula'
-                      : 'Mifflin-St Jeor Formula'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Activity Level Selector */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider block">
-                  Weekly Training &amp; Daily Movement Level
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                  {(Object.keys(ACTIVITY_MULTIPLIERS) as ActivityLevel[]).map((lvl) => {
-                    const item = ACTIVITY_MULTIPLIERS[lvl];
-                    const isSel = activityLevel === lvl;
-                    return (
-                      <button
-                        key={lvl}
-                        type="button"
-                        onClick={() => setActivityLevel(lvl)}
-                        className={`text-left p-3.5 rounded-xl border transition-all ${
-                          isSel
-                            ? 'bg-[#CEFF00]/10 border-[#CEFF00] text-[var(--text-primary)] shadow-sm'
-                            : 'bg-[var(--chip-bg)] border-[var(--border-card)] text-[var(--text-secondary)] hover:border-[var(--text-muted)]'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold font-mono text-[var(--text-primary)]">
-                            {item.label}
-                          </span>
-                          <span className="text-[10px] font-mono text-volt-adaptive font-bold">
-                            ×{item.multiplier}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
-                          {item.desc}
-                        </p>
+                        <div className="text-xs font-mono font-semibold text-white">{p.label}</div>
+                        <div className="text-label text-zinc-500 mt-0.5">{p.rate}</div>
                       </button>
                     );
                   })}
                 </div>
-              </div>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* STEP 2: Body metrics, body fat & activity */}
+        {step === 2 && (
+          <div className="space-y-5">
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              Provide your current weight, height, age and activity level. When body fat % is provided, your Lean Body Mass is used with the{' '}
+              <strong className="text-zinc-200">Katch-McArdle equation</strong>. Otherwise the{' '}
+              <strong className="text-zinc-200">Mifflin-St Jeor formula</strong> is applied.
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Input
+                label={`Weight (${unit})`}
+                type="number"
+                inputMode="decimal"
+                mono
+                step="0.5"
+                min={weightMinDisplay}
+                max={weightMaxDisplay}
+                value={weightInput}
+                error={inputErrors.weight}
+                onChange={(e) => setWeightInput(e.target.value)}
+              />
+              <Input
+                label="Height (cm)"
+                type="number"
+                inputMode="decimal"
+                mono
+                min={INPUT_BOUNDS.heightCm.min}
+                max={INPUT_BOUNDS.heightCm.max}
+                value={heightInput}
+                error={inputErrors.height}
+                onChange={(e) => setHeightInput(e.target.value)}
+              />
+              <Input
+                label="Age (years)"
+                type="number"
+                inputMode="numeric"
+                mono
+                min={INPUT_BOUNDS.age.min}
+                max={INPUT_BOUNDS.age.max}
+                step="1"
+                value={ageInput}
+                error={inputErrors.age}
+                onChange={(e) => setAgeInput(e.target.value)}
+              />
+              <Select
+                label="Biological sex"
+                aria-label="Biological Sex"
+                value={sex}
+                error={inputErrors.sex}
+                onChange={(e) => setSex(e.target.value)}
+              >
+                {!(SUPPORTED_SEXES as readonly string[]).includes(sex) && (
+                  <option value="" disabled>
+                    Select…
+                  </option>
+                )}
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other (neutral estimate)</option>
+                <option value="unspecified">Unspecified (neutral estimate)</option>
+              </Select>
             </div>
-          )}
 
-          {(step === 3 || step === 4) && !plan && (
-            <div role="alert" className="text-sm text-red-400">
-              Some inputs in step 2 are missing or out of range, so no targets can be calculated yet. Go back and correct them.
-            </div>
-          )}
+            {fieldErrors.length > 0 && (
+              <div role="alert" className="text-xs text-danger space-y-1">
+                {fieldErrors.map((msg) => (
+                  <p key={msg}>{msg}</p>
+                ))}
+              </div>
+            )}
 
-          {/* STEP 3: TDEE Estimate & Caloric Budget */}
-          {step === 3 && plan && tdeeResult && (
-            <div className="space-y-6">
-              <div className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                Here is your calculated Total Daily Energy Expenditure (TDEE) and target caloric budget for your chosen goal ({goal.toUpperCase()}).
+            {/* Body fat */}
+            <Card tone="raised" pad="md" className="space-y-3">
+              <Input
+                label="Body fat percentage (%)"
+                hint="Optional. Enables the Lean Body Mass calculation and the Katch-McArdle equation."
+                type="number"
+                inputMode="decimal"
+                mono
+                step="0.5"
+                min={INPUT_BOUNDS.bodyFatPercentage.min}
+                max={INPUT_BOUNDS.bodyFatPercentage.max}
+                placeholder="e.g. 15"
+                value={bodyFatInput}
+                error={inputErrors.bodyFat}
+                onChange={(e) => setBodyFatInput(e.target.value)}
+              />
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2" role="group" aria-label="Body fat presets">
+                {bodyFatPresets.map((b) => (
+                  <button
+                    key={b.value}
+                    type="button"
+                    aria-pressed={bodyFat === b.value}
+                    onClick={() => setBodyFatInput(String(b.value))}
+                    className={`${selectableClass(bodyFat === b.value)} p-2.5 min-h-11`}
+                  >
+                    <div className="text-xs font-mono font-semibold text-white">{b.label}</div>
+                    <div className="text-label text-zinc-500 truncate">{b.sub}</div>
+                  </button>
+                ))}
               </div>
 
-              {/* TDEE Summary Metric Cards */}
-              <div className="reshape-card-subtle p-5 grid grid-cols-1 sm:grid-cols-3 gap-4 text-center items-center">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-mono uppercase text-[var(--text-muted)]">
-                    Basal Metabolic Rate (BMR)
-                  </span>
-                  <div className="text-2xl font-bold font-mono text-[var(--text-primary)]">
-                    {tdeeResult.bmr} <span className="text-xs font-normal text-[var(--text-muted)]">kcal</span>
-                  </div>
-                  <p className="text-[10px] text-[var(--text-muted)]">
-                    {tdeeResult.formulaUsed === 'katch_mcardle' ? 'Katch-McArdle (LBM)' : 'Mifflin-St Jeor'}
-                  </p>
-                </div>
-
-                <div className="space-y-1 sm:border-x border-[var(--border-card)] sm:px-4">
-                  <span className="text-[10px] font-mono uppercase text-volt-adaptive font-bold">
-                    Daily Maintenance TDEE
-                  </span>
-                  <div className="text-3xl font-extrabold font-mono text-volt-adaptive">
-                    {tdeeResult.dailyTdee} <span className="text-xs font-normal text-[var(--text-muted)]">kcal/day</span>
-                  </div>
-                  <p className="text-[10px] text-[var(--text-muted)]">Burned with {tdeeResult.activityLabel}</p>
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-[10px] font-mono uppercase text-sky-400 font-bold">
-                    Total Weekly Expenditure
-                  </span>
-                  <div className="text-2xl font-bold font-mono text-sky-400">
-                    {tdeeResult.weeklyTdee.toLocaleString()} <span className="text-xs font-normal text-[var(--text-muted)]">kcal/wk</span>
-                  </div>
-                  <p className="text-[10px] text-[var(--text-muted)]">Cumulative 7-day caloric expenditure</p>
-                </div>
-              </div>
-
-              {/* Weekly Calorie & Weight Balance Dashboard */}
-              <div className="reshape-card-subtle p-5 space-y-4">
-                <div className="flex items-center justify-between border-b border-[var(--border-card)] pb-3">
-                  <span className="text-xs font-mono uppercase tracking-wider text-[var(--text-muted)]">
-                    Target Caloric Intake &amp; Weight Projection
-                  </span>
-                  <span className="text-xs font-mono font-bold text-volt-adaptive">
-                    Energy Balance Trajectory
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                  <div className="p-3 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)]">
-                    <span className="text-[10px] font-mono uppercase text-[var(--text-muted)] block">Daily Calorie Target</span>
-                    <span className="text-xl font-bold font-mono text-[var(--text-primary)] mt-1 block">
-                      {plan.targetCalories} <span className="text-xs text-[var(--text-muted)]">kcal</span>
+              <div className="pt-3 border-t border-line flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+                {tdeeResult?.leanBodyMassKg ? (
+                  <div className="flex items-center gap-2 text-success">
+                    <ShieldCheck className="w-4 h-4 shrink-0" aria-hidden />
+                    <span>
+                      Lean Mass: <strong>{tdeeResult.leanBodyMassKg} kg</strong> · Fat Mass:{' '}
+                      <strong>{(weightKg - (tdeeResult?.leanBodyMassKg ?? 0)).toFixed(1)} kg</strong>
                     </span>
                   </div>
-
-                  <div className="p-3 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)]">
-                    <span className="text-[10px] font-mono uppercase text-[var(--text-muted)] block">Weekly Caloric Budget</span>
-                    <span className="text-xl font-bold font-mono text-[var(--text-primary)] mt-1 block">
-                      {plan.weeklyTargetCalories.toLocaleString()} <span className="text-xs text-[var(--text-muted)]">kcal</span>
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)]">
-                    <span className="text-[10px] font-mono uppercase text-[var(--text-muted)] block">Net Weekly Imbalance</span>
-                    <span
-                      className={`text-xl font-bold font-mono mt-1 block ${
-                        plan.weeklyDeficitOrSurplus < 0
-                          ? 'text-amber-400'
-                          : plan.weeklyDeficitOrSurplus > 0
-                          ? 'text-sky-400'
-                          : 'text-volt-adaptive'
-                      }`}
-                    >
-                      {plan.weeklyDeficitOrSurplus > 0
-                        ? `+${plan.weeklyDeficitOrSurplus.toLocaleString()}`
-                        : plan.weeklyDeficitOrSurplus.toLocaleString()}{' '}
-                      kcal
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)]">
-                    <span className="text-[10px] font-mono uppercase text-[var(--text-muted)] block">Est. Scale Weight / Wk</span>
-                    <span className="text-xl font-bold font-mono text-volt-adaptive mt-1 block">
-                      {plan.estimatedWeeklyWeightChangeKg > 0
-                        ? `+${plan.estimatedWeeklyWeightChangeKg}`
-                        : plan.estimatedWeeklyWeightChangeKg}{' '}
-                      kg
-                    </span>
-                  </div>
-                </div>
-
-                <p className="text-xs font-mono text-[var(--text-secondary)] leading-relaxed pt-1">
-                  💡 {plan.rationale}
-                </p>
-                <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
-                  TDEE and scale-weight figures are estimates from population equations and a fixed 7,700 kcal/kg approximation; they are not a precise prediction for you.
-                </p>
-                {plan.warnings.length > 0 && (
-                  <div role="alert" className="text-xs text-amber-400 space-y-1.5 border border-amber-500/30 rounded-xl p-3">
-                    {plan.warnings.map((w) => (
-                      <p key={w}>{w}</p>
-                    ))}
+                ) : (
+                  <div className="flex items-center gap-1.5 text-zinc-500">
+                    <Info className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                    <span>Body fat % omitted. Applying standard Mifflin-St Jeor formula.</span>
                   </div>
                 )}
+                <Badge tone="neutral">
+                  {!tdeeResult ? 'Check inputs' : tdeeResult.formulaUsed === 'katch_mcardle' ? 'Katch-McArdle Formula' : 'Mifflin-St Jeor Formula'}
+                </Badge>
+              </div>
+            </Card>
+
+            {/* Activity */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-medium text-zinc-300">Weekly training &amp; daily movement level</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5" role="group" aria-label="Activity level">
+                {(Object.keys(ACTIVITY_MULTIPLIERS) as ActivityLevel[]).map((lvl) => {
+                  const item = ACTIVITY_MULTIPLIERS[lvl];
+                  const isSel = activityLevel === lvl;
+                  return (
+                    <button
+                      key={lvl}
+                      type="button"
+                      aria-pressed={isSel}
+                      onClick={() => setActivityLevel(lvl)}
+                      className={`${selectableClass(isSel)} p-3.5`}
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-xs font-semibold text-white">{item.label}</span>
+                        <span className="text-label font-mono font-semibold text-accent">×{item.multiplier}</span>
+                      </div>
+                      <p className="text-label text-zinc-400 leading-relaxed">{item.desc}</p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* STEP 4: Macronutrient Targets & Database Update */}
-          {step === 4 && plan && (
-            <div className="space-y-6">
-              <div className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                Fine-tune your protein and fat targets. Carbohydrates automatically adjust to absorb the exact remainder of your daily {plan.targetCalories} kcal budget. Review and save to update your database.
+        {(step === 3 || step === 4) && !plan && (
+          <div role="alert" className="text-sm text-danger">
+            Some inputs in step 2 are missing or out of range, so no targets can be calculated yet. Go back and correct them.
+          </div>
+        )}
+
+        {/* STEP 3: TDEE estimate & calorie budget */}
+        {step === 3 && plan && tdeeResult && (
+          <div className="space-y-5">
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              Your calculated Total Daily Energy Expenditure (TDEE) and target calorie budget for your chosen goal ({goal.toUpperCase()}).
+            </p>
+
+            <Card tone="raised" pad="md" className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+              <div className="space-y-1">
+                <p className="text-label text-zinc-500">Basal Metabolic Rate (BMR)</p>
+                <p className="text-2xl font-bold font-mono text-white tabular-nums">
+                  {tdeeResult.bmr} <span className="text-xs font-normal text-zinc-500">kcal</span>
+                </p>
+                <p className="text-label text-zinc-500">
+                  {tdeeResult.formulaUsed === 'katch_mcardle' ? 'Katch-McArdle (LBM)' : 'Mifflin-St Jeor'}
+                </p>
+              </div>
+              <div className="space-y-1 sm:border-x border-line sm:px-4">
+                <p className="text-label font-semibold text-accent">Daily Maintenance TDEE</p>
+                <p className="text-3xl font-bold font-mono text-accent tabular-nums">
+                  {tdeeResult.dailyTdee} <span className="text-xs font-normal text-zinc-500">kcal/day</span>
+                </p>
+                <p className="text-label text-zinc-500">Burned with {tdeeResult.activityLabel}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-label text-zinc-500">Total Weekly Expenditure</p>
+                <p className="text-2xl font-bold font-mono text-white tabular-nums">
+                  {tdeeResult.weeklyTdee.toLocaleString()} <span className="text-xs font-normal text-zinc-500">kcal/wk</span>
+                </p>
+                <p className="text-label text-zinc-500">Cumulative 7-day expenditure</p>
+              </div>
+            </Card>
+
+            <Card tone="raised" pad="md" className="space-y-4">
+              <h3 className="text-xs font-semibold text-zinc-300">Target intake &amp; weight projection</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="p-3 rounded-control bg-canvas border border-line">
+                  <p className="text-label text-zinc-500">Daily Calorie Target</p>
+                  <p className="text-xl font-bold font-mono text-white tabular-nums mt-1">
+                    {plan.targetCalories} <span className="text-xs text-zinc-500">kcal</span>
+                  </p>
+                </div>
+                <div className="p-3 rounded-control bg-canvas border border-line">
+                  <p className="text-label text-zinc-500">Weekly Calorie Budget</p>
+                  <p className="text-xl font-bold font-mono text-white tabular-nums mt-1">
+                    {plan.weeklyTargetCalories.toLocaleString()} <span className="text-xs text-zinc-500">kcal</span>
+                  </p>
+                </div>
+                <div className="p-3 rounded-control bg-canvas border border-line">
+                  <p className="text-label text-zinc-500">Net Weekly Imbalance</p>
+                  <p
+                    className={`text-xl font-bold font-mono tabular-nums mt-1 ${
+                      plan.weeklyDeficitOrSurplus < 0 ? 'text-warning' : plan.weeklyDeficitOrSurplus > 0 ? 'text-info' : 'text-accent'
+                    }`}
+                  >
+                    {plan.weeklyDeficitOrSurplus > 0
+                      ? `+${plan.weeklyDeficitOrSurplus.toLocaleString()}`
+                      : plan.weeklyDeficitOrSurplus.toLocaleString()}{' '}
+                    kcal
+                  </p>
+                </div>
+                <div className="p-3 rounded-control bg-canvas border border-line">
+                  <p className="text-label text-zinc-500">Est. Scale Weight / Wk</p>
+                  <p className="text-xl font-bold font-mono text-white tabular-nums mt-1">
+                    {plan.estimatedWeeklyWeightChangeKg > 0 ? `+${plan.estimatedWeeklyWeightChangeKg}` : plan.estimatedWeeklyWeightChangeKg} kg
+                  </p>
+                </div>
               </div>
 
-              <div role="note" className="text-xs text-[var(--text-muted)] leading-relaxed border border-[var(--border-card)] rounded-xl p-3">
-                Saving updates your profile targets and today&apos;s ({dayKey}) diary targets.
-                {viewingPastDate && currentLog
-                  ? ` The diary for ${currentLog.date}, which you are viewing, will not be changed.`
-                  : ''}
-              </div>
-
+              <p className="text-xs text-zinc-300 leading-relaxed">{plan.rationale}</p>
+              <p className="text-label text-zinc-500 leading-relaxed">
+                TDEE and scale-weight figures are estimates from population equations and a fixed 7,700 kcal/kg approximation; they are not a precise prediction for you.
+              </p>
               {plan.warnings.length > 0 && (
-                <div role="alert" className="text-xs text-amber-400 space-y-1.5 border border-amber-500/30 rounded-xl p-3">
+                <div role="alert" className="text-xs text-warning space-y-1.5 border border-warning/30 bg-warning/5 rounded-control p-3">
                   {plan.warnings.map((w) => (
                     <p key={w}>{w}</p>
                   ))}
                 </div>
               )}
+            </Card>
+          </div>
+        )}
 
-              {plan.constrained && (
-                <label className="flex items-start gap-2 text-xs text-[var(--text-primary)] cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={confirmedPlanKey === planKey}
-                    onChange={(e) => setConfirmedPlanKey(e.target.checked ? planKey : '')}
-                    className="mt-0.5"
-                  />
-                  <span>
-                    I understand these targets differ from the requested pace or do not fully add up, and I want to save them as shown.
-                  </span>
-                </label>
-              )}
+        {/* STEP 4: Macro targets & save */}
+        {step === 4 && plan && (
+          <div className="space-y-5">
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              Fine-tune your protein and fat targets. Carbohydrates automatically adjust to absorb the exact remainder of your daily {plan.targetCalories} kcal budget. Review and save to update your database.
+            </p>
 
-              {saveError && (
-                <div role="alert" className="text-xs text-red-400 border border-red-500/30 rounded-xl p-3">
-                  {saveError}
-                </div>
-              )}
+            <div role="note" className="text-xs text-zinc-400 leading-relaxed border border-line rounded-control p-3">
+              Saving updates your profile targets and today&apos;s ({dayKey}) diary targets.
+              {viewingPastDate && currentLog ? ` The diary for ${currentLog.date}, which you are viewing, will not be changed.` : ''}
+            </div>
 
-              {/* Protein Slider & Presets */}
-              <div className="reshape-card-subtle p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider block">
-                      Protein Intake Target
-                    </label>
-                    <span className="text-[11px] text-[var(--text-muted)] font-mono">
-                      {proteinRatio}g per kg bodyweight ({Math.round(weightKg * proteinRatio)}g / day)
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xl font-bold font-mono text-volt-adaptive">
-                      {plan.proteinGrams}g
-                    </span>
-                    <span className="text-[11px] font-mono text-[var(--text-muted)] ml-2">
-                      ({plan.proteinPercent}% · {plan.proteinGrams * 4} kcal)
-                    </span>
-                  </div>
-                </div>
-
-                <input
-                  type="range"
-                  min="1.6"
-                  max="2.8"
-                  step="0.1"
-                  value={proteinRatio}
-                  onChange={(e) => setProteinRatio(parseFloat(e.target.value))}
-                  className="w-full accent-[#CEFF00] cursor-pointer"
-                />
-
-                <div className="flex items-center gap-2 pt-1">
-                  {[
-                    { label: 'Standard (1.8g/kg)', val: 1.8 },
-                    { label: 'Hypertrophy (2.2g/kg)', val: 2.2 },
-                    { label: 'High Satiety (2.5g/kg)', val: 2.5 }
-                  ].map((preset) => (
-                    <button
-                      key={preset.val}
-                      type="button"
-                      onClick={() => setProteinRatio(preset.val)}
-                      className={`flex-1 py-1 text-xs font-mono font-semibold rounded-lg transition-colors ${
-                        proteinRatio === preset.val
-                          ? 'bg-[#CEFF00] text-black font-bold'
-                          : 'bg-[var(--chip-bg)] text-[var(--text-secondary)] hover:bg-[var(--chip-hover)]'
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
+            {plan.warnings.length > 0 && (
+              <div role="alert" className="text-xs text-warning space-y-1.5 border border-warning/30 bg-warning/5 rounded-control p-3">
+                {plan.warnings.map((w) => (
+                  <p key={w}>{w}</p>
+                ))}
               </div>
+            )}
 
-              {/* Fat Ratio Slider */}
-              <div className="reshape-card-subtle p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider block">
-                      Healthy Fats Allocation
-                    </label>
-                    <span className="text-[11px] text-[var(--text-muted)] font-mono">
-                      {fatPercent}% of daily calories (endocrine &amp; hormonal support)
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xl font-bold font-mono text-amber-400">
-                      {plan.fatGrams}g
-                    </span>
-                    <span className="text-[11px] font-mono text-[var(--text-muted)] ml-2">
-                      ({plan.fatPercent}% · {plan.fatGrams * 9} kcal)
-                    </span>
-                  </div>
-                </div>
-
+            {plan.constrained && (
+              <label className="flex items-start gap-3 text-xs text-zinc-200 cursor-pointer min-h-11">
                 <input
-                  type="range"
-                  min="18"
-                  max="35"
-                  step="1"
-                  value={fatPercent}
-                  onChange={(e) => setFatPercent(parseInt(e.target.value, 10))}
-                  className="w-full accent-amber-400 cursor-pointer"
+                  type="checkbox"
+                  checked={confirmedPlanKey === planKey}
+                  onChange={(e) => setConfirmedPlanKey(e.target.checked ? planKey : '')}
+                  className="mt-0.5 w-5 h-5 accent-accent shrink-0"
                 />
+                <span>
+                  I understand these targets differ from the requested pace or do not fully add up, and I want to save them as shown.
+                </span>
+              </label>
+            )}
 
-                <div className="flex items-center gap-2 pt-1">
-                  {[
-                    { label: 'Low Fat (20%)', val: 20 },
-                    { label: 'Balanced (25%)', val: 25 },
-                    { label: 'Higher Fat (30%)', val: 30 }
-                  ].map((preset) => (
-                    <button
-                      key={preset.val}
-                      type="button"
-                      onClick={() => setFatPercent(preset.val)}
-                      className={`flex-1 py-1 text-xs font-mono font-semibold rounded-lg transition-colors ${
-                        fatPercent === preset.val
-                          ? 'bg-amber-400 text-black font-bold'
-                          : 'bg-[var(--chip-bg)] text-[var(--text-secondary)] hover:bg-[var(--chip-hover)]'
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
+            {saveError && (
+              <div role="alert" className="text-xs text-danger border border-danger/30 bg-danger/5 rounded-control p-3">
+                {saveError}
               </div>
+            )}
 
-              {/* Carbohydrates Dynamic Remainder */}
-              <div className="reshape-card-subtle p-4 flex items-center justify-between">
-                <div>
-                  <label className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider block">
-                    Carbohydrates (Dynamic Energy Remainder)
+            {/* Protein */}
+            <Card tone="raised" pad="md" className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <label htmlFor="wizard-protein-ratio" className="text-xs font-semibold text-zinc-200 block">
+                    Protein intake target
                   </label>
-                  <span className="text-[11px] text-[var(--text-muted)] font-mono">
-                    Powers muscular glycogen stores and workout intensity
+                  <span className="text-label text-zinc-500 font-mono">
+                    {proteinRatio}g per kg bodyweight ({Math.round(weightKg * proteinRatio)}g / day)
                   </span>
                 </div>
-                <div className="text-right">
-                  <span className="text-xl font-bold font-mono text-sky-400">
-                    {plan.carbsGrams}g
+                <div className="text-right shrink-0">
+                  <span className="text-xl font-bold font-mono tabular-nums" style={{ color: MACRO_META.protein.color }}>
+                    {plan.proteinGrams}g
                   </span>
-                  <span className="text-[11px] font-mono text-[var(--text-muted)] ml-2">
-                    ({plan.carbsPercent}% · {plan.carbsGrams * 4} kcal)
+                  <span className="block text-label font-mono text-zinc-500">
+                    {plan.proteinPercent}% · {plan.proteinGrams * 4} kcal
                   </span>
                 </div>
               </div>
+              <input
+                id="wizard-protein-ratio"
+                type="range"
+                min="1.6"
+                max="2.8"
+                step="0.1"
+                value={proteinRatio}
+                onChange={(e) => setProteinRatio(parseFloat(e.target.value))}
+                className="w-full h-8 accent-accent cursor-pointer"
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="group" aria-label="Protein presets">
+                {[
+                  { label: 'Standard (1.8g/kg)', val: 1.8 },
+                  { label: 'Hypertrophy (2.2g/kg)', val: 2.2 },
+                  { label: 'High Satiety (2.5g/kg)', val: 2.5 }
+                ].map((preset) => (
+                  <Button
+                    key={preset.val}
+                    variant={proteinRatio === preset.val ? 'primary' : 'secondary'}
+                    aria-pressed={proteinRatio === preset.val}
+                    onClick={() => setProteinRatio(preset.val)}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
+            </Card>
 
-              {/* Visual Macro Split Breakdown Bar */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-mono text-[var(--text-secondary)]">
-                  <span>Macro Ratio Split</span>
-                  <span>{plan.proteinPercent}% Pro · {plan.carbsPercent}% Carb · {plan.fatPercent}% Fat</span>
+            {/* Fat */}
+            <Card tone="raised" pad="md" className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <label htmlFor="wizard-fat-percent" className="text-xs font-semibold text-zinc-200 block">
+                    Fat allocation
+                  </label>
+                  <span className="text-label text-zinc-500 font-mono">{fatPercent}% of daily calories</span>
                 </div>
-                <div className="w-full h-4 rounded-full overflow-hidden flex border border-[var(--border-card)]">
-                  <div
-                    style={{ width: `${plan.proteinPercent}%` }}
-                    className="bg-[#CEFF00] h-full"
-                    title={`Protein: ${plan.proteinPercent}%`}
-                  />
-                  <div
-                    style={{ width: `${plan.carbsPercent}%` }}
-                    className="bg-sky-400 h-full"
-                    title={`Carbs: ${plan.carbsPercent}%`}
-                  />
-                  <div
-                    style={{ width: `${plan.fatPercent}%` }}
-                    className="bg-amber-400 h-full"
-                    title={`Fat: ${plan.fatPercent}%`}
-                  />
+                <div className="text-right shrink-0">
+                  <span className="text-xl font-bold font-mono tabular-nums" style={{ color: MACRO_META.fat.color }}>
+                    {plan.fatGrams}g
+                  </span>
+                  <span className="block text-label font-mono text-zinc-500">
+                    {plan.fatPercent}% · {plan.fatGrams * 9} kcal
+                  </span>
                 </div>
               </div>
+              <input
+                id="wizard-fat-percent"
+                type="range"
+                min="18"
+                max="35"
+                step="1"
+                value={fatPercent}
+                onChange={(e) => setFatPercent(parseInt(e.target.value, 10))}
+                className="w-full h-8 accent-chart-4 cursor-pointer"
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="group" aria-label="Fat presets">
+                {[
+                  { label: 'Low Fat (20%)', val: 20 },
+                  { label: 'Balanced (25%)', val: 25 },
+                  { label: 'Higher Fat (30%)', val: 30 }
+                ].map((preset) => (
+                  <Button
+                    key={preset.val}
+                    variant={fatPercent === preset.val ? 'primary' : 'secondary'}
+                    aria-pressed={fatPercent === preset.val}
+                    onClick={() => setFatPercent(preset.val)}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
+            </Card>
 
-              {/* Comparison Card: Current vs Proposed */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Current */}
-                <div className="reshape-card-subtle p-4 space-y-3 opacity-80">
-                  <div className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-muted)]">
-                    Current Targets In Database
-                  </div>
-                  <div className="text-2xl font-bold font-mono text-[var(--text-secondary)]">
-                    {profile.dailyCalorieTarget || 2600} <span className="text-xs text-[var(--text-muted)] font-normal">kcal</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono pt-2 border-t border-[var(--border-card)]">
-                    <div>
-                      <span className="text-[10px] text-[var(--text-muted)] block">PRO</span>
-                      <span className="font-bold text-[var(--text-secondary)]">{profile.dailyProteinTarget || 165}g</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-[var(--text-muted)] block">CARB</span>
-                      <span className="font-bold text-[var(--text-secondary)]">{profile.dailyCarbsTarget || 300}g</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-[var(--text-muted)] block">FAT</span>
-                      <span className="font-bold text-[var(--text-secondary)]">{profile.dailyFatTarget || 65}g</span>
-                    </div>
-                  </div>
-                </div>
+            {/* Carbs (remainder) */}
+            <Card tone="raised" pad="md" className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-zinc-200">Carbohydrates (remainder)</p>
+                <span className="text-label text-zinc-500 font-mono">Fills the rest of your calorie budget</span>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="text-xl font-bold font-mono tabular-nums" style={{ color: MACRO_META.carbs.color }}>
+                  {plan.carbsGrams}g
+                </span>
+                <span className="block text-label font-mono text-zinc-500">
+                  {plan.carbsPercent}% · {plan.carbsGrams * 4} kcal
+                </span>
+              </div>
+            </Card>
 
-                {/* Proposed New Targets */}
-                <div className="reshape-card-subtle p-4 space-y-3 border-2 border-[#CEFF00]">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-volt-adaptive font-bold">
-                      New Calibrated Targets
-                    </span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#CEFF00] text-black uppercase">
-                      {goal}
-                    </span>
-                  </div>
-                  <div className="text-3xl font-extrabold font-mono text-[var(--text-primary)]">
-                    {plan.targetCalories} <span className="text-xs text-volt-adaptive font-normal">kcal / day</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono pt-2 border-t border-[var(--border-card)]">
-                    <div className="p-1 rounded bg-[var(--bg-canvas)]">
-                      <span className="text-[10px] text-volt-adaptive font-bold block">PRO</span>
-                      <span className="font-bold text-[var(--text-primary)]">{plan.proteinGrams}g</span>
-                    </div>
-                    <div className="p-1 rounded bg-[var(--bg-canvas)]">
-                      <span className="text-[10px] text-sky-400 font-bold block">CARB</span>
-                      <span className="font-bold text-[var(--text-primary)]">{plan.carbsGrams}g</span>
-                    </div>
-                    <div className="p-1 rounded bg-[var(--bg-canvas)]">
-                      <span className="text-[10px] text-amber-400 font-bold block">FAT</span>
-                      <span className="font-bold text-[var(--text-primary)]">{plan.fatGrams}g</span>
-                    </div>
-                  </div>
-                </div>
+            {/* Split bar */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 text-xs font-mono text-zinc-400">
+                <span>Macro ratio split</span>
+                <span className="tabular-nums">
+                  {plan.proteinPercent}% Pro · {plan.carbsPercent}% Carb · {plan.fatPercent}% Fat
+                </span>
+              </div>
+              <div className="w-full h-3 rounded-full overflow-hidden flex bg-surface-3">
+                <div style={{ width: `${plan.proteinPercent}%`, backgroundColor: MACRO_META.protein.color }} className="h-full" title={`Protein: ${plan.proteinPercent}%`} />
+                <div style={{ width: `${plan.carbsPercent}%`, backgroundColor: MACRO_META.carbs.color }} className="h-full" title={`Carbs: ${plan.carbsPercent}%`} />
+                <div style={{ width: `${plan.fatPercent}%`, backgroundColor: MACRO_META.fat.color }} className="h-full" title={`Fat: ${plan.fatPercent}%`} />
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Footer Navigation Buttons */}
-        <div className="p-4 sm:p-5 border-t border-[var(--border-card)] bg-[var(--bg-subtle)] flex items-center justify-between">
-          <div>
-            {step > 1 ? (
-              <button
-                type="button"
-                onClick={() => setStep((s) => (s - 1) as any)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--chip-bg)] transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Previous</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                Cancel
-              </button>
-            )}
-          </div>
+            {/* Current vs proposed */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Card tone="raised" pad="md" className="space-y-3">
+                <p className="text-label text-zinc-500">Current targets in database</p>
+                <p className="text-2xl font-bold font-mono text-zinc-300 tabular-nums">
+                  {profile.dailyCalorieTarget || 2600} <span className="text-xs text-zinc-500 font-normal">kcal</span>
+                </p>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono pt-2 border-t border-line">
+                  <div>
+                    <span className="text-label text-zinc-500 block">PRO</span>
+                    <span className="font-semibold text-zinc-300">{profile.dailyProteinTarget || 165}g</span>
+                  </div>
+                  <div>
+                    <span className="text-label text-zinc-500 block">CARB</span>
+                    <span className="font-semibold text-zinc-300">{profile.dailyCarbsTarget || 300}g</span>
+                  </div>
+                  <div>
+                    <span className="text-label text-zinc-500 block">FAT</span>
+                    <span className="font-semibold text-zinc-300">{profile.dailyFatTarget || 65}g</span>
+                  </div>
+                </div>
+              </Card>
 
-          <div>
-            {step < 4 ? (
-              <button
-                type="button"
-                disabled={step === 2 && !computed.ok}
-                onClick={() => setStep((s) => (s + 1) as 1 | 2 | 3 | 4)}
-                className="disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#CEFF00] hover:bg-[#b8e600] text-black font-bold text-xs uppercase tracking-wider transition-colors shadow-sm"
-              >
-                <span>Continue</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={saveStatus !== 'idle' || !plan || needsConfirmation}
-                onClick={handleApplyPlan}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#CEFF00] hover:bg-[#b8e600] text-black font-bold text-xs uppercase tracking-wider transition-colors shadow-md shadow-[#CEFF00]/20 disabled:opacity-80"
-              >
-                <Check className="w-4 h-4 stroke-[3]" />
-                <span>{saveStatus === 'saved' ? 'Targets Saved!' : saveStatus === 'saving' ? 'Saving…' : 'Update Daily Targets in Database'}</span>
-              </button>
-            )}
+              <Card tone="accent" pad="md" className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-label font-semibold text-accent">New calibrated targets</p>
+                  <Badge tone="accent" className="uppercase">
+                    {goal}
+                  </Badge>
+                </div>
+                <p className="text-3xl font-bold font-mono text-white tabular-nums">
+                  {plan.targetCalories} <span className="text-xs text-accent font-normal">kcal / day</span>
+                </p>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono pt-2 border-t border-line">
+                  <div className="p-1 rounded-lg bg-canvas">
+                    <span className="text-label font-semibold block" style={{ color: MACRO_META.protein.color }}>PRO</span>
+                    <span className="font-semibold text-white">{plan.proteinGrams}g</span>
+                  </div>
+                  <div className="p-1 rounded-lg bg-canvas">
+                    <span className="text-label font-semibold block" style={{ color: MACRO_META.carbs.color }}>CARB</span>
+                    <span className="font-semibold text-white">{plan.carbsGrams}g</span>
+                  </div>
+                  <div className="p-1 rounded-lg bg-canvas">
+                    <span className="text-label font-semibold block" style={{ color: MACRO_META.fat.color }}>FAT</span>
+                    <span className="font-semibold text-white">{plan.fatGrams}g</span>
+                  </div>
+                </div>
+              </Card>
+            </div>
           </div>
-        </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 };

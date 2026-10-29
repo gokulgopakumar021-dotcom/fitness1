@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Send
 } from 'lucide-react';
+import { Input } from '../ui';
 
 export interface SmartAlertsConfig {
   enabled: boolean;
@@ -212,7 +213,7 @@ export const SmartAlertsConfigModal: React.FC<SmartAlertsConfigModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-3xl bg-[#0f141c] border border-sky-500/30 shadow-2xl overflow-hidden text-[var(--text-primary)]">
+      <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-card bg-surface border border-line-strong shadow-2xl overflow-hidden text-[var(--text-primary)]">
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-[var(--border-card)] flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -360,28 +361,22 @@ export const SmartAlertsConfigModal: React.FC<SmartAlertsConfigModalProps> = ({
 
             <div className="grid grid-cols-2 gap-3 pt-1">
               <div>
-                <label className="text-[10px] text-[var(--text-muted)] block uppercase mb-1">
-                  Quiet Starts (Night)
-                </label>
-                <input
+                <Input
+                  label="Quiet Starts (Night)"
                   type="time"
                   disabled={!localConfig.quietHoursEnabled}
                   value={localConfig.quietHoursStart}
                   onChange={(e) => updatePartial({ quietHoursStart: e.target.value })}
-                  className="w-full p-2 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)] text-white text-xs outline-none focus:border-amber-400 disabled:opacity-40"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] text-[var(--text-muted)] block uppercase mb-1">
-                  Quiet Ends (Morning)
-                </label>
-                <input
+                <Input
+                  label="Quiet Ends (Morning)"
                   type="time"
                   disabled={!localConfig.quietHoursEnabled}
                   value={localConfig.quietHoursEnd}
                   onChange={(e) => updatePartial({ quietHoursEnd: e.target.value })}
-                  className="w-full p-2 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)] text-white text-xs outline-none focus:border-amber-400 disabled:opacity-40"
                 />
               </div>
             </div>
@@ -502,7 +497,7 @@ export const SmartAlertsConfigModal: React.FC<SmartAlertsConfigModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-[var(--border-card)] flex items-center justify-end gap-2 bg-[#0c1017]">
+        <div className="p-4 border-t border-[var(--border-card)] flex items-center justify-end gap-2 bg-surface-2">
           <button
             type="button"
             onClick={onClose}
