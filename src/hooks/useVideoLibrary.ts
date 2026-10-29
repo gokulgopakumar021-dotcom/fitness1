@@ -16,7 +16,7 @@ export type VideoLibraryState =
   | { status: 'error' }
   /** Nothing is published at all (empty query, no rows). */
   | { status: 'empty_library' }
-  /** A typed query matched nothing. */
+  /** A typed query, or a selected folder, matched nothing. */
   | { status: 'no_results' }
   | { status: 'ready'; items: ExerciseVideo[]; nextCursor: VideoSearchCursor | null };
 
@@ -29,6 +29,8 @@ export function useVideoLibrary() {
   const { status: authStatus } = useAuth();
   const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
+  /** Selected body-area folder (a muscle_groups value), or null for the whole library. */
+  const [area, setArea] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<VideoLibraryState>({ status: 'loading' });
   const [loadingMore, setLoadingMore] = useState(false);
@@ -61,11 +63,11 @@ export function useVideoLibrary() {
     }
     setState({ status: 'loading' });
     service
-      .search({ text: query, limit: LIBRARY_PAGE_SIZE })
+      .search({ text: query, muscleGroup: area ?? undefined, limit: LIBRARY_PAGE_SIZE })
       .then((result) => {
         if (gen !== generation.current) return;
         if (!result.ok) setState({ status: 'error' });
-        else if (result.data.items.length === 0) setState({ status: query.trim() ? 'no_results' : 'empty_library' });
+        else if (result.data.items.length === 0) setState({ status: query.trim() || area ? 'no_results' : 'empty_library' });
         else setState({ status: 'ready', items: result.data.items, nextCursor: result.data.nextCursor });
       })
       .catch(() => {
@@ -75,7 +77,7 @@ export function useVideoLibrary() {
       // Invalidate on query change, retry or unmount.
       generation.current++;
     };
-  }, [authStatus, query, attempt]);
+  }, [authStatus, query, area, attempt]);
 
   const loadMore = useCallback(() => {
     if (state.status !== 'ready' || !state.nextCursor || loadingMore) return;
@@ -86,7 +88,7 @@ export function useVideoLibrary() {
     setLoadingMore(true);
     setLoadMoreError(false);
     service
-      .search({ text: query, limit: LIBRARY_PAGE_SIZE, cursor })
+      .search({ text: query, muscleGroup: area ?? undefined, limit: LIBRARY_PAGE_SIZE, cursor })
       .then((result) => {
         if (gen !== generation.current) return;
         setLoadingMore(false);
@@ -105,11 +107,11 @@ export function useVideoLibrary() {
         setLoadingMore(false);
         setLoadMoreError(true);
       });
-  }, [state, query, loadingMore]);
+  }, [state, query, area, loadingMore]);
 
   /** Search now, skipping the debounce (keyboard "Search" key). */
   const submit = useCallback(() => setQuery(input.trim() === '' ? '' : input), [input]);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
-  return { input, setInput, query, state, loadingMore, loadMoreError, loadMore, submit, retry };
+  return { input, setInput, query, area, setArea, state, loadingMore, loadMoreError, loadMore, submit, retry };
 }

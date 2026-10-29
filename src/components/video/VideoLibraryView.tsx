@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Loader2, PlayCircle, RefreshCw, Search, SearchX, Video, VideoOff, X } from 'lucide-react';
+import { Folder, FolderOpen, Loader2, PlayCircle, RefreshCw, Search, SearchX, Video, VideoOff, X } from 'lucide-react';
 import { useVideoLibrary } from '../../hooks/useVideoLibrary';
 import { VideoPlayer, formatDuration } from './ExerciseVideoSection';
 import { EmptyState, Modal, PageHeader } from '../ui';
+import { VIDEO_FOLDERS, folderLabel } from '../../data/videoFolders';
 import type { ExerciseVideo } from '../../types/video';
 
 /**
@@ -46,12 +47,12 @@ const ResultRow: React.FC<{ video: ExerciseVideo; onOpen: (v: ExerciseVideo) => 
 };
 
 export const VideoLibraryView: React.FC = () => {
-  const { input, setInput, state, loadingMore, loadMoreError, loadMore, submit, retry } = useVideoLibrary();
+  const { input, setInput, area, setArea, state, loadingMore, loadMoreError, loadMore, submit, retry } = useVideoLibrary();
   const [selected, setSelected] = useState<ExerciseVideo | null>(null);
 
   return (
     <div className="max-w-2xl mx-auto w-full min-w-0">
-      <PageHeader title="Video Library" description="Search exercise videos by name and tap one to watch." />
+      <PageHeader title="Video Library" description="Open a body-area folder or search by name, then tap a video to watch." />
 
       <form
         role="search"
@@ -89,6 +90,29 @@ export const VideoLibraryView: React.FC = () => {
         )}
       </form>
 
+
+      {/* Body-area folders. "All" is the whole library; tapping the open folder again goes back to All. */}
+      <div role="group" aria-label="Body area folders" className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-4">
+        {[{ id: null, label: 'All' }, ...VIDEO_FOLDERS].map((f) => {
+          const active = area === f.id;
+          const Icon = active ? FolderOpen : Folder;
+          return (
+            <button
+              key={f.id ?? 'all'}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setArea(active ? null : f.id)}
+              className={`min-h-12 px-2.5 rounded-xl border text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+                active ? 'bg-accent/15 border-accent text-white' : 'bg-surface-2 border-line text-zinc-200 hover:border-line-strong active:bg-surface-3'
+              }`}
+            >
+              <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span className="truncate">{f.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {state.status === 'loading' && (
         <div role="status" className="flex items-center justify-center gap-2 py-10 text-sm text-zinc-400">
           <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
@@ -110,7 +134,7 @@ export const VideoLibraryView: React.FC = () => {
 
       {state.status === 'no_results' && (
         <div role="status">
-          <EmptyState icon={<SearchX className="w-5 h-5" />} title="No videos found" description="Try a shorter name or a different spelling." />
+          <EmptyState icon={<SearchX className="w-5 h-5" />} title="No videos found" description={area && !input.trim() ? `No videos in ${folderLabel(area) ?? 'this folder'} yet.` : area ? `Nothing matched in ${folderLabel(area) ?? 'this folder'}. Try a shorter name, or pick All.` : 'Try a shorter name or a different spelling.'} />
         </div>
       )}
 

@@ -7,6 +7,7 @@ interface Rec {
   or: string | null;
   limit: number;
   eq: Array<[string, unknown]>;
+  contains: Array<[string, unknown]>;
 }
 
 const h = vi.hoisted(() => ({
@@ -60,12 +61,12 @@ const ok = (data: unknown[]) => Promise.resolve({ data, error: null });
 function makeClient() {
   return {
     from: () => {
-      const rec: Rec = { text: null, or: null, limit: 0, eq: [] };
+      const rec: Rec = { text: null, or: null, limit: 0, eq: [], contains: [] };
       const b: any = {
         select: () => b,
         eq: (c: string, v: unknown) => (rec.eq.push([c, v]), b),
         textSearch: (_c: string, q: string) => ((rec.text = q), b),
-        contains: () => b,
+        contains: (c: string, v: unknown) => (rec.contains.push([c, v]), b),
         or: (f: string) => ((rec.or = f), b),
         order: () => b,
         limit: (n: number) => {
@@ -182,6 +183,65 @@ describe('Video Library: loading and listing', () => {
     expect(input().className).toContain('text-base');
     expect(input().getAttribute('enterkeyhint')).toBe('search');
     expect(input().getAttribute('aria-label')).toBe('Search exercise videos');
+  });
+});
+
+describe('Video Library: body-area folders', () => {
+  const folderGroup = () => q('[role="group"][aria-label="Body area folders"]')!;
+  const folderBtn = (label: string) => Array.from(folderGroup().querySelectorAll('button')).find((b) => b.textContent === label) ?? null;
+
+  it('shows All plus one folder per body area, with All selected and the whole library listed', async () => {
+    h.respond = () => ok([row(1, 'Barbell Row')]);
+    await render(<VideoLibraryView />);
+    const labels = Array.from(folderGroup().querySelectorAll('button')).map((b) => b.textContent);
+    expect(labels).toEqual(['All', 'Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core', 'Cardio', 'Stretching']);
+    expect(folderBtn('All')!.getAttribute('aria-pressed')).toBe('true');
+    expect(h.searches[0].contains).toEqual([]);
+  });
+
+  it('opening a folder filters by that muscle group and marks it selected', async () => {
+    await render(<VideoLibraryView />);
+    h.respond = () => ok([row(2, 'Dumbbell Fly', { muscle_groups: ['chest'] })]);
+    await click(folderBtn('Chest'));
+    expect(h.searches).toHaveLength(2);
+    expect(h.searches[1].contains).toEqual([['muscle_groups', ['chest']]]);
+    expect(folderBtn('Chest')!.getAttribute('aria-pressed')).toBe('true');
+    expect(folderBtn('All')!.getAttribute('aria-pressed')).toBe('false');
+    expect(text()).toContain('Dumbbell Fly');
+  });
+
+  it('search text stays inside the open folder, and paging keeps the folder filter', async () => {
+    const page1 = Array.from({ length: LIBRARY_PAGE_SIZE + 1 }, (_, i) => row(i + 1, `Leg ${String(i).padStart(2, '0')}`, { muscle_groups: ['legs'] }));
+    h.respond = () => ok(page1);
+    await render(<VideoLibraryView />);
+    await click(folderBtn('Legs'));
+    await click(buttonByText('Show more'));
+    const last = h.searches[h.searches.length - 1];
+    expect(last.contains).toEqual([['muscle_groups', ['legs']]]);
+    expect(last.or).not.toBeNull(); // keyset cursor
+    await type('squat');
+    await tick(SEARCH_DEBOUNCE_MS);
+    const typed = h.searches[h.searches.length - 1];
+    expect(typed.text).not.toBeNull();
+    expect(typed.contains).toEqual([['muscle_groups', ['legs']]]);
+  });
+
+  it('tapping the open folder again, or All, returns to the whole library', async () => {
+    await render(<VideoLibraryView />);
+    await click(folderBtn('Back'));
+    await click(folderBtn('Back'));
+    expect(h.searches[h.searches.length - 1].contains).toEqual([]);
+    await click(folderBtn('Core'));
+    await click(folderBtn('All'));
+    expect(h.searches[h.searches.length - 1].contains).toEqual([]);
+    expect(folderBtn('All')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('an empty folder says so, and does not use the empty-library message', async () => {
+    await render(<VideoLibraryView />);
+    await click(folderBtn('Cardio'));
+    expect(text()).toContain('No videos in Cardio yet.');
+    expect(text()).not.toContain('No videos yet');
   });
 });
 
