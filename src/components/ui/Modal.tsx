@@ -10,6 +10,8 @@ interface Props {
   children: React.ReactNode;
   footer?: React.ReactNode;
   size?: 'sm' | 'md' | 'lg';
+  /** Accessible name (and tooltip) of the close button. */
+  closeLabel?: string;
 }
 
 const SIZES = { sm: 'sm:max-w-md', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl' };
@@ -18,10 +20,14 @@ const SIZES = { sm: 'sm:max-w-md', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl' };
  * Accessible dialog. Bottom sheet on phones, centered panel on larger screens.
  * Closes on Escape and backdrop click, locks body scroll, restores focus.
  */
-export const Modal: React.FC<Props> = ({ open, onClose, title, description, children, footer, size = 'md' }) => {
+export const Modal: React.FC<Props> = ({ open, onClose, title, description, children, footer, size = 'md', closeLabel = 'Close' }) => {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
+  // Keep the latest onClose without re-running the focus/scroll-lock effect: callers often pass an
+  // inline arrow, and re-running on every parent render would steal focus from inputs mid-typing.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -30,7 +36,7 @@ export const Modal: React.FC<Props> = ({ open, onClose, title, description, chil
     document.body.style.overflow = 'hidden';
     panelRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     document.addEventListener('keydown', onKey);
     return () => {
@@ -38,13 +44,13 @@ export const Modal: React.FC<Props> = ({ open, onClose, title, description, chil
       document.body.style.overflow = prevOverflow;
       lastFocused.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm il-fade-in" onClick={onClose} aria-hidden />
+      <div className="absolute inset-0 bg-overlay backdrop-blur-sm il-fade-in" onClick={onClose} aria-hidden />
       <div
         ref={panelRef}
         role="dialog"
@@ -53,7 +59,7 @@ export const Modal: React.FC<Props> = ({ open, onClose, title, description, chil
         tabIndex={-1}
         className={cn(
           'relative w-full max-h-[90dvh] flex flex-col bg-surface border border-line-strong shadow-2xl il-sheet-up',
-          'rounded-t-3xl sm:rounded-2xl outline-none',
+          'rounded-t-sheet sm:rounded-card outline-none',
           SIZES[size]
         )}
       >
@@ -65,8 +71,9 @@ export const Modal: React.FC<Props> = ({ open, onClose, title, description, chil
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
-            className="w-10 h-10 -mr-2 -mt-1 flex items-center justify-center rounded-xl text-zinc-400 hover:text-white hover:bg-surface-2 transition-colors"
+            aria-label={closeLabel}
+            title={closeLabel === 'Close' ? undefined : closeLabel}
+            className="w-10 h-10 -mr-2 -mt-1 flex items-center justify-center rounded-control text-zinc-400 hover:text-white hover:bg-surface-2 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>

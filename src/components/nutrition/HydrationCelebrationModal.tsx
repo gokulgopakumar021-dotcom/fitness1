@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Trophy, Droplets, Sparkles, CheckCircle2, Flame, X, ArrowRight } from 'lucide-react';
 import { WaterUnit } from './WaterIntakeLogger';
 
@@ -14,7 +14,15 @@ export interface HydrationCelebrationModalProps {
 }
 
 // 40 particles with varying angles, colors, and speeds
-const CONFETTI_COLORS = ['#CEFF00', '#06b6d4', '#38bdf8', '#10b981', '#fbbf24', '#f43f5e', '#a855f7'];
+const CONFETTI_COLORS = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+  'var(--success)',
+  'var(--warning)'
+];
 
 const PARTICLES = Array.from({ length: 36 }).map((_, i) => {
   const angle = (i / 36) * 360;
@@ -39,6 +47,7 @@ export const HydrationCelebrationModal: React.FC<HydrationCelebrationModalProps>
   unit,
   streakCount
 }) => {
+  const reduceMotion = useReducedMotion();
   // Web Audio celebratory fanfare arpeggio
   useEffect(() => {
     if (!isOpen) return;
@@ -95,7 +104,7 @@ export const HydrationCelebrationModal: React.FC<HydrationCelebrationModalProps>
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            className="absolute inset-0 bg-overlay backdrop-blur-sm"
           />
 
           {/* Central Animated Modal Card */}
@@ -104,11 +113,14 @@ export const HydrationCelebrationModal: React.FC<HydrationCelebrationModalProps>
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.8, opacity: 0, y: 20 }}
             transition={{ type: 'spring', damping: 18, stiffness: 220 }}
-            className="relative z-10 w-full max-w-md p-6 sm:p-7 rounded-3xl bg-[#0f141c] border-2 border-emerald-400/50 shadow-[0_0_60px_rgba(16,185,129,0.3)] text-center overflow-hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Hydration goal reached"
+            className="relative z-10 w-full max-w-md p-6 sm:p-7 rounded-card bg-surface border border-success/40 shadow-2xl text-center overflow-hidden"
           >
             {/* Confetti Explosion Particles */}
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              {PARTICLES.map((p) => (
+              {!reduceMotion && PARTICLES.map((p) => (
                 <motion.div
                   key={p.id}
                   initial={{ x: 0, y: 0, opacity: 1, scale: 0 }}
@@ -135,7 +147,8 @@ export const HydrationCelebrationModal: React.FC<HydrationCelebrationModalProps>
             <button
               type="button"
               onClick={onClose}
-              className="absolute top-4 right-4 p-2 rounded-xl text-[var(--text-muted)] hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Close"
+              className="absolute top-3 right-3 w-11 h-11 flex items-center justify-center rounded-control text-zinc-400 hover:text-white hover:bg-surface-2 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -146,11 +159,9 @@ export const HydrationCelebrationModal: React.FC<HydrationCelebrationModalProps>
                 initial={{ scale: 0, rotate: -25 }}
                 animate={{ scale: [0, 1.35, 1], rotate: 0 }}
                 transition={{ delay: 0.15, type: 'spring', damping: 12, stiffness: 200 }}
-                className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-emerald-500 via-cyan-400 to-[#CEFF00] p-1 shadow-[0_0_35px_rgba(206,255,0,0.4)] flex items-center justify-center"
+                className="w-20 h-20 rounded-card bg-accent/10 border border-accent/30 flex items-center justify-center"
               >
-                <div className="w-full h-full rounded-[22px] bg-[#0c1017] flex items-center justify-center text-volt-adaptive">
-                  <Trophy className="w-10 h-10 text-[#CEFF00] animate-bounce" />
-                </div>
+                <Trophy className="w-10 h-10 text-accent" aria-hidden />
               </motion.div>
             </div>
 

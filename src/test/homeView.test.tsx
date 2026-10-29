@@ -7,14 +7,13 @@ import { UserProfile, WorkoutSession } from '../types';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+/**
+ * Smoke test for the Home tab through the public props only. Detailed behaviour (data accuracy, empty and
+ * error states, every navigation target) is covered in src/components/home/HomeView.test.tsx.
+ */
+
 let container: HTMLDivElement;
 let root: Root;
-
-const render = async (node: React.ReactNode) => {
-  await act(async () => {
-    root.render(node);
-  });
-};
 
 const mockProfile: UserProfile = {
   ...DEFAULT_PROFILE,
@@ -28,8 +27,36 @@ const mockProfile: UserProfile = {
   trainingPhase: 'hypertrophy'
 };
 
+const renderHome = async (overrides: Partial<React.ComponentProps<typeof HomeView>> = {}) => {
+  const props = {
+    profile: mockProfile,
+    activeSession: null,
+    onNavigate: vi.fn(),
+    onResumeActiveSession: vi.fn(),
+    isDemoMode: false,
+    onLoadDemoData: vi.fn(),
+    onClearDemoData: vi.fn(),
+    ...overrides
+  };
+  await act(async () => {
+    root.render(<HomeView {...props} />);
+  });
+  return props;
+};
+
+const buttonWith = (text: string) =>
+  Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes(text));
+
+const click = async (el: Element | undefined) => {
+  expect(el).toBeDefined();
+  await act(async () => {
+    el?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+};
+
 describe('HomeView Homepage Component', () => {
   beforeEach(() => {
+    localStorage.clear();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -42,63 +69,27 @@ describe('HomeView Homepage Component', () => {
     container.remove();
   });
 
-  it('renders greeting, athlete name, and system branding', async () => {
-    await render(
-      <HomeView
-        profile={mockProfile}
-        activeSession={null}
-        onNavigate={vi.fn()}
-        onResumeActiveSession={vi.fn()}
-        isDemoMode={false}
-        onLoadDemoData={vi.fn()}
-        onClearDemoData={vi.fn()}
-      />
-    );
-
-    expect(container.textContent).toContain('Marcus');
-    expect(container.textContent).toContain('Iron Log');
-    expect(container.textContent).toContain('Reshape OS v2.4');
-    expect(container.textContent).toContain('Quick Action Command Deck');
+  it('renders a greeting with the athlete name and the main sections', async () => {
+    await renderHome();
+    expect(container.querySelector('h1')?.textContent).toContain('Marcus');
+    for (const label of ['Nutrition today', 'Recent progress', 'Coach Iron', 'Body weight']) {
+      expect(container.querySelector(`section[aria-label="${label}"]`)).not.toBeNull();
+    }
   });
 
-  it('renders quick action buttons and navigates to correct tabs', async () => {
-    const handleNavigate = vi.fn();
-
-    await render(
-      <HomeView
-        profile={mockProfile}
-        activeSession={null}
-        onNavigate={handleNavigate}
-        onResumeActiveSession={vi.fn()}
-        isDemoMode={false}
-        onLoadDemoData={vi.fn()}
-        onClearDemoData={vi.fn()}
-      />
-    );
-
-    const buttons = Array.from(container.querySelectorAll('button'));
-    const logWorkoutBtn = buttons.find((b) => b.textContent?.includes('Log Workout'));
-    expect(logWorkoutBtn).toBeDefined();
-
-    await act(async () => {
-      logWorkoutBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    expect(handleNavigate).toHaveBeenCalledWith('workouts');
-
-    const logFuelBtn = buttons.find((b) => b.textContent?.includes('Log Fuel'));
-    expect(logFuelBtn).toBeDefined();
-
-    await act(async () => {
-      logFuelBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    expect(handleNavigate).toHaveBeenCalledWith('nutrition');
+  it('starts a workout and opens nutrition from the main cards', async () => {
+    const { onNavigate } = await renderHome();
+    await click(buttonWith('Start workout'));
+    expect(onNavigate).toHaveBeenCalledWith('workouts');
+    await click(buttonWith('Log a meal'));
+    expect(onNavigate).toHaveBeenCalledWith('nutrition');
   });
 
-  it('renders active workout session banner when a session is active', async () => {
+  it('puts an active session first and resumes it', async () => {
     const activeSession: WorkoutSession = {
       id: 'active-session-1',
+      dayName: 'Chest & Triceps',
       date: '2026-10-27',
-      dayName: 'Push Day A',
       startTime: new Date().toISOString(),
       status: 'in_progress',
       exercises: [
@@ -107,92 +98,39 @@ describe('HomeView Homepage Component', () => {
           name: 'Barbell Bench Press',
           muscleGroup: 'Chest',
           equipment: 'barbell',
-          repRange: '8-12',
+          repRange: '8-10',
           targetRir: 2,
           restSeconds: 120,
           sets: []
         }
       ]
     };
-
-    const handleResume = vi.fn();
-
-    await render(
-      <HomeView
-        profile={mockProfile}
-        activeSession={activeSession}
-        onNavigate={vi.fn()}
-        onResumeActiveSession={handleResume}
-        isDemoMode={false}
-        onLoadDemoData={vi.fn()}
-        onClearDemoData={vi.fn()}
-      />
-    );
-
-    expect(container.textContent).toContain('Workout In Progress');
-    expect(container.textContent).toContain('1 Exercises Recorded');
-
-    const resumeBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Resume Session Tracker')
-    );
-    expect(resumeBtn).toBeDefined();
-
-    await act(async () => {
-      resumeBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    expect(handleResume).toHaveBeenCalledTimes(1);
+    const { onResumeActiveSession } = await renderHome({ activeSession });
+    expect(container.textContent).toContain('Workout in progress');
+    expect(container.textContent).toContain('Chest & Triceps');
+    expect(buttonWith('Start workout')).toBeUndefined();
+    await click(buttonWith('Resume workout'));
+    expect(onResumeActiveSession).toHaveBeenCalledTimes(1);
   });
 
-  it('renders all 8 OS capability modules in the launchpad directory', async () => {
-    const handleNavigate = vi.fn();
-
-    await render(
-      <HomeView
-        profile={mockProfile}
-        activeSession={null}
-        onNavigate={handleNavigate}
-        onResumeActiveSession={vi.fn()}
-        isDemoMode={false}
-        onLoadDemoData={vi.fn()}
-        onClearDemoData={vi.fn()}
-      />
-    );
-
-    expect(container.textContent).toContain('Fitness OS Engine Directory');
-    expect(container.textContent).toContain('Workout Session Tracker');
-    expect(container.textContent).toContain('Overload Recommendation Engine');
-    expect(container.textContent).toContain('Nutrition Goal Wizard & TDEE');
-    expect(container.textContent).toContain('Long-Term Progress Timeline');
-    expect(container.textContent).toContain('Muscle Fatigue Heatmap & Scorecard');
-    expect(container.textContent).toContain('AI Coach & Video Form Library');
-    expect(container.textContent).toContain('Body Metrics & Silhouette Scanner');
-    expect(container.textContent).toContain('Routines & Spreadsheet Importer');
+  it('still reaches the other screens (overview, coach, body, timeline, settings)', async () => {
+    const { onNavigate } = await renderHome();
+    await click(buttonWith('Open Coach Iron'));
+    await click(buttonWith('Log weight'));
+    await click(buttonWith('Timeline'));
+    await click(buttonWith('Overview'));
+    await click(buttonWith('Settings'));
+    for (const tab of ['trainer', 'body', 'timeline', 'dashboard', 'settings']) {
+      expect(onNavigate).toHaveBeenCalledWith(tab);
+    }
   });
 
   it('supports demo data loading and clearing controls', async () => {
-    const handleLoadDemo = vi.fn();
-    const handleClearDemo = vi.fn();
-
-    await render(
-      <HomeView
-        profile={mockProfile}
-        activeSession={null}
-        onNavigate={vi.fn()}
-        onResumeActiveSession={vi.fn()}
-        isDemoMode={false}
-        onLoadDemoData={handleLoadDemo}
-        onClearDemoData={handleClearDemo}
-      />
-    );
-
-    const loadDemoBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Load Demo Athlete')
-    );
-    expect(loadDemoBtn).toBeDefined();
-
-    await act(async () => {
-      loadDemoBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    expect(handleLoadDemo).toHaveBeenCalledTimes(1);
+    const { onLoadDemoData } = await renderHome();
+    await click(buttonWith('Load demo data'));
+    expect(onLoadDemoData).toHaveBeenCalledTimes(1);
+    const cleared = await renderHome({ isDemoMode: true });
+    await click(buttonWith('Clear demo data'));
+    expect(cleared.onClearDemoData).toHaveBeenCalledTimes(1);
   });
 });

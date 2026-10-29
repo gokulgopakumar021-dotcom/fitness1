@@ -1,38 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   BarChart3,
   Calendar,
-  Flame,
   Award,
   TrendingUp,
   Activity,
-  CheckCircle,
   AlertCircle,
-  ArrowUpRight,
-  Filter,
   Dumbbell,
   Apple
 } from 'lucide-react';
 import {
   BodyMetricEntry,
   DailyNutritionLog,
-  PersonalRecord,
   UserProfile,
   WorkoutSession
 } from '../../types';
 import { db } from '../../storage/db';
 import { calculateEpley1RM, calculateVolumeLoad, formatWeight } from '../../utils/calculations';
-import { LineChart, BarChart } from '../common/Charts';
+import { LineChart } from '../common/Charts';
+import {
+  Badge,
+  Card,
+  EmptyState,
+  MetricCard,
+  PageHeader,
+  SectionHeading,
+  SegmentedControl
+} from '../ui';
 
 interface ReportsViewProps {
   profile: UserProfile;
 }
 
+type FilterPeriod = '7d' | '30d' | '90d' | 'all';
+
 export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [nutritionLogs, setNutritionLogs] = useState<DailyNutritionLog[]>([]);
   const [metrics, setMetrics] = useState<BodyMetricEntry[]>([]);
-  const [filterPeriod, setFilterPeriod] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
+  const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('30d');
 
   useEffect(() => {
     setSessions(db.getSessions().filter((s) => s.status === 'completed'));
@@ -40,89 +46,103 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
     setMetrics(db.getBodyMetrics());
   }, []);
 
-  const now = new Date();
-  const getDaysBack = () => {
+  const daysBack = useMemo(() => {
     if (filterPeriod === '7d') return 7;
     if (filterPeriod === '30d') return 30;
     if (filterPeriod === '90d') return 90;
     return 365;
-  };
+  }, [filterPeriod]);
 
-  const daysBack = getDaysBack();
-  const cutoffDate = new Date(now.getTime() - daysBack * 24 * 3600 * 1000);
+  const cutoffDate = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getTime() - daysBack * 24 * 3600 * 1000);
+  }, [daysBack]);
 
   // Filtered collections
-  const filteredSessions = sessions.filter((s) => new Date(s.date) >= cutoffDate);
-  const filteredNutrition = nutritionLogs.filter((n) => new Date(n.date) >= cutoffDate);
-  const filteredMetrics = metrics.filter((m) => new Date(m.date) >= cutoffDate);
+  const filteredSessions = useMemo(
+    () => sessions.filter((s) => new Date(s.date) >= cutoffDate),
+    [sessions, cutoffDate]
+  );
+  const filteredNutrition = useMemo(
+    () => nutritionLogs.filter((n) => new Date(n.date) >= cutoffDate),
+    [nutritionLogs, cutoffDate]
+  );
+  const filteredMetrics = useMemo(
+    () => metrics.filter((m) => new Date(m.date) >= cutoffDate),
+    [metrics, cutoffDate]
+  );
 
   // 1. Total sessions completed
   const totalCompletedSessions = filteredSessions.length;
 
   // 2. Training Volume Trend
-  const volumeBySessionData = filteredSessions.map((s) => {
-    const workingSets = s.exercises.flatMap((e) =>
-      e.sets.filter((st) => st.completed && st.type === 'working')
-    );
-    const vol = calculateVolumeLoad(workingSets, false);
-    return {
-      date: s.date,
-      value: vol,
-      label: `${vol.toLocaleString()} ${profile.preferredUnit}`
-    };
-  });
+  const volumeBySessionData = useMemo(() => {
+    return filteredSessions.map((s) => {
+      const workingSets = s.exercises.flatMap((e) =>
+        e.sets.filter((st) => st.completed && st.type === 'working')
+      );
+      const vol = calculateVolumeLoad(workingSets, false);
+      return {
+        date: s.date,
+        value: vol,
+        label: `${vol.toLocaleString()} ${profile.preferredUnit}`
+      };
+    });
+  }, [filteredSessions, profile.preferredUnit]);
 
-  const totalFilteredVolume = volumeBySessionData.reduce((acc, curr) => acc + curr.value, 0);
+  const totalFilteredVolume = useMemo(() => {
+    return volumeBySessionData.reduce((acc, curr) => acc + curr.value, 0);
+  }, [volumeBySessionData]);
 
   // 3. Nutrition Adherence
   const loggedNutrDays = filteredNutrition.length;
-  const avgCalories =
-    loggedNutrDays > 0
-      ? Math.round(
-          filteredNutrition.reduce(
-            (sum, n) => sum + n.entries.reduce((eSum, e) => eSum + (e.calories || 0), 0),
-            0
-          ) / loggedNutrDays
-        )
-      : 0;
+  const avgCalories = useMemo(() => {
+    if (loggedNutrDays === 0) return 0;
+    const totalCals = filteredNutrition.reduce(
+      (sum, n) => sum + n.entries.reduce((eSum, e) => eSum + (e.calories || 0), 0),
+      0
+    );
+    return Math.round(totalCals / loggedNutrDays);
+  }, [filteredNutrition, loggedNutrDays]);
 
-  const avgProtein =
-    loggedNutrDays > 0
-      ? Math.round(
-          filteredNutrition.reduce(
-            (sum, n) => sum + n.entries.reduce((eSum, e) => eSum + (e.protein || 0), 0),
-            0
-          ) / loggedNutrDays
-        )
-      : 0;
+  const avgProtein = useMemo(() => {
+    if (loggedNutrDays === 0) return 0;
+    const totalProt = filteredNutrition.reduce(
+      (sum, n) => sum + n.entries.reduce((eSum, e) => eSum + (e.protein || 0), 0),
+      0
+    );
+    return Math.round(totalProt / loggedNutrDays);
+  }, [filteredNutrition, loggedNutrDays]);
 
-  // 4. Personal Records Board
-  const prMap = new Map<string, { maxWeight: number; best1RM: number; date: string }>();
-  sessions.forEach((s) => {
-    s.exercises.forEach((ex) => {
-      ex.sets.forEach((set) => {
-        if (!set.completed || set.skipped || set.type !== 'working') return;
-        const e1rm = calculateEpley1RM(set.weight, set.reps);
-        const existing = prMap.get(ex.name);
-        if (!existing) {
-          prMap.set(ex.name, { maxWeight: set.weight, best1RM: e1rm, date: s.date });
-        } else {
-          if (set.weight > existing.maxWeight) existing.maxWeight = set.weight;
-          if (e1rm > existing.best1RM) existing.best1RM = e1rm;
-        }
+  // 4. Personal Records Board (calculated across all completed sessions)
+  const prList = useMemo(() => {
+    const prMap = new Map<string, { maxWeight: number; best1RM: number; date: string }>();
+    sessions.forEach((s) => {
+      s.exercises.forEach((ex) => {
+        ex.sets.forEach((set) => {
+          if (!set.completed || set.skipped || set.type !== 'working') return;
+          const e1rm = calculateEpley1RM(set.weight, set.reps);
+          const existing = prMap.get(ex.name);
+          if (!existing) {
+            prMap.set(ex.name, { maxWeight: set.weight, best1RM: e1rm, date: s.date });
+          } else {
+            if (set.weight > existing.maxWeight) existing.maxWeight = set.weight;
+            if (e1rm > existing.best1RM) existing.best1RM = e1rm;
+          }
+        });
       });
     });
-  });
 
-  const prList = Array.from(prMap.entries()).map(([name, data]) => ({
-    name,
-    maxWeight: data.maxWeight,
-    best1RM: data.best1RM,
-    date: data.date
-  }));
+    return Array.from(prMap.entries()).map(([name, data]) => ({
+      name,
+      maxWeight: data.maxWeight,
+      best1RM: data.best1RM,
+      date: data.date
+    }));
+  }, [sessions]);
 
   // 5. Weekly Summary Narrative Generation (based strictly on real recorded data)
-  const generateObjectiveSummary = () => {
+  const summary = useMemo(() => {
     if (sessions.length === 0 && metrics.length === 0 && nutritionLogs.length === 0) {
       return {
         hasData: false,
@@ -163,7 +183,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
       const avgVol2 = secondHalf.reduce((a, b) => a + b.value, 0) / (secondHalf.length || 1);
 
       if (avgVol2 > avgVol1 * 1.05) {
-        improved.push(`Working-set volume load increased by ${((avgVol2 / avgVol1 - 1) * 100).toFixed(1)}% across sessions.`);
+        improved.push(
+          `Working-set volume load increased by ${((avgVol2 / avgVol1 - 1) * 100).toFixed(1)}% across sessions.`
+        );
       } else if (avgVol2 >= avgVol1 * 0.95) {
         stable.push('Training volume load maintained steadily.');
       } else {
@@ -176,7 +198,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
     if (loggedNutrDays > 0) {
       const calDelta = Math.abs(avgCalories - profile.dailyCalorieTarget);
       if (calDelta < 150) {
-        improved.push(`Caloric adherence: averaging ${avgCalories} kcal/day within 150 kcal of target (${profile.dailyCalorieTarget}).`);
+        improved.push(
+          `Caloric adherence: averaging ${avgCalories} kcal/day within 150 kcal of target (${profile.dailyCalorieTarget}).`
+        );
       } else {
         stable.push(`Average daily intake: ${avgCalories} kcal/day.`);
       }
@@ -184,7 +208,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
       if (avgProtein >= profile.dailyProteinTarget * 0.9) {
         improved.push(`Protein intake: hitting ${avgProtein}g/day (target: ${profile.dailyProteinTarget}g).`);
       } else {
-        attention.push(`Protein intake averaging ${avgProtein}g/day, which is below the ${profile.dailyProteinTarget}g target.`);
+        attention.push(
+          `Protein intake averaging ${avgProtein}g/day, which is below the ${profile.dailyProteinTarget}g target.`
+        );
         suggestedActions.push('Add a protein-dense snack (whey, Greek yogurt, or chicken breast) to close protein gap.');
       }
     }
@@ -200,273 +226,261 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ profile }) => {
       attention,
       suggestedActions
     };
-  };
-
-  const summary = generateObjectiveSummary();
+  }, [
+    sessions,
+    metrics,
+    nutritionLogs,
+    filteredSessions,
+    volumeBySessionData,
+    loggedNutrDays,
+    avgCalories,
+    avgProtein,
+    daysBack,
+    profile.dailyCalorieTarget,
+    profile.dailyProteinTarget,
+    profile.trainingDaysPerWeek
+  ]);
 
   // Weight Trend Data for Filtered Range
-  const weightTrendData = filteredMetrics.map((m) => ({
-    date: m.date,
-    value: m.weightKg,
-    label: `${m.weightKg} kg`
-  }));
+  const weightTrendData = useMemo(() => {
+    return filteredMetrics.map((m) => ({
+      date: m.date,
+      value: m.weightKg,
+      label: `${m.weightKg} kg`
+    }));
+  }, [filteredMetrics]);
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-16">
-      {/* Top Header Card */}
-      <div className="reshape-card p-5 lg:p-7 relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[var(--border-card)]">
-          <div>
-            <div className="flex items-center gap-2 text-volt-adaptive text-xs font-mono font-bold tracking-wide mb-1.5">
-              <BarChart3 className="w-4 h-4" />
-              <span>Performance Analytics &middot; Longitudinal</span>
-            </div>
-            <h1 className="text-xl lg:text-3xl font-nrc font-bold text-[var(--text-primary)] tracking-tight">
-              Training &amp; Body Reports
-            </h1>
-            <p className="text-xs text-[var(--text-secondary)] mt-1">
-              Data-driven audit of your strength progression, volume load, and nutrition adherence.
-            </p>
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {/* Page Header with Time Filter */}
+      <PageHeader
+        eyebrow="Performance Analytics · Longitudinal"
+        title="Training & Body Reports"
+        description="Data-driven audit of your strength progression, volume load, and nutrition adherence."
+        actions={
+          <div className="w-full sm:w-auto">
+            <SegmentedControl
+              ariaLabel="Time period"
+              options={[
+                { value: '7d', label: '7 Days' },
+                { value: '30d', label: '30 Days' },
+                { value: '90d', label: '90 Days' },
+                { value: 'all', label: 'All Time' }
+              ]}
+              value={filterPeriod}
+              onChange={(val) => setFilterPeriod(val as FilterPeriod)}
+            />
           </div>
+        }
+      />
 
-          {/* Time Filter Segmented Control */}
-          <div className="flex items-center gap-1 p-1 bg-[var(--bg-subtle)] border border-[var(--border-card)] rounded-xl self-start sm:self-auto">
-            <button
-              onClick={() => setFilterPeriod('7d')}
-              className={`min-h-[36px] px-3.5 py-1 text-xs font-bold rounded-lg transition-all ${
-                filterPeriod === '7d' ? 'bg-accent text-accent-ink shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              7 Days
-            </button>
-            <button
-              onClick={() => setFilterPeriod('30d')}
-              className={`min-h-[36px] px-3.5 py-1 text-xs font-bold rounded-lg transition-all ${
-                filterPeriod === '30d' ? 'bg-accent text-accent-ink shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              30 Days
-            </button>
-            <button
-              onClick={() => setFilterPeriod('90d')}
-              className={`min-h-[36px] px-3.5 py-1 text-xs font-bold rounded-lg transition-all ${
-                filterPeriod === '90d' ? 'bg-accent text-accent-ink shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              90 Days
-            </button>
-            <button
-              onClick={() => setFilterPeriod('all')}
-              className={`min-h-[36px] px-3.5 py-1 text-xs font-bold rounded-lg transition-all ${
-                filterPeriod === 'all' ? 'bg-accent text-accent-ink shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              All Time
-            </button>
-          </div>
-        </div>
-
-        {/* Top 4 Stat Widgets */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
-          <div className="p-4 reshape-card-subtle space-y-1">
-            <span className="text-[11px] font-mono text-[var(--text-muted)] tracking-wide font-bold block">
-              Sessions Completed
-            </span>
-            <div className="text-3xl font-mono font-bold text-volt-adaptive tracking-tight tabular-nums">
-              {totalCompletedSessions}
-            </div>
-            <div className="text-[11px] text-[var(--text-muted)] font-mono">In selected window</div>
-          </div>
-
-          <div className="p-4 reshape-card-subtle space-y-1">
-            <span className="text-[11px] font-mono text-[var(--text-muted)] tracking-wide font-bold block">
-              Total Volume Load
-            </span>
-            <div className="text-3xl font-mono font-bold text-[var(--text-primary)] tracking-tight tabular-nums">
-              {totalFilteredVolume.toLocaleString()}
-            </div>
-            <div className="text-[11px] text-[var(--text-muted)] font-mono">{profile.preferredUnit} accumulated</div>
-          </div>
-
-          <div className="p-4 reshape-card-subtle space-y-1">
-            <span className="text-[11px] font-mono text-[var(--text-muted)] tracking-wide font-bold block">
-              Daily Calories (Avg)
-            </span>
-            <div className="text-3xl font-mono font-bold text-info tracking-tight tabular-nums">
-              {avgCalories > 0 ? `${avgCalories}` : '—'}
-            </div>
-            <div className="text-[11px] text-[var(--text-muted)] font-mono">
-              Target: {profile.dailyCalorieTarget} kcal
-            </div>
-          </div>
-
-          <div className="p-4 reshape-card-subtle space-y-1">
-            <span className="text-[11px] font-mono text-[var(--text-muted)] tracking-wide font-bold block">
-              Daily Protein (Avg)
-            </span>
-            <div className="text-3xl font-mono font-bold text-volt-adaptive tracking-tight tabular-nums">
-              {avgProtein > 0 ? `${avgProtein}g` : '—'}
-            </div>
-            <div className="text-[11px] text-[var(--text-muted)] font-mono">
-              Target: {profile.dailyProteinTarget}g
-            </div>
-          </div>
-        </div>
+      {/* Top 4 Stat Widgets */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <MetricCard
+          label="Sessions Completed"
+          value={totalCompletedSessions}
+          unit="sessions"
+          hint="In selected window"
+          emphasis={totalCompletedSessions > 0}
+          icon={<Dumbbell className="w-4 h-4 text-zinc-500" />}
+        />
+        <MetricCard
+          label="Total Volume Load"
+          value={totalFilteredVolume.toLocaleString()}
+          unit={profile.preferredUnit}
+          hint="Accumulated working sets"
+          icon={<TrendingUp className="w-4 h-4 text-zinc-500" />}
+        />
+        <MetricCard
+          label="Daily Calories (Avg)"
+          value={avgCalories > 0 ? avgCalories.toString() : '—'}
+          unit={avgCalories > 0 ? 'kcal' : undefined}
+          hint={`Target: ${profile.dailyCalorieTarget} kcal`}
+          icon={<Apple className="w-4 h-4 text-zinc-500" />}
+        />
+        <MetricCard
+          label="Daily Protein (Avg)"
+          value={avgProtein > 0 ? `${avgProtein}g` : '—'}
+          hint={`Target: ${profile.dailyProteinTarget}g`}
+          emphasis={avgProtein >= profile.dailyProteinTarget * 0.9}
+          icon={<Activity className="w-4 h-4 text-zinc-500" />}
+        />
       </div>
 
-      {/* WEEKLY AUDIT / PROGRESSION SUMMARY */}
-      <div className="reshape-card p-5 lg:p-6 space-y-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-[var(--border-card)]">
-          <CheckCircle className="w-4 h-4 text-volt-adaptive" />
-          <h3 className="font-nrc font-bold text-lg text-[var(--text-primary)] tracking-tight">
-            Verified Training &amp; Adherence Audit
-          </h3>
-        </div>
+      {/* Verified Training & Adherence Audit */}
+      <Card pad="lg" className="space-y-4">
+        <SectionHeading
+          title="Verified Training & Adherence Audit"
+          description="Algorithmic evaluation of your training split consistency, volume overload, and macronutrient targets."
+        />
 
         {!summary.hasData ? (
-          <div className="text-xs text-zinc-500 py-4">
-            No training or metric data recorded yet. Record sessions to generate objective analysis.
-          </div>
+          <EmptyState
+            icon={<BarChart3 className="w-5 h-5 text-zinc-400" />}
+            title="No training or metric data recorded yet"
+            description="Record workout sessions or log nutrition to generate objective longitudinal analysis."
+          />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* What Improved */}
-            <div className="p-4 reshape-card-subtle border-accent/40 space-y-2">
-              <span className="text-[11px] font-mono font-bold text-volt-adaptive tracking-wide block">
-                &bull; What Improved
-              </span>
+            <div className="p-4 rounded-control bg-surface-2 border border-line space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-label text-zinc-400 font-mono">What Improved</span>
+                <Badge tone="accent">Overload</Badge>
+              </div>
               {summary.improved.length > 0 ? (
-                <ul className="space-y-1.5 text-[var(--text-secondary)]">
+                <ul className="space-y-2 text-sm text-zinc-300">
                   {summary.improved.map((item, idx) => (
-                    <li key={idx} className="flex items-start gap-1.5">
-                      <span className="text-volt-adaptive">&bull;</span>
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="text-volt-adaptive font-bold shrink-0">✓</span>
                       <span>{item}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-[var(--text-muted)]">Collect more sessions to detect positive overload trends.</p>
+                <p className="text-xs text-zinc-500">Collect more sessions to detect positive overload trends.</p>
               )}
             </div>
 
             {/* What Remained Stable */}
-            <div className="p-4 reshape-card-subtle space-y-2">
-              <span className="text-[11px] font-mono font-bold text-info tracking-wide block">
-                &bull; What Remained Stable
-              </span>
+            <div className="p-4 rounded-control bg-surface-2 border border-line space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-label text-zinc-400 font-mono">What Remained Stable</span>
+                <Badge tone="info">Baseline</Badge>
+              </div>
               {summary.stable.length > 0 ? (
-                <ul className="space-y-1.5 text-[var(--text-secondary)]">
+                <ul className="space-y-2 text-sm text-zinc-300">
                   {summary.stable.map((item, idx) => (
-                    <li key={idx} className="flex items-start gap-1.5">
-                      <span className="text-info">&bull;</span>
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="text-info font-bold shrink-0">•</span>
                       <span>{item}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-[var(--text-muted)]">No stability patterns flagged.</p>
+                <p className="text-xs text-zinc-500">No stability patterns flagged.</p>
               )}
             </div>
 
             {/* Needs Attention & Suggested Actions */}
-            <div className="p-4 reshape-card-subtle border-amber-500/40 space-y-2">
-              <span className="text-[11px] font-mono font-bold text-amber-500 tracking-wide block">
-                &bull; Needs Attention
-              </span>
+            <div className="p-4 rounded-control bg-surface-2 border border-warning/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-label text-zinc-400 font-mono">Needs Attention</span>
+                <Badge tone="warning">Action</Badge>
+              </div>
               {summary.attention.length > 0 ? (
-                <ul className="space-y-1.5 text-[var(--text-secondary)]">
+                <ul className="space-y-2 text-sm text-zinc-300">
                   {summary.attention.map((item, idx) => (
-                    <li key={idx} className="flex items-start gap-1.5">
-                      <span className="text-amber-500">&bull;</span>
+                    <li key={idx} className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
                       <span>{item}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-[var(--text-muted)]">No negative recovery or volume deficits detected.</p>
+                <p className="text-xs text-zinc-500">No negative recovery or volume deficits detected.</p>
               )}
+
               {summary.suggestedActions.length > 0 && (
-                <div className="pt-2 border-t border-[var(--border-card)] text-[var(--text-secondary)] font-medium">
-                  <span className="text-[11px] font-mono text-[var(--text-muted)] block mb-1">
-                    Suggested Next Action:
-                  </span>
-                  <p>{summary.suggestedActions[0]}</p>
+                <div className="pt-3 border-t border-line text-xs space-y-1">
+                  <span className="text-label text-zinc-400 block font-mono">Suggested Next Action:</span>
+                  <p className="text-zinc-200 font-medium">{summary.suggestedActions[0]}</p>
                 </div>
               )}
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
-      {/* CHARTS: Volume Load Over Time & Body Weight */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="reshape-card p-5">
+      {/* Charts: Volume Load Over Time & Body Weight */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <Card pad="md" className="space-y-3">
+          <SectionHeading
+            title="Session Volume Load Progression"
+            description={`Sum of working set load (${profile.preferredUnit}) per completed workout`}
+          />
           <LineChart
             data={volumeBySessionData}
-            title="Session Volume Load Progression"
+            title=""
             unit={profile.preferredUnit}
-            accentColor="#CEFF00"
+            accentColor="var(--chart-1)"
             emptyMessage="No completed sessions in this date window"
+            responsive
+            height={220}
           />
-        </div>
+        </Card>
 
-        <div className="reshape-card p-5">
+        <Card pad="md" className="space-y-3">
+          <SectionHeading
+            title="Body Weight Over Time"
+            description={
+              profile.goalWeightKg
+                ? `Target: ${formatWeight(profile.goalWeightKg, profile.preferredUnit)}`
+                : 'Scale weigh-ins'
+            }
+          />
           <LineChart
             data={weightTrendData}
-            title="Body Weight Over Time"
+            title=""
             unit={profile.preferredUnit}
             targetLine={profile.goalWeightKg}
-            accentColor="#00E5FF"
+            accentColor="var(--chart-2)"
             emptyMessage="No body weight entries recorded in this window"
+            responsive
+            height={220}
           />
-        </div>
+        </Card>
       </div>
 
-      {/* PERSONAL RECORDS (PR) HALL OF FAME */}
-      <div className="reshape-card p-5 lg:p-6 space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-[var(--border-card)]">
-          <div className="flex items-center gap-2">
-            <Award className="w-4 h-4 text-amber-500" />
-            <h3 className="font-nrc font-bold text-lg text-[var(--text-primary)] tracking-tight">
-              Personal Records (PR) Board
-            </h3>
-          </div>
-          <span className="text-xs font-mono text-[var(--text-muted)]">{prList.length} Exercises Tracked</span>
-        </div>
+      {/* Personal Records (PR) Hall of Fame */}
+      <Card pad="lg" className="space-y-4">
+        <SectionHeading
+          title="Personal Records (PR) Board"
+          description="Top load and estimated 1-rep maximum across all recorded working sets."
+          action={
+            <Badge tone="neutral">
+              {prList.length} Exercises Tracked
+            </Badge>
+          }
+        />
 
         {prList.length === 0 ? (
-          <div className="py-8 text-center text-[var(--text-muted)] text-xs">
-            Complete working sets in your workouts to automatically register personal records.
-          </div>
+          <EmptyState
+            icon={<Award className="w-5 h-5 text-zinc-400" />}
+            title="No personal records recorded"
+            description="Complete working sets in your workouts to automatically register personal records."
+          />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {prList.map((pr) => (
               <div
                 key={pr.name}
-                className="p-4 reshape-card-interactive space-y-2"
+                className="p-4 rounded-control bg-surface-2 border border-line hover:border-line-strong transition-colors space-y-3"
               >
-                <div className="font-bold text-[var(--text-primary)] text-xs truncate">{pr.name}</div>
+                <div className="font-semibold text-white text-sm truncate">{pr.name}</div>
                 <div className="flex items-center justify-between font-mono">
                   <div>
-                    <span className="text-[11px] text-[var(--text-muted)] tracking-wide block font-bold">TOP LOAD</span>
+                    <span className="text-label text-zinc-400 block">TOP LOAD</span>
                     <span className="text-lg font-bold text-volt-adaptive tabular-nums">
-                      {pr.maxWeight} {profile.preferredUnit}
+                      {pr.maxWeight} <span className="text-xs text-zinc-400 font-normal">{profile.preferredUnit}</span>
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[11px] text-[var(--text-muted)] tracking-wide block font-bold">EST. 1RM</span>
+                    <span className="text-label text-zinc-400 block">EST. 1RM</span>
                     <span className="text-sm font-bold text-info tabular-nums">
-                      {pr.best1RM} {profile.preferredUnit}
+                      {pr.best1RM} <span className="text-xs text-zinc-400 font-normal">{profile.preferredUnit}</span>
                     </span>
                   </div>
                 </div>
-                <div className="text-[11px] font-mono text-[var(--text-muted)] pt-1.5 border-t border-[var(--border-card)]">
-                  Achieved: {pr.date}
+                <div className="flex items-center gap-1.5 text-label font-mono text-zinc-500 pt-2 border-t border-line">
+                  <Calendar className="w-3 h-3 text-zinc-500" />
+                  <span>Achieved: {pr.date}</span>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 };

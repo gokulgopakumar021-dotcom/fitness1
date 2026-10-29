@@ -16,7 +16,7 @@ export const Badge: React.FC<
 > = ({ tone = 'neutral', icon, className, children, ...rest }) => (
   <span
     className={cn(
-      'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-5',
+      'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-label font-semibold',
       TONES[tone],
       className
     )}

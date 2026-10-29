@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 
 interface DataPoint {
   date: string;
@@ -11,26 +11,52 @@ interface LineChartProps {
   data: DataPoint[];
   title?: string;
   unit?: string;
-  accentColor?: string; // e.g. '#a3e635' (lime)
+  /** Any CSS colour. Defaults to the theme-aware series-1 token. */
+  accentColor?: string;
   targetLine?: number;
   targetLabel?: string;
   secondaryLineName?: string;
   height?: number;
   emptyMessage?: string;
+  /**
+   * Draw at the container's real pixel width (re-measured on resize) instead of a fixed 600-unit
+   * viewBox, so axis labels keep their true size on narrow screens. Off by default.
+   */
+  responsive?: boolean;
 }
 
 export const LineChart: React.FC<LineChartProps> = ({
   data,
   title,
   unit = '',
-  accentColor = '#a3e635',
+  accentColor = 'var(--chart-1)',
   targetLine,
   targetLabel,
   secondaryLineName,
   height = 200,
-  emptyMessage = 'No session data recorded in this period'
+  emptyMessage = 'No session data recorded in this period',
+  responsive = false
 }) => {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const hasData = Boolean(data && data.length > 0);
+
+  useEffect(() => {
+    if (!responsive || !hasData) return;
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const w = Math.round(el.getBoundingClientRect().width);
+      if (w > 0) setMeasuredWidth(w);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [responsive, hasData]);
+  // Unique per chart so several LineCharts on one page don't share (and recolor) one gradient
+  const gradientId = `chartGradient-${useId().replace(/:/g, '')}`;
 
   if (!data || data.length === 0) {
     return (
@@ -42,7 +68,7 @@ export const LineChart: React.FC<LineChartProps> = ({
 
   // Padding
   const padding = { top: 20, right: 24, bottom: 30, left: 45 };
-  const width = 600; // viewBox relative width
+  const width = responsive && measuredWidth ? Math.max(280, measuredWidth) : 600; // viewBox width
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
 
@@ -111,15 +137,17 @@ export const LineChart: React.FC<LineChartProps> = ({
         </div>
       )}
 
-      <div className="relative w-full overflow-hidden">
+      <div ref={wrapRef} className="relative w-full overflow-hidden">
         <svg
           viewBox={`0 0 ${width} ${height}`}
           className="w-full h-auto overflow-visible select-none"
+          role="img"
+          aria-label={`${title ?? 'Chart'}: ${data.length} point${data.length === 1 ? '' : 's'}, latest ${data[data.length - 1].value} ${unit}`.trim()}
         >
           <defs>
-            <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={accentColor} stopOpacity="0.25" />
-              <stop offset="100%" stopColor={accentColor} stopOpacity="0.0" />
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" style={{ stopColor: accentColor }} stopOpacity="0.25" />
+              <stop offset="100%" style={{ stopColor: accentColor }} stopOpacity="0.0" />
             </linearGradient>
           </defs>
 
@@ -142,7 +170,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                   x={padding.left - 8}
                   y={y + 3}
                   textAnchor="end"
-                  className="fill-[var(--text-muted)] text-[11px] font-mono"
+                  className="fill-[var(--text-muted)] text-label font-mono"
                 >
                   {tickVal.toFixed(0)}
                 </text>
@@ -158,7 +186,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                 y1={getY(targetLine)}
                 x2={width - padding.right}
                 y2={getY(targetLine)}
-                stroke="#f59e0b"
+                style={{ stroke: 'var(--warning)' }}
                 strokeDasharray="4 4"
                 strokeWidth="1.5"
               />
@@ -166,7 +194,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                 x={width - padding.right}
                 y={getY(targetLine) - 5}
                 textAnchor="end"
-                className="fill-amber-400 text-[11px] font-mono font-medium"
+                className="fill-amber-400 text-label font-mono font-medium"
               >
                 {targetLabel || `Goal: ${targetLine} ${unit}`}
               </text>
@@ -175,14 +203,14 @@ export const LineChart: React.FC<LineChartProps> = ({
 
           {/* Area fill */}
           {data.length > 1 && (
-            <polygon points={areaPoints} fill="url(#chartGradient)" />
+            <polygon points={areaPoints} fill={`url(#${gradientId})`} />
           )}
 
           {/* Secondary Line (e.g. 7-day average) */}
           {hasSecondary && (
             <polyline
               fill="none"
-              stroke="#38bdf8"
+              style={{ stroke: 'var(--chart-2)' }}
               strokeWidth="2"
               strokeDasharray="3 2"
               points={secondaryPoints}
@@ -193,7 +221,7 @@ export const LineChart: React.FC<LineChartProps> = ({
           {data.length > 1 ? (
             <polyline
               fill="none"
-              stroke={accentColor}
+              style={{ stroke: accentColor }}
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -204,7 +232,7 @@ export const LineChart: React.FC<LineChartProps> = ({
               cx={getX(0)}
               cy={getY(data[0].value)}
               r="5"
-              fill={accentColor}
+              style={{ fill: accentColor }}
             />
           )}
 
@@ -219,12 +247,22 @@ export const LineChart: React.FC<LineChartProps> = ({
                   cx={cx}
                   cy={cy}
                   r={isHovered ? 5.5 : 3.5}
-                  fill={isHovered ? '#ffffff' : accentColor}
-                  stroke="#12161b"
+                  style={{ fill: isHovered ? 'var(--text-primary)' : accentColor, stroke: 'var(--chart-ring)' }}
                   strokeWidth="2"
-                  className="cursor-pointer transition-all duration-150"
+                  className="transition-all duration-150 motion-reduce:transition-none"
+                  pointerEvents="none"
+                />
+                {/* Larger invisible target: hover on desktop, tap on touch screens */}
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={14}
+                  fill="transparent"
+                  className="cursor-pointer"
+                  data-chart-point={idx}
                   onMouseEnter={() => setHoverIndex(idx)}
                   onMouseLeave={() => setHoverIndex(null)}
+                  onClick={() => setHoverIndex((cur) => (cur === idx ? null : idx))}
                 />
               </g>
             );
@@ -237,7 +275,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                 x={getX(0)}
                 y={height - 8}
                 textAnchor="start"
-                className="fill-zinc-500 text-[11px] font-mono"
+                className="fill-zinc-500 text-label font-mono"
               >
                 {data[0].date.slice(5)}
               </text>
@@ -246,7 +284,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                   x={getX(Math.floor(data.length / 2))}
                   y={height - 8}
                   textAnchor="middle"
-                  className="fill-zinc-500 text-[11px] font-mono"
+                  className="fill-zinc-500 text-label font-mono"
                 >
                   {data[Math.floor(data.length / 2)].date.slice(5)}
                 </text>
@@ -256,7 +294,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                   x={getX(data.length - 1)}
                   y={height - 8}
                   textAnchor="end"
-                  className="fill-zinc-500 text-[11px] font-mono"
+                  className="fill-zinc-500 text-label font-mono"
                 >
                   {data[data.length - 1].date.slice(5)}
                 </text>
@@ -267,13 +305,13 @@ export const LineChart: React.FC<LineChartProps> = ({
       </div>
 
       {hasSecondary && (
-        <div className="flex items-center justify-end gap-4 mt-1 text-[11px] text-zinc-400">
+        <div className="flex items-center justify-end gap-4 mt-1 text-label text-zinc-400">
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-0.5 bg-lime-400 rounded-full" />
+            <span className="w-2.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }} />
             <span>Daily Log</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-0.5 bg-sky-400 border-dashed border-b border-sky-400" />
+            <span className="w-2.5 h-0.5 border-dashed border-b border-chart-2" />
             <span>{secondaryLineName || '7-Day Rolling Avg'}</span>
           </div>
         </div>
@@ -288,6 +326,8 @@ interface BarChartProps {
   unit?: string;
   target?: number;
   height?: number;
+  /** Show at most about this many x labels (evenly thinned) so dense charts stay legible. Default: show all. */
+  maxLabels?: number;
 }
 
 export const BarChart: React.FC<BarChartProps> = ({
@@ -295,8 +335,10 @@ export const BarChart: React.FC<BarChartProps> = ({
   title,
   unit = '',
   target,
-  height = 180
+  height = 180,
+  maxLabels
 }) => {
+  const [selected, setSelected] = useState<number | null>(null);
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center py-10 text-[var(--text-muted)] reshape-card-subtle">
@@ -317,27 +359,40 @@ export const BarChart: React.FC<BarChartProps> = ({
         </div>
       )}
 
-      <div className="flex items-end gap-2 pt-6 pb-2" style={{ height: `${height}px` }}>
+      <div className="flex items-end gap-1.5 sm:gap-2 pt-6 pb-2" style={{ height: `${height}px` }} role="list" aria-label={title}>
         {data.map((item, idx) => {
           const heightPercent = Math.min(100, Math.max(5, (item.value / maxVal) * 100));
+          const labelStep = maxLabels && data.length > maxLabels ? Math.ceil(data.length / maxLabels) : 1;
+          const showLabel = idx % labelStep === 0 || idx === data.length - 1;
+          const isSelected = selected === idx;
           return (
-            <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group">
-              {/* Tooltip value */}
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[11px] font-mono text-[var(--text-primary)] mb-1 whitespace-nowrap">
+            <div
+              key={idx}
+              role="listitem"
+              tabIndex={0}
+              aria-label={`${item.label}: ${item.value} ${unit}`.trim()}
+              onClick={() => setSelected((cur) => (cur === idx ? null : idx))}
+              onBlur={() => setSelected((cur) => (cur === idx ? null : cur))}
+              className="flex-1 min-w-0 flex flex-col items-center h-full justify-end group cursor-pointer rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              {/* Tooltip value: hover, keyboard focus or tap */}
+              <div
+                className={`${isSelected ? 'opacity-100' : 'opacity-0'} group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity motion-reduce:transition-none text-label font-mono text-[var(--text-primary)] mb-1 whitespace-nowrap`}
+              >
                 {item.value} {unit}
               </div>
 
               {/* Bar */}
-              <div className="w-full max-w-[36px] bg-[var(--chip-bg)] rounded-t-sm relative transition-all overflow-hidden flex items-end">
+              <div className="w-full max-w-[36px] flex-1 min-h-0 bg-[var(--chip-bg)] rounded-t-sm relative transition-all motion-reduce:transition-none overflow-hidden flex items-end">
                 <div
-                  className="w-full bg-accent group-hover:brightness-110 transition-all rounded-t-sm"
+                  className="w-full bg-accent group-hover:brightness-110 transition-all motion-reduce:transition-none rounded-t-sm"
                   style={{ height: `${heightPercent}%` }}
                 />
               </div>
 
               {/* Label */}
-              <span className="text-[11px] font-mono text-[var(--text-muted)] mt-2 truncate w-full text-center">
-                {item.label}
+              <span className="text-label font-mono text-[var(--text-muted)] mt-2 truncate w-full text-center h-4">
+                {showLabel ? item.label : ''}
               </span>
             </div>
           );

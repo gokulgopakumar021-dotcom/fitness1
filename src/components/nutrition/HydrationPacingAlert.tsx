@@ -27,6 +27,7 @@ import {
   getStoredSmartAlertsConfig,
   saveStoredSmartAlertsConfig
 } from './SmartAlertsConfigModal';
+import { Select } from '../ui';
 
 const ML_PER_FL_OZ = 29.5735296;
 
@@ -662,63 +663,39 @@ export const HydrationPacingAlert: React.FC<HydrationPacingAlertProps> = ({
 
             {/* Frequency & Active Hours Form */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Check Interval */}
-              <div className="p-2.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)] space-y-1">
-                <label className="text-[10px] text-[var(--text-muted)] block uppercase">
-                  Alert Frequency
-                </label>
-                <select
-                  value={settings.intervalHours}
-                  onChange={(e) => updateSettings({ intervalHours: parseInt(e.target.value, 10) })}
-                  className="w-full bg-transparent text-white font-bold outline-none cursor-pointer text-xs"
-                >
-                  <option value={1} className="bg-slate-900 text-white">
-                    Every 1 Hour
-                  </option>
-                  <option value={2} className="bg-slate-900 text-white">
-                    Every 2 Hours
-                  </option>
-                  <option value={3} className="bg-slate-900 text-white">
-                    Every 3 Hours
-                  </option>
-                </select>
-              </div>
+              <Select
+                label="Alert Frequency"
+                value={settings.intervalHours}
+                onChange={(e) => updateSettings({ intervalHours: parseInt(e.target.value, 10) })}
+              >
+                <option value={1}>Every 1 Hour</option>
+                <option value={2}>Every 2 Hours</option>
+                <option value={3}>Every 3 Hours</option>
+              </Select>
 
-              {/* Wake Hour */}
-              <div className="p-2.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)] space-y-1">
-                <label className="text-[10px] text-[var(--text-muted)] block uppercase">
-                  Wake Schedule
-                </label>
-                <select
-                  value={settings.wakeHour}
-                  onChange={(e) => updateSettings({ wakeHour: parseInt(e.target.value, 10) })}
-                  className="w-full bg-transparent text-white font-bold outline-none cursor-pointer text-xs"
-                >
-                  {[6, 7, 8, 9].map((h) => (
-                    <option key={h} value={h} className="bg-slate-900 text-white">
-                      {h}:00 AM
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                label="Wake Schedule"
+                value={settings.wakeHour}
+                onChange={(e) => updateSettings({ wakeHour: parseInt(e.target.value, 10) })}
+              >
+                {[6, 7, 8, 9].map((h) => (
+                  <option key={h} value={h}>
+                    {h}:00 AM
+                  </option>
+                ))}
+              </Select>
 
-              {/* Sleep Hour */}
-              <div className="p-2.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)] space-y-1">
-                <label className="text-[10px] text-[var(--text-muted)] block uppercase">
-                  Bedtime Schedule
-                </label>
-                <select
-                  value={settings.sleepHour}
-                  onChange={(e) => updateSettings({ sleepHour: parseInt(e.target.value, 10) })}
-                  className="w-full bg-transparent text-white font-bold outline-none cursor-pointer text-xs"
-                >
-                  {[20, 21, 22, 23, 24].map((h) => (
-                    <option key={h} value={h} className="bg-slate-900 text-white">
-                      {h === 24 ? '12:00 AM' : `${h - 12}:00 PM`}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                label="Bedtime Schedule"
+                value={settings.sleepHour}
+                onChange={(e) => updateSettings({ sleepHour: parseInt(e.target.value, 10) })}
+              >
+                {[20, 21, 22, 23, 24].map((h) => (
+                  <option key={h} value={h}>
+                    {h === 24 ? '12:00 AM' : `${h - 12}:00 PM`}
+                  </option>
+                ))}
+              </Select>
             </div>
 
             {/* Sound Chime & Test Push Alert Actions */}
