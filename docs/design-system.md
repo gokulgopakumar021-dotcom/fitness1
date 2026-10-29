@@ -41,7 +41,7 @@ Legacy `.reshape-card`, `.reshape-card-subtle`, `.reshape-card-interactive` stil
 
 ## Adoption (audit of `main`, Oct 2026)
 
-Screens already on `ui/`: Dashboard (+ scorecard, muscle map), Navbar, Auth, Landing, Video Library, Adaptive Review modal, Nutrition (view, goal gauge, Goal Wizard, hydration), Progression.
+Screens already on `ui/`: Dashboard (+ scorecard, muscle map), Navbar, Auth, Landing, Video Library, Adaptive Review modal, Nutrition (view, goal gauge, Goal Wizard, hydration), Progression, Home.
 Not yet on `ui/`: Workout tracker, Reports, Timeline, Body & Body Scan, Coach Iron, Settings, Plans, most modals.
 
 Suggested redesign order: (1) Workout tracker, (2) Nutrition, (3) Progression / Overload Engine, (4) Timeline + Reports, (5) Home, (6) Coach Iron, (7) Body & Body Scan, (8) Settings + Plans + remaining modals.
@@ -61,3 +61,14 @@ Suggested redesign order: (1) Workout tracker, (2) Nutrition, (3) Progression / 
 - Direction of change is always icon + signed text (`DeltaChip`), never colour alone. Overload status is a `Badge` with an icon and a text label.
 - Date range (30 days / 90 days / All time) only affects the trend charts. Headline metrics, the last-vs-previous comparison and the record list always use full history.
 - Exercises with no completed sets show `EmptyState` instead of zeroed metrics or empty charts; a range with no sessions offers "Show all time".
+
+## Home conventions
+
+- Screen: `components/home/HomeView.tsx` (data load, header, layout) + `HomeSections.tsx` (one card per purpose: workout, nutrition, progress, Coach Iron, body, more). The older "Overview" tab (`DashboardView`) is a separate screen and was not changed.
+- Every number comes from an existing source: `db` getters, `resolveActivePlan`-style plan lookup, `calculateVolumeLoad`, `calculateHydrationGoal` (same goal the water logger shows), `extractExerciseHistory` + `weightPrHistory` (records). Display-only grouping lives in `utils/homeSummary.ts` so it is unit-tested; Home never recomputes 1RM or targets.
+- Nothing is invented: no readiness score, no tier ladder, no fallback calorie targets. A missing target shows "No calorie goal set" with a link; no logs shows an empty state; a first-ever log is not called a record.
+- "Today" uses `getCurrentDayKey()` (UTC day key), like the Workout and Nutrition screens.
+- Coach Iron card only lists saved overload recommendations and links to the coach. It never calls the AI service on render.
+- Body card shows weight only. Body Scan results and body-fat estimates stay on the Body screen.
+- Layout: single column on phones in priority order (workout, nutrition, progress, coach, body, more); `lg` = 3-column grid with workout and progress spanning two columns and nutrition tall on the right.
+- Status is always text plus an icon or label ("kcal over", "Goal reached", "Workout logged today"), never colour alone.
