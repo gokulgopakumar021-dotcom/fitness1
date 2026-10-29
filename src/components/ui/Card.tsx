@@ -21,6 +21,8 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   tone?: CardTone;
   pad?: CardPad;
   as?: 'div' | 'section' | 'article';
+  /** Tappable surface (e.g. a workout or exercise row): hover border + press feedback. */
+  interactive?: boolean;
 }
 
 /** Standard surface. One radius, one border treatment, no decorative shadow. */
@@ -28,11 +30,12 @@ export const Card: React.FC<CardProps> = ({
   tone = 'default',
   pad = 'md',
   as: Tag = 'div',
+  interactive,
   className,
   children,
   ...rest
 }) => (
-  <Tag className={cn('rounded-2xl min-w-0', TONES[tone], PADS[pad], className)} {...rest}>
+  <Tag className={cn('rounded-card min-w-0', TONES[tone], PADS[pad], interactive && 'cursor-pointer transition-colors hover:border-line-strong touch-press', className)} {...rest}>
     {children}
   </Tag>
 );

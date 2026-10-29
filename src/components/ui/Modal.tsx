@@ -44,7 +44,7 @@ export const Modal: React.FC<Props> = ({ open, onClose, title, description, chil
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm il-fade-in" onClick={onClose} aria-hidden />
+      <div className="absolute inset-0 bg-overlay backdrop-blur-sm il-fade-in" onClick={onClose} aria-hidden />
       <div
         ref={panelRef}
         role="dialog"
@@ -53,7 +53,7 @@ export const Modal: React.FC<Props> = ({ open, onClose, title, description, chil
         tabIndex={-1}
         className={cn(
           'relative w-full max-h-[90dvh] flex flex-col bg-surface border border-line-strong shadow-2xl il-sheet-up',
-          'rounded-t-3xl sm:rounded-2xl outline-none',
+          'rounded-t-sheet sm:rounded-card outline-none',
           SIZES[size]
         )}
       >
@@ -66,7 +66,7 @@ export const Modal: React.FC<Props> = ({ open, onClose, title, description, chil
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="w-10 h-10 -mr-2 -mt-1 flex items-center justify-center rounded-xl text-zinc-400 hover:text-white hover:bg-surface-2 transition-colors"
+            className="w-10 h-10 -mr-2 -mt-1 flex items-center justify-center rounded-control text-zinc-400 hover:text-white hover:bg-surface-2 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>

@@ -43,7 +43,7 @@ export const Button: React.FC<ButtonProps> = ({
     disabled={disabled || loading}
     aria-busy={loading || undefined}
     className={cn(
-      'inline-flex items-center justify-center rounded-xl transition-colors select-none touch-press',
+      'inline-flex items-center justify-center rounded-control transition-colors select-none touch-press',
       'disabled:opacity-50 disabled:pointer-events-none',
       VARIANTS[variant],
       SIZES[size],

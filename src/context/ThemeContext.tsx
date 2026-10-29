@@ -9,6 +9,8 @@ interface ThemeContextType {
 }
 
 const THEME_STORAGE_KEY = 'ironlog_athlete_theme';
+// Browser chrome colour (mobile address bar) per theme; matches --bg-canvas
+const THEME_COLOR: Record<ThemeMode, string> = { dark: '#06080e', light: '#f2f4f8' };
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: 'dark',
@@ -44,6 +46,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       root.classList.remove('light');
       root.classList.add('dark');
     }
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLOR[theme]);
   }, [theme]);
 
   const toggleTheme = () => {

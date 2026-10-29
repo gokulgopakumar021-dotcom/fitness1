@@ -37,6 +37,18 @@
   --warning: #fbbf24;
   --danger: #f87171;
   --info: #7dd3fc;
+
+  --overlay: rgba(0, 0, 0, 0.7);
+
+  /* Chart palette: series 1 follows the brand accent */
+  --chart-1: #ceff00;
+  --chart-2: #38bdf8;
+  --chart-3: #c084fc;
+  --chart-4: #fb923c;
+  --chart-5: #34d399;
+  --chart-grid: rgba(255, 255, 255, 0.07);
+  --chart-axis: #64748b;
+  --chart-ring: #0d111a;
 }
 
 .light {
@@ -68,6 +80,17 @@
   --warning: #b45309;
   --danger: #dc2626;
   --info: #0369a1;
+
+  --overlay: rgba(15, 23, 42, 0.45);
+
+  --chart-1: #4d7c0f;
+  --chart-2: #0284c7;
+  --chart-3: #7c3aed;
+  --chart-4: #c2410c;
+  --chart-5: #059669;
+  --chart-grid: rgba(15, 23, 42, 0.08);
+  --chart-axis: #64748b;
+  --chart-ring: #ffffff;
 
   /* Flip the neutral ramp so existing zinc text/surfaces stay readable */
   --color-white: #0b1220;
@@ -115,6 +138,24 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-info: var(--info);
+
+  --color-overlay: var(--overlay);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+}
+
+/* Shape and type tokens. `static` so plain-CSS var() users always get them. */
+@theme static {
+  --radius-card: 1rem;       /* cards, panels, empty/error states */
+  --radius-control: 0.75rem; /* buttons, inputs, nested sub-surfaces */
+  --radius-sheet: 1.5rem;    /* mobile bottom-sheet top corners */
+
+  /* 11px micro-label; replaces scattered text-[11px] */
+  --text-label: 0.6875rem;
+  --text-label--line-height: 1rem;
 }
 
 @theme {
@@ -188,7 +229,7 @@
   background-color: var(--bg-surface);
   border: 1px solid var(--border-card);
   box-shadow: var(--card-shadow);
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   color: var(--text-primary);
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
@@ -196,7 +237,7 @@
   position: relative;
   background-color: var(--bg-subtle);
   border: 1px solid var(--border-card);
-  border-radius: 0.875rem;
+  border-radius: var(--radius-control);
   color: var(--text-primary);
 }
 .reshape-card-interactive {
@@ -204,13 +245,14 @@
   background-color: var(--bg-surface);
   border: 1px solid var(--border-card);
   box-shadow: var(--card-shadow);
-  border-radius: 0.875rem;
+  border-radius: var(--radius-card);
   color: var(--text-primary);
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .reshape-card-interactive:hover {
   border-color: var(--border-card-hover);
   background-color: var(--bg-surface-elevated);
+  box-shadow: var(--card-shadow-hover);
 }
 
 /* Glows softened to a hairline ring */

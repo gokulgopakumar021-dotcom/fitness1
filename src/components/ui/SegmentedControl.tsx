@@ -19,7 +19,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange, a
     <div
       role="group"
       aria-label={ariaLabel}
-      className={cn('inline-flex p-1 gap-1 rounded-xl bg-surface-2 border border-line max-w-full overflow-x-auto', className)}
+      className={cn('inline-flex p-1 gap-1 rounded-control bg-surface-2 border border-line max-w-full overflow-x-auto', className)}
     >
       {options.map((o) => {
         const active = o.value === value;
