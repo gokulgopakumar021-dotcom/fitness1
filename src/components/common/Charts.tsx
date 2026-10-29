@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 
 interface DataPoint {
   date: string;
@@ -18,6 +18,11 @@ interface LineChartProps {
   secondaryLineName?: string;
   height?: number;
   emptyMessage?: string;
+  /**
+   * Draw at the container's real pixel width (re-measured on resize) instead of a fixed 600-unit
+   * viewBox, so axis labels keep their true size on narrow screens. Off by default.
+   */
+  responsive?: boolean;
 }
 
 export const LineChart: React.FC<LineChartProps> = ({
@@ -29,9 +34,27 @@ export const LineChart: React.FC<LineChartProps> = ({
   targetLabel,
   secondaryLineName,
   height = 200,
-  emptyMessage = 'No session data recorded in this period'
+  emptyMessage = 'No session data recorded in this period',
+  responsive = false
 }) => {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const hasData = Boolean(data && data.length > 0);
+
+  useEffect(() => {
+    if (!responsive || !hasData) return;
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const w = Math.round(el.getBoundingClientRect().width);
+      if (w > 0) setMeasuredWidth(w);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [responsive, hasData]);
   // Unique per chart so several LineCharts on one page don't share (and recolor) one gradient
   const gradientId = `chartGradient-${useId().replace(/:/g, '')}`;
 
@@ -45,7 +68,7 @@ export const LineChart: React.FC<LineChartProps> = ({
 
   // Padding
   const padding = { top: 20, right: 24, bottom: 30, left: 45 };
-  const width = 600; // viewBox relative width
+  const width = responsive && measuredWidth ? Math.max(280, measuredWidth) : 600; // viewBox width
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
 
@@ -114,10 +137,12 @@ export const LineChart: React.FC<LineChartProps> = ({
         </div>
       )}
 
-      <div className="relative w-full overflow-hidden">
+      <div ref={wrapRef} className="relative w-full overflow-hidden">
         <svg
           viewBox={`0 0 ${width} ${height}`}
           className="w-full h-auto overflow-visible select-none"
+          role="img"
+          aria-label={`${title ?? 'Chart'}: ${data.length} point${data.length === 1 ? '' : 's'}, latest ${data[data.length - 1].value} ${unit}`.trim()}
         >
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -224,9 +249,20 @@ export const LineChart: React.FC<LineChartProps> = ({
                   r={isHovered ? 5.5 : 3.5}
                   style={{ fill: isHovered ? 'var(--text-primary)' : accentColor, stroke: 'var(--chart-ring)' }}
                   strokeWidth="2"
-                  className="cursor-pointer transition-all duration-150"
+                  className="transition-all duration-150 motion-reduce:transition-none"
+                  pointerEvents="none"
+                />
+                {/* Larger invisible target: hover on desktop, tap on touch screens */}
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={14}
+                  fill="transparent"
+                  className="cursor-pointer"
+                  data-chart-point={idx}
                   onMouseEnter={() => setHoverIndex(idx)}
                   onMouseLeave={() => setHoverIndex(null)}
+                  onClick={() => setHoverIndex((cur) => (cur === idx ? null : idx))}
                 />
               </g>
             );
@@ -290,6 +326,8 @@ interface BarChartProps {
   unit?: string;
   target?: number;
   height?: number;
+  /** Show at most about this many x labels (evenly thinned) so dense charts stay legible. Default: show all. */
+  maxLabels?: number;
 }
 
 export const BarChart: React.FC<BarChartProps> = ({
@@ -297,8 +335,10 @@ export const BarChart: React.FC<BarChartProps> = ({
   title,
   unit = '',
   target,
-  height = 180
+  height = 180,
+  maxLabels
 }) => {
+  const [selected, setSelected] = useState<number | null>(null);
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center py-10 text-[var(--text-muted)] reshape-card-subtle">
@@ -319,27 +359,40 @@ export const BarChart: React.FC<BarChartProps> = ({
         </div>
       )}
 
-      <div className="flex items-end gap-2 pt-6 pb-2" style={{ height: `${height}px` }}>
+      <div className="flex items-end gap-1.5 sm:gap-2 pt-6 pb-2" style={{ height: `${height}px` }} role="list" aria-label={title}>
         {data.map((item, idx) => {
           const heightPercent = Math.min(100, Math.max(5, (item.value / maxVal) * 100));
+          const labelStep = maxLabels && data.length > maxLabels ? Math.ceil(data.length / maxLabels) : 1;
+          const showLabel = idx % labelStep === 0 || idx === data.length - 1;
+          const isSelected = selected === idx;
           return (
-            <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group">
-              {/* Tooltip value */}
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity text-label font-mono text-[var(--text-primary)] mb-1 whitespace-nowrap">
+            <div
+              key={idx}
+              role="listitem"
+              tabIndex={0}
+              aria-label={`${item.label}: ${item.value} ${unit}`.trim()}
+              onClick={() => setSelected((cur) => (cur === idx ? null : idx))}
+              onBlur={() => setSelected((cur) => (cur === idx ? null : cur))}
+              className="flex-1 min-w-0 flex flex-col items-center h-full justify-end group cursor-pointer rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              {/* Tooltip value: hover, keyboard focus or tap */}
+              <div
+                className={`${isSelected ? 'opacity-100' : 'opacity-0'} group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity motion-reduce:transition-none text-label font-mono text-[var(--text-primary)] mb-1 whitespace-nowrap`}
+              >
                 {item.value} {unit}
               </div>
 
               {/* Bar */}
-              <div className="w-full max-w-[36px] bg-[var(--chip-bg)] rounded-t-sm relative transition-all overflow-hidden flex items-end">
+              <div className="w-full max-w-[36px] flex-1 min-h-0 bg-[var(--chip-bg)] rounded-t-sm relative transition-all motion-reduce:transition-none overflow-hidden flex items-end">
                 <div
-                  className="w-full bg-accent group-hover:brightness-110 transition-all rounded-t-sm"
+                  className="w-full bg-accent group-hover:brightness-110 transition-all motion-reduce:transition-none rounded-t-sm"
                   style={{ height: `${heightPercent}%` }}
                 />
               </div>
 
               {/* Label */}
-              <span className="text-label font-mono text-[var(--text-muted)] mt-2 truncate w-full text-center">
-                {item.label}
+              <span className="text-label font-mono text-[var(--text-muted)] mt-2 truncate w-full text-center h-4">
+                {showLabel ? item.label : ''}
               </span>
             </div>
           );

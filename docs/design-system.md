@@ -27,7 +27,7 @@ Source of truth: `src/index.css` (tokens) and `src/components/ui/` (primitives, 
 - **Modal** — dialog semantics, Esc/backdrop close, scroll lock, focus restore; bottom sheet on phones. Inline `onClose` arrows are safe (the latest one is read from a ref, so typing never loses focus). `closeLabel` names the close button.
 - **EmptyState / ErrorState / LoadingState / Skeleton** — one trio for "no data", "failed", "pending"; Skeleton when the layout is known.
 - **Badge, ProgressBar, SegmentedControl, MetricCard, PageHeader, SectionHeading** — unchanged API, now on the radius/label tokens.
-- **Charts** (`components/common/Charts.tsx`) — `LineChart` / `BarChart` use chart tokens, so they follow the theme; each `LineChart` has its own gradient id.
+- **Charts** (`components/common/Charts.tsx`) — `LineChart` / `BarChart` use chart tokens, so they follow the theme; each `LineChart` has its own gradient id. `LineChart responsive` draws at the container's real width (labels keep their size on phones); `BarChart maxLabels` thins x labels. Points and bars respond to tap and keyboard focus as well as hover.
 
 Legacy `.reshape-card`, `.reshape-card-subtle`, `.reshape-card-interactive` still work and now share the same radius tokens. Prefer `<Card>` in new code.
 
@@ -41,8 +41,8 @@ Legacy `.reshape-card`, `.reshape-card-subtle`, `.reshape-card-interactive` stil
 
 ## Adoption (audit of `main`, Oct 2026)
 
-Screens already on `ui/`: Dashboard (+ scorecard, muscle map), Navbar, Auth, Landing, Video Library, Adaptive Review modal, Nutrition (view, goal gauge, Goal Wizard, hydration).
-Not yet on `ui/`: Workout tracker, Progression, Reports, Timeline, Body & Body Scan, Coach Iron, Settings, Plans, most modals.
+Screens already on `ui/`: Dashboard (+ scorecard, muscle map), Navbar, Auth, Landing, Video Library, Adaptive Review modal, Nutrition (view, goal gauge, Goal Wizard, hydration), Progression.
+Not yet on `ui/`: Workout tracker, Reports, Timeline, Body & Body Scan, Coach Iron, Settings, Plans, most modals.
 
 Suggested redesign order: (1) Workout tracker, (2) Nutrition, (3) Progression / Overload Engine, (4) Timeline + Reports, (5) Home, (6) Coach Iron, (7) Body & Body Scan, (8) Settings + Plans + remaining modals.
 
@@ -52,3 +52,12 @@ Suggested redesign order: (1) Workout tracker, (2) Nutrition, (3) Progression / 
 - Calories and macros are summarised once, in `NutritionGoalGauge`. Don't repeat the same totals in another card on the same screen.
 - Hydration uses `info` for progress and `success` once the target is reached.
 - Nutrition dialogs use `Modal` + `Input`/`Select`/`Textarea`; Barcode Scanner (camera UI) is intentionally untouched and still uses its own styling.
+
+## Progression conventions
+
+- Screen: `components/progression/ProgressionView.tsx`. Engine (`utils/progressionEngine.ts`) and `utils/calculations.ts` are the source of truth for every number; the screen never recomputes volume, 1RM or top weight.
+- Display-only helpers live in `utils/progressionPresentation.ts` (date-range filter, last-vs-previous comparison, weight-record list, signed-delta formatting). Keep new presentation logic there so it can be unit-tested.
+- Series colours: line charts pass `var(--chart-1)` (load) and `var(--chart-2)` (reps); never hex.
+- Direction of change is always icon + signed text (`DeltaChip`), never colour alone. Overload status is a `Badge` with an icon and a text label.
+- Date range (30 days / 90 days / All time) only affects the trend charts. Headline metrics, the last-vs-previous comparison and the record list always use full history.
+- Exercises with no completed sets show `EmptyState` instead of zeroed metrics or empty charts; a range with no sessions offers "Show all time".

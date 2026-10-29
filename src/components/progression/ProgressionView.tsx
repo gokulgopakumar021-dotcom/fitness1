@@ -4,19 +4,19 @@ import {
   CheckCircle2,
   XCircle,
   Edit3,
-  AlertCircle,
   HelpCircle,
   Award,
   Zap,
   ArrowUpRight,
+  ArrowUp,
+  ArrowDown,
+  Minus,
   ShieldAlert,
   Sliders,
   History,
-  FileSpreadsheet,
   Check,
   RotateCcw,
   Layers,
-  ChevronRight,
   Sparkles,
   Eye
 } from 'lucide-react';
@@ -38,7 +38,50 @@ import {
   generateProgressionRecommendation,
   OverloadAnalyticsConfig
 } from '../../utils/progressionEngine';
-import { calculateEpley1RM } from '../../utils/calculations';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Input,
+  LoadingState,
+  MetricCard,
+  Modal,
+  PageHeader,
+  SectionHeading,
+  SegmentedControl,
+  Select
+} from '../ui';
+import {
+  TimeRange,
+  compareSessions,
+  filterSessionsByRange,
+  formatDelta,
+  totalWorkingReps,
+  weightPrHistory
+} from '../../utils/progressionPresentation';
+
+/** Signed change with an arrow icon and screen-reader text, so direction never relies on colour alone. */
+const DeltaChip: React.FC<{ value: number; suffix?: string }> = ({ value, suffix = '' }) => {
+  const rounded = Number(value.toFixed(1));
+  const Icon = rounded > 0 ? ArrowUp : rounded < 0 ? ArrowDown : Minus;
+  const word = rounded > 0 ? 'up' : rounded < 0 ? 'down' : 'unchanged';
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-xs font-semibold tabular ${
+        rounded > 0 ? 'text-success' : rounded < 0 ? 'text-warning' : 'text-zinc-400'
+      }`}
+    >
+      <Icon className="w-3.5 h-3.5" aria-hidden />
+      <span>
+        {formatDelta(value)}
+        {suffix}
+      </span>
+      <span className="sr-only">({word} vs previous session)</span>
+    </span>
+  );
+};
 
 interface ProgressionViewProps {
   profile: UserProfile;
@@ -54,7 +97,8 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [exerciseList, setExerciseList] = useState<string[]>([]);
   const [selectedExercise, setSelectedExercise] = useState<string>('');
-  const [timeRange, setTimeRange] = useState<'30d' | '90d' | 'all'>('90d');
+  const [loaded, setLoaded] = useState<boolean>(false);
+  const [timeRange, setTimeRange] = useState<TimeRange>('90d');
 
   // View Mode: 'deep_dive' (exercise chart & recommendation) vs 'plan_matrix' (all exercises in plan)
   const [viewMode, setViewMode] = useState<'deep_dive' | 'plan_matrix'>('deep_dive');
@@ -105,6 +149,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
     const all = db.getSessions();
     setSessions(all);
     setSavedRecommendations(db.getRecommendations());
+    setLoaded(true);
   }, [initialPlanId]);
 
   // Update exercise list whenever selectedPlanId or plans change
@@ -389,16 +434,8 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
 
   const history = selectedExercise ? extractExerciseHistory(sessions, selectedExercise) : null;
 
-  // Filter history based on timeRange
-  const now = new Date();
-  const filteredSessions = (history?.sessions || []).filter((s) => {
-    if (timeRange === 'all') return true;
-    const sessionDate = new Date(s.date);
-    const diffDays = (now.getTime() - sessionDate.getTime()) / (1000 * 3600 * 24);
-    if (timeRange === '30d') return diffDays <= 30;
-    if (timeRange === '90d') return diffDays <= 90;
-    return true;
-  });
+  // Filter history based on timeRange (same rule as before, now in a tested helper)
+  const filteredSessions = filterSessionsByRange(history?.sessions || [], timeRange);
 
   // Prepare chart data
   const loadChartData = filteredSessions.map((s) => ({
@@ -408,7 +445,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
   }));
 
   const repChartData = filteredSessions.map((s) => {
-    const totalReps = s.workingSets.reduce((acc, curr) => acc + curr.reps, 0);
+    const totalReps = totalWorkingReps(s);
     return {
       date: s.date,
       value: totalReps,
@@ -478,169 +515,171 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
   const latestSession = history && history.sessions.length > 0 ? history.sessions[history.sessions.length - 1] : null;
   const prevSession = history && history.sessions.length > 1 ? history.sessions[history.sessions.length - 2] : null;
 
+  const unit = profile.preferredUnit;
+  const rangeOptions: { value: TimeRange; label: string }[] = [
+    { value: '30d', label: '30 days' },
+    { value: '90d', label: '90 days' },
+    { value: 'all', label: 'All time' }
+  ];
+  const rangeText = timeRange === 'all' ? 'all time' : timeRange === '30d' ? 'the last 30 days' : 'the last 90 days';
+  const comparison = latestSession && prevSession ? compareSessions(latestSession, prevSession) : null;
+  const prList = history ? weightPrHistory(history.sessions) : [];
+  const recentPrs = [...prList].reverse().slice(0, 5);
+
+  const overloadStatus = (rec: ProgressiveOverloadRecommendation) => {
+    if (rec.ruleApplied === 'A_TOP_REPS_ACHIEVED') {
+      return { label: 'Ready to advance', tone: 'accent' as const, icon: <ArrowUpRight className="w-3 h-3" aria-hidden /> };
+    }
+    if (rec.ruleApplied === 'C_REPS_DECLINED' || rec.ruleApplied === 'D_MULTI_SESSION_DECLINE') {
+      return { label: 'Repeat load', tone: 'warning' as const, icon: <RotateCcw className="w-3 h-3" aria-hidden /> };
+    }
+    if (rec.flags.isProvisional) {
+      return { label: 'Baseline needed', tone: 'neutral' as const, icon: <HelpCircle className="w-3 h-3" aria-hidden /> };
+    }
+    return { label: 'Accumulating reps', tone: 'info' as const, icon: <TrendingUp className="w-3 h-3" aria-hidden /> };
+  };
+
+  const matrixRows =
+    viewMode === 'plan_matrix'
+      ? exerciseList.map((exName) => {
+          const exHistory = extractExerciseHistory(sessions, exName);
+          const pEx = getPlannedExerciseInPlan(exName);
+          const pConfig: OverloadAnalyticsConfig = {
+            planId: selectedPlan?.id,
+            planName: selectedPlan?.name,
+            prescribedRepRange: pEx?.repRange || '8-12',
+            prescribedSets: pEx?.workingSets || 3,
+            prescribedRir: pEx?.targetRir ?? 2,
+            progressionStrategy: pEx?.progressionStrategy || selectedPlan?.defaultStrategy || 'double_progression',
+            customIncrement: pEx?.customIncrement || 2.5,
+            trainingPhase: selectedPlan?.progressionPhase || profile.trainingPhase
+          };
+          const rec = generateProgressionRecommendation(
+            exHistory,
+            profile,
+            exName,
+            pEx?.equipment || 'barbell',
+            pEx?.repRange || '8-12',
+            pEx?.targetRir ?? 2,
+            pConfig
+          );
+          const hs = exHistory?.sessions ?? [];
+          const lastChange = hs.length > 1 ? compareSessions(hs[hs.length - 1], hs[hs.length - 2]).topWeight : null;
+          return { exName, pEx, rec, lastChange };
+        })
+      : [];
+
+  const MATRIX_COLS =
+    'md:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.4fr)_auto]';
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-16">
-      {/* TOP HEADER COMMAND CARD */}
-      <div className="reshape-card p-6 lg:p-7 overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-line">
-          <div>
-            <div className="flex items-center gap-2 text-accent text-xs font-mono font-bold tracking-wide mb-1.5">
-              <TrendingUp className="w-4 h-4" />
-              <span>Double Progression Engine &middot; Real-Time</span>
-            </div>
-            <h1 className="text-2xl lg:text-3xl font-nrc font-bold text-white tracking-tight">
-              Progressive Overload Analytics
-            </h1>
-            <p className="text-xs text-zinc-400 mt-1 font-sans">
-              Calibrated progression rules, rep ceilings, and automated load increments tailored to your active routines.
-            </p>
-          </div>
+      <PageHeader
+        eyebrow="Overload engine"
+        title="Progression"
+        description="See whether you are getting stronger, which lifts are moving, and what to load next session."
+        actions={
+          <SegmentedControl<'deep_dive' | 'plan_matrix'>
+            ariaLabel="Progression view"
+            value={viewMode}
+            onChange={setViewMode}
+            options={[
+              { value: 'deep_dive', label: 'Single exercise' },
+              { value: 'plan_matrix', label: 'Plan matrix' }
+            ]}
+          />
+        }
+        className="mb-0 sm:mb-0"
+      />
 
-          {/* Toggle between Deep Dive and Plan Matrix */}
-          <div className="flex items-center gap-1 p-1 bg-black/60 border border-white/10 rounded-xl self-start md:self-auto text-xs">
-            <button
-              onClick={() => setViewMode('deep_dive')}
-              className={`px-3.5 py-2 rounded-lg font-bold transition-all ${
-                viewMode === 'deep_dive'
-                  ? 'bg-white/10 text-accent shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              Single Exercise Analysis
-            </button>
-            <button
-              onClick={() => setViewMode('plan_matrix')}
-              className={`px-3.5 py-2 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
-                viewMode === 'plan_matrix'
-                  ? 'bg-white/10 text-accent shadow-sm'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Plan Overload Matrix</span>
-            </button>
-          </div>
-        </div>
-
-        {/* WORKOUT PLAN SELECTOR */}
-        <div className="mt-5 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-          <div className="sm:col-span-6 md:col-span-5">
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[11px] font-mono text-zinc-400 tracking-wide font-bold">
-                Source Workout Plan
-              </label>
-              {selectedPlan?.isUploaded && (
-                <span className="text-[11px] font-mono text-amber-400 font-bold tracking-wide">
-                  &bull; UPLOADED PLAN
-                </span>
-              )}
-            </div>
-            <select
-              value={selectedPlanId}
-              onChange={(e) => setSelectedPlanId(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-surface-2 border border-white/10 rounded-xl text-white text-xs font-bold focus:outline-none focus:border-accent transition-colors"
-            >
-              <option value="all">All Available Exercises (Global)</option>
-              {plans.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} {p.isActive ? '(Active)' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
+      {/* FILTERS & ACTIONS */}
+      <Card as="section" aria-label="Progression filters">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <Select
+            label="Source workout plan"
+            hint={selectedPlan?.isUploaded ? 'Uploaded plan' : undefined}
+            value={selectedPlanId}
+            onChange={(e) => setSelectedPlanId(e.target.value)}
+          >
+            <option value="all">All available exercises (global)</option>
+            {plans.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} {p.isActive ? '(Active)' : ''}
+              </option>
+            ))}
+          </Select>
 
           {viewMode === 'deep_dive' && (
-            <div className="sm:col-span-6 md:col-span-4">
-              <label className="block text-[11px] font-mono text-zinc-400 tracking-wide font-bold mb-1.5">
-                Exercise in this Plan
-              </label>
-              <select
-                value={selectedExercise}
-                onChange={(e) => setSelectedExercise(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-surface-2 border border-white/10 rounded-xl text-white text-xs font-semibold focus:outline-none focus:border-accent transition-colors"
-              >
-                {exerciseList.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div className="sm:col-span-12 md:col-span-3 flex flex-wrap items-center justify-end gap-2">
-            {selectedExercise && (
-              <button
-                onClick={() => setPostureModalExercise(selectedExercise)}
-                className="min-h-[44px] py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border bg-info/10 hover:bg-info/20 border-info/30 text-info"
-                title="Preview posture, joint angles, and biomechanical checkpoints for this exercise"
-              >
-                <Eye className="w-3.5 h-3.5 text-info" />
-                <span>Form &amp; Biomechanics</span>
-              </button>
-            )}
-
-            {selectedPlan && selectedPlanId !== 'all' && (
-              <button
-                onClick={handleRunAiPlanOverloadTuning}
-                className="min-h-[44px] py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border bg-accent/10 hover:bg-accent/20 border-accent/30 text-accent"
-                title="Use Gemini AI to analyze this uploaded plan and optimize overload targets"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-accent" />
-                <span>AI Optimizer</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => setIsAdjustingPlanRules(!isAdjustingPlanRules)}
-              className={`min-h-[44px] py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border ${
-                isAdjustingPlanRules
-                  ? 'bg-accent/15 border-accent text-accent'
-                  : 'bg-white/[0.04] border-white/10 hover:border-white/20 text-zinc-300'
-              }`}
+            <Select
+              label="Exercise"
+              value={selectedExercise}
+              onChange={(e) => setSelectedExercise(e.target.value)}
+              disabled={exerciseList.length === 0}
             >
-              <Sliders className="w-3.5 h-3.5 text-accent" />
-              <span>{isAdjustingPlanRules ? 'Close Rules' : 'Adjust Rules'}</span>
-            </button>
-          </div>
+              {exerciseList.length === 0 && <option value="">No exercises available</option>}
+              {exerciseList.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+          )}
         </div>
-      </div>
 
-      {/* ADJUST OVERLOAD RULES FOR THIS WORKOUT PLAN CARD */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {selectedExercise && (
+            <Button
+              variant="secondary"
+              icon={<Eye className="w-4 h-4 text-info" aria-hidden />}
+              onClick={() => setPostureModalExercise(selectedExercise)}
+              title="Preview posture, joint angles, and biomechanical checkpoints for this exercise"
+            >
+              Form &amp; biomechanics
+            </Button>
+          )}
+          {selectedPlan && selectedPlanId !== 'all' && (
+            <Button
+              variant="secondary"
+              icon={<Sparkles className="w-4 h-4 text-accent" aria-hidden />}
+              onClick={handleRunAiPlanOverloadTuning}
+              title="Use Gemini AI to analyze this uploaded plan and optimize overload targets"
+            >
+              AI optimizer
+            </Button>
+          )}
+          <Button
+            variant={isAdjustingPlanRules ? 'primary' : 'secondary'}
+            icon={<Sliders className="w-4 h-4" aria-hidden />}
+            aria-expanded={isAdjustingPlanRules}
+            onClick={() => setIsAdjustingPlanRules(!isAdjustingPlanRules)}
+          >
+            {isAdjustingPlanRules ? 'Close rules' : 'Adjust rules'}
+          </Button>
+        </div>
+      </Card>
+
+      {/* ADJUST OVERLOAD RULES */}
       {isAdjustingPlanRules && (
-        <div className="bg-surface border border-accent/40 rounded-2xl p-5 lg:p-6 shadow-2xl space-y-4 animate-in fade-in duration-200">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-line">
-            <div>
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-accent" />
-                <h3 className="font-extrabold text-white text-base">
-                  Adjust Overload Analytics Configuration
-                </h3>
-              </div>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Modifying parameters for{' '}
-                <strong className="text-white">
-                  {selectedExercise || 'selected plan exercises'}
-                </strong>{' '}
-                in <strong className="text-accent">{selectedPlan?.name || 'routine'}</strong>.
-              </p>
-            </div>
-
+        <Card as="section" tone="accent" aria-label="Overload rules" className="space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+            <SectionHeading
+              level={3}
+              className="mb-0"
+              title="Adjust overload rules"
+              description={`Editing ${selectedExercise || 'the selected plan exercises'} in ${selectedPlan?.name || 'your routine'}.`}
+            />
             {rulesSavedNotice && (
-              <span className="text-xs font-mono text-accent font-bold flex items-center gap-1 animate-pulse">
-                <Check className="w-3.5 h-3.5" />
-                <span>Saved to Plan!</span>
-              </span>
+              <Badge tone="success" icon={<Check className="w-3 h-3" aria-hidden />} role="status">
+                Saved to plan
+              </Badge>
             )}
           </div>
 
-          {/* Overload Strategy Presets */}
-          <div className="flex flex-wrap items-center gap-1.5 pb-2">
-            <span className="text-[11px] font-mono text-zinc-400 font-bold mr-1">
-              Presets:
-            </span>
-            <button
-              type="button"
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-zinc-400 mr-1">Presets</span>
+            <Button
+              size="sm"
+              variant="secondary"
               onClick={() => {
                 setRuleRepRange('8-12');
                 setRuleSets(3);
@@ -649,12 +688,12 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                 setRuleIncrement(2.5);
                 setRulePhase('hypertrophy');
               }}
-              className="px-2.5 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 rounded-lg text-xs font-medium text-zinc-200 transition-colors"
             >
               Hypertrophy (8-12 reps, +2.5kg)
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
               onClick={() => {
                 setRuleRepRange('5-8');
                 setRuleSets(4);
@@ -663,12 +702,12 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                 setRuleIncrement(2.5);
                 setRulePhase('strength');
               }}
-              className="px-2.5 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 rounded-lg text-xs font-medium text-zinc-200 transition-colors"
             >
               Strength (5-8 reps, +2.5kg)
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
               onClick={() => {
                 setRuleRepRange('10-15');
                 setRuleSets(3);
@@ -677,12 +716,13 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                 setRuleIncrement(1.25);
                 setRulePhase('hypertrophy');
               }}
-              className="px-2.5 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 rounded-lg text-xs font-medium text-zinc-200 transition-colors"
             >
               High-Rep Pump (10-15 reps, +1.25kg)
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="text-warning"
               onClick={() => {
                 setRuleRepRange('8-10');
                 setRuleSets(2);
@@ -691,683 +731,647 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
                 setRuleIncrement(2.5);
                 setRulePhase('deload');
               }}
-              className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg text-xs font-medium text-amber-300 transition-colors"
             >
               Deload Phase (-25% load)
-            </button>
+            </Button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
-            {/* Prescribed Rep Range */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-zinc-400 mb-1.5 font-mono text-[11px] font-bold">
-                Target Rep Range
-              </label>
-              <input
+              <Input
+                label="Target rep range"
+                mono
                 type="text"
                 value={ruleRepRange}
                 onChange={(e) => setRuleRepRange(e.target.value)}
                 placeholder="e.g. 8-12, 6-8, 5x5, 10-15"
-                className="w-full px-3 py-2 bg-surface-2 border border-white/10 rounded-xl text-white font-mono font-bold focus:outline-none focus:border-accent"
               />
-              <div className="flex gap-1 mt-1.5">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {['6-8', '8-12', '10-15', '5'].map((r) => (
-                  <button
+                  <Button
                     key={r}
-                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="font-mono border border-line"
+                    aria-label={`Set rep range to ${r}`}
                     onClick={() => setRuleRepRange(r)}
-                    className="px-2 py-0.5 bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 rounded text-[11px] font-mono"
                   >
                     {r}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
 
-            {/* Target Working Sets */}
-            <div>
-              <label className="block text-zinc-400 mb-1.5 font-mono text-[11px] font-bold">
-                Prescribed Working Sets
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                value={ruleSets}
-                onChange={(e) => setRuleSets(parseInt(e.target.value, 10) || 3)}
-                className="w-full px-3 py-2 bg-surface-2 border border-white/10 rounded-xl text-white font-mono font-bold focus:outline-none focus:border-accent"
-              />
-            </div>
+            <Input
+              label="Prescribed working sets"
+              mono
+              type="number"
+              min="1"
+              max="10"
+              value={ruleSets}
+              onChange={(e) => setRuleSets(parseInt(e.target.value, 10) || 3)}
+            />
 
-            {/* Target RIR */}
-            <div>
-              <label className="block text-zinc-400 mb-1.5 font-mono text-[11px] font-bold">
-                Target RIR (Effort Level)
-              </label>
-              <select
-                value={ruleRir}
-                onChange={(e) => setRuleRir(parseInt(e.target.value, 10))}
-                className="w-full px-3 py-2 bg-surface-2 border border-white/10 rounded-xl text-white focus:outline-none focus:border-accent"
-              >
-                <option value="0">0 RIR (Rep Out to Failure)</option>
-                <option value="1">1 RIR (1 Rep in Reserve)</option>
-                <option value="2">2 RIR (Standard Hypertrophy)</option>
-                <option value="3">3 RIR (Conservative / Technical)</option>
-              </select>
-            </div>
+            <Select
+              label="Target RIR (effort level)"
+              value={ruleRir}
+              onChange={(e) => setRuleRir(parseInt(e.target.value, 10))}
+            >
+              <option value="0">0 RIR (Rep Out to Failure)</option>
+              <option value="1">1 RIR (1 Rep in Reserve)</option>
+              <option value="2">2 RIR (Standard Hypertrophy)</option>
+              <option value="3">3 RIR (Conservative / Technical)</option>
+            </Select>
 
-            {/* Progression Strategy */}
-            <div>
-              <label className="block text-zinc-400 mb-1.5 font-mono text-[11px] font-bold">
-                Progression Strategy
-              </label>
-              <select
-                value={ruleStrategy}
-                onChange={(e) => setRuleStrategy(e.target.value as ProgressionStrategy)}
-                className="w-full px-3 py-2 bg-surface-2 border border-white/10 rounded-xl text-white focus:outline-none focus:border-accent"
-              >
-                <option value="double_progression">Standard Double Progression (All Sets Top of Range)</option>
-                <option value="top_set_only">Top-Set Progression (Lead Set Hits Top)</option>
-                <option value="consecutive_sessions">Dual-Session Consolidation (2 Sessions at Top)</option>
-                <option value="linear_load">Linear Micro-Load (Weekly Increment)</option>
-                <option value="rep_accumulation">Rep Accumulation Focus</option>
-              </select>
-            </div>
+            <Select
+              label="Progression strategy"
+              value={ruleStrategy}
+              onChange={(e) => setRuleStrategy(e.target.value as ProgressionStrategy)}
+            >
+              <option value="double_progression">Standard Double Progression (All Sets Top of Range)</option>
+              <option value="top_set_only">Top-Set Progression (Lead Set Hits Top)</option>
+              <option value="consecutive_sessions">Dual-Session Consolidation (2 Sessions at Top)</option>
+              <option value="linear_load">Linear Micro-Load (Weekly Increment)</option>
+              <option value="rep_accumulation">Rep Accumulation Focus</option>
+            </Select>
 
-            {/* Custom Load Increment */}
             <div>
-              <label className="block text-zinc-400 mb-1.5 font-mono text-[11px] font-bold">
-                Load Increase Jump ({profile.preferredUnit})
-              </label>
-              <input
+              <Input
+                label={`Load increase jump (${unit})`}
+                mono
                 type="number"
                 step="0.5"
                 value={ruleIncrement}
                 onChange={(e) => setRuleIncrement(parseFloat(e.target.value) || 2.5)}
-                className="w-full px-3 py-2 bg-surface-2 border border-white/10 rounded-xl text-white font-mono font-bold focus:outline-none focus:border-accent"
               />
-              <div className="flex gap-1 mt-1.5">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {[1.25, 2.0, 2.5, 5.0].map((inc) => (
-                  <button
+                  <Button
                     key={inc}
-                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="font-mono border border-line"
+                    aria-label={`Set load increase to ${inc}`}
                     onClick={() => setRuleIncrement(inc)}
-                    className="px-2 py-0.5 bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 rounded text-[11px] font-mono"
                   >
                     +{inc}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
 
-            {/* Training Phase */}
-            <div>
-              <label className="block text-zinc-400 mb-1.5 font-mono text-[11px] font-bold">
-                Plan Training Phase
-              </label>
-              <select
-                value={rulePhase}
-                onChange={(e) => setRulePhase(e.target.value as TrainingPhase)}
-                className="w-full px-3 py-2 bg-surface-2 border border-white/10 rounded-xl text-white focus:outline-none focus:border-accent capitalize"
-              >
-                <option value="hypertrophy">Hypertrophy (Progressive Overload)</option>
-                <option value="strength">Strength (Lower reps, Higher load)</option>
-                <option value="adaptation">Adaptation (Conservative volume)</option>
-                <option value="re_entry">Re-Entry (Recovery focused)</option>
-                <option value="deload">Deload (-25% load dissipation)</option>
-              </select>
-            </div>
+            <Select
+              label="Plan training phase"
+              value={rulePhase}
+              onChange={(e) => setRulePhase(e.target.value as TrainingPhase)}
+            >
+              <option value="hypertrophy">Hypertrophy (Progressive Overload)</option>
+              <option value="strength">Strength (Lower reps, Higher load)</option>
+              <option value="adaptation">Adaptation (Conservative volume)</option>
+              <option value="re_entry">Re-Entry (Recovery focused)</option>
+              <option value="deload">Deload (-25% load dissipation)</option>
+            </Select>
           </div>
 
-          <div className="pt-3 border-t border-line flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="pt-4 border-t border-line flex flex-wrap items-center justify-between gap-3">
             {selectedPlan && (
-              <label className="flex items-center gap-2 cursor-pointer text-zinc-200 font-semibold select-none bg-black/40 px-3 py-2 rounded-xl border border-line">
+              <label className="flex items-start gap-2.5 min-h-[44px] cursor-pointer text-sm text-zinc-200 select-none">
                 <input
                   type="checkbox"
                   checked={applyToAllExercisesInPlan}
                   onChange={(e) => setApplyToAllExercisesInPlan(e.target.checked)}
-                  className="w-4 h-4 rounded text-accent accent-accent cursor-pointer"
+                  className="mt-1 w-4 h-4 accent-accent cursor-pointer"
                 />
                 <span>
-                  Apply this overload configuration to ALL {exerciseList.length} exercises in &quot;{selectedPlan.name}&quot;
+                  Apply this configuration to all {exerciseList.length} exercises in &quot;{selectedPlan.name}&quot;
                 </span>
               </label>
             )}
             <div className="flex items-center gap-2 ml-auto">
-              <button
-                onClick={() => setIsAdjustingPlanRules(false)}
-                className="min-h-[44px] px-3.5 py-2 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 rounded-xl font-medium transition-colors"
-              >
+              <Button variant="ghost" onClick={() => setIsAdjustingPlanRules(false)}>
                 Dismiss
-              </button>
+              </Button>
               {selectedPlan && (
-                <button
-                  onClick={handleSaveRulesToPlan}
-                  className="min-h-[44px] px-5 py-2 bg-accent hover:bg-accent-hover text-accent-ink font-extrabold rounded-xl shadow-lg transition-transform active:scale-[0.98]"
-                >
+                <Button onClick={handleSaveRulesToPlan}>
                   {applyToAllExercisesInPlan
-                    ? `Save to Entire ${selectedPlan.name}`
-                    : `Save for ${selectedExercise || 'Exercise'}`}
-                </button>
+                    ? `Save to entire ${selectedPlan.name}`
+                    : `Save for ${selectedExercise || 'exercise'}`}
+                </Button>
               )}
             </div>
           </div>
-        </div>
+        </Card>
       )}
 
-      {/* ========================================================================= */}
-      {/* VIEW MODE 1: PLAN OVERLOAD MATRIX (ALL EXERCISES IN PLAN AT A GLANCE) */}
-      {/* ========================================================================= */}
-      {viewMode === 'plan_matrix' && (
-        <div className="bg-surface border border-line rounded-2xl p-5 lg:p-6 shadow-2xl space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-line">
-            <div>
-              <h3 className="font-extrabold text-white text-base tracking-tight">
-                Overload Status Matrix &middot; {selectedPlan?.name || 'All Plans'}
-              </h3>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Overview of progressive overload compliance across every exercise prescribed in this plan.
-              </p>
-            </div>
-          </div>
+      {!loaded && <LoadingState label="Loading your training history…" />}
+
+      {/* ===== PLAN OVERLOAD MATRIX ===== */}
+      {loaded && viewMode === 'plan_matrix' && (
+        <Card as="section" aria-label="Plan overload matrix">
+          <SectionHeading
+            title={`Overload status · ${selectedPlan?.name || 'All plans'}`}
+            description="Where every exercise in this plan stands, and what to load next."
+          />
 
           {exerciseList.length === 0 ? (
-            <div className="py-12 text-center text-zinc-500 text-xs">
-              No exercises found for this plan. Select an uploaded plan or add exercises in Plans &amp; Uploads.
-            </div>
+            <EmptyState
+              icon={<Layers className="w-5 h-5" />}
+              title="No exercises found for this plan"
+              description="Select an uploaded plan or add exercises in Plans & Uploads."
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead>
-                  <tr className="border-b border-line text-zinc-400 text-[11px] tracking-wide">
-                    <th className="py-3 px-3 font-bold">Exercise</th>
-                    <th className="py-3 px-3 font-bold">Prescribed Target</th>
-                    <th className="py-3 px-3 font-bold">Latest Working Load</th>
-                    <th className="py-3 px-3 font-bold">Overload Status</th>
-                    <th className="py-3 px-3 font-bold">Next Prescription</th>
-                    <th className="py-3 px-2 text-right"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/[0.04] text-zinc-300">
-                  {exerciseList.map((exName) => {
-                    const exHistory = extractExerciseHistory(sessions, exName);
-                    const pEx = getPlannedExerciseInPlan(exName);
-                    const pConfig: OverloadAnalyticsConfig = {
-                      planId: selectedPlan?.id,
-                      planName: selectedPlan?.name,
-                      prescribedRepRange: pEx?.repRange || '8-12',
-                      prescribedSets: pEx?.workingSets || 3,
-                      prescribedRir: pEx?.targetRir ?? 2,
-                      progressionStrategy: pEx?.progressionStrategy || selectedPlan?.defaultStrategy || 'double_progression',
-                      customIncrement: pEx?.customIncrement || 2.5,
-                      trainingPhase: selectedPlan?.progressionPhase || profile.trainingPhase
-                    };
+            <div role="table" aria-label="Overload status by exercise" className="space-y-2">
+              <div
+                role="row"
+                className={`hidden md:grid ${MATRIX_COLS} gap-x-4 px-4 text-label font-medium text-zinc-400`}
+              >
+                <span role="columnheader">Exercise</span>
+                <span role="columnheader">Prescribed target</span>
+                <span role="columnheader">Latest load</span>
+                <span role="columnheader">Status</span>
+                <span role="columnheader">Next prescription</span>
+                <span role="columnheader" className="sr-only">
+                  Actions
+                </span>
+              </div>
 
-                    const rec = generateProgressionRecommendation(
-                      exHistory,
-                      profile,
-                      exName,
-                      pEx?.equipment || 'barbell',
-                      pEx?.repRange || '8-12',
-                      pEx?.targetRir ?? 2,
-                      pConfig
-                    );
-
-                    const isReadyToAdvance = rec.ruleApplied === 'A_TOP_REPS_ACHIEVED';
-                    const isDecline = rec.ruleApplied === 'C_REPS_DECLINED' || rec.ruleApplied === 'D_MULTI_SESSION_DECLINE';
-
-                    return (
-                      <tr key={exName} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3.5 px-3 font-bold text-white font-sans">
-                          {exName}
-                        </td>
-                        <td className="py-3.5 px-3 text-zinc-400">
-                          {pEx ? `${pEx.workingSets} sets × ${pEx.repRange} reps` : '8-12 reps'}
-                        </td>
-                        <td className="py-3.5 px-3">
-                          {rec.currentWeight > 0 ? (
-                            <span className="font-bold text-zinc-100">
-                              {rec.currentWeight} {profile.preferredUnit}
-                            </span>
-                          ) : (
-                            <span className="text-zinc-600">—</span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-3">
-                          <span
-                            className={`font-mono text-[11px] font-bold tracking-wide ${
-                              isReadyToAdvance
-                                ? 'text-accent'
-                                : isDecline
-                                ? 'text-amber-400'
-                                : rec.flags.isProvisional
-                                ? 'text-zinc-500'
-                                : 'text-info'
-                            }`}
-                          >
-                            &bull;{' '}
-                            {isReadyToAdvance
-                              ? 'Ready to Advance'
-                              : isDecline
-                              ? 'Repeat Load'
-                              : rec.flags.isProvisional
-                              ? 'Baseline Needed'
-                              : 'Accumulating Reps'}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-3 font-bold text-accent">
-                          {rec.recommendedWeight} {profile.preferredUnit} ({rec.recommendedRepTarget})
-                        </td>
-                        <td className="py-3.5 px-2 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => {
-                                setSelectedExercise(exName);
-                                setIsAdjustingPlanRules(true);
-                              }}
-                              className="px-2.5 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] text-accent border border-white/10 text-[11px] font-bold rounded-lg transition-colors flex items-center gap-1"
-                              title={`Adjust overload rules for ${exName}`}
-                            >
-                              <Sliders className="w-3 h-3" />
-                              <span>Tune</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedExercise(exName);
-                                setViewMode('deep_dive');
-                              }}
-                              className="px-3 py-1.5 bg-white/[0.08] hover:bg-white/[0.14] text-white text-xs font-semibold rounded-lg transition-colors"
-                            >
-                              Analyze &rarr;
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              {matrixRows.map(({ exName, pEx, rec, lastChange }) => {
+                const status = overloadStatus(rec);
+                return (
+                  <Card
+                    key={exName}
+                    role="row"
+                    tone="raised"
+                    pad="sm"
+                    className={`grid grid-cols-1 ${MATRIX_COLS} gap-x-4 gap-y-2 items-center md:px-4`}
+                  >
+                    <div role="cell" className="min-w-0">
+                      <p className="text-sm font-semibold text-white truncate">{exName}</p>
+                      {lastChange !== null && (
+                        <div className="mt-0.5 flex items-center gap-1.5 text-label text-zinc-500">
+                          <span>Last change</span>
+                          <DeltaChip value={lastChange} suffix={` ${unit}`} />
+                        </div>
+                      )}
+                    </div>
+                    <div role="cell" className="text-xs text-zinc-300">
+                      <span className="md:hidden text-zinc-500">Target: </span>
+                      {pEx ? `${pEx.workingSets} sets × ${pEx.repRange} reps` : '8-12 reps'}
+                    </div>
+                    <div role="cell" className="text-sm font-semibold text-zinc-100 tabular">
+                      <span className="md:hidden text-xs font-normal text-zinc-500">Latest: </span>
+                      {rec.currentWeight > 0 ? (
+                        `${rec.currentWeight} ${unit}`
+                      ) : (
+                        <span className="text-zinc-500">—</span>
+                      )}
+                    </div>
+                    <div role="cell">
+                      <Badge tone={status.tone} icon={status.icon}>
+                        {status.label}
+                      </Badge>
+                    </div>
+                    <div role="cell" className="text-sm font-semibold text-accent tabular">
+                      <span className="md:hidden text-xs font-normal text-zinc-500">Next: </span>
+                      {rec.recommendedWeight} {unit} ({rec.recommendedRepTarget})
+                    </div>
+                    <div role="cell" className="flex items-center gap-2 md:justify-end">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={<Sliders className="w-3.5 h-3.5" aria-hidden />}
+                        aria-label={`Adjust overload rules for ${exName}`}
+                        onClick={() => {
+                          setSelectedExercise(exName);
+                          setIsAdjustingPlanRules(true);
+                        }}
+                      >
+                        Tune
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        aria-label={`Analyze ${exName}`}
+                        onClick={() => {
+                          setSelectedExercise(exName);
+                          setViewMode('deep_dive');
+                        }}
+                      >
+                        Analyze →
+                      </Button>
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
           )}
-        </div>
+        </Card>
       )}
 
-      {/* ========================================================================= */}
-      {/* VIEW MODE 2: SINGLE EXERCISE DEEP DIVE (ANALYTICS & RECOMMENDATION) */}
-      {/* ========================================================================= */}
-      {viewMode === 'deep_dive' && (
+      {/* ===== SINGLE EXERCISE ===== */}
+      {loaded && viewMode === 'deep_dive' && (
         <>
-          {/* NEXT-SESSION RECOMMENDATION CARD */}
-          {currentRec && (
-            <div className="bg-surface border border-accent/40 rounded-2xl p-5 lg:p-7 shadow-2xl relative overflow-hidden">
+          {exerciseList.length === 0 && (
+            <EmptyState
+              icon={<TrendingUp className="w-5 h-5" />}
+              title="No exercises to track yet"
+              description="Add a workout plan or complete a session and your progression will show up here."
+            />
+          )}
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-line">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                    <span className="text-xs font-mono font-bold text-accent tracking-wide">
-                      Next Session Prescription &middot; {currentRec.ruleTitle}
-                    </span>
-                  </div>
-                  <h2 className="text-xl lg:text-2xl font-extrabold text-white mt-1.5 tracking-tight">
+          {/* NEXT-SESSION PRESCRIPTION */}
+          {currentRec && (
+            <Card as="section" tone="accent" pad="lg" aria-label="Next session prescription" className="space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <Badge tone="accent">Next session · {currentRec.ruleTitle}</Badge>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white mt-2 tracking-tight break-words">
                     {currentRec.exerciseName}
                   </h2>
-                  <div className="text-[11px] font-mono text-zinc-400 mt-1 flex flex-wrap items-center gap-2">
-                    <span>Plan: <strong className="text-white">{selectedPlan?.name || 'All Plans'}</strong></span>
-                    <span>&middot;</span>
-                    <span>Target: <strong className="text-white">{ruleRepRange} reps</strong></span>
-                    <span>&middot;</span>
-                    <span>Strategy: <strong className="text-white capitalize">{ruleStrategy.replace('_', ' ')}</strong></span>
-                  </div>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Plan: <span className="text-zinc-100 font-medium">{selectedPlan?.name || 'All plans'}</span>
+                    {' · '}Target: <span className="text-zinc-100 font-medium">{ruleRepRange} reps</span>
+                    {' · '}Strategy:{' '}
+                    <span className="text-zinc-100 font-medium capitalize">{ruleStrategy.replace(/_/g, ' ')}</span>
+                  </p>
                 </div>
 
-                {/* Target Weight & Rep Highlight */}
-                <div className="flex items-center gap-5 bg-black/60 border border-white/10 px-5 py-3 rounded-2xl">
+                <div className="flex items-center gap-5 bg-surface-2 border border-line rounded-control px-5 py-3 self-start md:self-auto">
                   <div>
-                    <span className="text-[11px] font-mono text-zinc-400 block tracking-wide font-bold">Prescribed Load</span>
-                    <span className="text-2xl font-mono font-bold text-accent tracking-tight">
-                      {currentRec.recommendedWeight} <span className="text-xs text-zinc-400 font-sans font-normal">{profile.preferredUnit}</span>
-                    </span>
+                    <p className="text-label text-zinc-400">Prescribed load</p>
+                    <p className="text-2xl font-bold text-accent tabular">
+                      {currentRec.recommendedWeight}{' '}
+                      <span className="text-xs font-normal text-zinc-400">{unit}</span>
+                    </p>
                   </div>
-                  <div className="h-10 w-px bg-white/10" />
+                  <div className="h-10 w-px bg-line" aria-hidden />
                   <div>
-                    <span className="text-[11px] font-mono text-zinc-400 block tracking-wide font-bold">Target Reps</span>
-                    <span className="text-base font-mono font-bold text-white">
-                      {currentRec.recommendedRepTarget}
-                    </span>
+                    <p className="text-label text-zinc-400">Target reps</p>
+                    <p className="text-base font-bold text-white tabular">{currentRec.recommendedRepTarget}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Explanation Text */}
-              <div className="py-4 text-xs text-zinc-300 leading-relaxed">
-                <p className="bg-black/40 p-4 rounded-xl border border-line font-medium leading-relaxed">
-                  {currentRec.explanation}
-                </p>
-              </div>
+              <p className="text-sm text-zinc-300 leading-relaxed bg-surface-2 border border-line rounded-control p-4">
+                {currentRec.explanation}
+              </p>
 
-              {/* Warnings & Recovery Flags */}
               {currentRec.flags.recoveryAlert && (
-                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center gap-2.5 text-xs text-amber-300 mb-4">
-                  <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+                <div
+                  role="note"
+                  className="p-3.5 bg-warning/10 border border-warning/30 rounded-control flex items-start gap-2.5 text-xs text-zinc-200"
+                >
+                  <ShieldAlert className="w-4 h-4 text-warning shrink-0 mt-0.5" aria-hidden />
                   <span>
-                    Recovery notice: Fatigue accumulation detected across multiple sessions in {selectedPlan?.name || 'routine'}. Prioritize sleep &amp; nutrition.
+                    <strong className="text-warning">Recovery notice:</strong> fatigue accumulation detected across
+                    multiple sessions in {selectedPlan?.name || 'your routine'}. Prioritize sleep &amp; nutrition.
                   </span>
                 </div>
               )}
 
-              {/* User Decision Actions */}
-              <div className="pt-3 border-t border-line flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2 font-mono text-[11px]">
-                  <span className="text-zinc-500 tracking-wide font-bold">Your Status:</span>
-                  <span
-                    className={`font-bold tracking-wide ${
+              <div className="pt-4 border-t border-line flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-zinc-400">Your status</span>
+                  <Badge
+                    tone={
                       currentRec.userAction === 'accepted'
-                        ? 'text-accent'
+                        ? 'accent'
                         : currentRec.userAction === 'rejected'
-                        ? 'text-rose-400'
+                        ? 'danger'
                         : currentRec.userAction === 'modified'
-                        ? 'text-info'
-                        : 'text-zinc-400'
-                    }`}
+                        ? 'info'
+                        : 'neutral'
+                    }
+                    icon={
+                      currentRec.userAction === 'accepted' ? (
+                        <Check className="w-3 h-3" aria-hidden />
+                      ) : currentRec.userAction === 'rejected' ? (
+                        <XCircle className="w-3 h-3" aria-hidden />
+                      ) : currentRec.userAction === 'modified' ? (
+                        <Edit3 className="w-3 h-3" aria-hidden />
+                      ) : undefined
+                    }
+                    className="capitalize"
                   >
-                    &bull; {currentRec.userAction}
-                    {currentRec.chosenWeight !== undefined && ` (${currentRec.chosenWeight} ${profile.preferredUnit})`}
-                  </span>
+                    {currentRec.userAction}
+                    {currentRec.chosenWeight !== undefined && ` (${currentRec.chosenWeight} ${unit})`}
+                  </Badge>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleRejectRec}
-                    className="min-h-[44px] px-3.5 py-2 bg-white/[0.04] hover:bg-rose-500/10 border border-white/10 hover:border-rose-500/30 text-zinc-400 hover:text-rose-400 rounded-xl font-bold transition-colors"
-                  >
-                    Reject Load
-                  </button>
-                  <button
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="danger" onClick={handleRejectRec}>
+                    Reject load
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    icon={<Edit3 className="w-4 h-4 text-info" aria-hidden />}
                     onClick={() => setIsModifyingDecision(true)}
-                    className="min-h-[44px] px-3.5 py-2 bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-zinc-200 rounded-xl font-bold transition-colors flex items-center gap-1.5"
                   >
-                    <Edit3 className="w-3.5 h-3.5 text-info" />
-                    <span>Modify Target</span>
-                  </button>
-                  <button
+                    Modify target
+                  </Button>
+                  <Button
+                    icon={<CheckCircle2 className="w-4 h-4" aria-hidden />}
                     onClick={handleAcceptRec}
-                    className="min-h-[44px] touch-press px-5 py-2 bg-accent hover:bg-accent-hover text-accent-ink rounded-xl font-extrabold transition-all shadow-lg flex items-center gap-1.5 active:scale-[0.98]"
                   >
-                    <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
-                    <span>Accept Prescription</span>
-                  </button>
+                    Accept prescription
+                  </Button>
                 </div>
               </div>
-            </div>
+            </Card>
           )}
 
-          {/* Modify Decision Modal */}
-          {isModifyingDecision && (
-            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-              <div className="bg-surface border border-line rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
-                <h3 className="font-extrabold text-white text-base">Modify Prescribed Load</h3>
-                <p className="text-xs text-zinc-400">
-                  Override the target weight and reps for your next session.
-                </p>
-                <div className="space-y-3 text-xs">
-                  <div>
-                    <label className="block text-zinc-400 mb-1 font-mono text-[11px] font-bold">
-                      Target Weight ({profile.preferredUnit})
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      value={modifiedWeight}
-                      onChange={(e) => setModifiedWeight(parseFloat(e.target.value) || 0)}
-                      className="w-full px-3.5 py-2 bg-surface-2 border border-white/10 rounded-xl text-white font-mono font-bold focus:outline-none focus:border-accent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-zinc-400 mb-1 font-mono text-[11px] font-bold">
-                      Target Reps
-                    </label>
-                    <input
-                      type="text"
-                      value={modifiedReps}
-                      onChange={(e) => setModifiedReps(e.target.value)}
-                      placeholder="e.g. 8-10 reps"
-                      className="w-full px-3.5 py-2 bg-surface-2 border border-white/10 rounded-xl text-white font-mono focus:outline-none focus:border-accent"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <button
-                    onClick={() => setIsModifyingDecision(false)}
-                    className="min-h-[44px] px-3.5 py-2 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 rounded-xl text-xs font-semibold"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleModifyRec}
-                    className="min-h-[44px] px-5 py-2 bg-accent hover:bg-accent-hover text-accent-ink font-extrabold rounded-xl text-xs shadow-lg"
-                  >
-                    Save Target
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Performance Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="p-4 bg-surface border border-line rounded-2xl space-y-1">
-              <div className="flex items-center justify-between text-zinc-400 text-[11px] font-mono font-bold">
-                <span>ALL-TIME PR</span>
-                <Award className="w-3.5 h-3.5 text-amber-400" />
-              </div>
-              <div className="text-2xl font-mono font-bold text-white">
-                {personalRecordWeight} <span className="text-xs text-zinc-400 font-sans font-normal">{profile.preferredUnit}</span>
-              </div>
-              <div className="text-[11px] text-zinc-500 font-mono">Heaviest completed load</div>
-            </div>
-
-            <div className="p-4 bg-surface border border-line rounded-2xl space-y-1">
-              <div className="flex items-center justify-between text-zinc-400 text-[11px] font-mono font-bold">
-                <span>ESTIMATED 1RM</span>
-                <Zap className="w-3.5 h-3.5 text-info" />
-              </div>
-              <div className="text-2xl font-mono font-bold text-info">
-                {bestEstimated1RM} <span className="text-xs text-zinc-400 font-sans font-normal">{profile.preferredUnit}</span>
-              </div>
-              <div className="text-[11px] text-zinc-500 font-mono">Epley formula estimate</div>
-            </div>
-
-            <div className="p-4 bg-surface border border-line rounded-2xl space-y-1">
-              <div className="flex items-center justify-between text-zinc-400 text-[11px] font-mono font-bold">
-                <span>LAST SESSION</span>
-                <History className="w-3.5 h-3.5 text-zinc-400" />
-              </div>
-              <div className="text-xl font-mono font-bold text-zinc-100">
-                {latestSession ? `${latestSession.topWeight} ${profile.preferredUnit}` : 'None'}
-              </div>
-              <div className="text-[11px] text-zinc-500 font-mono">
-                {latestSession ? `[${latestSession.workingSets.map((s) => s.reps).join(', ')}] reps` : 'No logs'}
-              </div>
-            </div>
-
-            <div className="p-4 bg-surface border border-line rounded-2xl space-y-1">
-              <div className="flex items-center justify-between text-zinc-400 text-[11px] font-mono font-bold">
-                <span>PEAK VOLUME</span>
-                <TrendingUp className="w-3.5 h-3.5 text-accent" />
-              </div>
-              <div className="text-2xl font-mono font-bold text-white">
-                {maxVolumeSession.toLocaleString()} <span className="text-xs text-zinc-400 font-sans font-normal">{profile.preferredUnit}</span>
-              </div>
-              <div className="text-[11px] text-zinc-500 font-mono">Single-session working volume</div>
-            </div>
-          </div>
-
-          {/* CHARTS: Load Progression, Repetitions & Volume */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="bg-surface border border-line rounded-2xl p-5 shadow-2xl">
-              <LineChart
-                data={loadChartData}
-                title="Weight Load Progression"
-                unit={profile.preferredUnit}
-                accentColor="#CEFF00"
-                emptyMessage={`No history recorded for ${selectedExercise}`}
-              />
-            </div>
-
-            <div className="bg-surface border border-line rounded-2xl p-5 shadow-2xl">
-              <LineChart
-                data={repChartData}
-                title="Total Working Repetitions"
-                unit="reps"
-                accentColor="#00E5FF"
-                emptyMessage={`No repetition history recorded`}
-              />
-            </div>
-          </div>
-
-          <div className="bg-surface border border-line rounded-2xl p-5 shadow-2xl">
-            <BarChart
-              data={volumeChartData}
-              title="Session Working-Set Volume (Weight × Reps)"
-              unit={profile.preferredUnit}
+          {selectedExercise && !history && (
+            <EmptyState
+              icon={<History className="w-5 h-5" />}
+              title={`No completed sets logged for ${selectedExercise}`}
+              description="Finish a workout that includes this exercise and its strength history, records and trends will appear here."
             />
-          </div>
+          )}
+
+          {history && (
+            <>
+              {/* HEADLINE METRICS (all-time) */}
+              <section aria-label="Headline metrics" className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <MetricCard
+                  label="All-time PR"
+                  value={personalRecordWeight}
+                  unit={unit}
+                  hint="Heaviest completed load"
+                  icon={<Award className="w-4 h-4" />}
+                />
+                <MetricCard
+                  label="Estimated 1RM"
+                  value={bestEstimated1RM}
+                  unit={unit}
+                  hint="Best Epley estimate"
+                  icon={<Zap className="w-4 h-4" />}
+                />
+                <MetricCard
+                  label="Last session"
+                  value={latestSession ? latestSession.topWeight : '—'}
+                  unit={latestSession ? unit : undefined}
+                  hint={latestSession ? `Reps: ${latestSession.workingSets.map((s) => s.reps).join(', ')}` : 'No logs'}
+                  icon={<History className="w-4 h-4" />}
+                />
+                <MetricCard
+                  label="Peak volume"
+                  value={maxVolumeSession.toLocaleString()}
+                  unit={unit}
+                  hint="Best single-session working volume"
+                  icon={<TrendingUp className="w-4 h-4" />}
+                />
+              </section>
+
+              {/* LAST SESSION VS PREVIOUS */}
+              <Card as="section" aria-label="Last session compared with previous">
+                <SectionHeading
+                  title="Last session vs previous"
+                  description={
+                    latestSession && prevSession
+                      ? `${latestSession.date} compared with ${prevSession.date}`
+                      : 'Needs at least two logged sessions'
+                  }
+                />
+                {comparison && latestSession ? (
+                  <dl className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                      { k: 'Top weight', v: `${latestSession.topWeight} ${unit}`, d: comparison.topWeight, s: ` ${unit}` },
+                      { k: 'Estimated 1RM', v: `${latestSession.estimated1RM} ${unit}`, d: comparison.estimated1RM, s: ` ${unit}` },
+                      { k: 'Working volume', v: `${latestSession.totalVolume.toLocaleString()} ${unit}`, d: comparison.totalVolume, s: ` ${unit}` },
+                      { k: 'Total reps', v: `${totalWorkingReps(latestSession)}`, d: comparison.totalReps, s: ' reps' }
+                    ].map((m) => (
+                      <div key={m.k} className="bg-surface-2 border border-line rounded-control p-3 min-w-0">
+                        <dt className="text-label text-zinc-400">{m.k}</dt>
+                        <dd className="text-base font-bold text-white tabular mt-0.5 truncate">{m.v}</dd>
+                        <dd className="mt-1">
+                          <DeltaChip value={m.d} suffix={m.s} />
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : (
+                  <p className="text-sm text-zinc-400">
+                    Log this exercise in one more workout to see how your latest session compares.
+                  </p>
+                )}
+              </Card>
+
+              {/* TRENDS */}
+              <section aria-label="Trends" className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+                  <SectionHeading
+                    className="mb-0"
+                    title="Trends"
+                    description={`${selectedExercise} · ${rangeText}`}
+                  />
+                  <SegmentedControl<TimeRange>
+                    ariaLabel="Date range"
+                    value={timeRange}
+                    onChange={setTimeRange}
+                    options={rangeOptions}
+                  />
+                </div>
+
+                {filteredSessions.length === 0 ? (
+                  <EmptyState
+                    icon={<History className="w-5 h-5" />}
+                    title={`No sessions in ${rangeText}`}
+                    description="Your earlier history is still saved. Widen the date range to see it."
+                    action={
+                      timeRange !== 'all' ? (
+                        <Button variant="secondary" onClick={() => setTimeRange('all')}>
+                          Show all time
+                        </Button>
+                      ) : undefined
+                    }
+                  />
+                ) : (
+                  <>
+                    {filteredSessions.length === 1 && (
+                      <p role="status" className="text-xs text-zinc-400">
+                        Only one session in this range. A trend line needs at least two.
+                      </p>
+                    )}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+                      <Card>
+                        <LineChart
+                          responsive
+                          data={loadChartData}
+                          title="Weight load progression"
+                          unit={unit}
+                          accentColor="var(--chart-1)"
+                          emptyMessage={`No history recorded for ${selectedExercise}`}
+                        />
+                      </Card>
+                      <Card>
+                        <LineChart
+                          responsive
+                          data={repChartData}
+                          title="Total working repetitions"
+                          unit="reps"
+                          accentColor="var(--chart-2)"
+                          emptyMessage="No repetition history recorded"
+                        />
+                      </Card>
+                    </div>
+                    <Card>
+                      <BarChart
+                        data={volumeChartData}
+                        title="Session working-set volume (weight × reps)"
+                        unit={unit}
+                        maxLabels={8}
+                      />
+                    </Card>
+                  </>
+                )}
+              </section>
+
+              {/* PR HISTORY */}
+              <Card as="section" aria-label="Weight record history">
+                <SectionHeading
+                  title="Weight record history"
+                  description="Sessions where your top working weight beat every earlier session"
+                />
+                {recentPrs.length === 0 ? (
+                  <p className="text-sm text-zinc-400">No weight records yet. Log a working set with a weight to start the list.</p>
+                ) : (
+                  <ul className="divide-y divide-line">
+                    {recentPrs.map((pr) => (
+                      <li key={pr.date} className="py-2.5 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Award className="w-4 h-4 text-warning shrink-0" aria-hidden />
+                          <span className="text-sm font-semibold text-white tabular">
+                            {pr.weight} {unit}
+                          </span>
+                        </div>
+                        <div className="text-xs text-zinc-400 text-right">
+                          <span className="tabular">{pr.date}</span>
+                          <span className="block text-label text-zinc-500">
+                            {pr.previousBest > 0
+                              ? `${formatDelta(pr.weight - pr.previousBest)} ${unit} over previous best`
+                              : 'First logged session'}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+            </>
+          )}
         </>
       )}
 
-      {/* AI PLAN OVERLOAD OPTIMIZER MODAL */}
-      {isAiTuningModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-surface border border-line rounded-2xl p-6 max-w-2xl w-full shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-line">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-accent/10 border border-accent/30 flex items-center justify-center text-accent">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-base sm:text-lg text-white">
-                    AI Overload Analytics Calibrator
-                  </h3>
-                  <p className="text-xs text-zinc-400">
-                    Optimizing progression rules for &quot;{selectedPlan?.name}&quot;
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsAiTuningModalOpen(false)}
-                className="text-zinc-400 hover:text-white p-1.5 rounded-lg text-xs"
-              >
-                &times; Close
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-              {aiTuningLoading && (
-                <div className="py-12 flex flex-col items-center justify-center space-y-3 text-center">
-                  <RotateCcw className="w-7 h-7 text-accent animate-spin" />
-                  <div className="font-bold text-white text-sm">
-                    Calibrating Optimal Overload Targets...
-                  </div>
-                  <p className="text-xs text-zinc-400 max-w-sm">
-                    Analyzing biomechanics, muscle recruitment curves, compound vs accessory fatigue, and micro-increment jumps for this routine.
-                  </p>
-                </div>
-              )}
-
-              {aiTuningError && (
-                <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 space-y-2">
-                  <div className="flex items-center gap-2 font-bold text-rose-200">
-                    <ShieldAlert className="w-4 h-4" />
-                    <span>AI Calibration Notice</span>
-                  </div>
-                  <p>{aiTuningError}</p>
-                  <button
-                    onClick={handleRunAiPlanOverloadTuning}
-                    className="min-h-[44px] px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl mt-2"
-                  >
-                    Retry Analysis
-                  </button>
-                </div>
-              )}
-
-              {aiTuningData && (
-                <div className="space-y-4 text-xs">
-                  {/* Strategy Summary Card */}
-                  <div className="p-4 bg-black/40 border border-line rounded-xl space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-mono text-zinc-400 font-bold tracking-wide">
-                        Plan Progression Framework
-                      </span>
-                      <span className="font-mono font-bold text-accent text-[11px] tracking-wide">
-                        &bull; Phase: {aiTuningData.recommendedPhase}
-                      </span>
-                    </div>
-                    <p className="text-zinc-200 leading-relaxed font-sans text-xs">
-                      {aiTuningData.planStrategySummary}
-                    </p>
-                  </div>
-
-                  {/* Calibrated Movements */}
-                  <div className="space-y-2">
-                    <h4 className="font-mono text-zinc-400 tracking-wide text-[11px] font-bold">
-                      Calibrated Movement Overload Rules ({aiTuningData.exerciseCalibrations?.length || 0})
-                    </h4>
-                    <div className="divide-y divide-white/[0.06] border border-line rounded-xl bg-black/40 overflow-hidden">
-                      {(aiTuningData.exerciseCalibrations || []).map((cal: any, idx: number) => (
-                        <div key={idx} className="p-3.5 space-y-1.5">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="font-bold text-white text-sm">
-                              {cal.exerciseName}
-                            </span>
-                            <div className="flex items-center gap-2 font-mono text-[11px]">
-                              <span className="text-accent font-bold">
-                                {cal.recommendedWorkingSets} sets &times; {cal.recommendedRepRange} reps
-                              </span>
-                              <span className="text-zinc-500">&middot;</span>
-                              <span className="text-info font-bold">
-                                +{cal.recommendedIncrement} {profile.preferredUnit} jump
-                              </span>
-                              <span className="text-zinc-500">&middot;</span>
-                              <span className="text-zinc-400">
-                                {cal.recommendedStrategy === 'double_progression' ? 'Double Overload' : cal.recommendedStrategy}
-                              </span>
-                            </div>
-                          </div>
-                          {cal.rationale && (
-                            <p className="text-[11px] text-zinc-400 leading-normal">
-                              &ldquo;{cal.rationale}&rdquo;
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="pt-3 border-t border-line flex items-center justify-between gap-2">
-              <button
-                onClick={() => setIsAiTuningModalOpen(false)}
-                className="min-h-[44px] px-4 py-2 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 rounded-xl text-xs font-semibold"
-              >
-                Cancel
-              </button>
-
-              {aiTuningData && (
-                <button
-                  onClick={handleApplyAiCalibrations}
-                  className="min-h-[44px] touch-press px-5 py-2 bg-accent hover:bg-accent-hover text-accent-ink rounded-xl text-xs font-extrabold shadow-lg flex items-center gap-2 active:scale-[0.98]"
-                >
-                  <Check className="w-4 h-4 stroke-[3]" />
-                  <span>Apply All AI Overload Calibrations</span>
-                </button>
-              )}
-            </div>
-          </div>
+      {/* MODIFY PRESCRIPTION */}
+      <Modal
+        open={isModifyingDecision}
+        onClose={() => setIsModifyingDecision(false)}
+        title="Modify prescribed load"
+        description="Override the target weight and reps for your next session."
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setIsModifyingDecision(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleModifyRec}>Save target</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Input
+            label={`Target weight (${unit})`}
+            mono
+            type="number"
+            step="0.5"
+            value={modifiedWeight}
+            onChange={(e) => setModifiedWeight(parseFloat(e.target.value) || 0)}
+          />
+          <Input
+            label="Target reps"
+            mono
+            type="text"
+            value={modifiedReps}
+            onChange={(e) => setModifiedReps(e.target.value)}
+            placeholder="e.g. 8-10 reps"
+          />
         </div>
-      )}
+      </Modal>
+
+      {/* AI PLAN OVERLOAD OPTIMIZER */}
+      <Modal
+        open={isAiTuningModalOpen}
+        onClose={() => setIsAiTuningModalOpen(false)}
+        title="AI overload calibrator"
+        description={`Optimizing progression rules for "${selectedPlan?.name ?? ''}"`}
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setIsAiTuningModalOpen(false)}>
+              Cancel
+            </Button>
+            {aiTuningData && (
+              <Button icon={<Check className="w-4 h-4" aria-hidden />} onClick={handleApplyAiCalibrations}>
+                Apply all AI overload calibrations
+              </Button>
+            )}
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {aiTuningLoading && <LoadingState label="Calibrating optimal overload targets…" />}
+
+          {aiTuningError && (
+            <ErrorState
+              title="AI calibration notice"
+              description={aiTuningError}
+              action={
+                <Button variant="secondary" onClick={handleRunAiPlanOverloadTuning}>
+                  Retry analysis
+                </Button>
+              }
+            />
+          )}
+
+          {aiTuningData && (
+            <div className="space-y-4">
+              <Card tone="raised" pad="sm" className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-zinc-400">Plan progression framework</span>
+                  <Badge tone="accent" className="capitalize">
+                    Phase: {aiTuningData.recommendedPhase}
+                  </Badge>
+                </div>
+                <p className="text-sm text-zinc-200 leading-relaxed">{aiTuningData.planStrategySummary}</p>
+              </Card>
+
+              <div className="space-y-2">
+                <h3 className="text-xs font-medium text-zinc-400">
+                  Calibrated movement overload rules ({aiTuningData.exerciseCalibrations?.length || 0})
+                </h3>
+                <ul className="divide-y divide-line border border-line rounded-control bg-surface-2 overflow-hidden">
+                  {(aiTuningData.exerciseCalibrations || []).map((cal: any, idx: number) => (
+                    <li key={idx} className="p-3.5 space-y-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-semibold text-white text-sm">{cal.exerciseName}</span>
+                        <span className="text-xs text-zinc-300 tabular">
+                          {cal.recommendedWorkingSets} sets × {cal.recommendedRepRange} reps
+                          {' · '}+{cal.recommendedIncrement} {unit} jump
+                          {' · '}
+                          {cal.recommendedStrategy === 'double_progression' ? 'Double overload' : cal.recommendedStrategy}
+                        </span>
+                      </div>
+                      {cal.rationale && (
+                        <p className="text-xs text-zinc-400 leading-normal">&ldquo;{cal.rationale}&rdquo;</p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
 
       {/* Posture & Form Preview Modal */}
       {postureModalExercise && (
