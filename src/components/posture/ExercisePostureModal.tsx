@@ -73,7 +73,7 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
   // No verified guide: say so, keep the video section and a way out. Never substitute another exercise's guide.
   if (lookup.status === 'no_match') {
     return (
-      <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
+      <div role="dialog" aria-modal="true" aria-label="Exercise posture guide" className="fixed inset-0 z-50 bg-overlay backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
         <div className="bg-surface border border-line rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl relative my-auto space-y-5">
           <div className="flex items-start justify-between gap-3 pb-3 border-b border-line">
             <div>
@@ -417,7 +417,7 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
+    <div role="dialog" aria-modal="true" aria-label="Exercise posture guide" className="fixed inset-0 z-50 bg-overlay backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
       <div className="bg-surface border border-line rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl relative my-auto space-y-5">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 pb-3 border-b border-line">

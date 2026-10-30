@@ -7,7 +7,6 @@ import {
   Activity,
   CheckCircle2,
   AlertTriangle,
-  X,
   Radio,
   Flame,
   Watch,
@@ -17,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
 import { HEART_RATE_ZONES } from '../../types/bluetooth';
+import { Button, Modal } from '../ui';
 
 export const BluetoothGadgetModal: React.FC = () => {
   const {
@@ -39,43 +39,19 @@ export const BluetoothGadgetModal: React.FC = () => {
     setExertion
   } = useBluetoothGadget();
 
-  if (!isGadgetModalOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-surface border border-line rounded-2xl max-w-xl w-full p-5 sm:p-6 shadow-2xl relative my-auto space-y-5">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-line">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-info/10 border border-info/30 flex items-center justify-center text-info">
-              <Bluetooth className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-bold tracking-tight text-white font-nrc">
-                  BLUETOOTH &amp; SENSOR HUB
-                </h2>
-                {isConnected && (
-                  <span className="inline-block w-2 h-2 rounded-full bg-accent animate-pulse" />
-                )}
-              </div>
-              <p className="text-xs text-white/50">
-                Pair BLE chest straps, smart bands, and fitness telemetry
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setIsGadgetModalOpen(false)}
-            aria-label="Close Bluetooth Hub"
-            className="w-9 h-9 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.06] rounded-xl transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <Modal
+      open={isGadgetModalOpen}
+      onClose={() => setIsGadgetModalOpen(false)}
+      size="lg"
+      title="Bluetooth & Sensor Hub"
+      description={isConnected && device ? `Connected to ${device.name}` : 'Pair BLE chest straps, smart bands, and fitness telemetry'}
+      closeLabel="Close Bluetooth Hub"
+      footer={<Button variant="secondary" onClick={() => setIsGadgetModalOpen(false)}>Done</Button>}
+    >
+      <div className="space-y-5">
         {error && (
-          <div className="p-3 bg-danger/10 border border-danger/30 rounded-xl flex items-start gap-2.5 text-xs text-rose-300">
+          <div className="p-3 bg-danger/10 border border-danger/30 rounded-xl flex items-start gap-2.5 text-xs text-danger">
             <AlertTriangle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
             <span className="leading-relaxed">{error}</span>
           </div>
@@ -299,16 +275,7 @@ export const BluetoothGadgetModal: React.FC = () => {
             ))}
           </div>
         </div>
-
-        <div className="pt-2 flex justify-end">
-          <button
-            onClick={() => setIsGadgetModalOpen(false)}
-            className="min-h-[44px] px-5 py-2 bg-white/[0.06] hover:bg-white/[0.12] text-white font-bold text-xs rounded-xl border border-line transition-colors"
-          >
-            Done
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 };
