@@ -23,6 +23,13 @@ interface LineChartProps {
    * viewBox, so axis labels keep their true size on narrow screens. Off by default.
    */
   responsive?: boolean;
+  /**
+   * Smallest y-axis range (in `unit`s) the chart will draw. When the data spans less, the axis is widened
+   * around it so a 0.3 change does not fill the whole plot. Off by default (axis fits the data).
+   */
+  minYSpan?: number;
+  /** Decimals on y-axis labels. Defaults to 0; use 1 for small ranges so labels do not repeat. */
+  yTickDecimals?: number;
 }
 
 export const LineChart: React.FC<LineChartProps> = ({
@@ -35,7 +42,9 @@ export const LineChart: React.FC<LineChartProps> = ({
   secondaryLineName,
   height = 200,
   emptyMessage = 'No session data recorded in this period',
-  responsive = false
+  responsive = false,
+  minYSpan,
+  yTickDecimals = 0
 }) => {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
@@ -79,11 +88,18 @@ export const LineChart: React.FC<LineChartProps> = ({
     if (d.secondaryValue !== undefined) values.push(d.secondaryValue);
   });
 
-  const rawMin = Math.min(...values);
-  const rawMax = Math.max(...values);
+  let rawMin = Math.min(...values);
+  let rawMax = Math.max(...values);
+  if (minYSpan !== undefined && rawMax - rawMin < minYSpan) {
+    const pad = (minYSpan - (rawMax - rawMin)) / 2;
+    rawMin -= pad;
+    rawMax += pad;
+  }
   const spread = rawMax - rawMin || 10;
-  const yMin = Math.max(0, Math.floor(rawMin - spread * 0.1));
-  const yMax = Math.ceil(rawMax + spread * 0.1);
+  // With decimal labels the axis bounds are not snapped to whole numbers, so labels stay true to the data.
+  const snap = yTickDecimals > 0 ? { lo: (v: number) => v, hi: (v: number) => v } : { lo: Math.floor, hi: Math.ceil };
+  const yMin = Math.max(0, snap.lo(rawMin - spread * 0.1));
+  const yMax = snap.hi(rawMax + spread * 0.1);
 
   // Scaling functions
   const getX = (index: number) => {
@@ -172,7 +188,7 @@ export const LineChart: React.FC<LineChartProps> = ({
                   textAnchor="end"
                   className="fill-[var(--text-muted)] text-label font-mono"
                 >
-                  {tickVal.toFixed(0)}
+                  {tickVal.toFixed(yTickDecimals)}
                 </text>
               </g>
             );

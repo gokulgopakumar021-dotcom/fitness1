@@ -25,9 +25,9 @@ interface CameraCaptureProps {
 type Phase = 'intro' | 'requesting' | 'live' | 'problem' | 'review';
 type TimerOption = 0 | 3 | 5 | 10;
 
-const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-400';
-const primaryBtn = `touch-press inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-lime-400 hover:bg-lime-300 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed text-black font-bold text-sm rounded-xl transition-colors ${focusRing}`;
-const secondaryBtn = `touch-press inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 disabled:opacity-50 text-zinc-200 rounded-xl text-xs font-semibold ${focusRing}`;
+const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
+const primaryBtn = `touch-press inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-accent hover:bg-accent-hover disabled:bg-surface-3 disabled:text-zinc-500 disabled:cursor-not-allowed text-accent-ink font-semibold text-sm rounded-control transition-colors ${focusRing}`;
+const secondaryBtn = `touch-press inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-surface-2 border border-line hover:border-line-strong disabled:opacity-50 text-zinc-200 rounded-control text-xs font-semibold ${focusRing}`;
 
 export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, onCancel, qualityAssessment = null }) => {
   const guidance = CAPTURE_GUIDANCE[view];
@@ -191,7 +191,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
   return (
     <section
       aria-labelledby="camera-capture-heading"
-      className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-4 sm:p-5 lg:p-7 shadow-xl space-y-5"
+      className="bg-surface border border-line rounded-card p-4 sm:p-5 space-y-5"
       onKeyDown={(e) => {
         // Escape inside the timer dropdown closes the dropdown; it must not also cancel the capture.
         if (e.key === 'Escape' && !e.defaultPrevented && !(e.target instanceof HTMLSelectElement)) handleCancel();
@@ -203,7 +203,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
 
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-lime-400 text-xs font-mono font-semibold uppercase tracking-wider mb-1">
+          <div className="text-accent text-xs font-semibold mb-1">
             Photo {guidance.stepNumber} of 2 · {guidance.label} view
           </div>
           <h2
@@ -224,7 +224,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         {/* Stage */}
         <div className="space-y-3 min-w-0">
-          <div className="relative w-full overflow-hidden rounded-2xl border border-zinc-800 bg-black min-h-[16rem]">
+          <div className="relative w-full overflow-hidden rounded-card border border-line bg-black min-h-[16rem]">
             {phase === 'live' && cam.stream && (
               <>
                 <video
@@ -241,24 +241,24 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
                   aria-hidden="true"
                   viewBox="0 0 100 150"
                   preserveAspectRatio="xMidYMid meet"
-                  className="pointer-events-none absolute inset-0 h-full w-full text-lime-400/70"
+                  className="pointer-events-none absolute inset-0 h-full w-full text-accent/70"
                 >
                   <rect x="12" y="6" width="76" height="138" rx="4" fill="none" stroke="currentColor" strokeWidth="0.6" strokeDasharray="3 2" />
                   <ellipse cx="50" cy="22" rx="7" ry="9" fill="none" stroke="currentColor" strokeWidth="0.6" />
                   <path d="M36 38 H64 L68 86 H32 Z M40 86 V138 M60 86 V138" fill="none" stroke="currentColor" strokeWidth="0.6" />
                 </svg>
-                <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-zinc-100">
-                  <span className="h-2 w-2 rounded-full bg-rose-500 motion-safe:animate-pulse" aria-hidden="true" />
+                <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/70 px-2.5 py-1 text-label font-semibold text-zinc-100">
+                  <span className="h-2 w-2 rounded-full bg-danger motion-safe:animate-pulse" aria-hidden="true" />
                   Camera on
                 </div>
-                <div className="absolute inset-x-0 bottom-2 px-3 text-center text-[11px] text-zinc-300">
+                <div className="absolute inset-x-0 bottom-2 px-3 text-center text-label text-zinc-300">
                   Alignment guide only. No body detection is running.
                 </div>
                 {countdown !== null && (
                   <div
                     role="status"
                     aria-live="assertive"
-                    className="absolute inset-0 flex items-center justify-center bg-black/40 text-7xl font-black text-lime-400"
+                    className="absolute inset-0 flex items-center justify-center bg-black/40 text-7xl font-black text-accent"
                     data-testid="countdown"
                   >
                     {countdown}
@@ -277,7 +277,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
 
             {phase === 'requesting' && (
               <div className="flex min-h-[16rem] flex-col items-center justify-center gap-3 p-6 text-center text-zinc-300">
-                <LoaderCircle className="h-8 w-8 motion-safe:animate-spin text-lime-400" aria-hidden="true" />
+                <LoaderCircle className="h-8 w-8 motion-safe:animate-spin text-accent" aria-hidden="true" />
                 <p className="text-sm">Waiting for camera permission…</p>
                 <p className="text-xs text-zinc-500">Choose “Allow” in your browser’s prompt to continue.</p>
               </div>
@@ -285,14 +285,14 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
 
             {phase === 'intro' && (
               <div className="flex min-h-[16rem] flex-col items-center justify-center gap-4 p-6 text-center">
-                <Camera className="h-10 w-10 text-lime-400" aria-hidden="true" />
+                <Camera className="h-10 w-10 text-accent" aria-hidden="true" />
                 {cam.notice === 'page_hidden' && (
-                  <p role="status" className="max-w-sm rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  <p role="status" className="max-w-sm rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-zinc-100">
                     The camera was switched off because you left this tab or app. Turn it back on when you are ready.
                   </p>
                 )}
                 {knownPermission === 'denied' && (
-                  <p className="max-w-sm rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  <p className="max-w-sm rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-zinc-100">
                     Your browser is currently blocking camera access for this site. You will need to allow it in your
                     browser or device settings before the camera can start.
                   </p>
@@ -310,11 +310,11 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
 
             {phase === 'problem' && failure && (
               <div role="alert" className="flex min-h-[16rem] flex-col items-center justify-center gap-3 p-6 text-center">
-                <CameraOff className="h-9 w-9 text-rose-400" aria-hidden="true" />
+                <CameraOff className="h-9 w-9 text-danger" aria-hidden="true" />
                 <p className="text-sm font-semibold text-zinc-100">{failure.title}</p>
                 <p className="max-w-md text-xs leading-relaxed text-zinc-300">{failure.message}</p>
-                {failure.hint && <p className="max-w-md text-[11px] leading-relaxed text-zinc-500">{failure.hint}</p>}
-                <p className="max-w-md text-[11px] text-zinc-500">You can still add measurements by hand from Body Metrics.</p>
+                {failure.hint && <p className="max-w-md text-label leading-relaxed text-zinc-500">{failure.hint}</p>}
+                <p className="max-w-md text-label text-zinc-500">You can still add measurements by hand from Body Metrics.</p>
                 <div className="flex flex-wrap justify-center gap-2 pt-1">
                   {canRetry && (
                     <button type="button" onClick={() => void start()} className={primaryBtn}>
@@ -330,7 +330,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
           </div>
 
           {captureError && (
-            <p role="alert" className="text-xs text-rose-400">
+            <p role="alert" className="text-xs text-danger">
               {captureError}
             </p>
           )}
@@ -348,7 +348,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
                   value={timerSeconds}
                   disabled={countdown !== null}
                   onChange={(e) => setTimerSeconds(Number(e.target.value) as TimerOption)}
-                  className={`rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-2 text-xs text-zinc-200 ${focusRing}`}
+                  className={`rounded-lg border border-line bg-surface-2 px-2 py-2 text-xs text-zinc-200 ${focusRing}`}
                 >
                   <option value={0}>Off</option>
                   <option value={3}>3 seconds</option>
@@ -400,10 +400,10 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
         {/* Guidance + quality */}
         <div className="space-y-4 min-w-0">
           <section aria-labelledby="capture-guidance-heading" className="space-y-2">
-            <h3 id="capture-guidance-heading" className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-300">
+            <h3 id="capture-guidance-heading" className="text-xs font-semibold text-zinc-300">
               How to take your {guidance.label.toLowerCase()} photo
             </h3>
-            <ol className="list-decimal space-y-1.5 pl-5 text-xs leading-relaxed text-zinc-300 marker:text-lime-400">
+            <ol className="list-decimal space-y-1.5 pl-5 text-xs leading-relaxed text-zinc-300 marker:text-accent">
               {guidance.instructions.map((line) => (
                 <li key={line}>{line}</li>
               ))}
@@ -412,8 +412,8 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ view, onCaptured, 
 
           <CaptureQualityPanel assessment={qualityAssessment} />
 
-          <p className="flex items-start gap-2 text-[11px] leading-relaxed text-zinc-500">
-            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-lime-400" aria-hidden="true" />
+          <p className="flex items-start gap-2 text-label leading-relaxed text-zinc-500">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden="true" />
             <span>
               Frames stay on this device. Nothing is uploaded, recorded or saved here, and the camera switches off when you
               take the photo, cancel, or leave this screen.

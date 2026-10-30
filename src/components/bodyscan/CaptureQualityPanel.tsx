@@ -41,9 +41,9 @@ const STATUS_TEXT: Record<QualityCheckStatus, string> = {
 
 const StatusIcon: React.FC<{ status: QualityCheckStatus }> = ({ status }) => {
   const cls = 'w-4 h-4 shrink-0 mt-0.5';
-  if (status === 'pass') return <CircleCheck className={`${cls} text-lime-400`} aria-hidden="true" />;
-  if (status === 'warning') return <TriangleAlert className={`${cls} text-amber-400`} aria-hidden="true" />;
-  if (status === 'fail') return <CircleAlert className={`${cls} text-rose-400`} aria-hidden="true" />;
+  if (status === 'pass') return <CircleCheck className={`${cls} text-accent`} aria-hidden="true" />;
+  if (status === 'warning') return <TriangleAlert className={`${cls} text-warning`} aria-hidden="true" />;
+  if (status === 'fail') return <CircleAlert className={`${cls} text-danger`} aria-hidden="true" />;
   return <CircleDashed className={`${cls} text-zinc-500`} aria-hidden="true" />;
 };
 
@@ -61,8 +61,8 @@ export const CaptureQualityPanel: React.FC<CaptureQualityPanelProps> = ({
   const anyEvaluated = !!assessment && assessment.checks.some((c) => c.status !== 'not_evaluated');
 
   return (
-    <section aria-labelledby={headingId} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
-      <h3 id={headingId} className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-300">
+    <section aria-labelledby={headingId} className="rounded-control border border-line bg-surface-2 p-4 space-y-3">
+      <h3 id={headingId} className="text-xs font-semibold text-zinc-300">
         Photo quality checks
       </h3>
 
