@@ -6,6 +6,8 @@ export type EquipmentType = 'barbell' | 'dumbbell' | 'machine' | 'cable' | 'body
 export type SetType = 'warmup' | 'working' | 'drop' | 'failure';
 export type SetStatus = 'planned' | 'completed' | 'skipped';
 
+export type HeightUnit = 'cm' | 'ft_in';
+
 export interface UserProfile {
   name: string;
   age: number;
@@ -17,6 +19,8 @@ export interface UserProfile {
   trainingExperience: TrainingExperience;
   trainingDaysPerWeek: number;
   preferredUnit: PreferredUnit;
+  /** How height is entered and shown in Profile. Storage is always heightCm. Absent = 'cm'. */
+  heightUnit?: HeightUnit;
   bodyFatPercentage?: number;
   dailyCalorieTarget: number;
   dailyProteinTarget: number;

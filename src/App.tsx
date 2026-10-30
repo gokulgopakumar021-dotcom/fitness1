@@ -25,9 +25,11 @@ import { BluetoothGadgetModal } from './components/bluetooth/BluetoothGadgetModa
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { AuthGate } from './components/auth/AuthGate';
+import { useReminders } from './hooks/useReminders';
 
 /** The private application. Only ever mounted by AuthGate, after storage is scoped to the signed-in account. */
 function AppShell() {
+  useReminders();
   const [currentTab, setCurrentTab] = useState<NavTab>('home');
   const [profile, setProfile] = useState<UserProfile>(() => db.getProfile());
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(() =>

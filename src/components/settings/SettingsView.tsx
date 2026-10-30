@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import {
   PreferredUnit,
+  HeightUnit,
   PrimaryGoal,
   TrainingExperience,
   TrainingPhase,
@@ -26,6 +27,12 @@ import { db } from '../../storage/db';
 import { runAllAutomatedTests, TestResult } from '../../utils/testSuite';
 import { resetAllAppData } from '../../storage/resetAll';
 import { useAuth } from '../../context/AuthContext';
+import { AvatarEditor } from './AvatarEditor';
+import { HeightField } from './HeightField';
+import { NotificationSettings } from './NotificationSettings';
+import { AccountSecurity } from './AccountSecurity';
+import { DataControls } from './DataControls';
+import { validateHeightCm } from '../../utils/heightUnits';
 
 interface SettingsProps {
   profile: UserProfile;
@@ -47,6 +54,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [formData, setFormData] = useState<UserProfile>({ ...profile });
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+  const [heightError, setHeightError] = useState<string | undefined>(undefined);
 
   // Backup & Import
   const [importStatus, setImportStatus] = useState<string | null>(null);
@@ -74,6 +82,10 @@ export const SettingsView: React.FC<SettingsProps> = ({
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
+    // Only validate height if it was edited, so an existing profile can still be saved untouched.
+    const heightProblem = formData.heightCm !== profile.heightCm ? validateHeightCm(formData.heightCm) : null;
+    setHeightError(heightProblem ?? undefined);
+    if (heightProblem) return;
     db.saveProfile(formData);
     onProfileUpdated(formData);
     setSaveSuccess(true);
@@ -215,6 +227,9 @@ export const SettingsView: React.FC<SettingsProps> = ({
         </section>
       )}
 
+      {/* PASSWORD, OTHER DEVICES, ACCOUNT DELETION */}
+      {user && <AccountSecurity />}
+
       {/* ATHLETE PROFILE FORM */}
       <form
         onSubmit={handleSaveProfile}
@@ -232,6 +247,8 @@ export const SettingsView: React.FC<SettingsProps> = ({
             </span>
           )}
         </div>
+
+        <AvatarEditor name={formData.name} />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
           <div>
@@ -269,15 +286,15 @@ export const SettingsView: React.FC<SettingsProps> = ({
             </select>
           </div>
 
-          <div>
-            <label className="block text-zinc-400 mb-1">Height (cm)</label>
-            <input
-              type="number"
-              value={formData.heightCm}
-              onChange={(e) => setFormData({ ...formData, heightCm: parseFloat(e.target.value) || 0 })}
-              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-mono"
-            />
-          </div>
+          <HeightField
+            valueCm={formData.heightCm}
+            unit={formData.heightUnit}
+            error={heightError}
+            onChange={(cm) => {
+              setHeightError(undefined);
+              setFormData({ ...formData, heightCm: cm });
+            }}
+          />
 
           <div>
             <label className="block text-zinc-400 mb-1">Current Body Weight (kg)</label>
@@ -359,6 +376,19 @@ export const SettingsView: React.FC<SettingsProps> = ({
             >
               <option value="kg">Kilograms (kg)</option>
               <option value="lbs">Pounds (lbs)</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="height-unit" className="block text-zinc-400 mb-1">Height Unit</label>
+            <select
+              id="height-unit"
+              value={formData.heightUnit ?? 'cm'}
+              onChange={(e) => setFormData({ ...formData, heightUnit: e.target.value as HeightUnit })}
+              className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-200 font-mono"
+            >
+              <option value="cm">Centimetres (cm)</option>
+              <option value="ft_in">Feet &amp; inches</option>
             </select>
           </div>
 
@@ -515,6 +545,9 @@ export const SettingsView: React.FC<SettingsProps> = ({
         </div>
       </form>
 
+      {/* NOTIFICATIONS */}
+      <NotificationSettings />
+
       {/* AUTOMATED CALCULATION & PROGRESSION ENGINE TESTS */}
       <div className="bg-surface-2 border border-line rounded-2xl p-5 lg:p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-line">
@@ -638,6 +671,9 @@ export const SettingsView: React.FC<SettingsProps> = ({
           </div>
         </div>
       </div>
+
+      {/* DELETE SPECIFIC DATA */}
+      <DataControls />
 
       {/* DEMO MODE & SYSTEM RESET */}
       <div className="bg-surface-2 border border-line rounded-2xl p-5 lg:p-6 space-y-4">
