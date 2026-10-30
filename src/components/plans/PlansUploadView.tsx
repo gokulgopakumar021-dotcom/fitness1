@@ -1,29 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
-  FileSpreadsheet,
-  Upload,
-  FileText,
-  Image,
-  File,
-  CheckCircle,
   AlertTriangle,
-  Plus,
-  Trash2,
-  Edit2,
-  Copy,
-  Check,
-  ChevronDown,
-  Sparkles,
+  ArrowLeft,
   ArrowRight,
-  RefreshCw,
-  FolderOpen,
+  Check,
+  ChevronRight,
+  Copy,
+  File,
+  FileSpreadsheet,
+  Plus,
+  Sparkles,
+  Trash2,
   TrendingUp,
-  Sliders
+  Upload
 } from 'lucide-react';
 import {
   EquipmentType,
   PlannedExercise,
   ProgressionStrategy,
+  TrainingPhase,
   UploadedDoc,
   UserProfile,
   WorkoutDay,
@@ -32,6 +27,22 @@ import {
 } from '../../types';
 import { db } from '../../storage/db';
 import { AiRoutineBuilderModal } from './AiRoutineBuilderModal';
+import { PlanDaysEditor } from './PlanDaysEditor';
+import { PlanDetail } from './PlanDetail';
+import { summarizePlan, pluralize } from '../../utils/planPresentation';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Input,
+  LoadingState,
+  Modal,
+  PageHeader,
+  Select,
+  SectionHeading
+} from '../ui';
 
 export interface PlansUploadProps {
   profile: UserProfile;
@@ -40,22 +51,30 @@ export interface PlansUploadProps {
   onStartWorkout?: (session: WorkoutSession) => void;
 }
 
+type SubView = 'plans_list' | 'upload_file' | 'review_extracted' | 'manual_builder' | 'plan_detail';
+
+const DOC_STATUS_TONE: Record<UploadedDoc['status'], 'neutral' | 'success' | 'danger'> = {
+  pending: 'neutral',
+  parsed: 'success',
+  imported: 'success',
+  failed: 'danger'
+};
+
 export const PlansUploadView: React.FC<PlansUploadProps> = ({
   profile,
   onPlanActivated,
   onNavigateToProgression,
   onStartWorkout
 }) => {
-  const [plans, setPlans] = useState<WorkoutPlan[]>([]);
-  const [activePlanId, setActivePlanId] = useState<string | null>(null);
-  const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>([]);
+  const [plans, setPlans] = useState<WorkoutPlan[]>(() => db.getPlans());
+  const [activePlanId, setActivePlanId] = useState<string | null>(() => db.getActivePlanId());
+  const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>(() => db.getUploadedDocs());
   const [isAiBuilderOpen, setIsAiBuilderOpen] = useState<boolean>(false);
-  const [allSessions, setAllSessions] = useState<WorkoutSession[]>(() => db.getSessions());
+  const [allSessions] = useState<WorkoutSession[]>(() => db.getSessions());
 
-  // Active view: 'plans_list' | 'upload_file' | 'review_extracted' | 'manual_builder'
-  const [subView, setSubView] = useState<
-    'plans_list' | 'upload_file' | 'review_extracted' | 'manual_builder'
-  >('plans_list');
+  // Active view: 'plans_list' | 'upload_file' | 'review_extracted' | 'manual_builder' | 'plan_detail'
+  const [subView, setSubView] = useState<SubView>('plans_list');
+  const [detailPlanId, setDetailPlanId] = useState<string | null>(null);
 
   // File upload state
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -64,7 +83,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
 
   // Review & Correction state for extracted plan
   const [reviewPlan, setReviewPlan] = useState<WorkoutPlan | null>(null);
-  const [currentDocId, setCurrentDocId] = useState<string | null>(null);
+  const [, setCurrentDocId] = useState<string | null>(null);
 
   // Manual builder state
   const [builderPlanName, setBuilderPlanName] = useState<string>('My Custom Routine');
@@ -91,18 +110,8 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
 
   // Confirmation modal for Replace Active Plan
   const [showReplaceModal, setShowReplaceModal] = useState<boolean>(false);
-
-  useEffect(() => {
-    setPlans(db.getPlans());
-    setActivePlanId(db.getActivePlanId());
-    setUploadedDocs(db.getUploadedDocs());
-  }, []);
-
-  const refreshPlans = () => {
-    setPlans(db.getPlans());
-    setActivePlanId(db.getActivePlanId());
-    setUploadedDocs(db.getUploadedDocs());
-  };
+  // Confirmation modal for deleting a plan (plan id awaiting confirmation)
+  const [planToDelete, setPlanToDelete] = useState<string | null>(null);
 
   // Activate a plan
   const handleActivatePlan = (planId: string) => {
@@ -143,6 +152,21 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
       db.setActivePlanId(null);
       setActivePlanId(null);
     }
+  };
+
+  const confirmDeletePlan = () => {
+    if (!planToDelete) return;
+    handleDeletePlan(planToDelete);
+    setPlanToDelete(null);
+    if (subView === 'plan_detail') {
+      setDetailPlanId(null);
+      setSubView('plans_list');
+    }
+  };
+
+  const openPlanDetail = (planId: string) => {
+    setDetailPlanId(planId);
+    setSubView('plan_detail');
   };
 
   // Client-side CSV / Text Parser fallback
@@ -228,7 +252,6 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
     try {
       const isCSV = file.name.endsWith('.csv') || file.type.includes('csv');
       const isJSON = file.name.endsWith('.json') || file.type.includes('json');
-      const isText = file.name.endsWith('.txt') || file.type.includes('text');
 
       if (isJSON) {
         const text = await file.text();
@@ -389,32 +412,6 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
     setSubView('plans_list');
   };
 
-  // Manual builder handlers
-  const handleAddBuilderDay = () => {
-    const newDay: WorkoutDay = {
-      id: `day-${Date.now()}`,
-      dayName: `Day ${builderDays.length + 1}`,
-      dayOrder: builderDays.length + 1,
-      exercises: []
-    };
-    setBuilderDays([...builderDays, newDay]);
-  };
-
-  const handleAddBuilderExercise = (dayIdx: number) => {
-    const days = [...builderDays];
-    days[dayIdx].exercises.push({
-      id: `ex-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      name: 'New Exercise',
-      muscleGroup: 'Chest',
-      equipment: 'barbell',
-      workingSets: 3,
-      repRange: '8-12',
-      targetRir: 2,
-      restSeconds: 90
-    });
-    setBuilderDays(days);
-  };
-
   const handleSaveManualPlan = () => {
     const newPlan: WorkoutPlan = {
       id: `plan-manual-${Date.now()}`,
@@ -431,281 +428,158 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
     setSubView('plans_list');
   };
 
+  const deleteTarget = planToDelete ? plans.find((p) => p.id === planToDelete) : undefined;
+  const deleteModal = (
+    <Modal
+      open={Boolean(deleteTarget)}
+      onClose={() => setPlanToDelete(null)}
+      title="Delete plan?"
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => setPlanToDelete(null)}>
+            Cancel
+          </Button>
+          <Button variant="danger" icon={<Trash2 className="w-4 h-4" />} onClick={confirmDeletePlan}>
+            Delete plan
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm text-zinc-400 leading-relaxed">
+        <strong className="text-white">{deleteTarget?.name}</strong> will be removed from your plan library.
+        {deleteTarget && deleteTarget.id === activePlanId && ' It is your active plan, so you will have no active plan afterwards.'}
+      </p>
+    </Modal>
+  );
+
+  // ==========================================
+  // SUBVIEW: PLAN DETAIL
+  // ==========================================
+  const detailPlan = subView === 'plan_detail' ? plans.find((p) => p.id === detailPlanId) : undefined;
+  if (subView === 'plan_detail' && detailPlan) {
+    return (
+      <>
+        <PlanDetail
+          plan={detailPlan}
+          isActive={detailPlan.id === activePlanId}
+          onBack={() => setSubView('plans_list')}
+          onActivate={() => handleActivatePlan(detailPlan.id)}
+          onDuplicate={() => handleDuplicatePlan(detailPlan)}
+          onDelete={() => setPlanToDelete(detailPlan.id)}
+          onOpenOverloadRules={
+            onNavigateToProgression ? () => onNavigateToProgression(detailPlan.id) : undefined
+          }
+        />
+        {deleteModal}
+      </>
+    );
+  }
+
   // ==========================================
   // SUBVIEW: REVIEW EXTRACTED PLAN
   // ==========================================
   if (subView === 'review_extracted' && reviewPlan) {
+    const reviewSummary = summarizePlan(reviewPlan);
     return (
       <div className="space-y-6 max-w-4xl mx-auto pb-16">
-        <div className="bg-surface border border-line rounded-2xl p-5 lg:p-7 shadow-2xl space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-line">
-            <div>
-              <div className="flex items-center gap-2 text-accent text-xs font-mono font-bold tracking-wide mb-1.5">
-                <CheckCircle className="w-4 h-4" />
-                <span>Verification &amp; Correction Step</span>
-              </div>
-              <h2 className="text-xl lg:text-2xl font-extrabold text-white tracking-tight">
-                Review Extracted Workout Plan
-              </h2>
-              <p className="text-xs text-zinc-400 mt-1">
-                Verify exercises, rep ranges, and training days before importing to your library.
-              </p>
-            </div>
+        <PageHeader
+          eyebrow="Verification & correction"
+          title="Review extracted plan"
+          description="Verify exercises, rep ranges, and training days before importing to your library."
+          className="mb-0"
+          actions={
+            <Button variant="secondary" icon={<ArrowLeft className="w-4 h-4" />} onClick={() => setSubView('plans_list')}>
+              Cancel review
+            </Button>
+          }
+        />
 
-            <button
-              onClick={() => setSubView('plans_list')}
-              className="min-h-[44px] px-3.5 py-2 bg-white/[0.06] text-zinc-300 hover:text-white text-xs font-semibold rounded-xl self-start sm:self-auto transition-colors"
-            >
-              Cancel Review
-            </button>
+        <Card as="section" aria-label="Plan details" className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="Plan name"
+              value={reviewPlan.name}
+              onChange={(e) => setReviewPlan({ ...reviewPlan, name: e.target.value })}
+              className="font-semibold"
+            />
+            <Input
+              label="Training split"
+              value={reviewPlan.trainingSplit}
+              onChange={(e) => setReviewPlan({ ...reviewPlan, trainingSplit: e.target.value })}
+            />
           </div>
 
-          {/* Plan Name & Split Edit */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div>
-              <label className="block text-zinc-400 mb-1">Plan Name</label>
-              <input
-                type="text"
-                value={reviewPlan.name}
-                onChange={(e) => setReviewPlan({ ...reviewPlan, name: e.target.value })}
-                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-bold"
-              />
-            </div>
-            <div>
-              <label className="block text-zinc-400 mb-1">Training Split</label>
-              <input
-                type="text"
-                value={reviewPlan.trainingSplit}
-                onChange={(e) => setReviewPlan({ ...reviewPlan, trainingSplit: e.target.value })}
-                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100"
-              />
-            </div>
-          </div>
-
-          {/* Overload Strategy & Phase Calibration during Review */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-surface-2/60 border border-line p-3.5 rounded-xl">
-            <div>
-              <label className="block text-zinc-300 mb-1 font-semibold flex items-center gap-1.5">
-                <TrendingUp className="w-3.5 h-3.5 text-lime-400" />
-                <span>Overload Progression Strategy</span>
-              </label>
-              <select
+          <div className="rounded-control border border-line p-3 sm:p-4 space-y-3">
+            <p className="text-xs font-semibold text-white flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-accent" aria-hidden />
+              Overload settings
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Select
+                label="Overload progression strategy"
                 value={reviewPlan.defaultStrategy || 'double_progression'}
-                onChange={(e) => setReviewPlan({ ...reviewPlan, defaultStrategy: e.target.value as any })}
-                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-lg text-zinc-100 font-medium"
+                onChange={(e) => setReviewPlan({ ...reviewPlan, defaultStrategy: e.target.value as ProgressionStrategy })}
               >
                 <option value="double_progression">Standard Double Progression (All Sets Top of Range)</option>
                 <option value="top_set_only">Top-Set Only Progression</option>
                 <option value="consecutive_sessions">Dual-Session Consolidation</option>
                 <option value="linear_load">Linear Micro-Load (+2.5kg Weekly)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-zinc-300 mb-1 font-semibold">
-                Initial Training Phase
-              </label>
-              <select
+              </Select>
+              <Select
+                label="Initial training phase"
                 value={reviewPlan.progressionPhase || 'hypertrophy'}
-                onChange={(e) => setReviewPlan({ ...reviewPlan, progressionPhase: e.target.value as any })}
-                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-lg text-zinc-100 capitalize font-medium"
+                onChange={(e) => setReviewPlan({ ...reviewPlan, progressionPhase: e.target.value as TrainingPhase })}
               >
                 <option value="hypertrophy">Hypertrophy (Progressive Overload)</option>
                 <option value="strength">Strength (Lower Reps, Heavy Compound)</option>
                 <option value="adaptation">Adaptation (Ramp-up / Form Focus)</option>
                 <option value="deload">Deload (-25% Load Reduction)</option>
-              </select>
+              </Select>
             </div>
           </div>
+        </Card>
 
-          {/* Days & Exercises Review */}
-          <div className="space-y-4 pt-3">
-            {reviewPlan.days.map((day, dIdx) => (
-              <div
-                key={day.id}
-                className="bg-surface-2/60 border border-line rounded-xl p-4 space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <input
-                    type="text"
-                    value={day.dayName}
-                    onChange={(e) => {
-                      const days = [...reviewPlan.days];
-                      days[dIdx].dayName = e.target.value;
-                      setReviewPlan({ ...reviewPlan, days });
-                    }}
-                    className="font-bold text-zinc-100 bg-transparent border-b border-line-strong text-sm pb-1 w-full max-w-xs focus:outline-none focus:border-lime-400"
-                  />
-                  <button
-                    onClick={() => {
-                      const days = reviewPlan.days.filter((_, idx) => idx !== dIdx);
-                      setReviewPlan({ ...reviewPlan, days });
-                    }}
-                    className="text-zinc-500 hover:text-rose-400 text-xs p-1"
-                    title="Remove day"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+        <PlanDaysEditor days={reviewPlan.days} onChange={(days) => setReviewPlan({ ...reviewPlan, days })} />
 
-                {/* Exercises in this day */}
-                <div className="space-y-2">
-                  {day.exercises.map((ex, exIdx) => (
-                    <div
-                      key={ex.id}
-                      className="p-3 bg-canvas/60 border border-line rounded-lg grid grid-cols-1 sm:grid-cols-12 gap-2 items-center text-xs"
-                    >
-                      <div className="sm:col-span-4">
-                        <input
-                          type="text"
-                          value={ex.name}
-                          onChange={(e) => {
-                            const days = [...reviewPlan.days];
-                            days[dIdx].exercises[exIdx].name = e.target.value;
-                            setReviewPlan({ ...reviewPlan, days });
-                          }}
-                          className="w-full bg-transparent text-zinc-200 font-bold focus:outline-none"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <input
-                          type="text"
-                          value={ex.muscleGroup}
-                          onChange={(e) => {
-                            const days = [...reviewPlan.days];
-                            days[dIdx].exercises[exIdx].muscleGroup = e.target.value;
-                            setReviewPlan({ ...reviewPlan, days });
-                          }}
-                          placeholder="Muscle"
-                          className="w-full bg-transparent text-zinc-400 text-[11px] focus:outline-none"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <input
-                          type="number"
-                          value={ex.workingSets}
-                          onChange={(e) => {
-                            const days = [...reviewPlan.days];
-                            days[dIdx].exercises[exIdx].workingSets = parseInt(e.target.value, 10) || 3;
-                            setReviewPlan({ ...reviewPlan, days });
-                          }}
-                          placeholder="Sets"
-                          className="w-16 bg-surface-2 border border-line rounded px-1.5 py-0.5 text-zinc-200 font-mono text-[11px]"
-                        />
-                        <span className="text-[11px] text-zinc-500 ml-1">sets</span>
-                      </div>
-                      <div className="sm:col-span-3">
-                        <input
-                          type="text"
-                          value={ex.repRange}
-                          onChange={(e) => {
-                            const days = [...reviewPlan.days];
-                            days[dIdx].exercises[exIdx].repRange = e.target.value;
-                            setReviewPlan({ ...reviewPlan, days });
-                          }}
-                          placeholder="8-12 reps"
-                          className="w-20 bg-surface-2 border border-line rounded px-1.5 py-0.5 text-zinc-200 font-mono text-[11px]"
-                        />
-                        <span className="text-[11px] text-zinc-500 ml-1">reps</span>
-                      </div>
-                      <div className="sm:col-span-1 text-right">
-                        <button
-                          onClick={() => {
-                            const days = [...reviewPlan.days];
-                            days[dIdx].exercises = days[dIdx].exercises.filter((_, idx) => idx !== exIdx);
-                            setReviewPlan({ ...reviewPlan, days });
-                          }}
-                          className="text-zinc-600 hover:text-rose-400 p-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  onClick={() => {
-                    const days = [...reviewPlan.days];
-                    days[dIdx].exercises.push({
-                      id: `ex-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-                      name: 'New Exercise',
-                      muscleGroup: 'Chest',
-                      equipment: 'barbell',
-                      workingSets: 3,
-                      repRange: '8-12',
-                      targetRir: 2,
-                      restSeconds: 90
-                    });
-                    setReviewPlan({ ...reviewPlan, days });
-                  }}
-                  className="text-xs text-accent hover:underline flex items-center gap-1 font-bold"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Exercise to this Day</span>
-                </button>
-              </div>
-            ))}
+        <Card as="section" aria-label="Import options" className="space-y-4">
+          <p className="text-sm text-zinc-400 tabular">
+            Total: {pluralize(reviewSummary.dayCount, 'day')} · {pluralize(reviewSummary.exerciseCount, 'exercise')}
+          </p>
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:justify-end gap-2">
+            <Button variant="secondary" onClick={handleImportAsNewPlan}>
+              Import as library plan
+            </Button>
+            <Button variant="secondary" icon={<TrendingUp className="w-4 h-4 text-accent" />} onClick={handleImportAndTuneOverload}>
+              Import &amp; tune overload analytics
+            </Button>
+            <Button onClick={() => setShowReplaceModal(true)}>Import &amp; set as active plan</Button>
           </div>
-
-          {/* Import Decision Actions */}
-          <div className="pt-5 border-t border-line flex flex-wrap items-center justify-between gap-3 text-xs">
-            <span className="text-zinc-400 font-mono">
-              Total: {reviewPlan.days.length} Days &middot;{' '}
-              {reviewPlan.days.reduce((acc, d) => acc + d.exercises.length, 0)} Exercises
-            </span>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={handleImportAsNewPlan}
-                className="min-h-[44px] px-4 py-2 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-200 font-bold rounded-xl transition-colors"
-              >
-                Import as Library Plan
-              </button>
-              <button
-                onClick={handleImportAndTuneOverload}
-                className="min-h-[44px] px-4 py-2 bg-accent/15 hover:bg-accent/25 border border-accent/40 text-accent font-bold rounded-xl transition-colors flex items-center gap-1.5"
-              >
-                <TrendingUp className="w-3.5 h-3.5 text-accent" />
-                <span>Import &amp; Tune Overload Analytics</span>
-              </button>
-              <button
-                onClick={() => setShowReplaceModal(true)}
-                className="min-h-[44px] touch-press px-5 py-2 bg-accent hover:bg-accent-hover text-accent-ink font-extrabold rounded-xl transition-all shadow-lg active:scale-[0.98]"
-              >
-                Import &amp; Set as Active Plan
-              </button>
-            </div>
-          </div>
-        </div>
+        </Card>
 
         {/* Confirmation Modal to Replace Active Plan */}
-        {showReplaceModal && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="bg-surface border border-line rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
-              <div className="flex items-center gap-3 text-amber-400">
-                <AlertTriangle className="w-6 h-6" />
-                <h3 className="font-extrabold text-white text-base">Replace Active Plan?</h3>
-              </div>
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                This will set <strong className="text-white">{reviewPlan.name}</strong> as your active routine for today&apos;s workout tracker. Your other saved plans remain preserved in your library.
-              </p>
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  onClick={() => setShowReplaceModal(false)}
-                  className="min-h-[44px] px-3.5 py-2 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 rounded-xl text-xs font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleImportAndReplaceActive}
-                  className="min-h-[44px] px-5 py-2 bg-accent hover:bg-accent-hover text-accent-ink font-extrabold rounded-xl text-xs shadow-lg"
-                >
-                  Confirm &amp; Activate
-                </button>
-              </div>
-            </div>
+        <Modal
+          open={showReplaceModal}
+          onClose={() => setShowReplaceModal(false)}
+          title="Replace active plan?"
+          size="sm"
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setShowReplaceModal(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleImportAndReplaceActive}>Confirm &amp; activate</Button>
+            </>
+          }
+        >
+          <div className="flex gap-3">
+            <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" aria-hidden />
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              This will set <strong className="text-white">{reviewPlan.name}</strong> as your active routine for today&apos;s
+              workout tracker. Your other saved plans remain preserved in your library.
+            </p>
           </div>
-        )}
+        </Modal>
       </div>
     );
   }
@@ -715,175 +589,37 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
   // ==========================================
   if (subView === 'manual_builder') {
     return (
-      <div className="space-y-6 max-w-4xl mx-auto">
-        <div className="bg-surface-2 border border-line rounded-2xl p-5 lg:p-7 space-y-4">
-          <div className="flex items-center justify-between pb-4 border-b border-line">
-            <div>
-              <h2 className="text-xl font-bold text-zinc-100">Manual Workout Plan Builder</h2>
-              <p className="text-xs text-zinc-400 mt-1">
-                Construct your training split, prescribe working sets, rep ranges, and rest intervals.
-              </p>
-            </div>
-            <button
-              onClick={() => setSubView('plans_list')}
-              className="px-3 py-1.5 bg-surface-3 text-zinc-400 hover:text-zinc-200 text-xs rounded-lg"
-            >
-              Back to Plans
-            </button>
+      <div className="space-y-6 max-w-4xl mx-auto pb-16">
+        <PageHeader
+          title="Build a plan"
+          description="Construct your training split, prescribe working sets, rep ranges, and rest intervals."
+          className="mb-0"
+          actions={
+            <Button variant="secondary" icon={<ArrowLeft className="w-4 h-4" />} onClick={() => setSubView('plans_list')}>
+              Back to plans
+            </Button>
+          }
+        />
+
+        <Card as="section" aria-label="Plan details">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="Plan name"
+              value={builderPlanName}
+              onChange={(e) => setBuilderPlanName(e.target.value)}
+              className="font-semibold"
+            />
+            <Input label="Training split" value={builderSplit} onChange={(e) => setBuilderSplit(e.target.value)} />
           </div>
+        </Card>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div>
-              <label className="block text-zinc-400 mb-1">Plan Name</label>
-              <input
-                type="text"
-                value={builderPlanName}
-                onChange={(e) => setBuilderPlanName(e.target.value)}
-                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100 font-bold"
-              />
-            </div>
-            <div>
-              <label className="block text-zinc-400 mb-1">Training Split</label>
-              <input
-                type="text"
-                value={builderSplit}
-                onChange={(e) => setBuilderSplit(e.target.value)}
-                className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-zinc-100"
-              />
-            </div>
-          </div>
+        <PlanDaysEditor days={builderDays} onChange={setBuilderDays} allowAddDay />
 
-          {/* Builder Days */}
-          <div className="space-y-4 pt-3">
-            {builderDays.map((day, dIdx) => (
-              <div
-                key={day.id}
-                className="bg-surface-2/60 border border-line rounded-xl p-4 space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <input
-                    type="text"
-                    value={day.dayName}
-                    onChange={(e) => {
-                      const days = [...builderDays];
-                      days[dIdx].dayName = e.target.value;
-                      setBuilderDays(days);
-                    }}
-                    className="font-bold text-zinc-100 bg-transparent border-b border-line-strong text-sm pb-1 w-full max-w-xs focus:outline-none focus:border-lime-400"
-                  />
-                  <button
-                    onClick={() => {
-                      const days = builderDays.filter((_, idx) => idx !== dIdx);
-                      setBuilderDays(days);
-                    }}
-                    className="text-zinc-500 hover:text-rose-400 text-xs p-1"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <div className="space-y-2">
-                  {day.exercises.map((ex, exIdx) => (
-                    <div
-                      key={ex.id}
-                      className="p-3 bg-canvas/60 border border-line rounded-lg grid grid-cols-1 sm:grid-cols-12 gap-2 items-center text-xs"
-                    >
-                      <div className="sm:col-span-4">
-                        <input
-                          type="text"
-                          value={ex.name}
-                          onChange={(e) => {
-                            const days = [...builderDays];
-                            days[dIdx].exercises[exIdx].name = e.target.value;
-                            setBuilderDays(days);
-                          }}
-                          placeholder="Exercise Name"
-                          className="w-full bg-transparent text-zinc-200 font-bold focus:outline-none"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <input
-                          type="text"
-                          value={ex.muscleGroup}
-                          onChange={(e) => {
-                            const days = [...builderDays];
-                            days[dIdx].exercises[exIdx].muscleGroup = e.target.value;
-                            setBuilderDays(days);
-                          }}
-                          placeholder="Muscle"
-                          className="w-full bg-transparent text-zinc-400 text-[11px]"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <input
-                          type="number"
-                          value={ex.workingSets}
-                          onChange={(e) => {
-                            const days = [...builderDays];
-                            days[dIdx].exercises[exIdx].workingSets = parseInt(e.target.value, 10) || 3;
-                            setBuilderDays(days);
-                          }}
-                          className="w-14 bg-surface-2 border border-line rounded px-1.5 py-0.5 text-zinc-200 font-mono text-[11px]"
-                        />
-                        <span className="text-[11px] text-zinc-500 ml-1">sets</span>
-                      </div>
-                      <div className="sm:col-span-3">
-                        <input
-                          type="text"
-                          value={ex.repRange}
-                          onChange={(e) => {
-                            const days = [...builderDays];
-                            days[dIdx].exercises[exIdx].repRange = e.target.value;
-                            setBuilderDays(days);
-                          }}
-                          placeholder="8-12"
-                          className="w-16 bg-surface-2 border border-line rounded px-1.5 py-0.5 text-zinc-200 font-mono text-[11px]"
-                        />
-                        <span className="text-[11px] text-zinc-500 ml-1">reps</span>
-                      </div>
-                      <div className="sm:col-span-1 text-right">
-                        <button
-                          onClick={() => {
-                            const days = [...builderDays];
-                            days[dIdx].exercises = days[dIdx].exercises.filter((_, idx) => idx !== exIdx);
-                            setBuilderDays(days);
-                          }}
-                          className="text-zinc-600 hover:text-rose-400 p-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  onClick={() => handleAddBuilderExercise(dIdx)}
-                  className="text-xs text-lime-400 hover:underline flex items-center gap-1 font-medium"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Exercise</span>
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center justify-between pt-4 border-t border-line">
-            <button
-              onClick={handleAddBuilderDay}
-              className="px-3.5 py-2 bg-surface-3 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold rounded-lg flex items-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5 text-lime-400" />
-              <span>Add Training Day</span>
-            </button>
-
-            <button
-              onClick={handleSaveManualPlan}
-              className="touch-press px-5 py-2 bg-lime-400 hover:bg-lime-300 text-accent-ink font-bold text-xs rounded-xl"
-            >
-              Save Routine to Library
-            </button>
-          </div>
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+          <Button variant="secondary" onClick={() => setSubView('plans_list')}>
+            Cancel
+          </Button>
+          <Button onClick={handleSaveManualPlan}>Save routine to library</Button>
         </div>
       </div>
     );
@@ -894,263 +630,219 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
   // ==========================================
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-16">
-      {/* Top Banner */}
-      <div className="reshape-card p-5 lg:p-7 relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[var(--border-card)]">
-          <div>
-            <div className="flex items-center gap-2 text-volt-adaptive text-xs font-mono font-bold tracking-wide mb-1.5">
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Routines &amp; File Ingestion</span>
+      <PageHeader
+        title="Workout plans"
+        description="Manage your training splits, upload workout files, or build a plan of your own."
+        className="mb-0"
+        actions={
+          <>
+            <Button variant="secondary" icon={<Sparkles className="w-4 h-4" />} onClick={() => setIsAiBuilderOpen(true)}>
+              AI builder
+            </Button>
+            <Button variant="secondary" icon={<Plus className="w-4 h-4" />} onClick={() => setSubView('manual_builder')}>
+              Build plan
+            </Button>
+            <Button icon={<Upload className="w-4 h-4" />} onClick={() => fileInputRef.current?.click()}>
+              Upload
+            </Button>
+          </>
+        }
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.png,.jpg,.jpeg,.csv,.txt,.json"
+        onChange={handleFileUpload}
+        className="hidden"
+        aria-label="Upload a workout document"
+      />
+
+      {/* Processing State */}
+      {isProcessing && (
+        <Card pad="sm">
+          <LoadingState label="Analyzing file document and parsing workout routine exercises…" className="py-3" />
+        </Card>
+      )}
+
+      {/* Upload Error Banner */}
+      {uploadError && (
+        <ErrorState
+          title="Extraction notice"
+          description={uploadError}
+          action={
+            <Button variant="secondary" size="sm" onClick={() => setSubView('manual_builder')} icon={<ArrowRight className="w-4 h-4" />}>
+              Build manually instead
+            </Button>
+          }
+        />
+      )}
+
+      {/* AI Routine Builder */}
+      <Card tone="accent" as="section" aria-label="AI routine builder" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-control bg-accent text-accent-ink flex items-center justify-center shrink-0" aria-hidden>
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-sm font-semibold text-white">AI muscle heatmap &amp; gear-adaptive routine builder</h2>
+              <Badge tone="accent">Heatmap adaptive</Badge>
             </div>
-            <h1 className="text-xl lg:text-3xl font-nrc font-bold text-[var(--text-primary)] tracking-tight">
-              Workout Plans &amp; Document Uploads
-            </h1>
-            <p className="text-xs text-[var(--text-secondary)] mt-1">
-              Upload PDF workouts, spreadsheets, screenshots, or build your custom training split.
+            <p className="text-xs text-zinc-400 mt-1 max-w-xl">
+              Automatically scans your logged 7-day muscle fatigue heatmap to target fresh muscle groups, protect recovering
+              stabilizers, and filter exercises exclusively to your available equipment inventory.
             </p>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsAiBuilderOpen(true)}
-              className="min-h-[44px] px-4 py-2.5 bg-accent/15 hover:bg-accent/25 text-accent text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all border border-accent/40 shadow-sm"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>AI Routine Builder</span>
-            </button>
-
-            <button
-              onClick={() => setSubView('manual_builder')}
-              className="min-h-[44px] px-4 py-2.5 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] text-[var(--text-primary)] text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors border border-[var(--border-card)]"
-            >
-              <Plus className="w-3.5 h-3.5 text-volt-adaptive" />
-              <span>Build New Plan</span>
-            </button>
-
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="min-h-[44px] touch-press px-5 py-2.5 bg-accent hover:bg-accent-hover text-accent-ink font-extrabold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-lg active:scale-[0.98]"
-            >
-              <Upload className="w-4 h-4 stroke-[2.5]" />
-              <span>Upload Document</span>
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,.png,.jpg,.jpeg,.csv,.txt,.json"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-          </div>
         </div>
-
-        {/* AI Routine Builder Spotlight Banner */}
-        <div className="mt-5 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-accent/10 via-surface-2 to-surface-2 border border-accent/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-accent text-zinc-950 flex items-center justify-center shrink-0 shadow-lg shadow-accent/20">
-              <Sparkles className="w-5 h-5 text-zinc-950" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold font-mono text-zinc-100">
-                  AI Muscle Heatmap &amp; Gear-Adaptive Routine Builder
-                </h3>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-accent/20 text-accent font-bold">
-                  HEATMAP ADAPTIVE
-                </span>
-              </div>
-              <p className="text-xs text-zinc-400 mt-0.5 max-w-xl">
-                Automatically scans your logged 7-day muscle fatigue heatmap to target fresh muscle groups, protect recovering stabilizers, and filter exercises exclusively to your available equipment inventory.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsAiBuilderOpen(true)}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-accent hover:brightness-110 text-zinc-950 font-mono font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 shrink-0"
-          >
-            <span>Launch AI Builder</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        {/* Processing State */}
-        {isProcessing && (
-          <div className="mt-4 p-4 bg-[var(--bg-subtle)] border border-accent/40 rounded-xl flex items-center gap-3 text-xs text-volt-adaptive animate-pulse">
-            <RefreshCw className="w-4 h-4 animate-spin" />
-            <span>Analyzing file document and parsing workout routine exercises...</span>
-          </div>
-        )}
-
-        {/* Upload Error Banner */}
-        {uploadError && (
-          <div className="mt-4 p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-start gap-3 text-xs text-rose-500">
-            <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <span className="font-bold">Extraction Notice:</span>
-              <p>{uploadError}</p>
-              <button
-                onClick={() => setSubView('manual_builder')}
-                className="underline text-[var(--text-primary)] font-medium hover:text-volt-adaptive transition-colors pt-1 block"
-              >
-                Launch Manual Plan Builder instead &rarr;
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* File Dropzone Card */}
-        <div
-          onClick={() => fileInputRef.current?.click()}
-          className="mt-6 border-2 border-dashed border-[var(--border-card)] hover:border-accent/60 bg-[var(--bg-subtle)] hover:bg-[var(--chip-bg)] rounded-2xl p-7 text-center cursor-pointer transition-all group"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-[var(--bg-surface)] group-hover:bg-accent/15 border border-[var(--border-card)] group-hover:border-accent/40 flex items-center justify-center text-[var(--text-muted)] group-hover:text-volt-adaptive mx-auto mb-3 transition-colors">
-            <Upload className="w-5 h-5" />
-          </div>
-          <h4 className="font-bold text-[var(--text-primary)] text-sm">
-            Drag &amp; drop workout documents or tap to browse
-          </h4>
-          <p className="text-xs text-[var(--text-secondary)] mt-1">
-            Supports PDF workout routines, JPG/PNG screenshots, CSV spreadsheets, and TXT documents.
-          </p>
-        </div>
-      </div>
+        <Button icon={<ArrowRight className="w-4 h-4" />} onClick={() => setIsAiBuilderOpen(true)} className="sm:shrink-0">
+          Launch AI builder
+        </Button>
+      </Card>
 
       {/* PLANS LIBRARY */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-mono font-bold tracking-wide text-[var(--text-muted)]">
-            Workout Plans Library ({plans.length})
-          </h3>
-        </div>
+      <section aria-label="Plan library">
+        <SectionHeading title="Your plans" description={pluralize(plans.length, 'plan')} />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {plans.map((plan) => {
-            const isActive = plan.id === activePlanId;
-            const totalExercises = plan.days.reduce((acc, d) => acc + d.exercises.length, 0);
+        {plans.length === 0 ? (
+          <EmptyState
+            icon={<FileSpreadsheet className="w-5 h-5" />}
+            title="No workout plans yet"
+            description="Upload a workout file, use the AI builder, or build a plan by hand."
+            action={
+              <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={() => setSubView('manual_builder')}>
+                Build plan
+              </Button>
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+            {plans.map((plan) => {
+              const isActive = plan.id === activePlanId;
+              const summary = summarizePlan(plan);
 
-            return (
-              <div
-                key={plan.id}
-                className={`reshape-card p-5 lg:p-6 space-y-4 transition-all ${
-                  isActive
-                    ? 'border-accent ring-1 ring-accent'
-                    : 'hover:border-[var(--border-card-hover)]'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-nrc font-bold text-lg text-[var(--text-primary)] tracking-tight">{plan.name}</h4>
-                      {plan.isStarter && (
-                        <span className="text-[11px] font-mono text-[var(--text-muted)] font-bold">
-                          &bull; TEMPLATE
-                        </span>
-                      )}
+              return (
+                <Card key={plan.id} as="article" tone={isActive ? 'accent' : 'default'} className="flex flex-col gap-4">
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-base font-semibold text-white tracking-tight break-words min-w-0">{plan.name}</h3>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isActive && (
+                          <Badge tone="accent" icon={<Check className="w-3 h-3" aria-hidden />}>
+                            Active
+                          </Badge>
+                        )}
+                        {plan.isStarter && <Badge>Template</Badge>}
+                      </div>
                     </div>
-                    <p className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2">
-                      {plan.description || `${plan.trainingSplit} split`}
-                    </p>
+                    <p className="text-xs text-zinc-400 line-clamp-2">{plan.description || `${plan.trainingSplit} split`}</p>
                   </div>
 
-                  {isActive && (
-                    <span className="font-mono text-xs font-bold text-volt-adaptive tracking-wide shrink-0 flex items-center gap-1">
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>ACTIVE</span>
-                    </span>
+                  <p className="text-xs text-zinc-300 tabular">
+                    {pluralize(summary.dayCount, 'training day')} · {pluralize(summary.exerciseCount, 'exercise')} ·{' '}
+                    {pluralize(summary.setCount, 'set')}
+                  </p>
+
+                  {plan.days.length > 0 && (
+                    <ul className="flex flex-wrap gap-1.5" aria-label="Training days">
+                      {plan.days.map((day) => (
+                        <li key={day.id}>
+                          <Badge>{day.dayName}</Badge>
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                </div>
 
-                <div className="text-xs font-mono text-[var(--text-muted)] flex items-center gap-2">
-                  <span>{plan.days.length} Training Days</span>
-                  <span>&middot;</span>
-                  <span>{totalExercises} Total Exercises</span>
-                </div>
+                  <div className="mt-auto pt-3 border-t border-line flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        iconOnly
+                        icon={<Copy className="w-4 h-4" />}
+                        aria-label={`Duplicate ${plan.name}`}
+                        title="Duplicate plan"
+                        onClick={() => handleDuplicatePlan(plan)}
+                      />
+                      <Button
+                        variant="ghost"
+                        iconOnly
+                        icon={<Trash2 className="w-4 h-4" />}
+                        aria-label={`Delete ${plan.name}`}
+                        title="Delete plan"
+                        onClick={() => setPlanToDelete(plan.id)}
+                      />
+                    </div>
 
-                {/* Days preview unboxed list */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {plan.days.map((day) => (
-                    <span
-                      key={day.id}
-                      className="text-[11px] font-mono text-[var(--text-secondary)] bg-[var(--bg-subtle)] border border-[var(--border-card)] px-2.5 py-1 rounded-lg"
-                    >
-                      {day.dayName}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Plan card actions */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-line text-xs">
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleDuplicatePlan(plan)}
-                      className="min-h-[36px] p-2 text-zinc-400 hover:text-white rounded-lg transition-colors"
-                      title="Duplicate Plan"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDeletePlan(plan.id)}
-                      className="min-h-[36px] p-2 text-zinc-400 hover:text-rose-400 rounded-lg transition-colors"
-                      title="Delete Plan"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {onNavigateToProgression && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon={<TrendingUp className="w-4 h-4" />}
+                          title="Adjust overload analytics for this plan"
+                          onClick={() => onNavigateToProgression(plan.id)}
+                        >
+                          Overload rules
+                        </Button>
+                      )}
+                      {!isActive && (
+                        <Button variant="secondary" size="sm" onClick={() => handleActivatePlan(plan.id)}>
+                          Set active
+                        </Button>
+                      )}
+                      <Button size="sm" variant={isActive ? 'primary' : 'secondary'} onClick={() => openPlanDetail(plan.id)}>
+                        View
+                        <ChevronRight className="w-4 h-4" aria-hidden />
+                      </Button>
+                    </div>
                   </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        if (onNavigateToProgression) {
-                          onNavigateToProgression(plan.id);
-                        }
-                      }}
-                      className="min-h-[40px] px-3.5 py-1.5 bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 font-bold rounded-xl text-xs flex items-center gap-1 transition-colors"
-                      title="Adjust Overload Analytics for this plan"
-                    >
-                      <TrendingUp className="w-3.5 h-3.5 text-accent" />
-                      <span>Overload Rules &rarr;</span>
-                    </button>
-
-                    {!isActive && (
-                      <button
-                        onClick={() => handleActivatePlan(plan.id)}
-                        className="min-h-[40px] px-3.5 py-1.5 bg-white/[0.06] hover:bg-white/[0.12] text-zinc-200 hover:text-white font-bold rounded-xl transition-colors border border-white/10"
-                      >
-                        Set Active
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Upload from file */}
+      <section aria-label="Upload a workout file">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full rounded-card border border-dashed border-line-strong hover:border-accent/60 bg-transparent hover:bg-surface p-6 text-center transition-colors touch-press"
+        >
+          <span className="w-11 h-11 rounded-control bg-surface-2 border border-line flex items-center justify-center text-zinc-400 mx-auto mb-3" aria-hidden>
+            <Upload className="w-5 h-5" />
+          </span>
+          <span className="block text-sm font-semibold text-white">Tap to choose a workout file</span>
+          <span className="block text-xs text-zinc-400 mt-1">
+            Supports PDF workout routines, JPG/PNG screenshots, CSV spreadsheets, JSON and TXT documents.
+          </span>
+        </button>
+      </section>
 
       {/* UPLOADED DOCUMENTS AUDIT LOG */}
       {uploadedDocs.length > 0 && (
-        <div className="bg-surface border border-line rounded-2xl p-5 shadow-2xl space-y-3">
-          <h3 className="text-xs font-mono font-bold tracking-wide text-zinc-400">
-            Uploaded Files History ({uploadedDocs.length})
-          </h3>
-          <div className="divide-y divide-white/[0.04] font-mono text-xs">
+        <Card as="section" aria-label="Uploaded files history">
+          <SectionHeading title="Uploaded files" description={pluralize(uploadedDocs.length, 'file')} />
+          <ul className="divide-y divide-line">
             {uploadedDocs.map((doc) => (
-              <div key={doc.id} className="py-3 flex items-center justify-between text-zinc-300">
-                <div className="flex items-center gap-2.5 truncate max-w-sm">
-                  <File className="w-4 h-4 text-zinc-500 shrink-0" />
-                  <span className="font-bold text-white truncate">{doc.fileName}</span>
+              <li key={doc.id} className="py-3 first:pt-0 last:pb-0 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <File className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden />
+                  <span className="text-sm font-medium text-white truncate">{doc.fileName}</span>
                 </div>
-                <div className="flex items-center gap-4 text-zinc-500 text-[11px]">
-                  <span>{(doc.fileSize / 1024).toFixed(1)} KB</span>
-                  <span className="capitalize">{doc.status}</span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="hidden sm:inline text-xs text-zinc-500 tabular">{(doc.fileSize / 1024).toFixed(1)} KB</span>
+                  <Badge tone={DOC_STATUS_TONE[doc.status]} className="capitalize">
+                    {doc.status}
+                  </Badge>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </Card>
       )}
+
+      {deleteModal}
 
       {/* AI Muscle Heatmap & Gear-Adaptive Routine Builder Modal */}
       <AiRoutineBuilderModal

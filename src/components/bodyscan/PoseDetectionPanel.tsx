@@ -5,8 +5,8 @@ import { CAPTURE_GUIDANCE } from './captureGuidance';
 import { CHECK_LABELS, CaptureQualityPanel } from './CaptureQualityPanel';
 import type { DetectionState } from './usePoseDetection';
 
-const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-400';
-const secondaryBtn = `touch-press inline-flex items-center justify-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-200 rounded-xl text-xs font-semibold ${focusRing}`;
+const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
+const secondaryBtn = `touch-press inline-flex items-center justify-center gap-2 px-3 py-2 bg-surface-2 border border-line hover:border-line-strong text-zinc-200 rounded-control text-xs font-semibold ${focusRing}`;
 
 interface PoseDetectionPanelProps {
   view: ScanView;
@@ -30,8 +30,8 @@ export const PoseDetectionPanel: React.FC<PoseDetectionPanelProps> = ({ view, st
 
   if (state.phase === 'loading_model' || state.phase === 'detecting') {
     return (
-      <div role="status" className="flex items-start gap-2 rounded-lg border border-zinc-800 bg-black/30 p-3 text-xs text-zinc-300">
-        <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 motion-safe:animate-spin text-lime-400" aria-hidden="true" />
+      <div role="status" className="flex items-start gap-2 rounded-lg border border-line bg-black/30 p-3 text-xs text-zinc-300">
+        <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 motion-safe:animate-spin text-accent" aria-hidden="true" />
         <span>
           {state.phase === 'loading_model'
             ? 'Preparing on-device pose detection… The first time, this downloads the pose model to this browser.'
@@ -44,21 +44,21 @@ export const PoseDetectionPanel: React.FC<PoseDetectionPanelProps> = ({ view, st
 
   if (state.phase === 'error') {
     return (
-      <div role="alert" className="space-y-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-100">
+      <div role="alert" className="space-y-2 rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs text-zinc-100">
         <p className="flex items-start gap-2">
-          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" aria-hidden="true" />
+          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-danger" aria-hidden="true" />
           <span>{state.message}</span>
         </p>
         {state.retryable ? (
           <>
-            <p className="text-rose-200/80">Your photo is still here, so you can try again without turning the camera on.</p>
+            <p className="text-zinc-300">Your photo is still here, so you can try again without turning the camera on.</p>
             <button type="button" onClick={onRetry} className={secondaryBtn}>
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
               {`Try ${label} analysis again`}
             </button>
           </>
         ) : (
-          <p className="text-rose-200/80">You can keep or discard this photo, but it cannot be analysed in this browser.</p>
+          <p className="text-zinc-300">You can keep or discard this photo, but it cannot be analysed in this browser.</p>
         )}
       </div>
     );
@@ -67,10 +67,10 @@ export const PoseDetectionPanel: React.FC<PoseDetectionPanelProps> = ({ view, st
   const { outcome } = state;
   const tone =
     outcome.status === 'usable'
-      ? { box: 'border-lime-400/30 bg-lime-400/5 text-zinc-100', icon: <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-lime-400" aria-hidden="true" /> }
+      ? { box: 'border-accent/30 bg-accent/5 text-zinc-100', icon: <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" /> }
       : outcome.status === 'partial'
-        ? { box: 'border-amber-500/30 bg-amber-500/10 text-amber-100', icon: <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" /> }
-        : { box: 'border-rose-500/30 bg-rose-500/10 text-rose-100', icon: <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" aria-hidden="true" /> };
+        ? { box: 'border-warning/30 bg-warning/10 text-zinc-100', icon: <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" /> }
+        : { box: 'border-danger/30 bg-danger/10 text-zinc-100', icon: <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-danger" aria-hidden="true" /> };
 
   const notChecked = (outcome.assessment?.checks ?? []).filter((c) => c.status === 'not_evaluated').map((c) => CHECK_LABELS[c.id]);
 

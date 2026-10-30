@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Trash2, ShieldCheck } from 'lucide-react';
 import { BodyScanConsent, BodyScanStorageSummary } from '../../types/bodyScan';
+import { Button, Card } from '../ui';
 import { setPhotoStorageConsent } from '../../storage/bodyScanConsent';
 import {
   deleteAllPhotos,
@@ -109,13 +110,10 @@ export const PrivacyControls: React.FC<PrivacyControlsProps> = ({ consent, onCon
   };
 
   return (
-    <section
-      aria-labelledby="bodyscan-privacy-heading"
-      className="bg-[#0d1117] border border-zinc-800 rounded-2xl p-5 lg:p-7 shadow-xl space-y-5"
-    >
-      <div className="flex items-center gap-2 text-lime-400 text-xs font-mono font-semibold uppercase tracking-wider">
+    <Card as="section" aria-labelledby="bodyscan-privacy-heading" className="space-y-5">
+      <div className="flex items-center gap-2 text-accent">
         <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-        <h2 id="bodyscan-privacy-heading">Privacy &amp; data</h2>
+        <h2 id="bodyscan-privacy-heading" className="text-base font-semibold text-white">Privacy &amp; data</h2>
       </div>
 
       <div className="grid grid-cols-3 gap-3" aria-live="polite">
@@ -124,25 +122,25 @@ export const PrivacyControls: React.FC<PrivacyControlsProps> = ({ consent, onCon
           ['Photos', summary ? String(summary.photoCount) : '—'],
           ['Photo size', summary ? formatBytes(summary.photoBytes) : '—'],
         ].map(([label, value]) => (
-          <div key={label} className="p-3 bg-zinc-900/70 border border-zinc-800/80 rounded-xl">
-            <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">{label}</div>
-            <div className="text-lg font-mono font-extrabold text-zinc-100">{value}</div>
+          <div key={label} className="p-3 bg-surface-2 border border-line rounded-control">
+            <div className="text-label text-zinc-500">{label}</div>
+            <div className="text-lg font-bold text-white tabular">{value}</div>
           </div>
         ))}
       </div>
       {summaryError && (
-        <p role="alert" className="text-xs text-amber-400">
+        <p role="alert" className="text-xs text-warning">
           {summaryError}
         </p>
       )}
 
-      <label className="flex items-start gap-3 text-xs text-zinc-200 cursor-pointer">
+      <label className="flex items-start gap-3 text-sm text-zinc-200 cursor-pointer py-1.5">
         <input
           type="checkbox"
           checked={consent.photoStorage}
           onChange={(e) => handleTogglePhotoStorage(e.target.checked)}
           disabled={busy}
-          className="mt-0.5 w-4 h-4 accent-lime-400"
+          className="mt-0.5 w-5 h-5 shrink-0 accent-accent"
         />
         <span>
           Save my photos on this device
@@ -154,86 +152,73 @@ export const PrivacyControls: React.FC<PrivacyControlsProps> = ({ consent, onCon
       </label>
 
       {offerDeletePhotos && !pending && (
-        <div className="p-3 bg-zinc-900/70 border border-zinc-800 rounded-xl text-xs text-zinc-300 space-y-2">
+        <div className="p-3 bg-surface-2 border border-line rounded-control text-xs text-zinc-300 space-y-2">
           <p>
             Photo saving is now off. {summary?.photoCount} photo{summary?.photoCount === 1 ? '' : 's'} already saved
             remain on this device until you delete them.
           </p>
           <div className="flex gap-2">
-            <button
-              type="button"
+            <Button
+              size="sm"
+              variant="danger"
               onClick={() => {
                 setOfferDeletePhotos(false);
                 setPending('photos');
               }}
-              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-xs"
             >
               Delete saved photos
-            </button>
-            <button
-              type="button"
-              onClick={() => setOfferDeletePhotos(false)}
-              className="px-3 py-1.5 bg-zinc-800 text-zinc-300 rounded-lg text-xs"
-            >
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setOfferDeletePhotos(false)}>
               Keep them
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
-      <div className="space-y-2 pt-4 border-t border-zinc-800/80">
+      <div className="space-y-2 pt-4 border-t border-line">
         {(Object.keys(ACTIONS) as Exclude<PendingAction, null>[]).map((key) => (
-          <button
+          <Button
             key={key}
-            type="button"
+            variant="danger"
+            size="sm"
+            icon={<Trash2 className="w-3.5 h-3.5" aria-hidden="true" />}
             onClick={() => {
               setStatus(null);
               setError(null);
               setPending(key);
             }}
             disabled={busy}
-            className="w-full sm:w-auto flex items-center gap-2 px-4 py-2 bg-rose-950/40 border border-rose-900/60 text-rose-400 hover:bg-rose-900/40 disabled:opacity-50 font-semibold rounded-xl text-xs transition-colors"
+            className="w-full sm:w-auto"
           >
-            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
             {ACTIONS[key].label}
-          </button>
+          </Button>
         ))}
       </div>
 
       {pending && (
-        <div role="alertdialog" aria-label="Confirm deletion" className="p-4 bg-[#12161c] border border-rose-900/60 rounded-xl space-y-3">
+        <div role="alertdialog" aria-label="Confirm deletion" className="p-4 bg-surface-2 border border-danger/30 rounded-control space-y-3">
           <p className="text-xs text-zinc-300 leading-relaxed">{ACTIONS[pending].confirm}</p>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setPending(null)}
-              disabled={busy}
-              className="px-3 py-1.5 bg-zinc-800 text-zinc-300 rounded-lg text-xs"
-            >
+            <Button size="sm" variant="secondary" onClick={() => setPending(null)} disabled={busy}>
               Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleConfirm}
-              disabled={busy}
-              className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-60 text-white font-bold rounded-lg text-xs"
-            >
+            </Button>
+            <Button size="sm" variant="danger" onClick={handleConfirm} disabled={busy}>
               {busy ? 'Deleting…' : 'Yes, delete'}
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {error && (
-        <p role="alert" className="text-xs text-rose-400">
+        <p role="alert" className="text-xs text-danger">
           {error}
         </p>
       )}
       {status && (
-        <p role="status" className="text-xs text-lime-400">
+        <p role="status" className="text-xs text-accent">
           {status}
         </p>
       )}
-    </section>
+    </Card>
   );
 };

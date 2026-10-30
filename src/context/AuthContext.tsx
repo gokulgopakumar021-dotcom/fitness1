@@ -28,6 +28,12 @@ export interface AuthContextValue {
   requestPasswordReset: (email: string) => Promise<AuthResult>;
   updatePassword: (password: string) => Promise<AuthResult>;
   signOut: () => Promise<AuthResult>;
+  /** Signed-in password change. Re-checks the current password first. */
+  changePassword: (currentPassword: string, newPassword: string) => Promise<AuthResult>;
+  /** Ends every OTHER session of this account (this browser stays signed in). */
+  signOutOtherDevices: () => Promise<AuthResult>;
+  /** Re-checks the password, then deletes the cloud account via the delete_own_account() function. Does NOT touch local data. */
+  deleteAccount: (password: string) => Promise<AuthResult>;
   retry: () => void;
 }
 
@@ -46,6 +52,9 @@ const AuthContext = createContext<AuthContextValue>({
   requestPasswordReset: noop,
   updatePassword: noop,
   signOut: noop,
+  changePassword: noop,
+  signOutOtherDevices: noop,
+  deleteAccount: noop,
   retry: () => {}
 });
 
@@ -213,6 +222,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  /** Confirms the person at the keyboard knows the account password before a sensitive change. */
+  const verifyPassword = useCallback(
+    async (password: string): Promise<AuthResult> => {
+      const supabase = getSupabase();
+      const email = user?.email;
+      if (!supabase || !email) return { ok: false, error: 'Authentication is not available.' };
+      try {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        return error ? { ok: false, error: 'That password is not correct.' } : { ok: true };
+      } catch (e) {
+        return { ok: false, error: friendlyAuthError(e as Error) };
+      }
+    },
+    [user]
+  );
+
+  const changePassword = useCallback<AuthContextValue['changePassword']>(
+    async (currentPassword, newPassword) => {
+      const verified = await verifyPassword(currentPassword);
+      if (!verified.ok) return verified;
+      return updatePassword(newPassword);
+    },
+    [verifyPassword, updatePassword]
+  );
+
+  const signOutOtherDevices = useCallback<AuthContextValue['signOutOtherDevices']>(async () => {
+    const supabase = getSupabase();
+    if (!supabase) return { ok: false, error: 'Authentication is not configured.' };
+    try {
+      const { error } = await supabase.auth.signOut({ scope: 'others' });
+      return error ? { ok: false, error: friendlyAuthError(error) } : { ok: true };
+    } catch (e) {
+      return { ok: false, error: friendlyAuthError(e as Error) };
+    }
+  }, []);
+
+  const deleteAccount = useCallback<AuthContextValue['deleteAccount']>(
+    async (password) => {
+      const supabase = getSupabase();
+      if (!supabase) return { ok: false, error: 'Authentication is not configured.' };
+      const verified = await verifyPassword(password);
+      if (!verified.ok) return verified;
+      try {
+        const { error } = await supabase.rpc('delete_own_account');
+        if (error) {
+          return {
+            ok: false,
+            error: 'Your account could not be deleted. Nothing was removed. Check your connection and try again.'
+          };
+        }
+        return { ok: true };
+      } catch {
+        return { ok: false, error: 'Your account could not be deleted. Nothing was removed. Check your connection and try again.' };
+      }
+    },
+    [verifyPassword]
+  );
+
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   const clearCallbackError = useCallback(() => setCallbackError(null), []);
 
@@ -224,9 +291,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value = useMemo<AuthContextValue>(
     () => ({
       status, user, fullName, message, callbackError, clearCallbackError,
-      signIn, signUp, resendVerification, requestPasswordReset, updatePassword, signOut, retry
+      signIn, signUp, resendVerification, requestPasswordReset, updatePassword, signOut,
+      changePassword, signOutOtherDevices, deleteAccount, retry
     }),
-    [status, user, fullName, message, callbackError, clearCallbackError, signIn, signUp, resendVerification, requestPasswordReset, updatePassword, signOut, retry]
+    [status, user, fullName, message, callbackError, clearCallbackError, signIn, signUp, resendVerification, requestPasswordReset, updatePassword, signOut,
+      changePassword, signOutOtherDevices, deleteAccount, retry]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -280,6 +280,9 @@
 }
 
 /* Scrollbars */
+/* Hide the scrollbar on horizontally scrolling pill rows (touch scrolling still works). */
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-card-hover); border-radius: 9999px; }

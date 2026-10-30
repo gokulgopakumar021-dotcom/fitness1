@@ -178,7 +178,7 @@ describe('failed, partial and malformed outcomes', () => {
     expect(panel.textContent).toContain('No body was detected in this photo');
     expect(panel.textContent).toMatch(/retake the photo/i);
     expect(byText('button', 'Retake front photo')).toBeTruthy();
-    expect(byText('button', 'Retake front photo')!.className).toContain('bg-lime-400'); // primary: this is the next step
+    expect(byText('button', 'Retake front photo')!.className).toContain('bg-accent'); // primary: this is the next step
   });
 
   it('partial pose (legs out of frame) -> partial panel naming the problem, retake offered', async () => {
@@ -191,7 +191,7 @@ describe('failed, partial and malformed outcomes', () => {
     expect(panel.textContent).toContain('Body pose only partly detected');
     expect(panel.textContent).toContain('7 of 9 required body points');
     expect(panel.textContent).toMatch(/Not clearly visible: .*ankle/i);
-    expect(byText('button', 'Retake front photo')!.className).toContain('bg-lime-400');
+    expect(byText('button', 'Retake front photo')!.className).toContain('bg-accent');
   });
 
   it('low-confidence landmarks everywhere -> failed, not accepted just because the model returned an array', async () => {
