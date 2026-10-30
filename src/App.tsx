@@ -115,7 +115,7 @@ function AppShell() {
           <main
             id="main-content"
             tabIndex={-1}
-            className="flex-1 px-4 sm:px-6 lg:px-8 pt-5 lg:pt-7 min-w-0 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-12 overflow-x-hidden outline-none"
+            className="flex-1 px-4 sm:px-6 lg:px-8 pt-5 lg:pt-7 min-w-0 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-12 overflow-x-clip outline-none"
           >
             {currentTab === 'home' && (
               <HomeView

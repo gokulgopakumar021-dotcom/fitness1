@@ -45,12 +45,14 @@ interface SharedProps {
   error?: string;
   /** Monospace tabular text, for numeric entry (weight, reps, macros). */
   mono?: boolean;
+  /** Tight horizontal padding and centered text, for dense numeric grids (e.g. set rows). Same 44px height. */
+  compact?: boolean;
   wrapperClassName?: string;
 }
 
 type InputProps = SharedProps & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'className'> & { className?: string };
 
-export const Input: React.FC<InputProps> = ({ label, hint, error, mono, wrapperClassName, className, id, ...rest }) => {
+export const Input: React.FC<InputProps> = ({ label, hint, error, mono, compact, wrapperClassName, className, id, ...rest }) => {
   const auto = useId();
   const cid = id ?? auto;
   return (
@@ -59,7 +61,7 @@ export const Input: React.FC<InputProps> = ({ label, hint, error, mono, wrapperC
         id={cid}
         aria-invalid={error ? true : undefined}
         aria-describedby={error || hint ? `${cid}-msg` : undefined}
-        className={cn(CONTROL_BASE, error ? CONTROL_ERR : CONTROL_OK, 'h-11 px-3 text-sm', mono && 'font-mono font-semibold tabular', className)}
+        className={cn(CONTROL_BASE, error ? CONTROL_ERR : CONTROL_OK, compact ? 'h-11 px-1 text-sm text-center' : 'h-11 px-3 text-sm', mono && 'font-mono font-semibold tabular', className)}
         {...rest}
       />
     </Field>
@@ -68,7 +70,7 @@ export const Input: React.FC<InputProps> = ({ label, hint, error, mono, wrapperC
 
 type SelectProps = SharedProps & Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'className'> & { className?: string };
 
-export const Select: React.FC<SelectProps> = ({ label, hint, error, mono, wrapperClassName, className, id, children, ...rest }) => {
+export const Select: React.FC<SelectProps> = ({ label, hint, error, mono, compact, wrapperClassName, className, id, children, ...rest }) => {
   const auto = useId();
   const cid = id ?? auto;
   return (
@@ -77,7 +79,7 @@ export const Select: React.FC<SelectProps> = ({ label, hint, error, mono, wrappe
         id={cid}
         aria-invalid={error ? true : undefined}
         aria-describedby={error || hint ? `${cid}-msg` : undefined}
-        className={cn(CONTROL_BASE, error ? CONTROL_ERR : CONTROL_OK, 'h-11 px-3 text-sm', mono && 'font-mono font-semibold', className)}
+        className={cn(CONTROL_BASE, error ? CONTROL_ERR : CONTROL_OK, compact ? 'h-11 px-1 text-sm text-center [text-align-last:center]' : 'h-11 px-3 text-sm', mono && 'font-mono font-semibold', className)}
         {...rest}
       >
         {children}

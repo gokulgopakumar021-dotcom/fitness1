@@ -23,7 +23,7 @@ Source of truth: `src/index.css` (tokens) and `src/components/ui/` (primitives, 
 
 - **Card** — `tone` default/raised/accent/ghost, `pad` none/sm/md/lg, `interactive` for tappable rows.
 - **Button** — primary / secondary / ghost / danger; sm 36px, md/lg ≥44px; `loading`, `icon`; `iconOnly` for square icon buttons (always pass `aria-label`). Don't fight padding with `px-*` overrides.
-- **Input / Select / Textarea / Field** — label, hint, error (announced, `aria-invalid`), `mono` for numeric entry. 44px tall, accent focus border. Use these instead of hand-styled `<input className=…>`.
+- **Input / Select / Textarea / Field** — label, hint, error (announced, `aria-invalid`), `mono` for numeric entry. 44px tall, accent focus border. Use these instead of hand-styled `<input className=…>`. `compact` keeps the 44px height but tightens padding and centers text, for dense numeric grids such as workout set rows.
 - **Modal** — dialog semantics, Esc/backdrop close, scroll lock, focus restore; bottom sheet on phones. Inline `onClose` arrows are safe (the latest one is read from a ref, so typing never loses focus). `closeLabel` names the close button.
 - **EmptyState / ErrorState / LoadingState / Skeleton** — one trio for "no data", "failed", "pending"; Skeleton when the layout is known.
 - **Badge, ProgressBar, SegmentedControl, MetricCard, PageHeader, SectionHeading** — unchanged API, now on the radius/label tokens.
@@ -31,6 +31,13 @@ Source of truth: `src/index.css` (tokens) and `src/components/ui/` (primitives, 
 - **Charts** (`components/common/Charts.tsx`) — `LineChart` / `BarChart` use chart tokens, so they follow the theme; each `LineChart` has its own gradient id. `LineChart responsive` draws at the container's real width (labels keep their size on phones); `BarChart maxLabels` thins x labels. Points and bars respond to tap and keyboard focus as well as hover.
 
 Legacy `.reshape-card`, `.reshape-card-subtle`, `.reshape-card-interactive` still work and now share the same radius tokens. Prefer `<Card>` in new code.
+
+## Workout tracker (reference screen)
+
+`WorkoutSessionTracker` is the reference for dense logging UI: a sticky summary header (name, clock, set progress, primary Finish), a toolbar row, `ExerciseCard` (`components/workouts/`) with `SetRow` grid rows, shared `Modal` for every dialog, and a compact `RestTimer` dock. Notes for reuse:
+
+- `cn()` is a plain joiner, not a class merger. Do not rely on a later class overriding an earlier one for the same property; use a prop (`compact`, `iconOnly`) or a responsive variant (`max-sm:`, `sm:`) instead.
+- `position: sticky` inside `<main>` needs `overflow-x-clip` (not `-hidden`) on `<main>`, since `hidden` turns it into a scroll container.
 
 ## Rules
 

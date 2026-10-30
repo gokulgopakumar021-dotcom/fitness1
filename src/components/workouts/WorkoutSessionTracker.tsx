@@ -1,24 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Check,
   Plus,
   Trash2,
   Clock,
   RotateCcw,
-  Sparkles,
-  Info,
-  ChevronDown,
   Dumbbell,
   Timer,
-  AlertTriangle,
   ArrowRight,
   Flame,
   Pause,
   Play,
-  RefreshCw,
-  Zap,
-  Eye,
-  Video,
   Bluetooth,
   Heart
 } from 'lucide-react';
@@ -31,12 +23,29 @@ import {
   WorkoutSession
 } from '../../types';
 import { db } from '../../storage/db';
-import { calculateVolumeLoad, formatWeight } from '../../utils/calculations';
+import { calculateVolumeLoad } from '../../utils/calculations';
 import { extractExerciseHistory } from '../../utils/progressionEngine';
 import { RestTimer, playTimerChime } from '../common/RestTimer';
 import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
 import { ExercisePostureModal } from '../posture/ExercisePostureModal';
 import { DynamicWarmupModal } from '../trainer/DynamicWarmupModal';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Input,
+  LoadingState,
+  Modal,
+  PageHeader,
+  ProgressBar,
+  SectionHeading,
+  Select,
+  Textarea,
+  cn
+} from '../ui';
+import { ExerciseCard } from './ExerciseCard';
 
 interface WorkoutTrackerProps {
   profile: UserProfile;
@@ -73,6 +82,12 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
 
   // Discard confirmation modal
   const [showDiscardModal, setShowDiscardModal] = useState<boolean>(false);
+
+  // Remove-exercise confirmation (only asked when the exercise already has completed sets)
+  const [exerciseToRemove, setExerciseToRemove] = useState<number | null>(null);
+
+  // Show the "movement name required" message only after a submit attempt
+  const [addExTouched, setAddExTouched] = useState<boolean>(false);
 
   // Posture & Form Preview modal state
   const [posturePreviewExercise, setPosturePreviewExercise] = useState<string | null>(null);
@@ -450,151 +465,174 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
     setNewExName('');
   };
 
+  // ---- Display-only values derived from the live session (no new data is stored) ----
+  const allSessionSets = activeSession ? activeSession.exercises.flatMap((e) => e.sets) : [];
+  const totalSets = allSessionSets.length;
+  const completedSetCount = allSessionSets.filter((s) => s.completed).length;
+  const sessionVolume = calculateVolumeLoad(
+    allSessionSets.filter((s) => s.completed && s.type === 'working'),
+    false
+  );
+  const exercisesWithLoggedSets = activeSession
+    ? activeSession.exercises.filter((e) => e.sets.some((s) => s.completed)).length
+    : 0;
+
+  // Close handlers for the shared Modals.
+  const closeFinish = useCallback(() => setShowFinishModal(false), []);
+  const closeDiscard = useCallback(() => setShowDiscardModal(false), []);
+  const closeResetTimer = useCallback(() => setShowResetTimerConfirm(false), []);
+  const closeAiCoach = useCallback(() => setAiCoachExercise(null), []);
+  const closeRemoveExercise = useCallback(() => setExerciseToRemove(null), []);
+  const closeAddExercise = useCallback(() => {
+    setIsAddingExercise(false);
+    setAddExTouched(false);
+  }, []);
+
+  // Confirm before removing an exercise that already has logged sets; empty ones remove immediately.
+  const requestRemoveExercise = (exIndex: number) => {
+    const target = activeSession?.exercises[exIndex];
+    if (!target) return;
+    if (target.sets.some((s) => s.completed)) {
+      setExerciseToRemove(exIndex);
+    } else {
+      handleRemoveExercise(exIndex);
+    }
+  };
+
+  const submitNewExercise = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!newExName.trim()) {
+      setAddExTouched(true);
+      return;
+    }
+    handleAddNewExerciseToSession();
+    setAddExTouched(false);
+  };
+
   // ==========================================
   // VIEW 1: PRE-WORKOUT SPLIT SELECTOR
   // ==========================================
   if (!activeSession) {
+    const completedSessions = allSessions.filter((s) => s.status === 'completed');
     return (
-      <div className="space-y-6 max-w-5xl mx-auto">
-        <div className="reshape-card p-6 lg:p-7 overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-line">
-            <div>
-              <div className="flex items-center gap-2 text-accent text-xs font-mono font-bold tracking-wide mb-1">
-                <Dumbbell className="w-4 h-4 stroke-[2.5]" />
-                <span>Training Command &amp; Session Logger</span>
-              </div>
-              <h1 className="text-2xl lg:text-3xl font-nrc font-bold text-white tracking-tight">
-                Session Deck · Overload Logger
-              </h1>
-              <p className="text-xs text-zinc-400 mt-1 font-sans">
-                Real-time working sets, reps, weight, and RIR. Instant previous session comparisons.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <button
+      <div className="max-w-5xl mx-auto">
+        <PageHeader
+          eyebrow="Training command & session logger"
+          title="Session Deck"
+          description="Real-time working sets, reps, weight, and RIR. Instant previous session comparisons."
+          actions={
+            <>
+              <Button
+                variant="secondary"
                 onClick={() => setShowWarmupModal(true)}
-                className="touch-press px-4 py-3 bg-canvas hover:bg-surface-2 border border-amber-400/30 text-amber-300 font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 transition-all shadow-sm"
+                icon={<Flame className="w-4 h-4 text-warning" aria-hidden />}
               >
-                <Flame className="w-4 h-4 fill-amber-400 text-amber-400" />
-                <span>5-Min Warm-up</span>
-              </button>
+                5-Min Warm-up
+              </Button>
+              <Button onClick={() => handleStartWorkout()} icon={<Flame className="w-4 h-4" aria-hidden />}>
+                Start Workout Now
+              </Button>
+            </>
+          }
+        />
 
-              <button
-                onClick={() => handleStartWorkout()}
-                className="touch-press px-6 py-3 bg-accent hover:bg-accent text-accent-ink font-nrc font-bold text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 transition-all"
-              >
-                <Flame className="w-4 h-4 fill-black" />
-                <span>Start Workout Now</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Routine Day Selector */}
-          <div className="mt-6">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono font-bold text-zinc-300 tracking-wide">
-                Select Routine Day
-              </span>
-              {activePlan && (
-                <span className="text-xs text-zinc-400 font-mono">
-                  Plan: <strong className="text-white">{activePlan.name}</strong>
+        <div className="space-y-6">
+        {/* Routine Day Selector */}
+        <section aria-label="Routine day">
+          <SectionHeading
+            title="Select Routine Day"
+            action={
+              activePlan && (
+                <span className="text-xs text-zinc-400">
+                  Plan: <strong className="text-white font-semibold">{activePlan.name}</strong>
                 </span>
-              )}
-            </div>
+              )
+            }
+          />
 
-            {activePlan && activePlan.days.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {activePlan.days.map((day) => {
-                  const isSelected = selectedDayId === day.id;
-                  return (
-                    <div
-                      key={day.id}
-                      role="button"
-                      tabIndex={0}
-                      aria-pressed={isSelected}
-                      onClick={() => setSelectedDayId(day.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          setSelectedDayId(day.id);
-                        }
-                      }}
-                      className={`cursor-pointer p-4 rounded-2xl border text-left transition-all ${
-                        isSelected
-                          ? 'bg-canvas border-accent ring-1 ring-accent'
-                          : 'bg-canvas/60 border-line hover:border-white/20 hover:bg-surface-2/40'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-mono font-semibold text-zinc-400">
-                          Day {day.dayOrder}
-                        </span>
-                        {isSelected && (
-                          <span className="w-2 h-2 rounded-full bg-accent" />
-                        )}
-                      </div>
-                      <h4 className="font-bold text-white text-sm mt-1 line-clamp-2">
-                        {day.dayName}
-                      </h4>
-                      <p className="text-xs text-zinc-400 mt-1 font-sans">
-                        {day.exercises.length} movements programmed
-                      </p>
+          {activePlan && activePlan.days.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {activePlan.days.map((day) => {
+                const isSelected = selectedDayId === day.id;
+                return (
+                  <Card
+                    key={day.id}
+                    interactive
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={isSelected}
+                    tone={isSelected ? 'accent' : 'default'}
+                    onClick={() => setSelectedDayId(day.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedDayId(day.id);
+                      }
+                    }}
+                    className={cn(
+                      'text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                      isSelected && 'ring-1 ring-accent'
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-zinc-400">Day {day.dayOrder}</span>
+                      {isSelected && <span className="w-2 h-2 rounded-full bg-accent" aria-hidden />}
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="p-6 bg-canvas/40 border border-line rounded-2xl text-center">
-                <p className="text-xs text-zinc-400 mb-3 font-sans">No active workout routine configured.</p>
-                <button
-                  onClick={onNavigateToPlans}
-                  className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-white text-xs font-semibold rounded-xl transition-colors inline-flex items-center gap-1.5 border border-line"
-                >
-                  <span>Go to Plans &amp; Uploads</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Quick Custom Empty Session option */}
-          <div className="mt-6 pt-5 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-400 font-sans">
-            <span>Want to train outside your split today?</span>
-            <button
-              onClick={() => {
-                const todayStr = new Date().toISOString().split('T')[0];
-                const customSession: WorkoutSession = {
-                  id: `session-${Date.now()}`,
-                  dayName: 'Open Gym / Freestyle Session',
-                  date: todayStr,
-                  startTime: new Date().toISOString(),
-                  status: 'in_progress',
-                  exercises: []
-                };
-                db.saveActiveSession(customSession);
-                onSessionUpdated(customSession);
-              }}
-              className="text-accent hover:underline font-bold"
-            >
-              Start Empty Freestyle Session &rarr;
-            </button>
-          </div>
-        </div>
-
-        {/* Recent Workout History preview */}
-        <div className="reshape-card p-6 lg:p-7">
-          <h3 className="text-xs font-mono font-bold tracking-wide text-zinc-400 mb-4">
-            Recent Completed Sessions ({allSessions.filter((s) => s.status === 'completed').length})
-          </h3>
-          {allSessions.filter((s) => s.status === 'completed').length === 0 ? (
-            <div className="text-center py-6 text-zinc-500 text-xs font-sans">
-              No previous workout sessions recorded yet. Start your first session above!
+                    <h3 className="font-semibold text-white text-sm mt-1 line-clamp-2">{day.dayName}</h3>
+                    <p className="text-xs text-zinc-400 mt-1">{day.exercises.length} movements programmed</p>
+                  </Card>
+                );
+              })}
             </div>
           ) : (
-            <div className="space-y-2.5">
-              {allSessions
-                .filter((s) => s.status === 'completed')
+            <EmptyState
+              icon={<Dumbbell className="w-5 h-5" />}
+              title="No active workout routine configured."
+              description="Add or activate a plan, or start a freestyle session below."
+              action={
+                <Button variant="secondary" onClick={onNavigateToPlans} icon={<ArrowRight className="w-4 h-4" aria-hidden />}>
+                  Go to Plans &amp; Uploads
+                </Button>
+              }
+            />
+          )}
+        </section>
+
+        {/* Quick Custom Empty Session option */}
+        <Card tone="ghost" pad="sm" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <span className="text-sm text-zinc-400">Want to train outside your split today?</span>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              const todayStr = new Date().toISOString().split('T')[0];
+              const customSession: WorkoutSession = {
+                id: `session-${Date.now()}`,
+                dayName: 'Open Gym / Freestyle Session',
+                date: todayStr,
+                startTime: new Date().toISOString(),
+                status: 'in_progress',
+                exercises: []
+              };
+              db.saveActiveSession(customSession);
+              onSessionUpdated(customSession);
+            }}
+            icon={<ArrowRight className="w-4 h-4" aria-hidden />}
+          >
+            Start Empty Freestyle Session
+          </Button>
+        </Card>
+
+        {/* Recent Workout History preview */}
+        <section aria-label="Recent sessions">
+          <SectionHeading title={`Recent Completed Sessions (${completedSessions.length})`} />
+          {completedSessions.length === 0 ? (
+            <EmptyState
+              title="No previous workout sessions recorded yet."
+              description="Start your first session above!"
+            />
+          ) : (
+            <ul className="space-y-2">
+              {completedSessions
                 .slice(-5)
                 .reverse()
                 .map((sess) => {
@@ -603,37 +641,52 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                   );
                   const totalVol = calculateVolumeLoad(completedWorkingSets, false);
                   return (
-                    <div
-                      key={sess.id}
-                      className="p-3.5 bg-surface hover:bg-surface-2 border border-line rounded-2xl flex items-center justify-between text-xs transition-colors"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-white">{sess.dayName}</span>
-                          {sess.isDemo && (
-                            <span className="text-[11px] text-amber-400 font-mono px-1.5 py-0.5 bg-amber-400/10 rounded">
-                              DEMO
-                            </span>
-                          )}
+                    <li key={sess.id}>
+                      <Card pad="sm" className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm text-white truncate">{sess.dayName}</span>
+                            {sess.isDemo && <Badge tone="warning">DEMO</Badge>}
+                          </div>
+                          <div className="text-zinc-400 text-xs mt-0.5">
+                            <span>{sess.date}</span>
+                            <span className="mx-1.5" aria-hidden>·</span>
+                            <span>{sess.exercises.length} movements</span>
+                            <span className="mx-1.5" aria-hidden>·</span>
+                            <span>{completedWorkingSets.length} working sets</span>
+                          </div>
                         </div>
-                        <div className="text-zinc-400 font-mono text-[11px] mt-0.5">
-                          <span>{sess.date}</span>
-                          <span className="mx-1.5">·</span>
-                          <span>{sess.exercises.length} movements</span>
-                          <span className="mx-1.5">·</span>
-                          <span>{completedWorkingSets.length} working sets</span>
+                        <div className="text-right font-mono text-sm shrink-0 tabular">
+                          <span className="text-volt-adaptive font-semibold">{totalVol.toLocaleString()}</span>
+                          <span className="text-zinc-500 ml-1">{profile.preferredUnit}</span>
                         </div>
-                      </div>
-                      <div className="text-right font-mono">
-                        <span className="text-accent font-bold">{totalVol.toLocaleString()}</span>
-                        <span className="text-zinc-500 ml-1">{profile.preferredUnit}</span>
-                      </div>
-                    </div>
+                      </Card>
+                    </li>
                   );
                 })}
-            </div>
+            </ul>
           )}
+        </section>
         </div>
+
+        <DynamicWarmupModal
+          isOpen={showWarmupModal}
+          onClose={() => setShowWarmupModal(false)}
+          muscleGroups={(() => {
+            const currentDay = activePlan?.days.find((d) => d.id === selectedDayId);
+            return currentDay
+              ? Array.from(new Set(currentDay.exercises.map((e) => e.muscleGroup).filter(Boolean)))
+              : ['Chest', 'Shoulders', 'Triceps'];
+          })()}
+          exercises={(() => {
+            const currentDay = activePlan?.days.find((d) => d.id === selectedDayId);
+            return currentDay ? currentDay.exercises.map((e) => e.name) : ['Barbell Bench Press', 'Incline Press'];
+          })()}
+          workoutName={(() => {
+            const currentDay = activePlan?.days.find((d) => d.id === selectedDayId);
+            return currentDay ? currentDay.dayName : 'Pre-Workout Routine';
+          })()}
+        />
       </div>
     );
   }
@@ -641,793 +694,507 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
   // ==========================================
   // VIEW 2: LIVE WORKOUT IN-PROGRESS GYM HUD
   // ==========================================
+  const allDone = totalSets > 0 && completedSetCount === totalSets;
+
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-16">
-      {/* Top Session Command Bar */}
-      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-30 reshape-card p-4 flex flex-wrap items-center justify-between gap-3 shadow-[0_16px_40px_rgba(0,0,0,0.8)]">
+    <div className={cn('space-y-4 max-w-5xl mx-auto', isRestTimerOpen ? 'pb-56 md:pb-16' : 'pb-16')}>
+      {/* Sticky session header: name, clock, progress and the primary action */}
+      <Card
+        as="section"
+        pad="sm"
+        aria-label="Workout summary"
+        className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-30 sm:p-4"
+      >
         <div className="flex items-center gap-3">
-          <div
-            className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-colors ${
-              isPaused
-                ? 'bg-danger/15 border border-danger/30 text-danger'
-                : 'bg-accent/15 border border-accent/30 text-accent'
-            }`}
-          >
-            {isPaused ? <Pause className="w-5 h-5" /> : <Timer className="w-5 h-5 animate-spin-slow" />}
+          <span
+            className={cn('h-2.5 w-2.5 shrink-0 rounded-full', isPaused ? 'bg-warning' : 'bg-accent motion-safe:animate-pulse')}
+            aria-hidden
+          />
+          <div className="min-w-0 flex-1 flex items-center gap-2">
+            <h2 className="text-base sm:text-lg font-semibold text-white tracking-tight truncate">{activeSession.dayName}</h2>
+            {isPaused && <Badge tone="warning">Paused</Badge>}
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  isPaused ? 'bg-danger animate-pulse' : 'bg-accent animate-ping'
-                }`}
-              />
-              <h2 className="font-nrc font-bold text-white text-lg sm:text-xl tracking-tight">
-                {activeSession.dayName}
-              </h2>
-              {isPaused && (
-                <span className="text-[11px] font-mono font-bold tracking-wide px-2 py-0.5 rounded bg-danger/15 text-danger border border-danger/30">
-                  PAUSED
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 mt-0.5">
-              <Clock className="w-3.5 h-3.5 text-zinc-500" />
-              <span>Elapsed: <strong className="text-white tabular-nums">{formatTime(elapsedSeconds)}</strong></span>
-              <button
-                onClick={() => setShowResetTimerConfirm(true)}
-                className="text-zinc-500 hover:text-accent p-0.5 rounded transition-colors ml-0.5"
-                title="Reset Workout Elapsed Timer to 00:00"
-              >
-                <RotateCcw className="w-3 h-3" />
-              </button>
-              <span>·</span>
-              <span>{activeSession.exercises.length} Exercises</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Action buttons */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Pause / Resume Button */}
-          <button
-            onClick={handleTogglePause}
-            className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors border ${
-              isPaused
-                ? 'bg-danger text-white border-danger hover:bg-rose-600 font-bold shadow-md'
-                : 'bg-canvas border-line hover:border-white/20 text-zinc-300'
-            }`}
-            title={isPaused ? 'Resume active workout' : 'Pause workout timer'}
-          >
-            {isPaused ? <Play className="w-3.5 h-3.5 fill-white" /> : <Pause className="w-3.5 h-3.5 text-amber-400" />}
-            <span>{isPaused ? 'Resume' : 'Pause'}</span>
-          </button>
-
-          {/* 5-Min Warm-up Button */}
-          <button
-            onClick={() => setShowWarmupModal(true)}
-            className="p-2 sm:px-3 sm:py-2 bg-canvas border border-amber-400/30 hover:border-amber-400 text-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
-            title="Launch 5-Minute Targeted Dynamic Pre-Workout Warm-up"
-          >
-            <Flame className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-            <span className="hidden sm:inline">5-Min Warm-up</span>
-          </button>
-
-          {/* Reset Timer */}
-          <button
-            onClick={() => setShowResetTimerConfirm(true)}
-            className="p-2 sm:px-3 sm:py-2 bg-canvas border border-line hover:border-white/20 rounded-xl text-zinc-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
-            title="Reset workout session clock to 00:00"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-zinc-400" />
-            <span className="hidden sm:inline">Reset</span>
-          </button>
-
-          {/* Rest Timer */}
-          <button
-            onClick={() => setIsRestTimerOpen(true)}
-            className="p-2 sm:px-3 sm:py-2 bg-canvas border border-line hover:border-white/20 rounded-xl text-zinc-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-            title="Open Rest Timer"
-          >
-            <Clock className="w-4 h-4 text-info" />
-            <span className="hidden sm:inline">Rest Timer</span>
-          </button>
-
-          {/* Discard Workout */}
-          <button
-            onClick={() => setShowDiscardModal(true)}
-            className="p-2.5 bg-canvas border border-line hover:border-rose-900/60 rounded-xl text-zinc-400 hover:text-rose-400 text-xs font-semibold transition-colors"
-            title="Discard Workout"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-
-          {/* Finish Session */}
-          <button
+          <Button
             onClick={() => setShowFinishModal(true)}
-            className="touch-press px-4 py-2 bg-accent hover:bg-accent text-accent-ink font-nrc font-bold text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-1.5 transition-colors"
+            icon={<Check className="w-4 h-4 stroke-[3]" aria-hidden />}
+            className="shrink-0"
           >
-            <Check className="w-4 h-4 stroke-[3]" />
-            <span>Finish Session</span>
-          </button>
+            <span>Finish<span className="hidden sm:inline"> Session</span></span>
+          </Button>
         </div>
+
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Clock className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden />
+            <span
+              role="timer"
+              aria-label="Elapsed workout time"
+              className="text-2xl font-mono font-bold text-white tabular leading-none"
+            >
+              {formatTime(elapsedSeconds)}
+            </span>
+          </div>
+          <p className="text-xs text-zinc-400 tabular text-right">
+            {activeSession.exercises.length} {activeSession.exercises.length === 1 ? 'exercise' : 'exercises'}
+            <span className="mx-1.5" aria-hidden>·</span>
+            <span className={allDone ? 'text-volt-adaptive font-semibold' : undefined}>
+              {completedSetCount}/{totalSets} sets
+            </span>
+          </p>
+        </div>
+
+        {totalSets > 0 && (
+          <ProgressBar
+            className="mt-2.5"
+            value={completedSetCount}
+            max={totalSets}
+            tone={allDone ? 'success' : 'accent'}
+            label="Workout progress"
+          />
+        )}
+      </Card>
+
+      {/* Workout controls */}
+      <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Workout controls">
+        <Button
+          variant={isPaused ? 'primary' : 'secondary'}
+          onClick={handleTogglePause}
+          title={isPaused ? 'Resume active workout' : 'Pause workout timer'}
+          icon={
+            isPaused ? <Play className="w-4 h-4" aria-hidden /> : <Pause className="w-4 h-4 text-warning" aria-hidden />
+          }
+          className="flex-1 sm:flex-none"
+        >
+          {isPaused ? 'Resume' : 'Pause'}
+        </Button>
+
+        <Button
+          variant="secondary"
+          onClick={() => setIsRestTimerOpen(true)}
+          title="Open Rest Timer"
+          aria-label="Open rest timer"
+          icon={<Timer className="w-4 h-4 text-info" aria-hidden />}
+          className="max-sm:w-11 max-sm:px-0"
+        >
+          <span className="hidden sm:inline">Rest Timer</span>
+        </Button>
+
+        <Button
+          variant="secondary"
+          onClick={() => setShowWarmupModal(true)}
+          title="Launch 5-minute targeted dynamic pre-workout warm-up"
+          aria-label="5-minute warm-up"
+          icon={<Flame className="w-4 h-4 text-warning" aria-hidden />}
+          className="max-sm:w-11 max-sm:px-0"
+        >
+          <span className="hidden sm:inline">5-Min Warm-up</span>
+        </Button>
+
+        <Button
+          variant="secondary"
+          onClick={() => setShowResetTimerConfirm(true)}
+          title="Reset workout session clock to 00:00"
+          aria-label="Reset workout clock"
+          icon={<RotateCcw className="w-4 h-4 text-zinc-400" aria-hidden />}
+          className="max-sm:w-11 max-sm:px-0"
+        >
+          <span className="hidden sm:inline">Reset</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          onClick={() => setShowDiscardModal(true)}
+          title="Discard workout"
+          aria-label="Discard workout"
+          icon={<Trash2 className="w-4 h-4" aria-hidden />}
+          className="ml-auto text-zinc-400 hover:text-danger max-sm:w-11 max-sm:px-0"
+        >
+          <span className="hidden sm:inline">Discard</span>
+        </Button>
       </div>
 
-      {/* Paused Alert Notification Banner */}
+      {/* Paused notice */}
       {isPaused && (
-        <div className="p-3.5 bg-danger/15 border border-danger/30 rounded-2xl flex items-center justify-between text-xs text-rose-200 shadow-md">
-          <div className="flex items-center gap-2.5">
-            <Pause className="w-4 h-4 text-danger shrink-0" />
-            <div>
-              <span className="font-bold text-danger">Workout Paused:</span>
-              <span className="ml-1 text-zinc-300">
-                Elapsed clock is frozen at {formatTime(elapsedSeconds)}. Sets, notes, and timers are active.
-              </span>
-            </div>
+        <div
+          role="status"
+          className="rounded-card border border-warning/30 bg-warning/10 p-3 flex items-center justify-between gap-3 text-xs"
+        >
+          <div className="flex items-start gap-2.5 min-w-0">
+            <Pause className="w-4 h-4 text-warning shrink-0 mt-0.5" aria-hidden />
+            <p className="text-zinc-300">
+              <span className="font-semibold text-warning">Workout paused.</span> Elapsed clock is frozen at{' '}
+              <span className="font-mono tabular">{formatTime(elapsedSeconds)}</span>. Sets, notes, and timers stay active.
+            </p>
           </div>
-          <button
-            onClick={handleTogglePause}
-            className="px-3 py-1.5 bg-danger hover:bg-rose-600 text-white font-bold rounded-xl text-xs shrink-0 transition-colors"
-          >
+          <Button size="sm" className="shrink-0 min-h-11 sm:min-h-0" onClick={handleTogglePause}>
             Resume
-          </button>
+          </Button>
         </div>
       )}
 
-      {/* Live Bluetooth Fitness Gadget Telemetry Bar */}
+      {/* Live Bluetooth Fitness Gadget Telemetry */}
       {isConnected ? (
-        <div className="p-3.5 bg-canvas/90 border border-sky-400/30 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-lg">
+        <div className="rounded-card border border-info/30 bg-surface p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <Heart className="w-4 h-4 text-rose-500 fill-rose-500 animate-pulse" />
-              <span className="font-mono text-base font-extrabold text-white">
-                {liveHeartRate ?? '--'}{' '}
-                <span className="text-[11px] text-zinc-400 font-normal">BPM</span>
+              <Heart className="w-4 h-4 text-danger fill-danger motion-safe:animate-pulse" aria-hidden />
+              <span className="font-mono text-base font-bold text-white tabular">
+                {liveHeartRate ?? '--'} <span className="text-label text-zinc-400 font-normal">BPM</span>
               </span>
             </div>
-            <span className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold border ${currentZone.color}`}>
+            <span className={cn('px-2 py-0.5 rounded-full text-label font-semibold border', currentZone.color)}>
               {currentZone.name}
             </span>
           </div>
 
           <div className="flex items-center gap-3 font-mono text-xs">
-            <span className="text-zinc-400 flex items-center gap-1">
-              <Flame className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-zinc-400 flex items-center gap-1 tabular">
+              <Flame className="w-3.5 h-3.5 text-warning" aria-hidden />
               <span>{Math.round(activeCaloriesBurned)} kcal</span>
             </span>
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
+              className="min-h-11 sm:min-h-0 text-info"
               onClick={() => setIsGadgetModalOpen(true)}
-              className="text-sky-400 hover:underline font-semibold text-[11px]"
+              icon={<ArrowRight className="w-3.5 h-3.5" aria-hidden />}
             >
-              Gadget Hub &rarr;
-            </button>
+              Gadget Hub
+            </Button>
           </div>
         </div>
       ) : (
-        <div className="p-3 bg-canvas/60 border border-line rounded-2xl flex items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-2 text-zinc-400">
-            <Bluetooth className="w-3.5 h-3.5 text-zinc-500" />
-            <span className="text-[11px]">
-              Pair a Bluetooth fitness gadget (HR strap / smart band) for live heart rate pacing
-            </span>
+        <div className="rounded-card border border-line bg-surface p-3 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-zinc-400 min-w-0">
+            <Bluetooth className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden />
+            <span>Pair a Bluetooth fitness gadget (HR strap / smart band) for live heart rate pacing</span>
           </div>
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
+            className="shrink-0 min-h-11 sm:min-h-0"
             onClick={() => setIsGadgetModalOpen(true)}
-            className="px-3 py-1 bg-surface-2 hover:bg-surface-3 text-sky-300 rounded-xl text-xs font-semibold shrink-0 transition-colors border border-sky-400/20"
           >
             Connect Gadget
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Toast Notice */}
       {timerNotice && (
-        <div className="p-3 bg-canvas border border-line rounded-2xl text-xs text-white flex items-center gap-2 font-mono shadow-md animate-in fade-in duration-200">
-          <Clock className="w-3.5 h-3.5 text-accent" />
+        <div
+          role="status"
+          className="rounded-control border border-line-strong bg-surface-2 px-3 py-2.5 text-xs text-white flex items-center gap-2 il-fade-in"
+        >
+          <Clock className="w-3.5 h-3.5 text-volt-adaptive shrink-0" aria-hidden />
           <span>{timerNotice}</span>
         </div>
       )}
 
       {/* Exercises List */}
-      <div className="space-y-5">
-        {activeSession.exercises.map((exercise, exIndex) => {
-          const history = extractExerciseHistory(allSessions, exercise.name);
-          const lastSessionData =
-            history && history.sessions.length > 0
-              ? history.sessions[history.sessions.length - 1]
-              : null;
+      {activeSession.exercises.length === 0 ? (
+        <EmptyState
+          icon={<Dumbbell className="w-5 h-5" />}
+          title="No exercises in this workout yet"
+          description="Add your first movement to start logging sets."
+        />
+      ) : (
+        <div className="space-y-4">
+          {activeSession.exercises.map((exercise, exIndex) => {
+            const history = extractExerciseHistory(allSessions, exercise.name);
+            const lastSessionData =
+              history && history.sessions.length > 0 ? history.sessions[history.sessions.length - 1] : null;
 
-          const lastWorkingSets = lastSessionData ? lastSessionData.workingSets : [];
-          const lastWorkingWeight = lastWorkingSets.length > 0 ? lastWorkingSets[0].weight : 0;
-          const lastRepsString = lastWorkingSets.map((s) => s.reps).join(', ');
+            return (
+              <ExerciseCard
+                key={exercise.id}
+                exercise={exercise}
+                index={exIndex}
+                unit={profile.preferredUnit}
+                lastSession={
+                  lastSessionData ? { date: lastSessionData.date, workingSets: lastSessionData.workingSets } : null
+                }
+                onUpdateSet={(setIndex, updates) => handleUpdateSet(exIndex, setIndex, updates)}
+                onAddSet={(type) => handleAddSet(exIndex, type)}
+                onRemoveSet={(setIndex) => handleRemoveSet(exIndex, setIndex)}
+                onRemoveExercise={() => requestRemoveExercise(exIndex)}
+                onCopyPreviousWeight={(weight) => handleCopyPreviousWeightToAllSets(exIndex, weight)}
+                onOpenForm={(showVideo) => {
+                  setPosturePreviewShowVideo(showVideo);
+                  setPosturePreviewExercise(exercise.name);
+                }}
+                onOpenCoach={() => handleOpenAiCoach(exercise, exIndex)}
+              />
+            );
+          })}
+        </div>
+      )}
 
-          const completedWorkingSets = exercise.sets.filter((s) => s.completed && s.type === 'working');
-          const currentVolume = calculateVolumeLoad(completedWorkingSets, false);
+      {/* Add exercise */}
+      <Button
+        variant="secondary"
+        size="lg"
+        fullWidth
+        onClick={() => setIsAddingExercise(true)}
+        icon={<Plus className="w-4 h-4 text-volt-adaptive" aria-hidden />}
+      >
+        Add Exercise
+      </Button>
 
-          return (
-            <div
-              key={exercise.id}
-              className="bg-surface border border-line rounded-2xl p-4 sm:p-5 space-y-4"
-            >
-              {/* Exercise Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-line">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-bold text-accent tracking-wide">
-                      #{exIndex + 1}
-                    </span>
-                    <h3 className="text-base sm:text-lg font-bold text-white">
-                      {exercise.name}
-                    </h3>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-zinc-400 mt-1">
-                    <span className="capitalize">{exercise.muscleGroup}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="capitalize">{exercise.equipment}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>Target: {exercise.repRange} reps @ {exercise.targetRir} RIR</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  {/* Form & Posture Preview Button */}
-                  <button
-                    onClick={() => {
-                      setPosturePreviewShowVideo(false);
-                      setPosturePreviewExercise(exercise.name);
-                    }}
-                    className="px-2.5 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors"
-                    title="Preview correct posture, joint angles, and workout form"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Biomechanics</span>
-                  </button>
-
-                  {/* Watch Video Button (opens the same modal with the video section expanded) */}
-                  <button
-                    onClick={() => {
-                      setPosturePreviewShowVideo(true);
-                      setPosturePreviewExercise(exercise.name);
-                    }}
-                    className="px-2.5 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors"
-                    title="Watch an exercise demonstration video"
-                  >
-                    <Video className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Watch video</span>
-                  </button>
-
-                  {/* AI Coach & Substitutions Button */}
-                  <button
-                    onClick={() => handleOpenAiCoach(exercise, exIndex)}
-                    className="px-2.5 py-1 bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors"
-                    title="Get AI Form Cues, Warmup Ramp, and Substitutions"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>AI Coach &amp; Subs</span>
-                  </button>
-
-                  <div className="font-mono text-zinc-400 ml-1">
-                    Vol:{' '}
-                    <span className="font-bold text-white tabular-nums">
-                      {currentVolume.toLocaleString()} {profile.preferredUnit}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => handleRemoveExercise(exIndex)}
-                    className="p-1.5 text-zinc-600 hover:text-rose-400 rounded-lg transition-colors ml-1"
-                    title="Remove Exercise"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Previous Performance Banner */}
-              {lastSessionData ? (
-                <div className="flex items-center justify-between p-3 bg-canvas/80 border border-line rounded-2xl text-xs">
-                  <div className="flex items-center gap-2">
-                    <Info className="w-4 h-4 text-sky-400 shrink-0" />
-                    <span className="text-zinc-300">
-                      Last session ({lastSessionData.date}):{' '}
-                      <span className="font-mono font-bold text-sky-300">
-                        {lastWorkingWeight} {profile.preferredUnit}
-                      </span>{' '}
-                      &times; [{lastRepsString}] reps
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => handleCopyPreviousWeightToAllSets(exIndex, lastWorkingWeight)}
-                    className="px-2.5 py-1 bg-surface-2 hover:bg-surface-3 text-zinc-200 font-medium rounded-xl transition-colors shrink-0 text-[11px] border border-line"
-                    title="Copy weight to all sets"
-                  >
-                    Use {lastWorkingWeight} {profile.preferredUnit}
-                  </button>
-                </div>
-              ) : (
-                <div className="p-2.5 bg-canvas/40 rounded-2xl text-zinc-500 text-xs flex items-center gap-2">
-                  <Info className="w-3.5 h-3.5" />
-                  <span>First logged session for this movement. Establishing baseline.</span>
-                </div>
-              )}
-
-              {/* Sets Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-line text-[11px] font-mono text-zinc-400 tracking-wide">
-                      <th className="py-2.5 px-2 w-12 text-center">Set</th>
-                      <th className="py-2.5 px-2 min-w-[90px]">Weight ({profile.preferredUnit})</th>
-                      <th className="py-2.5 px-2 min-w-[70px]">Reps</th>
-                      <th className="py-2.5 px-2 min-w-[65px]">RIR</th>
-                      <th className="py-2.5 px-2 w-14 text-center">Done</th>
-                      <th className="py-2.5 px-1 w-8"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/[0.04] font-mono">
-                    {exercise.sets.map((set, setIndex) => {
-                      const isCompleted = set.completed;
-                      const isWarmup = set.type === 'warmup';
-
-                      return (
-                        <tr
-                          key={set.id}
-                          className={`transition-colors ${
-                            isCompleted ? 'bg-accent/[0.05]' : 'hover:bg-surface-2/40'
-                          }`}
-                        >
-                          {/* Set Badge */}
-                          <td className="py-2 px-2 text-center">
-                            <button
-                              onClick={() =>
-                                handleUpdateSet(exIndex, setIndex, {
-                                  type: isWarmup ? 'working' : 'warmup'
-                                })
-                              }
-                              className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors ${
-                                isWarmup
-                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                  : 'bg-surface-2 text-zinc-300 hover:bg-surface-3 border border-line'
-                              }`}
-                              title={isWarmup ? 'Warmup Set (toggle to Working)' : 'Working Set (toggle to Warmup)'}
-                            >
-                              {isWarmup ? 'W' : set.setNumber}
-                            </button>
-                          </td>
-
-                          {/* Weight Input with micro-increments */}
-                          <td className="py-2 px-2">
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="number"
-                                step="0.5"
-                                value={set.weight || ''}
-                                onChange={(e) =>
-                                  handleUpdateSet(exIndex, setIndex, {
-                                    weight: parseFloat(e.target.value) || 0
-                                  })
-                                }
-                                placeholder="0"
-                                className="w-16 sm:w-20 px-2 py-1.5 bg-canvas border border-line rounded-xl text-white font-bold text-sm focus:outline-none focus:border-accent tabular-nums"
-                              />
-                              <div className="hidden sm:flex flex-col gap-0.5">
-                                <button
-                                  onClick={() =>
-                                    handleUpdateSet(exIndex, setIndex, {
-                                      weight: Number((set.weight + 2.5).toFixed(1))
-                                    })
-                                  }
-                                  className="px-1.5 py-0.5 text-[11px] bg-surface-2 hover:bg-surface-3 text-zinc-300 rounded border border-line"
-                                >
-                                  +2.5
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleUpdateSet(exIndex, setIndex, {
-                                      weight: Math.max(0, Number((set.weight - 2.5).toFixed(1)))
-                                    })
-                                  }
-                                  className="px-1.5 py-0.5 text-[11px] bg-surface-2 hover:bg-surface-3 text-zinc-300 rounded border border-line"
-                                >
-                                  -2.5
-                                </button>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Reps Input */}
-                          <td className="py-2 px-2">
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={set.reps || ''}
-                              onChange={(e) =>
-                                handleUpdateSet(exIndex, setIndex, {
-                                  reps: parseInt(e.target.value, 10) || 0
-                                })
-                              }
-                              placeholder="0"
-                              className="w-14 sm:w-16 px-2 py-1.5 bg-canvas border border-line rounded-xl text-white font-bold text-sm focus:outline-none focus:border-accent tabular-nums"
-                            />
-                          </td>
-
-                          {/* RIR Input */}
-                          <td className="py-2 px-2">
-                            <select
-                              value={set.rir !== undefined ? set.rir : 2}
-                              onChange={(e) =>
-                                handleUpdateSet(exIndex, setIndex, {
-                                  rir: parseInt(e.target.value, 10)
-                                })
-                              }
-                              className="px-2 py-1.5 bg-canvas border border-line rounded-xl text-zinc-200 text-xs focus:outline-none focus:border-accent"
-                            >
-                              <option value="0">0 (Fail)</option>
-                              <option value="1">1 RIR</option>
-                              <option value="2">2 RIR</option>
-                              <option value="3">3 RIR</option>
-                              <option value="4">4+ RIR</option>
-                            </select>
-                          </td>
-
-                          {/* Large Checkmark Completion Button (>= 44px touch target) */}
-                          <td className="py-2 px-2 text-center">
-                            <button
-                              onClick={() =>
-                                handleUpdateSet(exIndex, setIndex, {
-                                  completed: !isCompleted
-                                })
-                              }
-                              className={`touch-press w-11 h-11 rounded-2xl flex items-center justify-center transition-all ${
-                                isCompleted
-                                  ? 'bg-accent text-accent-ink'
-                                  : 'bg-surface-2 text-zinc-500 hover:text-white hover:bg-surface-3 border border-line'
-                              }`}
-                              title={isCompleted ? 'Mark incomplete' : 'Complete set'}
-                            >
-                              <Check className={`w-5 h-5 ${isCompleted ? 'stroke-[3.5]' : 'stroke-2'}`} />
-                            </button>
-                          </td>
-
-                          {/* Delete Set */}
-                          <td className="py-2 px-1 text-center">
-                            <button
-                              onClick={() => handleRemoveSet(exIndex, setIndex)}
-                              className="p-1 text-zinc-600 hover:text-rose-400 transition-colors"
-                              title="Delete set"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Set Actions & Notes */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-line">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleAddSet(exIndex, 'working')}
-                    className="px-3.5 py-1.5 bg-surface-2 hover:bg-surface-3 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors border border-line"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-accent" />
-                    <span>Add Set</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleAddSet(exIndex, 'warmup')}
-                    className="px-3 py-1.5 bg-canvas hover:bg-surface-2 border border-line text-zinc-400 hover:text-white text-xs font-medium rounded-xl transition-colors"
-                  >
-                    <span>+ Warmup Set</span>
-                  </button>
-                </div>
-
-                <div className="text-[11px] font-mono text-zinc-400 flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-zinc-500" />
-                  <span>Rest: {exercise.restSeconds}s</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Add Exercise to this workout button */}
-      <div className="pt-2">
-        {isAddingExercise ? (
-          <div className="bg-surface border border-line rounded-2xl p-5 space-y-4">
-            <h4 className="font-bold text-white text-sm">Add Movement to Workout</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div>
-                <label className="block text-zinc-400 mb-1">Movement Name</label>
-                <input
-                  type="text"
-                  value={newExName}
-                  onChange={(e) => setNewExName(e.target.value)}
-                  placeholder="e.g. Incline Dumbbell Curl"
-                  className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-white focus:outline-none focus:border-accent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 mb-1">Muscle Group</label>
-                <select
-                  value={newExMuscle}
-                  onChange={(e) => setNewExMuscle(e.target.value)}
-                  className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-zinc-200 focus:outline-none focus:border-accent"
-                >
-                  <option value="Chest">Chest</option>
-                  <option value="Back">Back</option>
-                  <option value="Shoulders">Shoulders</option>
-                  <option value="Quads">Quads</option>
-                  <option value="Hamstrings">Hamstrings</option>
-                  <option value="Glutes">Glutes</option>
-                  <option value="Biceps">Biceps</option>
-                  <option value="Triceps">Triceps</option>
-                  <option value="Calves">Calves</option>
-                  <option value="Abs">Abs</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 mb-1">Equipment</label>
-                <select
-                  value={newExEquipment}
-                  onChange={(e) => setNewExEquipment(e.target.value as EquipmentType)}
-                  className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-zinc-200 focus:outline-none focus:border-accent"
-                >
-                  <option value="barbell">Barbell</option>
-                  <option value="dumbbell">Dumbbell</option>
-                  <option value="cable">Cable</option>
-                  <option value="machine">Machine</option>
-                  <option value="bodyweight">Bodyweight</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 mb-1">Target Reps</label>
-                <input
-                  type="text"
-                  value={newExReps}
-                  onChange={(e) => setNewExReps(e.target.value)}
-                  placeholder="e.g. 8-12"
-                  className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-white focus:outline-none focus:border-accent"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setIsAddingExercise(false)}
-                className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-zinc-300 text-xs font-semibold rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddNewExerciseToSession}
-                className="px-5 py-2 bg-accent hover:bg-accent text-accent-ink text-xs font-bold rounded-xl shadow-md"
-              >
-                Insert Movement
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => setIsAddingExercise(true)}
-            className="w-full py-4 border-2 border-dashed border-line hover:border-accent/50 rounded-2xl text-xs font-bold text-zinc-400 hover:text-white transition-all flex items-center justify-center gap-2 bg-canvas/30"
-          >
-            <Plus className="w-4 h-4 text-accent" />
-            <span>Add Additional Exercise</span>
-          </button>
-        )}
-      </div>
-
-      {/* Rest Timer Modal */}
+      {/* Rest Timer */}
       <RestTimer
         isOpen={isRestTimerOpen}
         initialSeconds={restTimerSeconds}
         onClose={() => setIsRestTimerOpen(false)}
       />
 
-      {/* AI Exercise Coach & Substitutions Modal */}
-      {aiCoachExercise && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface border border-line rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-line">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-accent/10 border border-accent/30 flex items-center justify-center text-accent">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-white text-base">Coach Iron Intelligence</h3>
-                  <p className="text-xs text-zinc-400">{aiCoachExercise.name}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setAiCoachExercise(null)}
-                className="text-zinc-500 hover:text-white text-xs px-2 py-1 rounded"
-              >
-                &times; Close
-              </button>
-            </div>
+      {/* Add exercise */}
+      <Modal
+        open={isAddingExercise}
+        onClose={closeAddExercise}
+        title="Add Movement to Workout"
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeAddExercise}>
+              Cancel
+            </Button>
+            <Button type="submit" form="add-exercise-form">
+              Insert Movement
+            </Button>
+          </>
+        }
+      >
+        <form id="add-exercise-form" onSubmit={submitNewExercise} className="grid grid-cols-1 sm:grid-cols-2 gap-3" noValidate>
+          <Input
+            label="Movement Name"
+            type="text"
+            value={newExName}
+            onChange={(e) => setNewExName(e.target.value)}
+            placeholder="e.g. Incline Dumbbell Curl"
+            error={addExTouched && !newExName.trim() ? 'Enter a movement name.' : undefined}
+            wrapperClassName="sm:col-span-2"
+            autoComplete="off"
+          />
+          <Select label="Muscle Group" value={newExMuscle} onChange={(e) => setNewExMuscle(e.target.value)}>
+            <option value="Chest">Chest</option>
+            <option value="Back">Back</option>
+            <option value="Shoulders">Shoulders</option>
+            <option value="Quads">Quads</option>
+            <option value="Hamstrings">Hamstrings</option>
+            <option value="Glutes">Glutes</option>
+            <option value="Biceps">Biceps</option>
+            <option value="Triceps">Triceps</option>
+            <option value="Calves">Calves</option>
+            <option value="Abs">Abs</option>
+          </Select>
+          <Select
+            label="Equipment"
+            value={newExEquipment}
+            onChange={(e) => setNewExEquipment(e.target.value as EquipmentType)}
+          >
+            <option value="barbell">Barbell</option>
+            <option value="dumbbell">Dumbbell</option>
+            <option value="cable">Cable</option>
+            <option value="machine">Machine</option>
+            <option value="bodyweight">Bodyweight</option>
+          </Select>
+          <Input
+            label="Target Reps"
+            type="text"
+            value={newExReps}
+            onChange={(e) => setNewExReps(e.target.value)}
+            placeholder="e.g. 8-12"
+            wrapperClassName="sm:col-span-2"
+          />
+        </form>
+      </Modal>
 
-            {aiCoachLoading && (
-              <div className="py-8 flex flex-col items-center justify-center text-xs text-zinc-400 space-y-2">
-                <RefreshCw className="w-6 h-6 animate-spin text-accent" />
-                <span>Analyzing biomechanics, cues, and gym equipment substitutions...</span>
-              </div>
+      {/* Remove an exercise that already has logged sets */}
+      <Modal
+        open={exerciseToRemove !== null}
+        onClose={closeRemoveExercise}
+        title="Remove this exercise?"
+        size="sm"
+        description={
+          exerciseToRemove !== null && activeSession.exercises[exerciseToRemove]
+            ? `${activeSession.exercises[exerciseToRemove].name} has ${
+                activeSession.exercises[exerciseToRemove].sets.filter((s) => s.completed).length
+              } completed set(s). Removing it deletes them from this workout.`
+            : undefined
+        }
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeRemoveExercise}>
+              Keep Exercise
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (exerciseToRemove !== null) handleRemoveExercise(exerciseToRemove);
+                setExerciseToRemove(null);
+              }}
+            >
+              Remove Exercise
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-zinc-400">This only affects the workout in progress.</p>
+      </Modal>
+
+      {/* AI Exercise Coach & Substitutions */}
+      <Modal
+        open={aiCoachExercise !== null}
+        onClose={closeAiCoach}
+        title="Coach Iron Intelligence"
+        description={aiCoachExercise?.name}
+      >
+        {aiCoachLoading && <LoadingState label="Analyzing biomechanics, cues, and equipment substitutions…" />}
+
+        {aiCoachError && (
+          <ErrorState title="Coaching unavailable" description={aiCoachError} className="py-6" />
+        )}
+
+        {aiCoachData && (
+          <div className="space-y-4 text-sm">
+            {aiCoachData.cues && (
+              <Card tone="raised" pad="sm" className="space-y-2">
+                <h3 className="text-xs font-semibold text-volt-adaptive">Execution &amp; Form Cues</h3>
+                <ul className="space-y-1.5 text-zinc-300">
+                  {aiCoachData.cues.map((cue: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <Check className="w-4 h-4 text-volt-adaptive shrink-0 mt-0.5" aria-hidden />
+                      <span>{cue}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
             )}
 
-            {aiCoachError && (
-              <div className="p-3 bg-canvas border border-amber-500/30 rounded-2xl text-xs text-amber-300 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>{aiCoachError}</span>
-              </div>
-            )}
-
-            {aiCoachData && (
-              <div className="space-y-4 text-xs">
-                {/* Form Cues */}
-                {aiCoachData.cues && (
-                  <div className="p-3.5 bg-canvas/80 border border-line rounded-2xl space-y-2">
-                    <span className="font-mono text-accent font-bold text-[11px] block">
-                      Execution &amp; Form Cues
-                    </span>
-                    <ul className="space-y-1 text-zinc-300">
-                      {aiCoachData.cues.map((cue: string, idx: number) => (
-                        <li key={idx} className="flex items-start gap-1.5">
-                          <Check className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
-                          <span>{cue}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Gym Substitutions */}
-                {aiCoachData.substitutions && aiCoachData.substitutions.length > 0 && (
-                  <div className="space-y-2">
-                    <span className="font-mono text-zinc-400 font-bold text-[11px] block">
-                      Equipment Busy? Smart Substitutions
-                    </span>
-                    <div className="space-y-2">
-                      {aiCoachData.substitutions.map((sub: any, idx: number) => (
-                        <div
-                          key={idx}
-                          className="p-3 bg-canvas/80 border border-line rounded-2xl flex items-center justify-between gap-2"
-                        >
-                          <div>
-                            <span className="font-bold text-white block">{sub.name}</span>
-                            <span className="text-[11px] text-zinc-400">{sub.reason || sub.equipment}</span>
-                          </div>
-                          <button
-                            onClick={() => handleApplySubstitution(sub)}
-                            className="px-3 py-1.5 bg-surface-2 hover:bg-surface-3 text-accent border border-accent/30 font-bold rounded-xl text-xs shrink-0 transition-colors"
-                          >
-                            Use Swap
-                          </button>
+            {aiCoachData.substitutions && aiCoachData.substitutions.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-zinc-400">Equipment busy? Smart substitutions</h3>
+                <ul className="space-y-2">
+                  {aiCoachData.substitutions.map((sub: any, idx: number) => (
+                    <li key={idx}>
+                      <Card tone="raised" pad="sm" className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <span className="font-semibold text-white block break-words">{sub.name}</span>
+                          <span className="text-xs text-zinc-400">{sub.reason || sub.equipment}</span>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                        <Button variant="secondary" size="sm" className="shrink-0 min-h-11 sm:min-h-0" onClick={() => handleApplySubstitution(sub)}>
+                          Use Swap
+                        </Button>
+                      </Card>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
-      {/* Finish Session Modal */}
-      {showFinishModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface border border-line rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-accent">
-              <Flame className="w-6 h-6 fill-accent" />
-              <h3 className="font-nrc font-bold text-xl text-white">Finish Today&apos;s Session</h3>
-            </div>
-            <p className="text-xs text-zinc-400 leading-relaxed font-sans">
-              Great work! This workout will be stored to your training log and used to update your
-              progressive overload calculations and volume reports.
+      {/* Finish: summary of what was actually logged, then confirm */}
+      <Modal
+        open={showFinishModal}
+        onClose={closeFinish}
+        title="Finish today's session"
+        description="This workout will be stored to your training log and used for your progressive overload calculations and volume reports."
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeFinish}>
+              Back to Workout
+            </Button>
+            <Button onClick={handleConfirmFinish} icon={<Check className="w-4 h-4 stroke-[3]" aria-hidden />}>
+              Confirm &amp; Save
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <dl className="grid grid-cols-2 gap-2">
+            {[
+              { label: 'Duration', value: formatTime(elapsedSeconds) },
+              {
+                label: 'Exercises logged',
+                value: `${exercisesWithLoggedSets}/${activeSession.exercises.length}`
+              },
+              { label: 'Sets completed', value: `${completedSetCount}/${totalSets}` },
+              { label: `Volume (${profile.preferredUnit})`, value: sessionVolume.toLocaleString() }
+            ].map((m) => (
+              <div key={m.label} className="rounded-control bg-surface-2 border border-line px-3 py-2.5">
+                <dt className="text-label text-zinc-400">{m.label}</dt>
+                <dd className="text-lg font-mono font-bold text-white tabular mt-0.5">{m.value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          {totalSets > completedSetCount && (
+            <p role="status" className="rounded-control border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-zinc-300">
+              <span className="font-semibold text-warning">{totalSets - completedSetCount}</span> set
+              {totalSets - completedSetCount === 1 ? ' is' : 's are'} still unchecked.
             </p>
+          )}
 
-            <div>
-              <label className="block text-xs font-mono text-zinc-300 mb-1">
-                Workout Session Notes (optional)
-              </label>
-              <textarea
-                value={finishNotes}
-                onChange={(e) => setFinishNotes(e.target.value)}
-                placeholder="Energy levels, pump, sleep quality, adjustments..."
-                rows={3}
-                className="w-full px-3 py-2 bg-canvas border border-line rounded-2xl text-white text-xs focus:outline-none focus:border-accent"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setShowFinishModal(false)}
-                className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-zinc-300 text-xs font-semibold rounded-xl"
-              >
-                Back to Workout
-              </button>
-              <button
-                onClick={handleConfirmFinish}
-                className="px-5 py-2 bg-accent hover:bg-accent text-accent-ink text-xs font-bold rounded-xl shadow-md font-nrc text-sm"
-              >
-                Confirm &amp; Save
-              </button>
-            </div>
-          </div>
+          <Textarea
+            label="Workout session notes (optional)"
+            value={finishNotes}
+            onChange={(e) => setFinishNotes(e.target.value)}
+            placeholder="Energy levels, pump, sleep quality, adjustments..."
+            rows={3}
+          />
         </div>
-      )}
+      </Modal>
 
-      {/* Discard Session Modal */}
-      {showDiscardModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface border border-line rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-danger">
-              <AlertTriangle className="w-6 h-6" />
-              <h3 className="font-bold text-lg text-white">Discard In-Progress Workout?</h3>
-            </div>
-            <p className="text-xs text-zinc-400 leading-relaxed font-sans">
-              Are you sure you want to discard this workout? Recorded sets for this session will not
-              be saved to your permanent training history.
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setShowDiscardModal(false)}
-                className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-zinc-300 text-xs font-semibold rounded-xl"
-              >
-                Keep Workout
-              </button>
-              <button
-                onClick={handleConfirmDiscard}
-                className="px-4 py-2 bg-danger hover:bg-rose-600 text-white text-xs font-bold rounded-xl"
-              >
-                Yes, Discard
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Discard: always confirmed */}
+      <Modal
+        open={showDiscardModal}
+        onClose={closeDiscard}
+        title="Discard in-progress workout?"
+        size="sm"
+        description="Recorded sets for this session will not be saved to your permanent training history."
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeDiscard}>
+              Keep Workout
+            </Button>
+            <Button variant="danger" onClick={handleConfirmDiscard} icon={<Trash2 className="w-4 h-4" aria-hidden />}>
+              Yes, Discard
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-zinc-400">
+          {completedSetCount > 0
+            ? `${completedSetCount} completed set${completedSetCount === 1 ? '' : 's'} will be lost.`
+            : 'No sets have been completed yet.'}
+        </p>
+      </Modal>
 
-      {/* Reset Workout Timer Modal */}
-      {showResetTimerConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-surface border border-line rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-accent">
-              <RotateCcw className="w-6 h-6" />
-              <h3 className="font-bold text-lg text-white">Reset Workout Timer</h3>
-            </div>
-            <p className="text-xs text-zinc-400 leading-relaxed font-sans">
-              Reset the session clock back to <strong className="text-white">00:00</strong>?
-              Your logged sets, weights, and repetitions will <strong className="text-accent">NOT</strong> be lost.
-            </p>
-            <div className="bg-canvas border border-line rounded-2xl p-3 text-xs text-zinc-300 flex items-center justify-between">
-              <span>Current elapsed time:</span>
-              <span className="font-mono font-bold text-white">{formatTime(elapsedSeconds)}</span>
-            </div>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setShowResetTimerConfirm(false)}
-                className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-zinc-300 text-xs font-semibold rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleResetWorkoutTimer}
-                className="px-4 py-2 bg-accent hover:bg-accent text-accent-ink text-xs font-bold rounded-xl shadow-md flex items-center gap-1.5 font-nrc "
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reset to 00:00</span>
-              </button>
-            </div>
-          </div>
+      {/* Reset Workout Timer */}
+      <Modal
+        open={showResetTimerConfirm}
+        onClose={closeResetTimer}
+        title="Reset workout timer"
+        size="sm"
+        description="Reset the session clock back to 00:00? Your logged sets, weights, and repetitions will not be lost."
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeResetTimer}>
+              Cancel
+            </Button>
+            <Button onClick={handleResetWorkoutTimer} icon={<RotateCcw className="w-4 h-4" aria-hidden />}>
+              Reset to 00:00
+            </Button>
+          </>
+        }
+      >
+        <div className="rounded-control bg-surface-2 border border-line px-3 py-2.5 text-sm text-zinc-300 flex items-center justify-between">
+          <span>Current elapsed time</span>
+          <span className="font-mono font-bold text-white tabular">{formatTime(elapsedSeconds)}</span>
         </div>
-      )}
+      </Modal>
 
       {/* Posture & Form Preview Modal */}
       {posturePreviewExercise && (
@@ -1444,32 +1211,9 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
       <DynamicWarmupModal
         isOpen={showWarmupModal}
         onClose={() => setShowWarmupModal(false)}
-        muscleGroups={
-          activeSession
-            ? Array.from(new Set(activeSession.exercises.map((e) => e.muscleGroup).filter(Boolean)))
-            : (() => {
-                const currentDay = activePlan?.days.find((d) => d.id === selectedDayId);
-                return currentDay
-                  ? Array.from(new Set(currentDay.exercises.map((e) => e.muscleGroup).filter(Boolean)))
-                  : ['Chest', 'Shoulders', 'Triceps'];
-              })()
-        }
-        exercises={
-          activeSession
-            ? activeSession.exercises.map((e) => e.name)
-            : (() => {
-                const currentDay = activePlan?.days.find((d) => d.id === selectedDayId);
-                return currentDay ? currentDay.exercises.map((e) => e.name) : ['Barbell Bench Press', 'Incline Press'];
-              })()
-        }
-        workoutName={
-          activeSession
-            ? activeSession.dayName
-            : (() => {
-                const currentDay = activePlan?.days.find((d) => d.id === selectedDayId);
-                return currentDay ? currentDay.dayName : 'Pre-Workout Routine';
-              })()
-        }
+        muscleGroups={Array.from(new Set(activeSession.exercises.map((e) => e.muscleGroup).filter(Boolean)))}
+        exercises={activeSession.exercises.map((e) => e.name)}
+        workoutName={activeSession.dayName}
       />
     </div>
   );

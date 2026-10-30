@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, X, Volume2, Plus, Minus } from 'lucide-react';
+import { Play, Pause, RotateCcw, X, Timer, Plus, Minus, SkipForward, Check } from 'lucide-react';
+import { Button, ProgressBar, cn } from '../ui';
 
 interface RestTimerProps {
   initialSeconds?: number;
@@ -78,6 +79,7 @@ export const RestTimer: React.FC<RestTimerProps> = ({
   const minutes = Math.floor(secondsLeft / 60);
   const seconds = secondsLeft % 60;
   const progressPercent = totalSeconds > 0 ? ((totalSeconds - secondsLeft) / totalSeconds) * 100 : 0;
+  const isFinished = secondsLeft === 0;
 
   const addTime = (delta: number) => {
     const next = Math.max(0, secondsLeft + delta);
@@ -88,105 +90,120 @@ export const RestTimer: React.FC<RestTimerProps> = ({
   const presetTimes = [60, 90, 120, 180];
 
   return (
-    <div className="fixed bottom-20 md:bottom-6 right-4 md:right-8 z-50 w-72 bg-surface-2 border border-line rounded-xl shadow-2xl p-4 text-zinc-100 backdrop-blur-md">
-      <div className="flex items-center justify-between pb-2 mb-2 border-b border-line">
-        <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-lime-400">
-          <Volume2 className="w-3.5 h-3.5" />
-          <span>Rest Interval Timer</span>
+    <section
+      aria-label="Rest timer"
+      className={cn(
+        'fixed z-50 left-3 right-3 bottom-[calc(5rem+env(safe-area-inset-bottom))]',
+        'md:left-auto md:right-8 md:bottom-6 md:w-80',
+        'rounded-card bg-surface-2 border p-4 text-zinc-100 shadow-2xl il-sheet-up',
+        isFinished ? 'border-accent/50' : 'border-line-strong'
+      )}
+    >
+      <div className="flex items-center justify-between gap-3 pb-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-label font-semibold text-zinc-400">
+            <Timer className="w-3.5 h-3.5 text-volt-adaptive" aria-hidden />
+            <span>Rest timer</span>
+          </div>
+          {/* role=timer is not announced every second; completion is announced in the status line. */}
+          <div
+            role="timer"
+            aria-label={`${minutes} minutes ${seconds} seconds remaining`}
+            className={cn(
+              'text-4xl sm:text-5xl font-mono font-bold tracking-tight tabular leading-tight',
+              isFinished ? 'text-volt-adaptive' : 'text-white'
+            )}
+          >
+            {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+          </div>
         </div>
-        <button
-          onClick={onClose}
-          className="text-zinc-500 hover:text-zinc-300 p-1 rounded-md transition-colors"
-          aria-label="Close Timer"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Timer Display */}
-      <div className="text-center py-2">
-        <div
-          className={`text-4xl font-mono font-bold tracking-tight ${
-            secondsLeft === 0 ? 'text-lime-400 animate-pulse' : 'text-zinc-100'
-          }`}
-        >
-          {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+        <div className="flex flex-col items-end gap-0.5 min-w-0">
+          <Button variant="ghost" iconOnly onClick={onClose} aria-label="Close Timer" className="-mr-2 -mt-2">
+            <X className="w-4 h-4" aria-hidden />
+          </Button>
+          <div role="status" aria-live="polite" className="text-right">
+            {isFinished && (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-volt-adaptive">
+                <Check className="w-3.5 h-3.5" aria-hidden />
+                Rest finished. Time to lift.
+              </span>
+            )}
+            {!isFinished && !isRunning && <span className="text-xs text-zinc-400">Paused</span>}
+          </div>
         </div>
-        {secondsLeft === 0 && (
-          <p className="text-xs font-semibold text-lime-400 mt-1">REST PERIOD FINISHED! TIME TO LIFT.</p>
-        )}
       </div>
 
-      {/* Progress Bar */}
-      <div className="w-full bg-surface-3 h-1.5 rounded-full overflow-hidden my-2">
-        <div
-          className="bg-lime-400 h-full transition-all duration-300"
-          style={{ width: `${progressPercent}%` }}
-        />
-      </div>
+      <ProgressBar value={progressPercent} tone={isFinished ? 'success' : 'accent'} label="Rest progress" />
 
-      {/* Quick Add / Subtract & Controls */}
-      <div className="flex items-center justify-center gap-2 mt-3">
-        <button
-          onClick={() => addTime(-15)}
-          className="p-2 bg-surface-3/80 hover:bg-zinc-700 rounded-lg text-xs font-medium text-zinc-300 transition-colors"
-          title="-15s"
-        >
-          <Minus className="w-3.5 h-3.5" />
-        </button>
+      {/* Adjust, pause/resume, reset */}
+      <div className="flex items-center gap-2 mt-3">
+        <Button variant="secondary" iconOnly onClick={() => addTime(-15)} aria-label="Subtract 15 seconds" title="-15s">
+          <Minus className="w-4 h-4" aria-hidden />
+        </Button>
 
-        <button
+        <Button
+          variant={isRunning ? 'secondary' : 'primary'}
           onClick={() => setIsRunning(!isRunning)}
-          className={`px-4 py-2 rounded-lg font-semibold text-xs flex items-center gap-1.5 transition-colors ${
-            isRunning
-              ? 'bg-surface-3 hover:bg-zinc-700 text-zinc-200'
-              : 'bg-lime-400 text-accent-ink hover:bg-lime-300'
-          }`}
+          icon={isRunning ? <Pause className="w-4 h-4" aria-hidden /> : <Play className="w-4 h-4" aria-hidden />}
+          className="flex-1"
         >
-          {isRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-          <span>{isRunning ? 'Pause' : 'Resume'}</span>
-        </button>
+          {isRunning ? 'Pause' : 'Resume'}
+        </Button>
 
-        <button
+        <Button variant="secondary" iconOnly onClick={() => addTime(15)} aria-label="Add 15 seconds" title="+15s">
+          <Plus className="w-4 h-4" aria-hidden />
+        </Button>
+
+        <Button
+          variant="secondary"
+          iconOnly
           onClick={() => {
             setSecondsLeft(totalSeconds);
             setIsRunning(true);
           }}
-          className="p-2 bg-surface-3/80 hover:bg-zinc-700 rounded-lg text-xs font-medium text-zinc-300 transition-colors"
+          aria-label="Reset timer"
           title="Reset"
         >
-          <RotateCcw className="w-3.5 h-3.5" />
-        </button>
+          <RotateCcw className="w-4 h-4" aria-hidden />
+        </Button>
+      </div>
 
-        <button
-          onClick={() => addTime(15)}
-          className="p-2 bg-surface-3/80 hover:bg-zinc-700 rounded-lg text-xs font-medium text-zinc-300 transition-colors"
-          title="+15s"
+      {/* Preset intervals + skip */}
+      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-line">
+        <div className="grid grid-cols-4 gap-1.5 flex-1 min-w-0" role="group" aria-label="Rest presets">
+          {presetTimes.map((secs) => {
+            const active = totalSeconds === secs && secondsLeft > 0;
+            return (
+              <button
+                key={secs}
+                type="button"
+                aria-pressed={active}
+                onClick={() => {
+                  setTotalSeconds(secs);
+                  setSecondsLeft(secs);
+                  setIsRunning(true);
+                }}
+                className={cn(
+                  'h-11 sm:h-9 rounded-control border text-xs font-mono font-semibold tabular transition-colors touch-press',
+                  active
+                    ? 'bg-accent/10 text-volt-adaptive border-accent/40'
+                    : 'bg-surface-3 text-zinc-300 border-line hover:text-white hover:border-line-strong'
+                )}
+              >
+                {secs}s
+              </button>
+            );
+          })}
+        </div>
+        <Button
+          variant={isFinished ? 'primary' : 'ghost'}
+          onClick={onClose}
+          icon={isFinished ? <Check className="w-4 h-4" aria-hidden /> : <SkipForward className="w-4 h-4" aria-hidden />}
+          className="shrink-0"
         >
-          <Plus className="w-3.5 h-3.5" />
-        </button>
+          {isFinished ? 'Done' : 'Skip'}
+        </Button>
       </div>
-
-      {/* Preset intervals */}
-      <div className="grid grid-cols-4 gap-1 mt-3 pt-2 border-t border-zinc-800/60">
-        {presetTimes.map((secs) => (
-          <button
-            key={secs}
-            onClick={() => {
-              setTotalSeconds(secs);
-              setSecondsLeft(secs);
-              setIsRunning(true);
-            }}
-            className={`py-1 rounded text-[11px] font-mono font-medium transition-colors ${
-              totalSeconds === secs && secondsLeft > 0
-                ? 'bg-lime-400/20 text-lime-400 border border-lime-400/40'
-                : 'bg-surface-3/40 hover:bg-surface-3 text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            {secs}s
-          </button>
-        ))}
-      </div>
-    </div>
+    </section>
   );
 };
