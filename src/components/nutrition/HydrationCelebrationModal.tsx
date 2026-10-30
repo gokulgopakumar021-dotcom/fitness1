@@ -1,6 +1,9 @@
 import React, { useEffect } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Trophy, Droplets, Sparkles, CheckCircle2, Flame, X, ArrowRight } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { Trophy, Droplets, Sparkles, Flame, ArrowRight } from 'lucide-react';
+import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
+import { Badge } from '../ui/Badge';
 import { WaterUnit } from './WaterIntakeLogger';
 
 export interface HydrationCelebrationModalProps {
@@ -95,154 +98,108 @@ export const HydrationCelebrationModal: React.FC<HydrationCelebrationModalProps>
   const percentage = Math.round((waterMl / (goalMl || 1)) * 100);
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop Blur */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-overlay backdrop-blur-sm"
-          />
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="Daily Target Crushed!"
+      size="sm"
+      footer={
+        <Button type="button" size="lg" fullWidth onClick={onClose}>
+          <span>Continue Training &amp; Tracking</span>
+          <ArrowRight className="w-4 h-4" aria-hidden />
+        </Button>
+      }
+    >
+      <div className="relative overflow-hidden text-center">
+        {/* Confetti burst, clipped to the dialog body; skipped when the user prefers reduced motion */}
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center" aria-hidden>
+          {!reduceMotion && PARTICLES.map((p) => (
+            <motion.div
+              key={p.id}
+              initial={{ x: 0, y: 0, opacity: 1, scale: 0 }}
+              animate={{
+                x: p.x * 1.5,
+                y: p.y * 1.5,
+                opacity: [1, 1, 0],
+                scale: [0, 1.4, 0.8],
+                rotate: p.rotate + 180
+              }}
+              transition={{ duration: 1.4, ease: 'easeOut', delay: 0.1 }}
+              style={{
+                backgroundColor: p.color,
+                width: p.size,
+                height: p.size,
+                borderRadius: p.id % 2 === 0 ? '50%' : '2px',
+                position: 'absolute'
+              }}
+            />
+          ))}
+        </div>
 
-          {/* Central Animated Modal Card */}
+        <div className="relative flex justify-center pt-1 pb-4">
+          {/* Spring supports exactly two keyframes; the overshoot comes from the low damping. */}
           <motion.div
-            initial={{ scale: 0.7, opacity: 0, y: 30 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.8, opacity: 0, y: 20 }}
-            transition={{ type: 'spring', damping: 18, stiffness: 220 }}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Hydration goal reached"
-            className="relative z-10 w-full max-w-md p-6 sm:p-7 rounded-card bg-surface border border-success/40 shadow-2xl text-center overflow-hidden"
+            initial={{ scale: 0, rotate: -25 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ delay: 0.15, type: 'spring', damping: 12, stiffness: 200 }}
+            className="w-20 h-20 rounded-card bg-accent/10 border border-accent/30 flex items-center justify-center"
           >
-            {/* Confetti Explosion Particles */}
-            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              {!reduceMotion && PARTICLES.map((p) => (
-                <motion.div
-                  key={p.id}
-                  initial={{ x: 0, y: 0, opacity: 1, scale: 0 }}
-                  animate={{
-                    x: p.x * 1.5,
-                    y: p.y * 1.5,
-                    opacity: [1, 1, 0],
-                    scale: [0, 1.4, 0.8],
-                    rotate: p.rotate + 180
-                  }}
-                  transition={{ duration: 1.4, ease: 'easeOut', delay: 0.1 }}
-                  style={{
-                    backgroundColor: p.color,
-                    width: p.size,
-                    height: p.size,
-                    borderRadius: p.id % 2 === 0 ? '50%' : '2px',
-                    position: 'absolute'
-                  }}
-                />
-              ))}
-            </div>
-
-            {/* Close X */}
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="absolute top-3 right-3 w-11 h-11 flex items-center justify-center rounded-control text-zinc-400 hover:text-white hover:bg-surface-2 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            {/* Glowing Icon Header */}
-            <div className="relative my-3 flex justify-center">
-              <motion.div
-                initial={{ scale: 0, rotate: -25 }}
-                animate={{ scale: [0, 1.35, 1], rotate: 0 }}
-                transition={{ delay: 0.15, type: 'spring', damping: 12, stiffness: 200 }}
-                className="w-20 h-20 rounded-card bg-accent/10 border border-accent/30 flex items-center justify-center"
-              >
-                <Trophy className="w-10 h-10 text-accent" aria-hidden />
-              </motion.div>
-            </div>
-
-            {/* Badges & Titles */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="space-y-2"
-            >
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-400/40">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>GOAL COMPLETED ({percentage}%)</span>
-              </div>
-
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                Daily Target Crushed!
-              </h2>
-
-              <p className="text-xs sm:text-sm text-[var(--text-secondary)] font-sans max-w-xs mx-auto leading-relaxed">
-                You logged <strong className="text-white">{currentDisplay}</strong>, satisfying your full daily athletic target of <strong className="text-emerald-400">{goalDisplay}</strong>.
-              </p>
-            </motion.div>
-
-            {/* Streak & XP Card */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.45 }}
-              className="mt-5 p-3.5 rounded-2xl bg-[var(--bg-canvas)] border border-[var(--border-card)] flex items-center justify-around gap-2 text-left"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-amber-400">
-                  <Flame className="w-5 h-5 fill-amber-400" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-muted)] block">
-                    Weekly Streak
-                  </span>
-                  <span className="text-base font-mono font-bold text-white">
-                    {streakCount > 0 ? `${streakCount} Day Streak!` : '1st Day Hit!'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="h-8 w-px bg-white/10" />
-
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-sky-500/15 border border-sky-400/30 flex items-center justify-center text-sky-400">
-                  <Droplets className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-muted)] block">
-                    Cell Volume
-                  </span>
-                  <span className="text-base font-mono font-bold text-sky-400">
-                    100% Primed
-                  </span>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Action Button */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
-              className="mt-6"
-            >
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-full py-3 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-white font-mono font-bold text-sm shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2"
-              >
-                <span>Continue Training &amp; Tracking</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </motion.div>
+            <Trophy className="w-10 h-10 text-accent" aria-hidden />
           </motion.div>
         </div>
-      )}
-    </AnimatePresence>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="relative space-y-3"
+        >
+          <Badge tone="success" icon={<Sparkles className="w-3.5 h-3.5" aria-hidden />} className="font-mono">
+            GOAL COMPLETED ({percentage}%)
+          </Badge>
+
+          <p className="text-sm text-[var(--text-secondary)] max-w-xs mx-auto leading-relaxed">
+            You logged <strong className="text-white">{currentDisplay}</strong>, satisfying your full daily athletic target of <strong className="text-success">{goalDisplay}</strong>.
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.45 }}
+          className="relative mt-5 p-3.5 rounded-card bg-canvas border border-line flex items-center justify-around gap-2 text-left"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-control bg-warning/10 border border-warning/30 flex items-center justify-center text-warning">
+              <Flame className="w-5 h-5 fill-current" aria-hidden />
+            </div>
+            <div>
+              <span className="text-label font-mono uppercase tracking-wider text-[var(--text-muted)] block">
+                Weekly Streak
+              </span>
+              <span className="text-base font-mono font-bold text-white">
+                {streakCount > 0 ? `${streakCount} Day Streak!` : '1st Day Hit!'}
+              </span>
+            </div>
+          </div>
+
+          <div className="h-8 w-px bg-line-strong" aria-hidden />
+
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-control bg-info/10 border border-info/30 flex items-center justify-center text-info">
+              <Droplets className="w-5 h-5" aria-hidden />
+            </div>
+            <div>
+              <span className="text-label font-mono uppercase tracking-wider text-[var(--text-muted)] block">
+                Cell Volume
+              </span>
+              <span className="text-base font-mono font-bold text-info">
+                100% Primed
+              </span>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </Modal>
   );
 };
