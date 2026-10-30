@@ -6,10 +6,12 @@ import { AVATAR_ACCEPTED_TYPES, initialsFromName, processAvatarFile, validateAva
 
 interface AvatarEditorProps {
   name: string;
+  /** Identity text (name, badges) shown beside the photo, above the photo actions. */
+  children?: React.ReactNode;
 }
 
 /** Profile photo. Stays on this device; downsized and re-encoded in the browser (EXIF stripped). */
-export const AvatarEditor: React.FC<AvatarEditorProps> = ({ name }) => {
+export const AvatarEditor: React.FC<AvatarEditorProps> = ({ name, children }) => {
   const [avatar, setAvatar] = useState<string | null>(() => getAvatar());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,9 +50,9 @@ export const AvatarEditor: React.FC<AvatarEditorProps> = ({ name }) => {
   };
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-4 min-w-0">
       <div
-        className="h-16 w-16 shrink-0 rounded-full overflow-hidden bg-surface-3 border border-line-strong flex items-center justify-center text-lg font-semibold text-zinc-200"
+        className="h-20 w-20 shrink-0 rounded-full overflow-hidden bg-surface-3 border border-line-strong flex items-center justify-center text-xl font-semibold text-zinc-200"
         aria-label={avatar ? 'Profile photo' : 'No profile photo'}
         role="img"
       >
@@ -59,10 +61,11 @@ export const AvatarEditor: React.FC<AvatarEditorProps> = ({ name }) => {
         ) : initials ? (
           <span aria-hidden>{initials}</span>
         ) : (
-          <User className="h-6 w-6 text-zinc-400" aria-hidden />
+          <User className="h-8 w-8 text-zinc-400" aria-hidden />
         )}
       </div>
-      <div className="min-w-0 space-y-1.5">
+      <div className="min-w-0 space-y-2">
+        {children}
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" size="sm" loading={busy} onClick={() => inputRef.current?.click()}>
             {avatar ? 'Change photo' : 'Add photo'}

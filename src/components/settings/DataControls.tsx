@@ -106,14 +106,14 @@ export const DataControls: React.FC = () => {
       </span>
       <ul className="divide-y divide-line">
         {CATEGORIES.map((c) => (
-          <li key={c.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3 first:pt-0 last:pb-0">
+          <li key={c.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
             <div className="min-w-0">
               <div className="text-sm font-medium text-zinc-100">{c.label}</div>
               <div className="text-label text-zinc-500">
                 {c.count()} · {c.detail}
               </div>
             </div>
-            <Button type="button" variant="danger" size="sm" onClick={() => { setDone(null); setPending(c); }}>
+            <Button type="button" variant="danger" size="sm" className="shrink-0" onClick={() => { setDone(null); setPending(c); }}>
               Delete…
             </Button>
           </li>

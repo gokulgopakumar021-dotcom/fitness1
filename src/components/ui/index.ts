@@ -9,6 +9,8 @@ export { ProgressBar } from './ProgressBar';
 export { EmptyState } from './EmptyState';
 export { Skeleton } from './Skeleton';
 export { SegmentedControl } from './SegmentedControl';
+export { SectionNav } from './SectionNav';
+export type { SectionNavItem } from './SectionNav';
 export { Modal } from './Modal';
 export { Input, Select, Textarea, Field, CONTROL_BASE } from './Input';
 export { ErrorState } from './ErrorState';
