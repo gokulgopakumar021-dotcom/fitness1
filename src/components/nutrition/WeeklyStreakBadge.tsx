@@ -24,7 +24,7 @@ export const WeeklyStreakBadge: React.FC<WeeklyStreakBadgeProps> = ({
             className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-inner ${
               streak.currentStreak > 0
                 ? 'bg-amber-500/15 border-amber-400/30 text-amber-400'
-                : 'bg-slate-800/40 border-slate-700 text-slate-500'
+                : 'bg-surface-2 border-line text-zinc-500'
             }`}
           >
             <Flame
@@ -44,10 +44,10 @@ export const WeeklyStreakBadge: React.FC<WeeklyStreakBadgeProps> = ({
                     : streak.tier === 'gold'
                     ? 'bg-amber-500/15 text-amber-400 border-amber-400/30'
                     : streak.tier === 'silver'
-                    ? 'bg-slate-300/15 text-slate-300 border-slate-300/30'
+                    ? 'bg-zinc-400/15 text-zinc-300 border-zinc-400/30'
                     : streak.tier === 'bronze'
                     ? 'bg-amber-600/15 text-amber-500 border-amber-500/30'
-                    : 'bg-slate-800 text-[var(--text-muted)] border-slate-700'
+                    : 'bg-surface-2 text-zinc-500 border-line'
                 }`}
               >
                 {streak.tierIcon} {streak.tierLabel}
@@ -83,13 +83,13 @@ export const WeeklyStreakBadge: React.FC<WeeklyStreakBadgeProps> = ({
                       ? 'bg-emerald-500 text-white shadow-sm'
                       : day.isToday
                       ? 'border border-dashed border-sky-400/60 bg-sky-500/10'
-                      : 'bg-slate-800 border border-slate-700 text-slate-600'
+                      : 'bg-surface-2 border border-line text-zinc-500'
                   }`}
                 >
                   {day.isHit ? (
                     <Check className="w-2.5 h-2.5 stroke-[3]" />
                   ) : (
-                    <div className="w-1 h-1 rounded-full bg-slate-600" />
+                    <div className="w-1 h-1 rounded-full bg-zinc-500" />
                   )}
                 </div>
               </div>
@@ -144,7 +144,7 @@ export const WeeklyStreakBadge: React.FC<WeeklyStreakBadgeProps> = ({
               <span className="text-[var(--text-muted)]">1 – 2 Days Active</span>
             </div>
             <div className="p-2 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-card)]">
-              <span className="text-slate-300 block font-bold">🥈 Silver Tier</span>
+              <span className="text-zinc-300 block font-bold">🥈 Silver Tier</span>
               <span className="text-[var(--text-muted)]">3 – 4 Days Active</span>
             </div>
             <div className="p-2 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-card)]">

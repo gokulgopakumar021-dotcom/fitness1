@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Bell,
-  BellRing,
   Clock,
   Moon,
   Zap,
@@ -11,13 +10,12 @@ import {
   Sparkles,
   CheckCircle2,
   AlertTriangle,
-  X,
   Activity,
   Dumbbell,
   ShieldCheck,
   Send
 } from 'lucide-react';
-import { Input } from '../ui';
+import { Button, Input, Modal } from '../ui';
 
 export interface SmartAlertsConfig {
   enabled: boolean;
@@ -135,8 +133,6 @@ export const SmartAlertsConfigModal: React.FC<SmartAlertsConfigModalProps> = ({
     return () => clearInterval(interval);
   }, [localConfig.timeZone]);
 
-  if (!isOpen) return null;
-
   const updatePartial = (patch: Partial<SmartAlertsConfig>) => {
     setLocalConfig((prev) => ({ ...prev, ...patch }));
   };
@@ -212,309 +208,278 @@ export const SmartAlertsConfigModal: React.FC<SmartAlertsConfigModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-card bg-surface border border-line-strong shadow-2xl overflow-hidden text-[var(--text-primary)]">
-        {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-[var(--border-card)] flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-sky-500/15 border border-sky-400/30 flex items-center justify-center text-sky-400">
-              <BellRing className="w-5 h-5 animate-pulse" />
-            </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
-                Smart Alerts Configuration
-              </h3>
-              <p className="text-xs font-mono text-[var(--text-muted)]">
-                Time-zone aware, activity-based push notifications &amp; quiet hours
-              </p>
-            </div>
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      size="lg"
+      title="Smart Alerts Configuration"
+      description="Time-zone aware, activity-based push notifications & quiet hours"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} icon={<CheckCircle2 className="w-4 h-4" />}>
+            Save Smart Alerts
+          </Button>
+        </>
+      }
+    >
+    <div className="space-y-5 text-xs font-mono">
+        {/* 1. Master Enable Switch */}
+        <div className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-card)] flex items-center justify-between">
+          <div>
+            <span className="font-bold text-sm text-white block">Smart Push Alerts</span>
+            <span className="text-[11px] text-[var(--text-muted)]">
+              Master switch for background hourly and situational hydration reminders
+            </span>
           </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-[var(--text-muted)] hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={localConfig.enabled}
+              onChange={(e) => updatePartial({ enabled: e.target.checked })}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-surface-3 border border-line-strong peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-line-strong after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-500"></div>
+          </label>
         </div>
 
-        {/* Scrollable Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs font-mono">
-          {/* 1. Master Enable Switch */}
-          <div className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-card)] flex items-center justify-between">
-            <div>
-              <span className="font-bold text-sm text-white block">Smart Push Alerts</span>
-              <span className="text-[11px] text-[var(--text-muted)]">
-                Master switch for background hourly and situational hydration reminders
-              </span>
+        {/* 2. Time Zone & Live Clock */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Globe className="w-4 h-4" />
+              <span>1. Time Zone Configuration</span>
+            </span>
+            <span className="text-[11px] font-bold text-emerald-400 tabular-nums">
+              Local Time: {currentTimeInTz}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="sm:col-span-2">
+              <select
+                value={localConfig.timeZone}
+                onChange={(e) => updatePartial({ timeZone: e.target.value })}
+                className="w-full p-2.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)] text-white text-xs outline-none focus:border-sky-400 cursor-pointer"
+              >
+                {COMMON_TIMEZONES.map((tz) => (
+                  <option key={tz} value={tz} className="bg-slate-900 text-white">
+                    {tz}
+                  </option>
+                ))}
+              </select>
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                if (detected) updatePartial({ timeZone: detected });
+              }}
+              className="px-3 py-2 rounded-xl bg-[var(--chip-bg)] hover:bg-[var(--chip-bg)] border border-[var(--border-card)] hover:border-sky-400 text-sky-400 font-bold text-xs transition-colors"
+            >
+              Auto-Detect
+            </button>
+          </div>
+          <p className="text-[10px] text-[var(--text-muted)]">
+            Ensures notifications align with your local circadian rhythm and meal windows.
+          </p>
+        </div>
+
+        {/* 3. Daily Activity Level Cadence */}
+        <div className="space-y-2">
+          <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Activity className="w-4 h-4" />
+            <span>2. Daily Activity Level &amp; Pacing Cadence</span>
+          </span>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { id: 'rest', label: 'Rest Day', sub: 'Baseline cadence (2-3 hrs)', boost: '+0 ml' },
+              { id: 'moderate', label: 'Moderate', sub: 'Gym session (90 min)', boost: '+500 ml' },
+              { id: 'heavy', label: 'Heavy Lift', sub: 'Heavy compound (60 min)', boost: '+1,000 ml' },
+              { id: 'endurance', label: 'Endurance', sub: 'High heat (45 min)', boost: '+1,200 ml' }
+            ].map((lvl) => (
+              <button
+                key={lvl.id}
+                type="button"
+                onClick={() => updatePartial({ activityLevel: lvl.id as any })}
+                className={`p-2.5 rounded-xl border text-left transition-all ${
+                  localConfig.activityLevel === lvl.id
+                    ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-sm'
+                    : 'bg-[var(--bg-canvas)] border-[var(--border-card)] text-[var(--text-muted)] hover:text-white'
+                }`}
+              >
+                <span className="font-bold text-xs block text-white">{lvl.label}</span>
+                <span className="text-[10px] block opacity-80 mt-0.5">{lvl.sub}</span>
+                <span className="text-[9px] font-bold text-emerald-400 mt-1 block">
+                  {lvl.boost}
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-[var(--text-muted)]">
+            Higher training days shorten alert intervals and prime hydration before workouts.
+          </p>
+        </div>
+
+        {/* 4. Custom Quiet Hours (Suppression Window) */}
+        <div className="space-y-2 p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-card)]">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+              <Moon className="w-4 h-4 text-amber-400" />
+              <span>3. Custom Quiet Hours (Suppress All Alerts)</span>
+            </span>
+
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
-                checked={localConfig.enabled}
-                onChange={(e) => updatePartial({ enabled: e.target.checked })}
+                checked={localConfig.quietHoursEnabled}
+                onChange={(e) => updatePartial({ quietHoursEnabled: e.target.checked })}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-500"></div>
+              <div className="w-9 h-5 bg-surface-3 border border-line-strong peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-line-strong after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
             </label>
           </div>
 
-          {/* 2. Time Zone & Live Clock */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Globe className="w-4 h-4" />
-                <span>1. Time Zone Configuration</span>
-              </span>
-              <span className="text-[11px] font-bold text-emerald-400 tabular-nums">
-                Local Time: {currentTimeInTz}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div className="sm:col-span-2">
-                <select
-                  value={localConfig.timeZone}
-                  onChange={(e) => updatePartial({ timeZone: e.target.value })}
-                  className="w-full p-2.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)] text-white text-xs outline-none focus:border-sky-400 cursor-pointer"
-                >
-                  {COMMON_TIMEZONES.map((tz) => (
-                    <option key={tz} value={tz} className="bg-slate-900 text-white">
-                      {tz}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                  if (detected) updatePartial({ timeZone: detected });
-                }}
-                className="px-3 py-2 rounded-xl bg-[var(--chip-bg)] hover:bg-[var(--chip-bg)] border border-[var(--border-card)] hover:border-sky-400 text-sky-400 font-bold text-xs transition-colors"
-              >
-                Auto-Detect
-              </button>
-            </div>
-            <p className="text-[10px] text-[var(--text-muted)]">
-              Ensures notifications align with your local circadian rhythm and meal windows.
-            </p>
-          </div>
-
-          {/* 3. Daily Activity Level Cadence */}
-          <div className="space-y-2">
-            <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Activity className="w-4 h-4" />
-              <span>2. Daily Activity Level &amp; Pacing Cadence</span>
-            </span>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { id: 'rest', label: 'Rest Day', sub: 'Baseline cadence (2-3 hrs)', boost: '+0 ml' },
-                { id: 'moderate', label: 'Moderate', sub: 'Gym session (90 min)', boost: '+500 ml' },
-                { id: 'heavy', label: 'Heavy Lift', sub: 'Heavy compound (60 min)', boost: '+1,000 ml' },
-                { id: 'endurance', label: 'Endurance', sub: 'High heat (45 min)', boost: '+1,200 ml' }
-              ].map((lvl) => (
-                <button
-                  key={lvl.id}
-                  type="button"
-                  onClick={() => updatePartial({ activityLevel: lvl.id as any })}
-                  className={`p-2.5 rounded-xl border text-left transition-all ${
-                    localConfig.activityLevel === lvl.id
-                      ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-sm'
-                      : 'bg-[var(--bg-canvas)] border-[var(--border-card)] text-[var(--text-muted)] hover:text-white'
-                  }`}
-                >
-                  <span className="font-bold text-xs block text-white">{lvl.label}</span>
-                  <span className="text-[10px] block opacity-80 mt-0.5">{lvl.sub}</span>
-                  <span className="text-[9px] font-bold text-emerald-400 mt-1 block">
-                    {lvl.boost}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <p className="text-[10px] text-[var(--text-muted)]">
-              Higher training days shorten alert intervals and prime hydration before workouts.
-            </p>
-          </div>
-
-          {/* 4. Custom Quiet Hours (Suppression Window) */}
-          <div className="space-y-2 p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-card)]">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                <Moon className="w-4 h-4 text-amber-400" />
-                <span>3. Custom Quiet Hours (Suppress All Alerts)</span>
-              </span>
-
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={localConfig.quietHoursEnabled}
-                  onChange={(e) => updatePartial({ quietHoursEnabled: e.target.checked })}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
-              </label>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <div>
-                <Input
-                  label="Quiet Starts (Night)"
-                  type="time"
-                  disabled={!localConfig.quietHoursEnabled}
-                  value={localConfig.quietHoursStart}
-                  onChange={(e) => updatePartial({ quietHoursStart: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <Input
-                  label="Quiet Ends (Morning)"
-                  type="time"
-                  disabled={!localConfig.quietHoursEnabled}
-                  value={localConfig.quietHoursEnd}
-                  onChange={(e) => updatePartial({ quietHoursEnd: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <p className="text-[10px] text-[var(--text-muted)]">
-              All browser notifications and audio chimes are muted between {localConfig.quietHoursStart} and {localConfig.quietHoursEnd} to protect sleep hygiene.
-            </p>
-          </div>
-
-          {/* 5. Specific Push Notification Triggers */}
-          <div className="space-y-2">
-            <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Zap className="w-4 h-4" />
-              <span>4. Specific Notification Types</span>
-            </span>
-
-            <div className="space-y-2">
-              {[
-                {
-                  id: 'hourlyLagAlert' as const,
-                  title: 'Hourly Pacing Lag Alert',
-                  desc: 'Fires when falling >12 oz behind expected pace during active hours.'
-                },
-                {
-                  id: 'middayCheckIn' as const,
-                  title: 'Midday Progress Check-In (1:00 PM)',
-                  desc: 'Brief status reminder if below 50% of daily hydration by early afternoon.'
-                },
-                {
-                  id: 'preWorkoutPrimer' as const,
-                  title: 'Pre-Workout Hydration Primer',
-                  desc: 'Reminds you to drink 16 oz (500 ml) 45 min before your scheduled workout.'
-                },
-                {
-                  id: 'postWorkoutReplenish' as const,
-                  title: 'Post-Workout Fluid Recovery',
-                  desc: 'Alerts to replenish sweat and electrolyte volume right after logging a workout.'
-                },
-                {
-                  id: 'eveningCatchUp' as const,
-                  title: 'Evening Catch-Up Warning',
-                  desc: 'Notifies 2 hours before quiet hours if daily hydration is below 85%.'
-                }
-              ].map((item) => (
-                <div
-                  key={item.id}
-                  className="p-2.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)] flex items-center justify-between gap-3"
-                >
-                  <div>
-                    <span className="font-bold text-white text-xs block">{item.title}</span>
-                    <span className="text-[10px] text-[var(--text-muted)]">{item.desc}</span>
-                  </div>
-
-                  <input
-                    type="checkbox"
-                    checked={localConfig.notifications[item.id]}
-                    onChange={() => updateNotificationToggle(item.id)}
-                    className="w-4 h-4 accent-sky-500 rounded cursor-pointer shrink-0"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 6. Sound Chime & Live Test Alerts */}
-          <div className="p-3 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-card)] space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {localConfig.soundChime ? (
-                  <Volume2 className="w-4 h-4 text-sky-400" />
-                ) : (
-                  <VolumeX className="w-4 h-4 text-[var(--text-muted)]" />
-                )}
-                <span className="font-bold text-white text-xs">Audio Chime On Alert</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={localConfig.soundChime}
-                onChange={(e) => updatePartial({ soundChime: e.target.checked })}
-                className="w-4 h-4 accent-sky-500 rounded cursor-pointer"
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div>
+              <Input
+                label="Quiet Starts (Night)"
+                type="time"
+                disabled={!localConfig.quietHoursEnabled}
+                value={localConfig.quietHoursStart}
+                onChange={(e) => updatePartial({ quietHoursStart: e.target.value })}
               />
             </div>
 
-            <div className="pt-2 border-t border-[var(--border-card)] flex flex-wrap items-center gap-2">
-              <span className="text-[10px] text-[var(--text-muted)] w-full">
-                Test Push Notification Triggers:
-              </span>
-              <button
-                type="button"
-                onClick={() => handleTestNotification('lag')}
-                className="px-2.5 py-1 rounded-lg bg-[var(--bg-canvas)] hover:bg-[var(--chip-bg)] border border-[var(--border-card)] text-sky-400 text-[10px] font-bold"
-              >
-                Test Lag Alert
-              </button>
-              <button
-                type="button"
-                onClick={() => handleTestNotification('midday')}
-                className="px-2.5 py-1 rounded-lg bg-[var(--bg-canvas)] hover:bg-[var(--chip-bg)] border border-[var(--border-card)] text-sky-400 text-[10px] font-bold"
-              >
-                Test Midday
-              </button>
-              <button
-                type="button"
-                onClick={() => handleTestNotification('preworkout')}
-                className="px-2.5 py-1 rounded-lg bg-[var(--bg-canvas)] hover:bg-[var(--chip-bg)] border border-[var(--border-card)] text-sky-400 text-[10px] font-bold"
-              >
-                Test Pre-Workout
-              </button>
+            <div>
+              <Input
+                label="Quiet Ends (Morning)"
+                type="time"
+                disabled={!localConfig.quietHoursEnabled}
+                value={localConfig.quietHoursEnd}
+                onChange={(e) => updatePartial({ quietHoursEnd: e.target.value })}
+              />
             </div>
+          </div>
 
-            {testSentText && (
-              <div className="p-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] flex items-center gap-1.5 animate-fadeIn">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>{testSentText}</span>
+          <p className="text-[10px] text-[var(--text-muted)]">
+            All browser notifications and audio chimes are muted between {localConfig.quietHoursStart} and {localConfig.quietHoursEnd} to protect sleep hygiene.
+          </p>
+        </div>
+
+        {/* 5. Specific Push Notification Triggers */}
+        <div className="space-y-2">
+          <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Zap className="w-4 h-4" />
+            <span>4. Specific Notification Types</span>
+          </span>
+
+          <div className="space-y-2">
+            {[
+              {
+                id: 'hourlyLagAlert' as const,
+                title: 'Hourly Pacing Lag Alert',
+                desc: 'Fires when falling >12 oz behind expected pace during active hours.'
+              },
+              {
+                id: 'middayCheckIn' as const,
+                title: 'Midday Progress Check-In (1:00 PM)',
+                desc: 'Brief status reminder if below 50% of daily hydration by early afternoon.'
+              },
+              {
+                id: 'preWorkoutPrimer' as const,
+                title: 'Pre-Workout Hydration Primer',
+                desc: 'Reminds you to drink 16 oz (500 ml) 45 min before your scheduled workout.'
+              },
+              {
+                id: 'postWorkoutReplenish' as const,
+                title: 'Post-Workout Fluid Recovery',
+                desc: 'Alerts to replenish sweat and electrolyte volume right after logging a workout.'
+              },
+              {
+                id: 'eveningCatchUp' as const,
+                title: 'Evening Catch-Up Warning',
+                desc: 'Notifies 2 hours before quiet hours if daily hydration is below 85%.'
+              }
+            ].map((item) => (
+              <div
+                key={item.id}
+                className="p-2.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-card)] flex items-center justify-between gap-3"
+              >
+                <div>
+                  <span className="font-bold text-white text-xs block">{item.title}</span>
+                  <span className="text-[10px] text-[var(--text-muted)]">{item.desc}</span>
+                </div>
+
+                <input
+                  type="checkbox"
+                  checked={localConfig.notifications[item.id]}
+                  onChange={() => updateNotificationToggle(item.id)}
+                  className="w-4 h-4 accent-sky-500 rounded cursor-pointer shrink-0"
+                />
               </div>
-            )}
+            ))}
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-[var(--border-card)] flex items-center justify-end gap-2 bg-surface-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-mono text-[var(--text-muted)] hover:text-white transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-mono font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Save Smart Alerts</span>
-          </button>
+        {/* 6. Sound Chime & Live Test Alerts */}
+        <div className="p-3 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-card)] space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {localConfig.soundChime ? (
+                <Volume2 className="w-4 h-4 text-sky-400" />
+              ) : (
+                <VolumeX className="w-4 h-4 text-[var(--text-muted)]" />
+              )}
+              <span className="font-bold text-white text-xs">Audio Chime On Alert</span>
+            </div>
+            <input
+              type="checkbox"
+              checked={localConfig.soundChime}
+              onChange={(e) => updatePartial({ soundChime: e.target.checked })}
+              className="w-4 h-4 accent-sky-500 rounded cursor-pointer"
+            />
+          </div>
+
+          <div className="pt-2 border-t border-[var(--border-card)] flex flex-wrap items-center gap-2">
+            <span className="text-[10px] text-[var(--text-muted)] w-full">
+              Test Push Notification Triggers:
+            </span>
+            <button
+              type="button"
+              onClick={() => handleTestNotification('lag')}
+              className="px-2.5 py-1 rounded-lg bg-[var(--bg-canvas)] hover:bg-[var(--chip-bg)] border border-[var(--border-card)] text-sky-400 text-[10px] font-bold"
+            >
+              Test Lag Alert
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTestNotification('midday')}
+              className="px-2.5 py-1 rounded-lg bg-[var(--bg-canvas)] hover:bg-[var(--chip-bg)] border border-[var(--border-card)] text-sky-400 text-[10px] font-bold"
+            >
+              Test Midday
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTestNotification('preworkout')}
+              className="px-2.5 py-1 rounded-lg bg-[var(--bg-canvas)] hover:bg-[var(--chip-bg)] border border-[var(--border-card)] text-sky-400 text-[10px] font-bold"
+            >
+              Test Pre-Workout
+            </button>
+          </div>
+
+          {testSentText && (
+            <div className="p-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] flex items-center gap-1.5 animate-fadeIn">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{testSentText}</span>
+            </div>
+          )}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };

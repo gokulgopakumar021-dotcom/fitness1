@@ -254,7 +254,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-fade-in">
+    <div role="dialog" aria-modal="true" aria-label="Dream physique" className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-overlay backdrop-blur-md animate-fade-in">
       <div className="bg-surface border border-line rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         {/* TOAST ALERT */}
         {notification && (

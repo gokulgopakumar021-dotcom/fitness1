@@ -216,7 +216,7 @@ export const DynamicWarmupModal: React.FC<DynamicWarmupModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-fade-in">
+    <div role="dialog" aria-modal="true" aria-label="Dynamic warm-up" className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-overlay backdrop-blur-md animate-fade-in">
       <div className="bg-surface border border-line rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         {/* MODAL HEADER */}
         <div className="p-4 sm:p-5 border-b border-line flex items-center justify-between bg-canvas/70">
