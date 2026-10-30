@@ -23,6 +23,7 @@ import { DreamPhysiqueModal } from './DreamPhysiqueModal';
 import { AdaptiveReviewModal } from './AdaptiveReviewModal';
 import { NavTab } from '../layout/Navbar';
 import { Badge, Button, Card } from '../ui';
+import { getFormInsights } from '../../services/workoutMirror/mirrorStorage';
 
 interface ChatMessage {
   id: string;
@@ -35,6 +36,7 @@ interface ChatMessage {
       | 'open_bluetooth'
       | 'navigate_workouts'
       | 'navigate_progression'
+      | 'navigate_mirror'
       | 'dynamic_warmup'
       | 'dream_physique';
     payload?: string;
@@ -125,7 +127,8 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
           userMessage: text,
           profile,
           activeSession,
-          bluetooth: { isConnected, bpm: liveHeartRate }
+          bluetooth: { isConnected, bpm: liveHeartRate },
+          mirrorInsights: getFormInsights()
         })
       });
 
@@ -143,11 +146,29 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
       setMessages((prev) => [...prev, aiMsg]);
       speakText(aiReplyText);
     } catch {
+      const insights = getFormInsights();
+      let fallbackText = "I'm temporarily offline from cloud servers, but remember: adhere to double progression, rest 2-3 minutes between compound sets, and hit your daily protein quotas!";
+      let action: ChatMessage['suggestedAction'] | undefined = undefined;
+
+      if (text.toLowerCase().includes('mirror') || text.toLowerCase().includes('form')) {
+        if (insights.length > 0) {
+          const top = insights[0];
+          fallbackText = `Based on your Workout Mirror sessions: you completed ${top.totalReps} reps of ${top.exerciseName} with ${top.averageConsistency}% form consistency. ${
+            top.topCorrection ? `Key focus: "${top.topCorrection}"` : 'Your movement mechanics were solid!'
+          }`;
+          action = { type: 'navigate_mirror', label: 'Launch Workout Mirror' };
+        } else {
+          fallbackText = "You haven't recorded any Workout Mirror sessions yet! Open the Workout Mirror to get real-time computer vision tracking and technique coaching.";
+          action = { type: 'navigate_mirror', label: 'Open Workout Mirror' };
+        }
+      }
+
       const fallbackMsg: ChatMessage = {
         id: `ai-err-${Date.now()}`,
         role: 'model',
-        text: "I'm temporarily offline from cloud servers, but remember: adhere to double progression, rest 2-3 minutes between compound sets, and hit your daily protein quotas!",
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        text: fallbackText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        suggestedAction: action
       };
       setMessages((prev) => [...prev, fallbackMsg]);
     } finally {
@@ -169,6 +190,9 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
         break;
       case 'navigate_progression':
         onNavigate('progression');
+        break;
+      case 'navigate_mirror':
+        onNavigate('mirror');
         break;
       case 'dynamic_warmup':
         setIsWarmupModalOpen(true);
@@ -420,6 +444,7 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
       {/* QUICK COACH PROMPTS */}
       <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none shrink-0">
         {[
+          'Review my Workout Mirror technique',
           'Start 5-min pre-workout warm-up',
           'Visualize dream physique & diet blueprint',
           'Preview squat posture & knee angles',

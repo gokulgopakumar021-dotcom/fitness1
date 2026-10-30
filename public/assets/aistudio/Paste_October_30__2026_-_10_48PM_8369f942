@@ -1,0 +1,951 @@
+# MASTER PROMPT: BUILD A COMPLETE AI WORKOUT MIRROR FEATURE
+
+You are acting as a senior full-stack software engineer, computer vision engineer, AI fitness engineer, biomechanics specialist, and premium fitness product designer.
+
+Your task is to build a complete, production-ready **AI WORKOUT MIRROR** feature inside my existing fitness application.
+
+This is a major feature addition, not a prototype or visual demonstration.
+
+The feature should transform the user's device camera into an intelligent workout mirror. Users should be able to see themselves exercising, have their body movements tracked in real time, receive exercise-specific technique analysis, automatically count repetitions, and get instant visual and voice coaching.
+
+You must implement all required phases, integrate the feature with the existing application, test it thoroughly, and preserve all existing functionality.
+
+Do not merely provide recommendations or an implementation plan. Inspect the project and execute the implementation.
+
+---
+
+# 1. EXISTING PROJECT AND GIT INSTRUCTIONS
+
+This is an existing fitness application with a premium UI redesign already completed.
+
+Work directly on the existing **main** branch.
+
+Before changing any code:
+
+1. Inspect the entire project structure.
+2. Inspect `package.json` and identify the actual technology stack.
+3. Inspect the current Git branch.
+4. Run `git status`.
+5. Inspect recent commit history.
+6. Verify that `main` contains the latest intended version of the completed premium UI redesign.
+7. Inspect the existing application architecture and reusable components.
+
+IMPORTANT GIT RULES:
+
+- Work directly on `main`.
+- Do not create another branch.
+- Do not switch branches.
+- Do not reset, rebase, merge, or cherry-pick.
+- Do not overwrite completed functionality.
+- Preserve all existing application features.
+- Do not remove existing functionality to simplify implementation.
+- Do not commit changes without my explicit approval.
+- Do not push changes without my explicit approval.
+- Do not create a pull request.
+- Do not deploy anything.
+
+If the latest premium redesign is not present on `main`, stop and report this before implementation. Do not independently merge another branch.
+
+If there are unexpected uncommitted changes, preserve them and report the situation before proceeding.
+
+All implementation and testing must happen directly on `main`.
+
+---
+
+# 2. UNDERSTAND THE EXISTING APPLICATION
+
+Before development, inspect these existing sections:
+
+- Home Dashboard.
+- Workout.
+- Workout Plans and Routines.
+- Nutrition.
+- Progression.
+- Timeline.
+- Reports.
+- AI Trainer / Coach.
+- Body Metrics.
+- Body Scan.
+- Settings and Profile.
+- Existing authentication.
+- Existing database and persistence.
+- Existing shared UI components.
+
+Pay special attention to the existing Body Scan implementation.
+
+The application already has a camera-based Body Scan feature that uses MediaPipe pose detection.
+
+Investigate whether its existing camera and pose-detection infrastructure can be reused for Workout Mirror.
+
+Reuse existing infrastructure where technically appropriate.
+
+Do not duplicate unnecessary dependencies or implement two competing pose-detection systems.
+
+If shared camera or pose-detection services are appropriate, create a reusable architecture without breaking Body Scan.
+
+Understand the current design system, including:
+
+- Typography.
+- Colours.
+- Spacing.
+- Cards.
+- Buttons.
+- Navigation.
+- Modals.
+- Charts.
+- Animations.
+- Dark theme.
+- Light theme.
+- Mobile responsiveness.
+
+Workout Mirror must look and feel like a native part of the existing premium application.
+
+---
+
+# 3. FEATURE OVERVIEW
+
+Feature name: **WORKOUT MIRROR**
+
+Core concept:
+
+The user's phone or computer camera acts as a virtual gym mirror.
+
+The application tracks the user's body movements and analyses whether the exercise is being performed correctly.
+
+The complete experience should support:
+
+1. Exercise selection.
+2. Camera activation.
+3. Camera positioning guidance.
+4. Live camera preview.
+5. Real-time body pose detection.
+6. Skeletal overlay.
+7. Exercise-specific movement analysis.
+8. Automatic repetition counting.
+9. Technique and posture checks.
+10. Real-time visual feedback.
+11. Voice coaching.
+12. Workout session management.
+13. Post-workout analysis.
+14. Historical form tracking.
+15. AI Trainer integration.
+
+The feature should work on supported mobile and desktop browsers.
+
+Mobile-first usability is particularly important.
+
+---
+
+# 4. PHASE 0 — TECHNICAL AUDIT AND ARCHITECTURE
+
+Perform a complete technical audit before implementing the feature.
+
+Inspect:
+
+- Current MediaPipe implementation.
+- Body Scan camera service.
+- Camera permissions.
+- Camera lifecycle.
+- Existing exercise database or exercise definitions.
+- Workout session management.
+- Existing repetition tracking.
+- AI Coach architecture.
+- Existing charts.
+- Existing reports.
+- Database schema.
+- State management.
+- Authentication and user ownership.
+- Existing tests.
+- Existing build configuration.
+
+Design a modular architecture separating:
+
+1. Camera management.
+2. Pose detection.
+3. Landmark processing.
+4. Exercise analysis.
+5. Repetition counting.
+6. Form validation.
+7. Feedback generation.
+8. Voice coaching.
+9. Session management.
+10. Persistence.
+11. UI presentation.
+
+Do not overengineer the feature.
+
+Use the existing application's architecture wherever practical.
+
+Do not introduce expensive third-party AI services unless genuinely necessary.
+
+Prefer on-device computer vision.
+
+After completing the audit, proceed with implementation.
+
+---
+
+# 5. PHASE 1 — PREMIUM WORKOUT MIRROR INTERFACE
+
+Build a dedicated Workout Mirror experience.
+
+Add an entry point in the most logical place within the existing workout experience.
+
+It should also be accessible from relevant workout plans or the AI Trainer where appropriate.
+
+## Exercise selection screen
+
+Users should be able to select exercises from a dedicated interface.
+
+Each exercise should display:
+
+- Exercise name.
+- Exercise illustration or demonstration.
+- Target muscle groups.
+- Equipment requirements.
+- Difficulty level.
+- Recommended camera angle.
+- Exercise instructions.
+- Important technique points.
+- Available analysis capabilities.
+
+Provide search and filtering where appropriate.
+
+## Camera setup screen
+
+Implement:
+
+- Camera permission request.
+- Front and rear camera selection where supported.
+- Live camera preview.
+- Camera positioning instructions.
+- Distance guidance.
+- Body visibility detection.
+- Lighting guidance where technically feasible.
+- Camera angle recommendations.
+- Calibration step.
+
+The user must understand how to position the device before beginning the workout.
+
+## Live Workout Mirror screen
+
+Display:
+
+- Large camera preview.
+- Real-time body skeleton overlay.
+- Exercise name.
+- Current set.
+- Repetition counter.
+- Target repetitions.
+- Workout timer.
+- Current form feedback.
+- Tracking confidence.
+- Pause/resume.
+- Stop workout.
+- Voice coaching toggle.
+- Visual feedback toggle.
+
+The camera view should be the primary visual element.
+
+Avoid cluttering the screen with excessive cards.
+
+Support portrait and landscape orientation.
+
+---
+
+# 6. PHASE 2 — REAL-TIME COMPUTER VISION AND POSE DETECTION
+
+Implement real body pose detection.
+
+Reuse the existing MediaPipe infrastructure if suitable.
+
+Evaluate MediaPipe Pose Landmarker or the most compatible maintained solution for the current application.
+
+Requirements:
+
+- Detect body landmarks in real time.
+- Track shoulders.
+- Track elbows.
+- Track wrists.
+- Track hips.
+- Track knees.
+- Track ankles.
+- Track other necessary body landmarks.
+- Display the skeletal overlay.
+- Display joint connections.
+- Use confidence thresholds.
+- Identify missing or obscured landmarks.
+- Detect when the user moves outside the camera frame.
+- Detect temporary tracking loss.
+- Recover when the user returns to view.
+- Handle different exercise speeds.
+- Handle different body proportions.
+
+The system must not assume that every exercise can be analysed from every camera angle.
+
+Each exercise must define the camera angles required for its supported analysis.
+
+If the user is positioned incorrectly, provide camera guidance.
+
+Do not generate fake pose detections or simulated skeleton overlays.
+
+Use actual camera frames and actual model inference.
+
+Optimise the system for ordinary mobile hardware.
+
+Avoid processing unnecessary frames.
+
+Handle model loading failures gracefully.
+
+---
+
+# 7. PHASE 3 — EXERCISE MOVEMENT ANALYSIS AND REPETITION COUNTING
+
+Build a reusable exercise analysis engine.
+
+It must analyse exercise-specific movement using:
+
+- Body landmarks.
+- Joint angles.
+- Relative landmark positions.
+- Movement phases.
+- Temporal patterns.
+- Confidence thresholds.
+
+Start by implementing the following eight exercises:
+
+1. Bodyweight squat.
+2. Push-up.
+3. Forward lunge.
+4. Reverse lunge.
+5. Dumbbell shoulder press.
+6. Bicep curl.
+7. Plank.
+8. Jumping jack.
+
+For every supported exercise, define:
+
+- Required landmarks.
+- Required camera angle.
+- Movement phases.
+- Rep-counting rules.
+- Form validation rules.
+- Tracking confidence requirements.
+- Feedback messages.
+- Known limitations.
+
+## Repetition counting
+
+Use a proper state machine or another suitable movement-cycle detection method.
+
+For example, a squat should recognise:
+
+- Standing position.
+- Descending phase.
+- Bottom position.
+- Ascending phase.
+- Completed repetition.
+
+Count a repetition only after a valid movement cycle is completed.
+
+Prevent:
+
+- Double counting.
+- Partial movement counting.
+- False counting during camera repositioning.
+- Counting during paused sessions.
+- Counting when tracking confidence is insufficient.
+
+For static exercises such as plank, implement duration tracking and posture monitoring instead of repetition counting.
+
+Do not use one generic algorithm for all exercises.
+
+Make the exercise analysis engine extensible so more exercises can be added later.
+
+---
+
+# 8. PHASE 4 — EXERCISE-SPECIFIC FORM ANALYSIS
+
+This is the core intelligence of Workout Mirror.
+
+Implement actual technique checks using detected body landmarks and movement patterns.
+
+## A. Squat analysis
+
+Check:
+
+- Knee alignment.
+- Excessive inward knee movement.
+- Squat depth estimation where camera positioning permits.
+- Torso positioning.
+- Hip movement.
+- Visible left/right asymmetry where measurable.
+
+## B. Push-up analysis
+
+Check:
+
+- Body alignment.
+- Hip sagging.
+- Excessive hip elevation.
+- Elbow movement.
+- Movement depth where measurable.
+- Repetition consistency.
+
+## C. Lunge analysis
+
+Check:
+
+- Front knee alignment.
+- Balance indicators.
+- Torso positioning.
+- Movement depth where measurable.
+- Left/right differences where measurable.
+
+## D. Bicep curl analysis
+
+Check:
+
+- Elbow movement.
+- Excessive shoulder compensation.
+- Incomplete movement.
+- Arm movement symmetry where measurable.
+
+## E. Shoulder press analysis
+
+Check:
+
+- Elbow and shoulder movement.
+- Arm symmetry.
+- Range of motion where measurable.
+- Excessive visible torso compensation.
+
+## F. Plank analysis
+
+Check:
+
+- Shoulder-to-hip-to-ankle alignment.
+- Hip sagging.
+- Excessive hip elevation.
+- Posture maintenance over time.
+
+## G. Jumping jack analysis
+
+Check:
+
+- Arm elevation.
+- Leg separation.
+- Arm and leg movement coordination.
+- Repetition consistency.
+
+## H. Reverse and forward lunge
+
+Use appropriate exercise-specific movement phases and leg-position analysis.
+
+IMPORTANT:
+
+These measurements are camera-based estimates.
+
+Do not claim to diagnose injuries, detect medical conditions, measure muscle activation, or calculate exact joint loading.
+
+Do not claim that the application can prevent injuries.
+
+Do not provide feedback unless the necessary landmarks and camera angle are sufficiently reliable.
+
+If a measurement cannot be reliably obtained from one camera, mark it unsupported rather than inventing an answer.
+
+Document the assumptions and thresholds used for each exercise.
+
+---
+
+# 9. PHASE 5 — REAL-TIME FEEDBACK ENGINE
+
+Implement a real-time feedback engine.
+
+The system should provide clear instructions while the user is exercising.
+
+Examples:
+
+- "Keep your back neutral."
+- "Your knees are moving inward."
+- "Try to maintain a straighter body line."
+- "Control your lowering movement."
+- "Move through a fuller range of motion."
+- "Your left and right sides appear uneven."
+- "Good form. Keep going!"
+- "Move slightly backward so your full body is visible."
+
+Create three categories:
+
+1. Positive feedback.
+2. Technique corrections.
+3. Camera and tracking guidance.
+
+Implement:
+
+- Feedback prioritisation.
+- Severity levels.
+- Confidence thresholds.
+- Duplicate message suppression.
+- Message cooldown.
+- Feedback history.
+- Clear visual feedback indicators.
+
+Do not show multiple conflicting instructions simultaneously.
+
+Do not provide unreliable feedback when tracking confidence is low.
+
+The feedback should feel like a real personal trainer: concise, useful, and encouraging.
+
+---
+
+# 10. PHASE 6 — AI VOICE COACHING
+
+Add voice coaching using the browser's available speech synthesis capabilities where supported.
+
+Requirements:
+
+- Voice instructions for technique corrections.
+- Repetition announcements.
+- Set completion announcements.
+- Encouragement.
+- Configurable voice coaching.
+- Voice on/off control.
+- Feedback frequency control.
+- Prevention of repetitive speech.
+- Prevention of overlapping announcements.
+- Immediate voice shutdown when a session ends.
+
+Voice coaching must be optional.
+
+The entire feature must work without voice support.
+
+Do not introduce expensive external AI voice services unnecessarily.
+
+---
+
+# 11. PHASE 7 — WORKOUT SESSION MANAGEMENT
+
+Integrate Workout Mirror with the existing workout system.
+
+Users should be able to:
+
+- Start a workout.
+- Select an exercise.
+- Configure target repetitions.
+- Configure sets.
+- Start a set.
+- Pause.
+- Resume.
+- Complete a set.
+- Start rest periods.
+- Continue to the next set.
+- Stop the session.
+- Cancel the session.
+- Review the final summary.
+
+Where appropriate, integrate Workout Mirror with existing workout plans and routines.
+
+If the user launches an exercise from an existing workout plan, preserve the planned exercise, sets, and targets.
+
+Update the existing workout records where appropriate.
+
+Do not create duplicate workout entries.
+
+Preserve manual workout logging.
+
+Clearly distinguish:
+
+- Camera-detected repetitions.
+- User-adjusted repetitions.
+- Unverified repetitions.
+- Completed sets.
+
+---
+
+# 12. PHASE 8 — POST-WORKOUT ANALYSIS REPORT
+
+After a completed session, display a premium workout analysis report.
+
+Include:
+
+- Exercise name.
+- Completed repetitions.
+- Completed sets.
+- Workout duration.
+- Tracking confidence.
+- Form consistency.
+- Positive observations.
+- Detected technique issues.
+- Most frequent correction.
+- Exercise-specific improvement suggestions.
+
+If displaying an overall form score, define the calculation and base it on actual supported measurements.
+
+Do not display arbitrary AI-generated scores.
+
+Do not invent a score when insufficient data exists.
+
+Instead display:
+
+"Not enough reliable data to evaluate this session."
+
+Provide a clear breakdown of what was measured.
+
+Use the existing Progression and Reports design system.
+
+---
+
+# 13. PHASE 9 — PROGRESSION AND AI TRAINER INTEGRATION
+
+Connect Workout Mirror with the existing platform.
+
+Where appropriate:
+
+- Store form consistency trends.
+- Track recurring technique issues.
+- Display improvements across sessions.
+- Show exercise-specific progress.
+- Integrate completed sets into workout history.
+- Make reliable Workout Mirror summaries available to the AI Trainer.
+- Allow the AI Trainer to suggest technique improvements based on actual recorded observations.
+
+The AI Trainer must not claim to know anything that was not actually detected.
+
+Keep camera-derived form measurements separate from conventional workout metrics.
+
+Do not compare users against invented population averages.
+
+Do not confuse form consistency with physiological recovery.
+
+---
+
+# 14. PHASE 10 — DATABASE AND PERSISTENCE
+
+Inspect the existing database and persistence architecture before introducing changes.
+
+Extend the current schema only where necessary.
+
+Potential stored information:
+
+- Workout Mirror session ID.
+- User ID.
+- Exercise ID.
+- Exercise name.
+- Session date.
+- Completed sets.
+- Detected repetitions.
+- User-adjusted repetitions.
+- Session duration.
+- Supported form observations.
+- Tracking confidence.
+- Form consistency metrics.
+- Feedback summary.
+
+Requirements:
+
+- Maintain existing authentication.
+- Maintain user-level ownership.
+- Preserve database access controls.
+- Use additive migrations where required.
+- Maintain backward compatibility.
+- Handle persistence errors.
+- Avoid duplicate records.
+- Do not delete existing user data.
+
+Do not store camera video or images by default.
+
+Do not store raw body landmark streams unless genuinely necessary and explicitly justified.
+
+---
+
+# 15. PHASE 11 — PRIVACY, SECURITY AND USER SAFETY
+
+Camera privacy is essential.
+
+Implement:
+
+- Explicit camera permission.
+- Clear camera usage explanation.
+- Camera activation only after user action.
+- Proper camera shutdown.
+- Stop all active media tracks on exit.
+- No default video recording.
+- No default camera uploads.
+- Prefer on-device inference.
+- No camera information in unnecessary logs.
+- Graceful permission-denied handling.
+- Clear privacy controls.
+
+Handle:
+
+- Camera unavailable.
+- Permission denied.
+- Device camera interruption.
+- Browser incompatibility.
+- Model loading failure.
+- Pose tracking failure.
+
+Fitness safety requirements:
+
+- Provide reasonable exercise safety instructions.
+- Do not provide medical diagnoses.
+- Do not guarantee injury prevention.
+- Do not claim perfect form detection.
+- Warn users when visibility is inadequate.
+- Encourage users to stop if they experience pain or dizziness.
+
+---
+
+# 16. PHASE 12 — PREMIUM UI AND RESPONSIVE EXPERIENCE
+
+The entire feature must follow the existing premium design system.
+
+Do not create an unrelated design language.
+
+Implement:
+
+- Premium visual hierarchy.
+- Consistent typography.
+- Consistent spacing.
+- Modern components.
+- Smooth transitions.
+- Dark theme.
+- Light theme.
+- Accessible buttons.
+- Clear loading states.
+- Empty states.
+- Error states.
+- Camera permission states.
+- Tracking states.
+- Session completion states.
+
+Test the feature at:
+
+- 360px mobile width.
+- 390px mobile width.
+- 430px mobile width.
+- Tablet sizes.
+- Desktop sizes.
+
+Ensure that:
+
+- Camera preview is properly sized.
+- Controls are easy to reach.
+- Important information is not hidden.
+- Portrait and landscape orientations work where supported.
+- Modals and overlays do not block camera interaction.
+- The interface remains usable on smaller devices.
+
+Do not sacrifice usability for visual effects.
+
+---
+
+# 17. PHASE 13 — PERFORMANCE AND RESOURCE MANAGEMENT
+
+Optimise the feature for real-world hardware.
+
+Requirements:
+
+- Avoid blocking the main UI thread.
+- Use workers where appropriate.
+- Control frame-processing frequency.
+- Avoid unnecessary React renders.
+- Reuse model instances where appropriate.
+- Properly release model resources.
+- Properly release camera resources.
+- Handle device rotation.
+- Handle tab visibility changes.
+- Handle browser interruptions.
+- Handle tracking recovery.
+
+Prioritise reliable analysis over artificially high frame rates.
+
+Ensure the application does not continue processing camera frames after the user exits Workout Mirror.
+
+---
+
+# 18. PHASE 14 — TESTING
+
+Add automated tests for all important functionality.
+
+## Pose detection tests
+
+- Missing landmarks.
+- Low-confidence landmarks.
+- Invalid coordinates.
+- Tracking loss.
+- Tracking recovery.
+
+## Exercise analysis tests
+
+- Squat movement phases.
+- Push-up movement phases.
+- Lunge movement phases.
+- Bicep curl movement phases.
+- Shoulder press movement phases.
+- Plank posture.
+- Jumping jack movement.
+- Incomplete repetitions.
+- Double-count prevention.
+
+## Feedback tests
+
+- Correct feedback selection.
+- Confidence threshold.
+- Duplicate suppression.
+- Message cooldown.
+- Voice enabled/disabled.
+
+## Session tests
+
+- Start.
+- Pause.
+- Resume.
+- Stop.
+- Complete.
+- Rest periods.
+- Camera shutdown.
+
+## Integration tests
+
+- Existing workout logging.
+- Workout plans.
+- Progression.
+- Reports.
+- AI Trainer.
+- Body Scan.
+
+## UI tests
+
+- Responsive layouts.
+- Dark/light themes.
+- Permission denial.
+- Loading states.
+- Error states.
+- Camera unavailable.
+
+Run the actual scripts available in package.json.
+
+At minimum, inspect and execute:
+
+- `npm run lint`
+- `npm test`
+- `npm run build`
+
+Fix any regressions caused by the new feature.
+
+Do not remove or weaken existing tests just to achieve a passing result.
+
+Never claim that tests passed unless they were actually executed successfully.
+
+---
+
+# 19. IMPLEMENTATION QUALITY REQUIREMENTS
+
+This must be a genuinely working feature.
+
+Do not:
+
+- Build only a UI prototype.
+- Use fake camera feeds.
+- Use random pose data.
+- Generate fake skeleton overlays.
+- Generate random repetition counts.
+- Generate arbitrary form scores.
+- Display simulated feedback as real AI analysis.
+- Add nonfunctional buttons.
+- Leave major functionality as TODOs.
+- Create duplicate database records.
+- Break existing workout functionality.
+- Break Body Scan.
+- Remove existing features.
+- Replace working application architecture unnecessarily.
+
+Every major button must perform its intended action.
+
+Every displayed measurement must come from actual data.
+
+Every exercise must have documented supported capabilities and limitations.
+
+When a feature is not technically reliable, show that limitation clearly.
+
+Build clean, modular, maintainable code.
+
+---
+
+# 20. FINAL ACCEPTANCE CRITERIA
+
+The feature is not complete until the following workflow works:
+
+1. User opens Workout Mirror.
+2. User selects an exercise.
+3. Application explains the required camera position.
+4. User grants camera permission.
+5. Camera preview appears.
+6. Application detects the user's body.
+7. Skeletal overlay follows actual body movements.
+8. Application verifies sufficient tracking confidence.
+9. User starts exercising.
+10. Repetitions are counted using actual movement analysis.
+11. Exercise-specific form checks operate.
+12. Real-time feedback appears when justified.
+13. Voice coaching works when enabled and supported.
+14. User can pause and resume.
+15. User can complete the set.
+16. Application displays a meaningful session report.
+17. Completed workout data integrates with existing workout history.
+18. Reliable form observations are available to Progression and AI Trainer where appropriate.
+19. Camera resources are released after the session.
+20. Existing Body Scan and all other application features continue working.
+
+---
+
+# 21. FINAL DELIVERY REPORT
+
+After completing all implementation and testing, provide a detailed report.
+
+Include:
+
+1. Overall implementation summary.
+2. Architecture used.
+3. Files created.
+4. Files modified.
+5. Dependencies added or changed.
+6. Existing components reused.
+7. Exercises fully supported.
+8. Exercises partially supported.
+9. Pose detection implementation.
+10. Repetition counting implementation.
+11. Exercise-specific form checks.
+12. Voice coaching implementation.
+13. Workout system integration.
+14. Database changes.
+15. Privacy and security measures.
+16. Tests executed.
+17. Actual test results.
+18. Lint results.
+19. Build results.
+20. Known limitations.
+21. Manual testing instructions for a physical phone.
+
+Clearly distinguish fully working features from partially implemented features.
+
+Do not mark anything complete if it is only a placeholder or mock interface.
+
+Do not commit, push, or deploy.
+
+Leave the project on `main` with all changes available for my review.
+
+---
+
+# FINAL PRODUCT VISION
+
+Build Workout Mirror as a major differentiating feature of this fitness platform.
+
+It should feel like a personal AI fitness coach combined with a smart gym mirror.
+
+Users should be able to see themselves exercising, watch their body pose being tracked, understand whether their technique appears correct, receive immediate corrections, track repetitions, and improve their exercise consistency over time.
+
+The experience must be premium, intelligent, reliable, privacy-conscious, mobile-friendly, and deeply integrated into the existing application.
+
+**Implement every phase, preserve the existing application, test thoroughly, and leave all Git commits, pushes, and deployments under my control.**

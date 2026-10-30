@@ -12,7 +12,8 @@ import {
   Pause,
   Play,
   Bluetooth,
-  Heart
+  Heart,
+  Camera
 } from 'lucide-react';
 import {
   EquipmentType,
@@ -52,13 +53,15 @@ interface WorkoutTrackerProps {
   activeSession: WorkoutSession | null;
   onSessionUpdated: (session: WorkoutSession | null) => void;
   onNavigateToPlans: () => void;
+  onNavigateToMirror?: () => void;
 }
 
 export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
   profile,
   activeSession,
   onSessionUpdated,
-  onNavigateToPlans
+  onNavigateToPlans,
+  onNavigateToMirror
 }) => {
   const [plans, setPlans] = useState<WorkoutPlan[]>([]);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
@@ -522,6 +525,15 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
           description="Real-time working sets, reps, weight, and RIR. Instant previous session comparisons."
           actions={
             <>
+              {onNavigateToMirror && (
+                <Button
+                  variant="secondary"
+                  onClick={onNavigateToMirror}
+                  icon={<Camera className="w-4 h-4 text-volt-adaptive" aria-hidden />}
+                >
+                  Workout Mirror
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 onClick={() => setShowWarmupModal(true)}

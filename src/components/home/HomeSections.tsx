@@ -17,7 +17,8 @@ import {
   TrendingUp,
   Trophy,
   Video,
-  BarChart3
+  BarChart3,
+  Camera
 } from 'lucide-react';
 import type {
   BodyMetricEntry,
@@ -524,6 +525,7 @@ export const HomeBodyCard: React.FC<BodyCardProps> = ({ profile, latest, onNavig
 /* ------------------------------------------------------------------ */
 
 const EXPLORE: { tab: NavTab; label: string; hint: string; icon: React.ReactNode }[] = [
+  { tab: 'mirror', label: 'Workout Mirror', hint: 'Real-time AI camera tracking & form coach', icon: <Camera className="w-4 h-4 text-accent" aria-hidden /> },
   { tab: 'dashboard', label: 'Overview', hint: 'Scorecard, recovery, muscle map', icon: <LayoutDashboard className="w-4 h-4" aria-hidden /> },
   { tab: 'plans', label: 'Routines', hint: 'Plans and imports', icon: <FileSpreadsheet className="w-4 h-4" aria-hidden /> },
   { tab: 'reports', label: 'Reports', hint: 'Weekly summary and records', icon: <BarChart3 className="w-4 h-4" aria-hidden /> },

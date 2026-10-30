@@ -18,6 +18,7 @@ import { ReportsView } from './components/reports/ReportsView';
 import { ProgressTimelineView } from './components/timeline/ProgressTimelineView';
 import { SettingsView } from './components/settings/SettingsView';
 import { VideoLibraryView } from './components/video/VideoLibraryView';
+import { WorkoutMirrorContainer } from './components/workoutMirror/WorkoutMirrorContainer';
 import { AiTrainerView } from './components/trainer/AiTrainerView';
 import { FloatingTrainerWidget } from './components/trainer/FloatingTrainerWidget';
 import { BluetoothGadgetProvider } from './context/BluetoothGadgetContext';
@@ -146,6 +147,15 @@ function AppShell() {
                 activeSession={activeSession}
                 onSessionUpdated={setActiveSession}
                 onNavigateToPlans={() => setCurrentTab('plans')}
+                onNavigateToMirror={() => setCurrentTab('mirror')}
+              />
+            )}
+
+            {currentTab === 'mirror' && (
+              <WorkoutMirrorContainer
+                onSetLoggedToWorkout={(exerciseName, reps) => {
+                  // Integrated set logged
+                }}
               />
             )}
 
