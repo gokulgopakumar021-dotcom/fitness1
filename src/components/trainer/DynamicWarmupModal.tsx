@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Flame,
-  X,
   Play,
   Pause,
   SkipForward,
@@ -11,11 +9,14 @@ import {
   CheckCircle2,
   Sparkles,
   ChevronRight,
-  ShieldAlert,
   Zap,
-  Activity,
   Award
 } from 'lucide-react';
+import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
+import { ErrorState } from '../ui/ErrorState';
+import { LoadingState } from '../ui/LoadingState';
 
 interface WarmupPhase {
   phase: 'Raise' | 'Activate' | 'Mobilize' | 'Potentiate';
@@ -164,23 +165,21 @@ export const DynamicWarmupModal: React.FC<DynamicWarmupModalProps> = ({
     return () => clearInterval(interval);
   }, [isPlaying, currentStepIndex, routine, isCompleted, soundEnabled]);
 
-  if (!isOpen) return null;
-
   const currentPhase = routine?.phases[currentStepIndex];
   const totalSteps = routine?.phases.length || 5;
 
   const getPhaseBadgeColor = (phase?: string) => {
     switch (phase) {
       case 'Raise':
-        return 'bg-amber-400/15 text-amber-400 border-amber-400/30';
+        return 'bg-warning/10 text-warning border-warning/30';
       case 'Activate':
-        return 'bg-sky-400/15 text-sky-400 border-sky-400/30';
+        return 'bg-info/10 text-info border-info/30';
       case 'Mobilize':
-        return 'bg-emerald-400/15 text-emerald-400 border-emerald-400/30';
+        return 'bg-success/10 text-success border-success/30';
       case 'Potentiate':
-        return 'bg-fuchsia-400/15 text-fuchsia-400 border-fuchsia-400/30';
+        return 'bg-chart-3/10 text-chart-3 border-chart-3/30';
       default:
-        return 'bg-lime-400/15 text-lime-400 border-lime-400/30';
+        return 'bg-accent/10 text-accent border-accent/30';
     }
   };
 
@@ -216,279 +215,231 @@ export const DynamicWarmupModal: React.FC<DynamicWarmupModalProps> = ({
   };
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Dynamic warm-up" className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-overlay backdrop-blur-md animate-fade-in">
-      <div className="bg-surface border border-line rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
-        {/* MODAL HEADER */}
-        <div className="p-4 sm:p-5 border-b border-line flex items-center justify-between bg-canvas/70">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-lime-400/15 border border-lime-400/30 flex items-center justify-center text-lime-400 shadow-inner">
-              <Flame className="w-5 h-5 fill-lime-400" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-mono font-bold tracking-wide px-2 py-0.5 rounded bg-lime-400/15 text-lime-400 border border-lime-400/30">
-                  RAMP Protocol · 5-Min
-                </span>
-                <span className="text-xs text-zinc-400 hidden sm:inline">Pre-Workout Priming</span>
-              </div>
-              <h2 className="text-base sm:text-lg font-bold text-zinc-100 flex items-center gap-2">
-                Dynamic Warm-up Generator
-              </h2>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
-              className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 bg-surface-2 border border-line transition-colors"
-              title={soundEnabled ? 'Mute Audio Beeps' : 'Enable Audio Beeps'}
-            >
-              {soundEnabled ? <Volume2 className="w-4 h-4 text-lime-400" /> : <VolumeX className="w-4 h-4 text-zinc-500" />}
-            </button>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 bg-surface-2 border border-line transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="Dynamic Warm-up Generator"
+      description="Pre-workout priming"
+      size="lg"
+    >
+      <div className="space-y-5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-label font-mono font-bold tracking-wide px-2 py-1 rounded-control bg-accent/10 text-accent border border-accent/30">
+            RAMP Protocol · 5-Min
+          </span>
+          <Button
+            variant="secondary"
+            iconOnly
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            aria-label={soundEnabled ? 'Mute Audio Beeps' : 'Enable Audio Beeps'}
+            title={soundEnabled ? 'Mute Audio Beeps' : 'Enable Audio Beeps'}
+          >
+            {soundEnabled ? <Volume2 className="w-4 h-4 text-accent" aria-hidden /> : <VolumeX className="w-4 h-4 text-zinc-500" aria-hidden />}
+          </Button>
         </div>
 
-        {/* MODAL CONTENT BODY */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1">
-          {isLoading ? (
-            <div className="py-16 flex flex-col items-center justify-center text-center space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-lime-400/10 border border-lime-400/30 flex items-center justify-center text-lime-400 animate-pulse">
-                <Activity className="w-7 h-7 animate-spin" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-zinc-200">
-                  Generating 5-Minute RAMP Sequence...
-                </p>
-                <p className="text-xs text-zinc-400 max-w-sm mt-1">
-                  Analyzing target muscle groups ({muscleGroups.join(', ')}) to compute optimal dynamic joint mobility & neural potentiation drills.
-                </p>
-              </div>
-            </div>
-          ) : error ? (
-            <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-center space-y-3">
-              <ShieldAlert className="w-6 h-6 text-rose-400 mx-auto" />
-              <p className="text-xs text-rose-300">{error}</p>
-              <button
-                onClick={loadWarmupRoutine}
-                className="px-4 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-semibold"
-              >
+        {isLoading ? (
+          <div className="py-6 space-y-1">
+            <LoadingState label="Generating 5-Minute RAMP Sequence..." />
+            <p className="text-xs text-zinc-400 max-w-sm mx-auto text-center">
+              Analyzing target muscle groups ({muscleGroups.join(', ')}) to compute optimal dynamic joint mobility & neural potentiation drills.
+            </p>
+          </div>
+        ) : error ? (
+          <ErrorState
+            title="Could not generate the warm-up"
+            description={error}
+            action={
+              <Button variant="secondary" onClick={loadWarmupRoutine}>
                 Retry Generation
-              </button>
+              </Button>
+            }
+          />
+        ) : isCompleted ? (
+          /* COMPLETION CARD */
+          <div className="py-6 text-center space-y-5 il-fade-in">
+            <div className="w-20 h-20 rounded-full bg-accent/10 border-2 border-accent flex items-center justify-center text-accent mx-auto">
+              <Award className="w-10 h-10" aria-hidden />
             </div>
-          ) : isCompleted ? (
-            /* COMPLETION CARD */
-            <div className="py-10 text-center space-y-5 animate-fade-in">
-              <div className="w-20 h-20 rounded-full bg-lime-400/20 border-2 border-lime-400 flex items-center justify-center text-lime-400 mx-auto shadow-lg shadow-lime-950/40">
-                <Award className="w-10 h-10 animate-bounce" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-xl sm:text-2xl font-bold text-zinc-100">
-                  Body Primed & Ready to Lift!
-                </h3>
-                <p className="text-xs text-zinc-400 max-w-md mx-auto">
-                  You completed all 5 minutes of the RAMP warm-up. Core temperature is elevated, joint capsules are lubricated, and high-threshold motor units are potentiated.
-                </p>
-              </div>
+            <div className="space-y-1">
+              <h3 className="text-xl sm:text-2xl font-bold text-zinc-100">
+                Body Primed & Ready to Lift!
+              </h3>
+              <p className="text-sm text-zinc-400 max-w-md mx-auto">
+                You completed all 5 minutes of the RAMP warm-up. Core temperature is elevated, joint capsules are lubricated, and high-threshold motor units are potentiated.
+              </p>
+            </div>
 
-              <div className="p-4 bg-surface-2/80 border border-line rounded-2xl max-w-md mx-auto text-left flex items-start gap-3">
-                <Sparkles className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" />
-                <div className="text-xs text-zinc-300">
-                  <span className="font-bold text-lime-400">Coach Iron Tip:</span> Take 60 seconds of rest, load 50% of your first working set load for an easy 3-rep rehearsal, and then begin your official working sets!
+            <Card tone="raised" pad="sm" className="max-w-md mx-auto text-left flex items-start gap-3">
+              <Sparkles className="w-4 h-4 text-accent shrink-0 mt-0.5" aria-hidden />
+              <div className="text-sm text-zinc-300">
+                <span className="font-bold text-accent">Coach Iron Tip:</span> Take 60 seconds of rest, load 50% of your first working set load for an easy 3-rep rehearsal, and then begin your official working sets!
+              </div>
+            </Card>
+
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-center gap-3 pt-2">
+              <Button variant="secondary" onClick={handleReset} icon={<RotateCcw className="w-4 h-4" aria-hidden />}>
+                Restart Warm-up
+              </Button>
+              <Button onClick={onClose} icon={<CheckCircle2 className="w-4 h-4" aria-hidden />}>
+                Enter Workout Session
+              </Button>
+            </div>
+          </div>
+        ) : (
+          routine &&
+          currentPhase && (
+            <div className="space-y-5">
+              {/* TARGET CONTEXT BANNER */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-surface-2 border border-line rounded-card text-xs">
+                <div className="flex items-center gap-2 text-zinc-400 min-w-0">
+                  <span className="text-zinc-500 font-mono">Muscles:</span>
+                  <span className="font-bold text-zinc-200">
+                    {routine.targetMuscles.join(', ')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-zinc-400 font-mono text-label">
+                  <span>Drill {currentStepIndex + 1} of {totalSteps}</span>
+                  <span>·</span>
+                  <span>Total: 5:00</span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-3 pt-2">
-                <button
-                  onClick={handleReset}
-                  className="px-4 py-2.5 bg-surface-2 hover:bg-surface-3 text-zinc-300 border border-line rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Restart Warm-up</span>
-                </button>
-                <button
-                  onClick={onClose}
-                  className="px-6 py-2.5 bg-lime-400 hover:bg-lime-300 text-accent-ink font-extrabold rounded-xl text-xs shadow-lg shadow-lime-950/40 flex items-center gap-1.5 transition-colors"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Enter Workout Session</span>
-                </button>
+              {/* PROGRESS ACROSS THE PHASES */}
+              <div className="grid grid-cols-5 gap-1.5">
+                {routine.phases.map((p, idx) => {
+                  const isPassed = idx < currentStepIndex;
+                  const isCurrent = idx === currentStepIndex;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setCurrentStepIndex(idx);
+                        setSecondsRemaining(p.durationSeconds);
+                      }}
+                      aria-current={isCurrent ? 'step' : undefined}
+                      aria-label={`Drill ${idx + 1}: ${p.phase}`}
+                      title={p.phase}
+                      className={`text-left p-2 rounded-control border transition-colors text-label font-mono flex flex-col justify-between min-h-14 ${
+                        isCurrent
+                          ? 'bg-accent/10 border-accent text-accent font-bold'
+                          : isPassed
+                          ? 'bg-surface-2 border-line text-zinc-400'
+                          : 'bg-canvas border-line text-zinc-400'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>{p.phase[0]}</span>
+                        {isPassed && <CheckCircle2 className="w-3 h-3 text-accent" aria-hidden />}
+                      </div>
+                      <span className="truncate block font-sans text-label leading-tight text-zinc-200">
+                        {p.phase}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            </div>
-          ) : (
-            routine &&
-            currentPhase && (
-              <div className="space-y-5">
-                {/* TARGET CONTEXT BANNER */}
-                <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-surface-2/60 border border-line rounded-2xl text-xs">
-                  <div className="flex items-center gap-2 text-zinc-400">
-                    <span className="text-zinc-500 font-mono">Muscles:</span>
-                    <span className="font-bold text-zinc-200">
-                      {routine.targetMuscles.join(', ')}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-zinc-400 font-mono text-[11px]">
-                    <span>Drill {currentStepIndex + 1} of {totalSteps}</span>
-                    <span>·</span>
-                    <span>Total: 5:00</span>
-                  </div>
-                </div>
 
-                {/* PROGRESS BAR ACROSS THE 5 PHASES */}
-                <div className="grid grid-cols-5 gap-1.5">
-                  {routine.phases.map((p, idx) => {
-                    const isPassed = idx < currentStepIndex;
-                    const isCurrent = idx === currentStepIndex;
-                    return (
-                      <button
-                        key={idx}
-                        onClick={() => {
-                          setCurrentStepIndex(idx);
-                          setSecondsRemaining(p.durationSeconds);
-                        }}
-                        className={`text-left p-2 rounded-xl border transition-all text-[11px] font-mono flex flex-col justify-between h-14 ${
-                          isCurrent
-                            ? 'bg-lime-400/10 border-lime-400 text-lime-400 font-bold ring-1 ring-lime-400/50'
-                            : isPassed
-                            ? 'bg-surface-2/90 border-line text-zinc-400'
-                            : 'bg-canvas/50 border-zinc-800/50 text-zinc-600'
-                        }`}
+              {/* ACTIVE DRILL */}
+              <Card tone="raised" pad="lg">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span
+                        className={`text-label font-mono font-extrabold px-2.5 py-0.5 rounded-control border ${getPhaseBadgeColor(
+                          currentPhase.phase
+                        )}`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span>{p.phase[0]}</span>
-                          {isPassed && <CheckCircle2 className="w-2.5 h-2.5 text-lime-400" />}
-                        </div>
-                        <span className="truncate block font-sans text-[11px] leading-tight text-zinc-200">
-                          {p.phase}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* ACTIVE DRILL HERO CARD */}
-                <div className="bg-surface-2 border border-line rounded-2xl p-5 sm:p-6 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 text-lime-400 pointer-events-none">
-                    <Flame className="w-32 h-32" />
+                        Phase: {currentPhase.phase}
+                      </span>
+                      <span className="text-xs text-zinc-400 font-mono">
+                        Target: {currentPhase.musclesTargeted.join(', ')}
+                      </span>
+                    </div>
+                    <h3 className="text-lg sm:text-2xl font-bold text-zinc-100">
+                      {currentPhase.name}
+                    </h3>
+                    <p className="text-sm text-zinc-400 mt-1 max-w-md">
+                      {currentPhase.purpose}
+                    </p>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span
-                          className={`text-[11px] font-mono font-extrabold px-2.5 py-0.5 rounded-lg border ${getPhaseBadgeColor(
-                            currentPhase.phase
-                          )}`}
-                        >
-                          Phase: {currentPhase.phase}
-                        </span>
-                        <span className="text-xs text-zinc-400 font-mono">
-                          Target: {currentPhase.musclesTargeted.join(', ')}
-                        </span>
-                      </div>
-                      <h3 className="text-lg sm:text-2xl font-bold text-zinc-100">
-                        {currentPhase.name}
-                      </h3>
-                      <p className="text-xs text-zinc-400 mt-1 max-w-md">
-                        {currentPhase.purpose}
-                      </p>
+                  {/* TIMER */}
+                  <div className="flex items-center justify-center shrink-0">
+                    <div
+                      role="timer"
+                      aria-label={`${secondsRemaining} seconds remaining`}
+                      className="w-28 h-28 rounded-full border-4 border-line flex flex-col items-center justify-center bg-canvas"
+                    >
+                      <span className="text-3xl font-mono font-bold text-accent tracking-tight">
+                        {secondsRemaining}s
+                      </span>
+                      <span className="text-label font-mono text-zinc-500">
+                        Remaining
+                      </span>
                     </div>
-
-                    {/* BIG TIMER CIRCLE */}
-                    <div className="flex items-center justify-center shrink-0">
-                      <div className="relative w-28 h-28 rounded-full border-4 border-line flex flex-col items-center justify-center bg-canvas shadow-inner">
-                        <span className="text-3xl font-mono font-bold text-lime-400 tracking-tight">
-                          {secondsRemaining}s
-                        </span>
-                        <span className="text-[11px] font-mono text-zinc-500 ">
-                          Remaining
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* STEP-BY-STEP CUES */}
-                  <div className="mt-5 pt-4 border-t border-line space-y-2">
-                    <span className="text-[11px] font-mono tracking-wide text-lime-400 font-bold block">
-                      Biomechanical Form & Movement Cues:
-                    </span>
-                    <ul className="space-y-1.5">
-                      {currentPhase.cues.map((cue, cIdx) => (
-                        <li key={cIdx} className="flex items-start gap-2 text-xs text-zinc-300">
-                          <ChevronRight className="w-3.5 h-3.5 text-lime-400 shrink-0 mt-0.5" />
-                          <span>{cue}</span>
-                        </li>
-                      ))}
-                    </ul>
                   </div>
                 </div>
 
-                {/* PLAYBACK CONTROLS */}
-                <div className="flex items-center justify-between gap-3 pt-2">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handlePrevStep}
-                      disabled={currentStepIndex === 0}
-                      className="px-3 py-2.5 bg-surface-2 border border-line disabled:opacity-30 hover:border-line-strong text-zinc-300 rounded-xl text-xs font-semibold transition-colors"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      onClick={handleReset}
-                      className="p-2.5 bg-surface-2 border border-line hover:border-line-strong text-zinc-400 hover:text-zinc-200 rounded-xl transition-colors"
-                      title="Restart Routine"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                    </button>
-                  </div>
+                {/* STEP-BY-STEP CUES */}
+                <div className="mt-5 pt-4 border-t border-line space-y-2">
+                  <span className="text-label font-mono tracking-wide text-accent font-bold block">
+                    Biomechanical Form & Movement Cues:
+                  </span>
+                  <ul className="space-y-1.5">
+                    {currentPhase.cues.map((cue, cIdx) => (
+                      <li key={cIdx} className="flex items-start gap-2 text-sm text-zinc-300">
+                        <ChevronRight className="w-3.5 h-3.5 text-accent shrink-0 mt-1" aria-hidden />
+                        <span>{cue}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </Card>
 
-                  <button
-                    onClick={() => setIsPlaying(!isPlaying)}
-                    className={`touch-press px-6 py-3 rounded-2xl font-extrabold text-sm flex items-center gap-2 shadow-lg transition-all ${
-                      isPlaying
-                        ? 'bg-amber-400 hover:bg-amber-300 text-accent-ink shadow-amber-950/40'
-                        : 'bg-lime-400 hover:bg-lime-300 text-accent-ink shadow-lime-950/40'
-                    }`}
+              {/* PLAYBACK CONTROLS: primary action on its own row so nothing overflows on phones */}
+              <div className="space-y-3">
+                <Button
+                  size="lg"
+                  fullWidth
+                  variant={isPlaying ? 'secondary' : 'primary'}
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  icon={isPlaying ? <Pause className="w-4 h-4 fill-current" aria-hidden /> : <Play className="w-4 h-4 fill-current" aria-hidden />}
+                >
+                  {isPlaying ? 'Pause Timer' : `Start Exercise (${secondsRemaining}s)`}
+                </Button>
+                <div className="grid grid-cols-[1fr_auto_1fr] gap-2">
+                  <Button variant="secondary" onClick={handlePrevStep} disabled={currentStepIndex === 0}>
+                    Previous
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    iconOnly
+                    onClick={handleReset}
+                    aria-label="Restart Routine"
+                    title="Restart Routine"
                   >
-                    {isPlaying ? (
-                      <>
-                        <Pause className="w-4 h-4 fill-black" />
-                        <span>Pause Timer</span>
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-4 h-4 fill-black" />
-                        <span>Start Exercise ({secondsRemaining}s)</span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={handleNextStep}
-                    className="px-3.5 py-2.5 bg-surface-2 hover:bg-surface-3 border border-line text-zinc-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                  >
+                    <RotateCcw className="w-4 h-4" aria-hidden />
+                  </Button>
+                  <Button variant="secondary" onClick={handleNextStep}>
                     <span>{currentStepIndex === totalSteps - 1 ? 'Finish' : 'Next'}</span>
-                    <SkipForward className="w-3.5 h-3.5 text-lime-400" />
-                  </button>
+                    <SkipForward className="w-4 h-4 text-accent" aria-hidden />
+                  </Button>
                 </div>
-
-                {/* COACH TIP FOOTER */}
-                {routine.coachTip && (
-                  <div className="p-3 bg-surface-2/50 border border-line rounded-xl text-xs text-zinc-400 flex items-start gap-2">
-                    <Zap className="w-3.5 h-3.5 text-lime-400 shrink-0 mt-0.5" />
-                    <span>{routine.coachTip}</span>
-                  </div>
-                )}
               </div>
-            )
-          )}
-        </div>
+
+              {/* COACH TIP */}
+              {routine.coachTip && (
+                <div className="p-3 bg-surface-2 border border-line rounded-card text-xs text-zinc-400 flex items-start gap-2">
+                  <Zap className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" aria-hidden />
+                  <span>{routine.coachTip}</span>
+                </div>
+              )}
+            </div>
+          )
+        )}
       </div>
-    </div>
+    </Modal>
   );
 };
