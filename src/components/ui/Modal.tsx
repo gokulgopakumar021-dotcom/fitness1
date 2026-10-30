@@ -9,12 +9,12 @@ interface Props {
   description?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   /** Accessible name (and tooltip) of the close button. */
   closeLabel?: string;
 }
 
-const SIZES = { sm: 'sm:max-w-md', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl' };
+const SIZES = { sm: 'sm:max-w-md', md: 'sm:max-w-lg', lg: 'sm:max-w-2xl', xl: 'sm:max-w-4xl' };
 
 /**
  * Accessible dialog. Bottom sheet on phones, centered panel on larger screens.

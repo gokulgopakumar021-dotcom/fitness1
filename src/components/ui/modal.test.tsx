@@ -72,6 +72,18 @@ describe('Modal', () => {
     const btn = document.querySelector('button[aria-label="Close Wizard"]') as HTMLButtonElement;
     expect(btn.title).toBe('Close Wizard');
   });
+
+  it.each([
+    ['sm', 'sm:max-w-md'],
+    ['md', 'sm:max-w-lg'],
+    ['lg', 'sm:max-w-2xl'],
+    ['xl', 'sm:max-w-4xl'],
+  ] as const)('size %s sets the panel max width', async (size, cls) => {
+    await act(async () => {
+      root.render(<Modal open onClose={() => {}} title="T" size={size}>x</Modal>);
+    });
+    expect((document.querySelector('[role="dialog"]') as HTMLElement).className).toContain(cls);
+  });
 });
 
 describe('Button iconOnly', () => {
