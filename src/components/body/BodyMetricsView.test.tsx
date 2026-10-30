@@ -47,9 +47,10 @@ const setInput = async (el: HTMLInputElement, value: string) => {
     el.dispatchEvent(new Event('input', { bubbles: true }));
   });
 };
-const field = (label: string) => document.querySelector<HTMLInputElement>(`input[id]:not([disabled])`) && 
-  (Array.from(document.querySelectorAll('label')).find((l) => l.textContent?.startsWith(label)) &&
-    document.getElementById(Array.from(document.querySelectorAll('label')).find((l) => l.textContent?.startsWith(label))!.htmlFor) as HTMLInputElement);
+const field = (label: string): HTMLInputElement | null => {
+  const l = Array.from(document.querySelectorAll('label')).find((x) => x.textContent?.startsWith(label));
+  return l ? (document.getElementById(l.htmlFor) as HTMLInputElement) : null;
+};
 const submitForm = async () => {
   await act(async () => {
     document.getElementById('body-log-form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
