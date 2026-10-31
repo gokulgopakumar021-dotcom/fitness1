@@ -1,26 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  X,
-  ShieldCheck,
-  AlertTriangle,
-  Play,
-  Pause,
-  RotateCcw,
-  Sparkles,
-  Info,
-  CheckCircle2,
-  Activity,
-  Flame,
-  ArrowRight,
-  Eye,
-  Sliders
-} from 'lucide-react';
+import { AlertTriangle, Play, Pause, Sparkles, Info, CheckCircle2 } from 'lucide-react';
 import {
   getBiomechanicsForExercise,
   NO_BIOMECHANICS_GUIDE_MESSAGE
 } from '../../data/exerciseBiomechanics';
 import { UserProfile } from '../../types';
 import { ExerciseVideoSection } from '../video/ExerciseVideoSection';
+import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
+import { Badge } from '../ui/Badge';
+import { Input } from '../ui/Input';
+import { SegmentedControl } from '../ui/SegmentedControl';
 
 interface ExercisePostureModalProps {
   exerciseName: string;
@@ -52,7 +43,7 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
 
   // Movement loop animation ticker
   useEffect(() => {
-    if (!isPlayingAnimation) return;
+    if (!isOpen || !isPlayingAnimation) return;
     const interval = setInterval(() => {
       setAnimProgress((prev) => {
         const next = (prev + 0.05) % 2; // 0 -> 1 is descent, 1 -> 2 is ascent
@@ -66,48 +57,34 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
     }, 100);
 
     return () => clearInterval(interval);
-  }, [isPlayingAnimation]);
+  }, [isOpen, isPlayingAnimation]);
 
-  if (!isOpen || !lookup) return null;
+  if (!lookup) return null;
 
   // No verified guide: say so, keep the video section and a way out. Never substitute another exercise's guide.
   if (lookup.status === 'no_match') {
     return (
-      <div role="dialog" aria-modal="true" aria-label="Exercise posture guide" className="fixed inset-0 z-50 bg-overlay backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
-        <div className="bg-surface border border-line rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl relative my-auto space-y-5">
-          <div className="flex items-start justify-between gap-3 pb-3 border-b border-line">
-            <div>
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-lime-400/15 border border-lime-400/30 text-lime-400 font-bold">
-                Biomechanics &amp; Posture Guide
-              </span>
-              <h2 className="mt-1 text-lg sm:text-xl font-extrabold text-zinc-100 tracking-tight">{exerciseName}</h2>
-            </div>
-            <button
-              onClick={onClose}
-              aria-label="Close"
-              className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-surface-3 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
+      <Modal
+        open={isOpen}
+        onClose={onClose}
+        title={exerciseName}
+        description="Biomechanics & Posture Guide"
+        size="lg"
+        footer={
+          <Button variant="secondary" onClick={onClose}>
+            Close Form Guide
+          </Button>
+        }
+      >
+        <div className="space-y-5">
           <ExerciseVideoSection exerciseName={exerciseName} defaultOpen={openVideoFirst} />
 
-          <div role="status" className="flex items-start gap-2 p-3.5 bg-canvas border border-line rounded-xl text-xs text-zinc-300">
-            <Info className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
+          <div role="status" className="flex items-start gap-2 p-3.5 bg-canvas border border-line rounded-card text-sm text-zinc-300">
+            <Info className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" aria-hidden />
             <p>{NO_BIOMECHANICS_GUIDE_MESSAGE}</p>
           </div>
-
-          <div className="pt-2 flex justify-end">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-surface-3 hover:bg-zinc-700 text-zinc-200 font-bold text-xs rounded-xl transition-colors"
-            >
-              Close Form Guide
-            </button>
-          </div>
         </div>
-      </div>
+      </Modal>
     );
   }
   const data = lookup.data;
@@ -417,60 +394,39 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
   };
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Exercise posture guide" className="fixed inset-0 z-50 bg-overlay backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-surface border border-line rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl relative my-auto space-y-5">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3 pb-3 border-b border-line">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-lime-400/15 border border-lime-400/30 text-lime-400 font-bold">
-                Biomechanics &amp; Posture Guide
-              </span>
-              <span className="text-[11px] font-mono text-zinc-500 ">
-                {data.category.replace('_', ' ')}
-              </span>
-            </div>
-            <h2 className="text-lg sm:text-xl font-extrabold text-zinc-100 tracking-tight">
-              {data.name}
-            </h2>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              Target: <strong className="text-lime-400">{data.primaryMuscles.join(', ')}</strong>
-            </p>
-          </div>
-
-          <button
-            onClick={onClose}
-            className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-surface-3 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title={data.name}
+      description={`Biomechanics & Posture Guide · ${data.category.replace('_', ' ')}`}
+      size="lg"
+      footer={
+        <Button variant="secondary" onClick={onClose}>
+          Close Form Guide
+        </Button>
+      }
+    >
+      <div className="space-y-5">
+        <p className="text-sm text-zinc-400">
+          Target: <strong className="text-accent">{data.primaryMuscles.join(', ')}</strong>
+        </p>
 
         {/* Exercise video (approved catalog videos only; keyed by the workout's own exercise name) */}
         <ExerciseVideoSection exerciseName={exerciseName} defaultOpen={openVideoFirst} />
 
         {/* Tab Selection */}
-        <div className="flex items-center gap-1 p-1 bg-surface-2 border border-line rounded-xl overflow-x-auto text-xs font-semibold scrollbar-none">
-          {[
-            { id: 'visual' as const, label: 'Visual Model & Angles' },
-            { id: 'checkpoints' as const, label: 'Step Checkpoints' },
-            { id: 'mistakes' as const, label: 'Form Mistakes & Fixes' },
-            { id: 'tempo' as const, label: 'Tempo & Breathing' },
-            { id: 'ai_coach' as const, label: 'AI Form Coach' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-surface-3 text-lime-400 shadow-sm'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Form guide sections"
+          value={activeTab}
+          onChange={setActiveTab}
+          options={[
+            { value: 'visual' as const, label: 'Visual Model & Angles' },
+            { value: 'checkpoints' as const, label: 'Step Checkpoints' },
+            { value: 'mistakes' as const, label: 'Form Mistakes & Fixes' },
+            { value: 'tempo' as const, label: 'Tempo & Breathing' },
+            { value: 'ai_coach' as const, label: 'AI Form Coach' }
+          ]}
+        />
 
         {/* TAB 1: VISUAL MODEL & JOINT ANGLES */}
         {activeTab === 'visual' && (
@@ -484,33 +440,33 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 {data.jointAngles.map((ja, idx) => (
-                  <div key={idx} className="p-2.5 bg-surface-2/60 border border-line rounded-lg space-y-0.5">
-                    <div className="flex items-center justify-between">
+                  <Card key={idx} tone="raised" pad="sm" className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
                       <span className="font-bold text-zinc-200">{ja.joint}</span>
-                      <span className="font-mono text-[11px] text-lime-400 font-bold bg-lime-400/10 px-1.5 py-0.2 rounded">
+                      <Badge tone="accent" className="font-mono">
                         {ja.recommendedAngle}
-                      </span>
+                      </Badge>
                     </div>
-                    <p className="text-[11px] text-zinc-400">{ja.alignmentCue}</p>
-                  </div>
+                    <p className="text-xs text-zinc-400">{ja.alignmentCue}</p>
+                  </Card>
                 ))}
               </div>
             </div>
 
             {/* Setup Posture Cues */}
-            <div className="p-3 bg-surface-2/40 border border-line rounded-xl space-y-2">
-              <span className="text-[11px] font-mono text-zinc-400 font-semibold">
+            <Card tone="raised" pad="md" className="space-y-2">
+              <span className="text-xs font-mono text-zinc-400 font-semibold block">
                 Setup Protocol:
               </span>
-              <ul className="space-y-1.5 text-xs text-zinc-300">
+              <ul className="space-y-1.5 text-sm text-zinc-300">
                 {data.setupPosture.map((cue, idx) => (
                   <li key={idx} className="flex items-start gap-2">
-                    <span className="text-lime-400 font-mono font-bold shrink-0">{idx + 1}.</span>
+                    <span className="text-accent font-mono font-bold shrink-0">{idx + 1}.</span>
                     <span>{cue}</span>
                   </li>
                 ))}
               </ul>
-            </div>
+            </Card>
           </div>
         )}
 
@@ -518,24 +474,24 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
         {activeTab === 'checkpoints' && (
           <div className="space-y-3">
             {data.checkpoints.map((cp, idx) => (
-              <div key={idx} className="p-3.5 bg-surface-2/60 border border-line rounded-xl space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-zinc-100 text-xs sm:text-sm flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-lime-400/20 text-lime-400 text-xs flex items-center justify-center font-mono">
+              <Card key={idx} tone="raised" pad="md" className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-bold text-zinc-100 text-sm flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-accent/15 text-accent text-xs flex items-center justify-center font-mono">
                       {idx + 1}
                     </span>
                     <span>{cp.phase}</span>
                   </span>
-                  <span className="text-[11px] font-mono text-sky-400 bg-sky-400/10 px-2 py-0.5 rounded border border-sky-400/20">
+                  <Badge tone="info" className="font-mono">
                     {cp.anatomicalFocus}
-                  </span>
+                  </Badge>
                 </div>
-                <ul className="space-y-1 pl-7 text-xs text-zinc-300 list-disc">
+                <ul className="space-y-1 pl-8 text-sm text-zinc-300 list-disc">
                   {cp.cues.map((c, cIdx) => (
                     <li key={cIdx}>{c}</li>
                   ))}
                 </ul>
-              </div>
+              </Card>
             ))}
           </div>
         )}
@@ -544,31 +500,29 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
         {activeTab === 'mistakes' && (
           <div className="space-y-3">
             {data.commonMistakes.map((m, idx) => (
-              <div key={idx} className="p-3.5 bg-surface-2/70 border border-line rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-rose-400 font-bold text-xs sm:text-sm">
-                    <AlertTriangle className="w-4 h-4 shrink-0" />
+              <Card key={idx} tone="raised" pad="md" className="space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-danger font-bold text-sm">
+                    <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden />
                     <span>{m.mistake}</span>
                   </div>
-                  <span className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                    m.dangerLevel === 'high' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-amber-500/20 text-amber-300'
-                  }`}>
+                  <Badge tone={m.dangerLevel === 'high' ? 'danger' : 'warning'} className="font-mono">
                     {m.dangerLevel} risk
-                  </span>
+                  </Badge>
                 </div>
 
-                <div className="text-[11px] text-zinc-400 leading-normal pl-6">
+                <div className="text-xs text-zinc-400 leading-normal pl-6">
                   <strong className="text-zinc-300">Biomechanical hazard:</strong> {m.biomechanicalRisk}
                 </div>
 
-                <div className="p-2.5 bg-canvas border border-lime-500/30 rounded-lg flex items-start gap-2 text-xs text-zinc-200">
-                  <CheckCircle2 className="w-4 h-4 text-lime-400 shrink-0 mt-0.5" />
+                <div className="p-2.5 bg-canvas border border-accent/30 rounded-control flex items-start gap-2 text-sm text-zinc-200">
+                  <CheckCircle2 className="w-4 h-4 text-accent shrink-0 mt-0.5" aria-hidden />
                   <div>
-                    <strong className="text-lime-400 font-mono text-[11px] block">Corrective Cue:</strong>
+                    <strong className="text-accent font-mono text-xs block">Corrective Cue:</strong>
                     <span>{m.correction}</span>
                   </div>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         )}
@@ -576,111 +530,100 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
         {/* TAB 4: TEMPO & BREATHING */}
         {activeTab === 'tempo' && (
           <div className="space-y-4">
-            <div className="p-4 bg-surface-2/60 border border-line rounded-xl space-y-2">
-              <span className="text-[11px] font-mono text-zinc-400 font-semibold">
+            <Card tone="raised" pad="md" className="space-y-2">
+              <span className="text-xs font-mono text-zinc-400 font-semibold block">
                 Recommended Hypertrophy Tempo:
               </span>
-              <div className="text-base font-bold font-mono text-lime-400">
+              <div className="text-base font-bold font-mono text-accent">
                 {data.tempoRecommendation}
               </div>
-              <p className="text-xs text-zinc-400 leading-relaxed">
+              <p className="text-sm text-zinc-400 leading-relaxed">
                 Tempo controls time under tension, prevents momentum from masking weak links, and maximizes microtrauma on eccentric phases.
               </p>
-            </div>
+            </Card>
 
-            <div className="p-4 bg-surface-2/60 border border-line rounded-xl space-y-2">
-              <span className="text-[11px] font-mono text-zinc-400 font-semibold">
+            <Card tone="raised" pad="md" className="space-y-2">
+              <span className="text-xs font-mono text-zinc-400 font-semibold block">
                 Valsalva &amp; Intra-Abdominal Breathing Cue:
               </span>
-              <p className="text-xs text-zinc-200 leading-relaxed">
+              <p className="text-sm text-zinc-200 leading-relaxed">
                 {data.breathingPattern}
               </p>
-            </div>
+            </Card>
 
-            <div className="p-4 bg-surface-2/60 border border-line rounded-xl space-y-2">
-              <span className="text-[11px] font-mono text-zinc-400 font-semibold">
+            <Card tone="raised" pad="md" className="space-y-2">
+              <span className="text-xs font-mono text-zinc-400 font-semibold block">
                 Joint Mobility Screening:
               </span>
-              <p className="text-xs text-zinc-400 leading-relaxed">
+              <p className="text-sm text-zinc-400 leading-relaxed">
                 {data.mobilityCheck}
               </p>
-            </div>
+            </Card>
           </div>
         )}
 
         {/* TAB 5: AI FORM COACH */}
         {activeTab === 'ai_coach' && (
-          <div className="space-y-4">
-            <div className="p-4 bg-surface-2/60 border border-lime-500/30 rounded-xl space-y-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-lime-400" />
-                <h3 className="font-bold text-zinc-100 text-sm">
-                  Personalized AI Form Analysis for {data.name}
-                </h3>
-              </div>
-              <p className="text-xs text-zinc-400">
-                Ask Coach Iron about anatomical cues based on your limb length, joint history, or sticking points.
-              </p>
+          <Card tone="raised" pad="md" className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-accent shrink-0" aria-hidden />
+              <h3 className="font-bold text-zinc-100 text-sm">
+                Personalized AI Form Analysis for {data.name}
+              </h3>
+            </div>
+            <p className="text-sm text-zinc-400">
+              Ask Coach Iron about anatomical cues based on your limb length, joint history, or sticking points.
+            </p>
 
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  'Cues for long femurs & deep squats',
-                  'Fixing shoulder clicking in this movement',
-                  'Where should I feel the stretch?',
-                  'How to prevent lower back pump?'
-                ].map((prompt) => (
-                  <button
-                    key={prompt}
-                    onClick={() => {
-                      setAiCustomQuestion(prompt);
-                      handleAskAiCoach(prompt);
-                    }}
-                    className="px-2.5 py-1 bg-canvas hover:bg-surface-3 border border-line text-zinc-300 rounded-lg text-xs"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <input
-                  type="text"
-                  value={aiCustomQuestion}
-                  onChange={(e) => setAiCustomQuestion(e.target.value)}
-                  placeholder="e.g. My knees cave in on rep 5, what cue fixes this?"
-                  className="flex-1 px-3 py-2 bg-canvas border border-line rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-lime-400"
-                />
-                <button
-                  onClick={() => handleAskAiCoach()}
-                  disabled={isLoadingAiCues}
-                  className="px-4 py-2 bg-lime-400 hover:bg-lime-300 text-accent-ink font-bold text-xs rounded-xl disabled:opacity-50 transition-colors shrink-0"
+            <div className="flex flex-wrap gap-2">
+              {[
+                'Cues for long femurs & deep squats',
+                'Fixing shoulder clicking in this movement',
+                'Where should I feel the stretch?',
+                'How to prevent lower back pump?'
+              ].map((prompt) => (
+                <Button
+                  key={prompt}
+                  variant="secondary"
+                  className="text-xs"
+                  onClick={() => {
+                    setAiCustomQuestion(prompt);
+                    handleAskAiCoach(prompt);
+                  }}
                 >
-                  {isLoadingAiCues ? 'Analyzing...' : 'Ask Coach'}
-                </button>
-              </div>
+                  {prompt}
+                </Button>
+              ))}
+            </div>
 
+            <div className="flex gap-2 pt-1">
+              <Input
+                type="text"
+                aria-label="Your question for Coach Iron"
+                wrapperClassName="flex-1 min-w-0"
+                value={aiCustomQuestion}
+                onChange={(e) => setAiCustomQuestion(e.target.value)}
+                placeholder="e.g. My knees cave in on rep 5, what cue fixes this?"
+              />
+              <Button className="shrink-0" onClick={() => handleAskAiCoach()} loading={isLoadingAiCues}>
+                {isLoadingAiCues ? 'Analyzing...' : 'Ask Coach'}
+              </Button>
+            </div>
+
+            <div aria-live="polite">
               {aiCustomCues && (
-                <div className="mt-3 p-3.5 bg-canvas border border-lime-500/40 rounded-xl text-xs text-zinc-200 leading-relaxed space-y-2">
-                  <div className="flex items-center gap-2 text-lime-400 font-mono font-bold text-[11px] ">
-                    <Sparkles className="w-3.5 h-3.5" />
+                <div className="mt-2 p-3.5 bg-canvas border border-accent/30 rounded-card text-sm text-zinc-200 leading-relaxed space-y-2">
+                  <div className="flex items-center gap-2 text-accent font-mono font-bold text-xs">
+                    <Sparkles className="w-3.5 h-3.5" aria-hidden />
                     <span>Coach Iron Biomechanical Feedback:</span>
                   </div>
                   <p className="whitespace-pre-line">{aiCustomCues}</p>
                 </div>
               )}
             </div>
-          </div>
+          </Card>
         )}
-
-        <div className="pt-2 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-surface-3 hover:bg-zinc-700 text-zinc-200 font-bold text-xs rounded-xl transition-colors"
-          >
-            Close Form Guide
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 };
