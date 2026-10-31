@@ -48,6 +48,18 @@ newest of them. `src/services/poseLandmarker.privacy.test.ts` fails if the depen
 unpinned or changed to a version that has not been audited, or if the installed bundle
 contains a network endpoint.
 
+### Second MediaPipe importer: Workout Mirror
+`src/services/workoutMirror/mirrorPoseService.ts` also imports MediaPipe (lazily), in
+`VIDEO` mode, for the live Workout Mirror camera. It uses the same pinned, audited
+version, the same bundled WASM and the same same-origin model file, so the version audit
+above covers it. It is the **only** exception to "only the engine imports MediaPipe", and
+the privacy test allow-lists exactly that one file (`MEDIAPIPE_IMPORTERS`). The test also
+scans the whole Workout Mirror module for logging, beacons, sockets, frame recording or
+encoding, extra network calls and storage outside `mirrorStorage.ts`, checks that the
+stored session types hold scores and counts only (no landmarks or images), and checks that
+Body Scan code never imports the mirror module. Adding another MediaPipe importer is a
+privacy decision: give it its own guards in that test.
+
 ### To upgrade MediaPipe
 1. Download the new tarball (`npm pack @mediapipe/tasks-vision@<version>`) and extract it.
 2. Search `vision_bundle.mjs` and the `wasm/*.js` loaders for `https://`, `fetch(`,

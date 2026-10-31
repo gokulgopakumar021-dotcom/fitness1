@@ -66,6 +66,13 @@ const PHASE_2C_SOURCES = [
   'src/components/bodyscan/CaptureSession.tsx',
 ];
 
+/**
+ * The only files allowed to import MediaPipe: the Body Scan engine (single photos) and the
+ * Workout Mirror pose service (live camera frames). Adding a file here is a privacy decision:
+ * give it its own guards in the "Workout Mirror" block below.
+ */
+const MEDIAPIPE_IMPORTERS = ['src/services/poseLandmarker.ts', 'src/services/workoutMirror/mirrorPoseService.ts'];
+
 const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 describe('Phase 2C source code never persists, logs or transmits photos or landmarks', () => {
@@ -99,22 +106,24 @@ describe('Phase 2C source code never persists, logs or transmits photos or landm
     expect(engine).toMatch(/BASE_URL\}models\/\$\{POSE_MODEL_FILE\}/);
   });
 
-  it('nothing outside the engine imports MediaPipe, and the engine only imports it lazily', () => {
+  it('only the two allow-listed files import MediaPipe, and each only imports it lazily', () => {
     const offenders: string[] = [];
     const walk = (dir: string) => {
       for (const name of readdirSync(join(ROOT, dir))) {
         const rel = `${dir}/${name}`;
         if (statSync(join(ROOT, rel)).isDirectory()) walk(rel);
-        else if (/\.(ts|tsx)$/.test(name) && !/\.test\./.test(name) && rel !== 'src/services/poseLandmarker.ts') {
+        else if (/\.(ts|tsx)$/.test(name) && !/\.test\./.test(name) && !MEDIAPIPE_IMPORTERS.includes(rel)) {
           if (/@mediapipe\//.test(read(rel))) offenders.push(rel);
         }
       }
     };
     walk('src');
     expect(offenders).toEqual([]);
-    const engine = stripComments(read('src/services/poseLandmarker.ts'));
-    expect(engine).not.toMatch(/^\s*import[^(\n]*from\s+['"]@mediapipe/m); // no static import: stays out of the initial bundle
-    expect(engine).toMatch(/await import\('@mediapipe\/tasks-vision'\)/);
+    for (const file of MEDIAPIPE_IMPORTERS) {
+      const code = stripComments(read(file));
+      expect(code, file).not.toMatch(/^\s*import[^(\n]*from\s+['"]@mediapipe/m); // no static import: stays out of the initial bundle
+      expect(code, file).toMatch(/await import\('@mediapipe\/tasks-vision'\)/);
+    }
   });
 
   it('test-only fakes are never imported by production code', () => {
@@ -150,5 +159,78 @@ describe('model placement', () => {
     };
     walk('src');
     expect(bad).toEqual([]);
+  });
+});
+
+/** Every production (non-test) source file of the Workout Mirror module. */
+const mirrorSources = (): string[] => {
+  const out: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(join(ROOT, dir))) {
+      const rel = `${dir}/${name}`;
+      if (statSync(join(ROOT, rel)).isDirectory()) walk(rel);
+      else if (/\.(ts|tsx)$/.test(name) && !/\.test\./.test(name)) out.push(rel);
+    }
+  };
+  for (const dir of ['src/services/workoutMirror', 'src/components/workoutMirror']) walk(dir);
+  out.push('src/types/workoutMirror.ts');
+  return out;
+};
+
+const MIRROR_POSE_SERVICE = 'src/services/workoutMirror/mirrorPoseService.ts';
+const MIRROR_STORAGE = 'src/services/workoutMirror/mirrorStorage.ts';
+
+describe('Workout Mirror: live camera frames and landmarks stay on the device', () => {
+  it('finds the mirror module (guards against this block silently scanning nothing)', () => {
+    const files = mirrorSources();
+    expect(files).toContain(MIRROR_POSE_SERVICE);
+    expect(files).toContain(MIRROR_STORAGE);
+    expect(files.length).toBeGreaterThan(8);
+  });
+
+  it('no mirror file logs, beacons, opens a socket, records or encodes frames, or reaches the photo store', () => {
+    for (const file of mirrorSources()) {
+      const code = stripComments(read(file));
+      expect(code, file).not.toMatch(/\bsessionStorage\b|\bindexedDB\b|\bcaches\b\.|document\.cookie/);
+      expect(code, file).not.toMatch(/\bconsole\.(log|info|warn|error|debug|trace)\b/);
+      expect(code, file).not.toMatch(/sendBeacon|XMLHttpRequest|WebSocket|EventSource|FileReader|toDataURL|toBlob|MediaRecorder|captureStream|navigator\.share/);
+      expect(code, file).not.toMatch(/bodyScanStore|savePhoto|addPhoto|putPhoto|components\/bodyscan|services\/poseLandmarker/);
+    }
+  });
+
+  it('localStorage is used only by mirrorStorage.ts, under one key', () => {
+    for (const file of mirrorSources()) {
+      const code = stripComments(read(file));
+      if (file === MIRROR_STORAGE) continue;
+      expect(code, file).not.toMatch(/\blocalStorage\b/);
+    }
+    const storage = stripComments(read(MIRROR_STORAGE));
+    expect([...storage.matchAll(/STORAGE_KEY\s*=\s*'([^']+)'/g)].map((m) => m[1])).toEqual(['ironlog_mirror_sessions_v1']);
+    expect([...storage.matchAll(/localStorage\.(getItem|setItem)\(([^)]*?)[,)]/g)].every((m) => m[2].trim() === 'STORAGE_KEY')).toBe(true);
+  });
+
+  it('the stored session types hold scores and counts only: no landmark, frame or image fields', () => {
+    const types = stripComments(read('src/types/workoutMirror.ts'));
+    const stored = types.slice(types.indexOf('export interface RepetitionRecord'), types.indexOf('export interface ExerciseDefinition'));
+    expect(stored).toContain('interface WorkoutMirrorSession');
+    expect(stored).not.toMatch(/landmark|MirrorPoint|frame|image|photo|blob|dataUrl|video/i);
+  });
+
+  it('the only network call is the pose service’s same-origin model GET', () => {
+    const calls: string[] = [];
+    for (const file of mirrorSources()) {
+      for (const m of stripComments(read(file)).matchAll(/\bfetch\s*\(/g)) calls.push(`${file}@${m.index}`);
+    }
+    expect(calls).toHaveLength(1);
+    expect(calls[0].startsWith(MIRROR_POSE_SERVICE)).toBe(true);
+    const svc = stripComments(read(MIRROR_POSE_SERVICE));
+    expect(svc).not.toMatch(/https?:\/\//);
+    expect(svc).not.toMatch(/method:\s*['"](POST|PUT|PATCH)/i);
+    expect(svc).not.toMatch(/\bbody\s*:/);
+    expect(svc).toMatch(/BASE_URL\}models\/pose_landmarker_(lite|full|heavy)\.task/);
+  });
+
+  it('Body Scan code never depends on the Workout Mirror module', () => {
+    for (const file of PHASE_2C_SOURCES) expect(stripComments(read(file)), file).not.toMatch(/workoutMirror/);
   });
 });
