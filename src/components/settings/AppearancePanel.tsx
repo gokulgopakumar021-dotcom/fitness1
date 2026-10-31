@@ -7,7 +7,7 @@ import { SettingRow, SettingRows, SettingsCard } from './SettingsParts';
 export const AppearancePanel: React.FC = () => {
   const { theme, setTheme } = useTheme();
   return (
-    <SettingsCard title="Appearance" description="How Iron Log looks on this device.">
+    <SettingsCard title="Appearance" description="How IronLog AI looks on this device.">
       <SettingRows>
         <SettingRow label="Theme" description="Applies immediately and is remembered on this device. You can also switch it from the header.">
           <SegmentedControl<ThemeMode>

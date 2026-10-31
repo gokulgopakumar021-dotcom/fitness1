@@ -15,3 +15,5 @@ export { Modal } from './Modal';
 export { Input, Select, Textarea, Field, CONTROL_BASE } from './Input';
 export { ErrorState } from './ErrorState';
 export { LoadingState } from './LoadingState';
+export { BrandLogo, BrandEmblem } from './BrandLogo';
+export type { BrandLogoVariant } from './BrandLogo';

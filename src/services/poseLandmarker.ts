@@ -18,7 +18,7 @@
  *
  * LIFECYCLE
  * - Nothing is loaded until `load()` / `detect()` is called (lazy dynamic
- *   import), so the rest of Iron Log pays no start-up cost.
+ *   import), so the rest of IronLog AI pays no start-up cost.
  * - `load()` shares one in-flight attempt and may be retried after a failure.
  * - `dispose()` aborts work in flight and closes the landmarker. A landmarker
  *   that finishes creating after `dispose()` is closed immediately.

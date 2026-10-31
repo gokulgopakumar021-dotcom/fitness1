@@ -8,7 +8,7 @@ export type BodyScanGate =
   | { status: 'ready'; consent: BodyScanConsent };
 
 /**
- * Body Scan is for users 18 and over. Other Iron Log features are unaffected.
+ * Body Scan is for users 18 and over. Other IronLog AI features are unaffected.
  *
  * The profile age is only a self-entered number (the default profile ships with
  * a placeholder), so it can block but never grants access: an explicit 18+

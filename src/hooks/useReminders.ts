@@ -6,7 +6,7 @@ import { dueReminders, localDateKey } from '../utils/reminders';
 const TICK_MS = 30_000;
 
 const MESSAGES: Record<ReminderKind, { title: string; body: string }> = {
-  workout: { title: 'Time to train', body: 'Your workout reminder from Iron Log.' },
+  workout: { title: 'Time to train', body: 'Your workout reminder from IronLog AI.' },
   meals: { title: 'Log your meals', body: "You haven't logged any food today." }
 };
 

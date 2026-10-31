@@ -24,6 +24,8 @@ import {
   Check
 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { BrandLogo, BrandEmblem } from '../ui/BrandLogo';
+import { BRAND } from '../../brand';
 
 export interface LandingPageProps {
   onGoToSignIn?: () => void;
@@ -49,30 +51,25 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
       {/* Top Navigation Bar */}
       <header className="sticky top-0 z-50 w-full border-b border-line bg-surface/90 backdrop-blur-md px-4 sm:px-8 py-3.5 flex items-center justify-between transition-colors">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/40 flex items-center justify-center text-accent shadow-sm">
-            <Dumbbell className="w-5 h-5" aria-hidden />
-          </div>
+          <BrandEmblem className="h-8 sm:h-9" />
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               <span className="font-mono font-black tracking-widest text-base text-zinc-100">
-                IRON LOG
-              </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-accent/20 text-accent font-semibold tracking-wider">
-                OS v2.4
+                IRONLOG AI
               </span>
             </div>
             <span className="text-[10px] text-zinc-400 font-mono tracking-wider hidden sm:block">
-              PERSONAL ATHLETIC OPERATING SYSTEM
+              {BRAND.tagline}
             </span>
           </div>
         </div>
 
         {/* Desktop Quick Nav Links */}
         <nav className="hidden md:flex items-center gap-6 text-xs font-mono text-zinc-400">
-          <a href="#engines" className="hover:text-accent transition-colors">ENGINES</a>
+          <a href="#engines" className="hover:text-accent transition-colors">FEATURES</a>
           <a href="#interactive-preview" className="hover:text-accent transition-colors">PREVIEW</a>
           <a href="#security" className="hover:text-accent transition-colors">PRIVACY</a>
-          <a href="#faq" className="hover:text-accent transition-colors">SPECS</a>
+          <a href="#faq" className="hover:text-accent transition-colors">FAQ</a>
         </nav>
 
         {/* Action Controls */}
@@ -87,7 +84,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
           <button
             type="button"
             onClick={handleSignUp}
-            className="px-4 py-2 text-xs font-mono font-bold text-zinc-950 bg-accent hover:brightness-110 active:scale-95 transition-all rounded-xl shadow-[0_0_20px_rgba(206,255,0,0.25)] flex items-center gap-1.5"
+            className="px-4 py-2 text-xs font-mono font-bold text-zinc-950 bg-accent hover:brightness-110 active:scale-95 transition-all rounded-xl shadow-[0_0_20px_rgba(139,249,9,0.25)] flex items-center gap-1.5"
           >
             <span>Create account</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -99,21 +96,21 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
       <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-16 flex flex-col gap-16 sm:gap-24">
         {/* Hero Section */}
         <section className="flex flex-col items-center text-center pt-4 sm:pt-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/40 bg-accent/10 text-accent text-xs font-mono mb-6 animate-pulse">
+          <BrandLogo variant="full" eager className="h-40 sm:h-52 mb-4" />
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/40 bg-accent/10 text-accent text-xs font-mono mb-6">
             <Zap className="w-3.5 h-3.5" />
-            <span>GROUND-TRUTH RECORDING // ZERO SYNTHETIC FABRICATION</span>
+            <span>AI-POWERED FITNESS &amp; PERSONAL TRAINING</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-zinc-100 max-w-4xl leading-[1.1] uppercase">
-            Precision Training. <br className="hidden sm:inline" />
+            Train Smarter. <br className="hidden sm:inline" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent via-lime-300 to-emerald-400">
-              Progressive Overload.
-            </span> <br />
-            Zero Guesswork.
+              Build Stronger.
+            </span>
           </h1>
 
           <p className="mt-6 text-sm sm:text-base md:text-lg text-zinc-400 max-w-2xl leading-relaxed">
-            Consolidate your session logs, double-progression automation, Katch-McArdle TDEE nutrition calibration, and long-term timeline analytics into one private, high-performance training OS.
+            Your AI personal trainer, strength tracker, nutrition coach and recovery guide, with real-time Workout Mirror form feedback and Body Scan, all in one private platform.
           </p>
 
           {/* Primary Call to Actions */}
@@ -121,7 +118,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
             <button
               type="button"
               onClick={handleSignUp}
-              className="w-full sm:w-auto px-7 py-3.5 text-sm font-mono font-bold text-zinc-950 bg-accent hover:brightness-110 active:scale-95 transition-all rounded-xl shadow-[0_0_30px_rgba(206,255,0,0.3)] flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-7 py-3.5 text-sm font-mono font-bold text-zinc-950 bg-accent hover:brightness-110 active:scale-95 transition-all rounded-xl shadow-[0_0_30px_rgba(139,249,9,0.3)] flex items-center justify-center gap-2"
             >
               <Sparkles className="w-4 h-4 text-zinc-950" />
               <span>Get Started — Free</span>
@@ -132,7 +129,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
               onClick={handleSignIn}
               className="w-full sm:w-auto px-6 py-3.5 text-sm font-mono font-bold text-zinc-200 bg-surface border border-line hover:border-zinc-500 hover:text-accent transition-all rounded-xl flex items-center justify-center gap-2"
             >
-              <span>Already an athlete? Sign in</span>
+              <span>Already a member? Sign in</span>
               <ChevronRight className="w-4 h-4 text-zinc-500" />
             </button>
           </div>
@@ -140,27 +137,27 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
           {/* System Spec Badges */}
           <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-3 w-full max-w-3xl pt-6 border-t border-line/60">
             <div className="p-3 bg-surface/60 border border-line rounded-xl text-left">
-              <span className="text-[10px] font-mono text-zinc-500 block uppercase">ARCHITECTURE</span>
+              <span className="text-[10px] font-mono text-zinc-500 block uppercase">DATA</span>
               <span className="text-xs font-mono font-bold text-zinc-200 flex items-center gap-1.5 mt-0.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-accent" /> Local-First DB
+                <ShieldCheck className="w-3.5 h-3.5 text-accent" /> Local-First Storage
               </span>
             </div>
             <div className="p-3 bg-surface/60 border border-line rounded-xl text-left">
-              <span className="text-[10px] font-mono text-zinc-500 block uppercase">METHODOLOGY</span>
+              <span className="text-[10px] font-mono text-zinc-500 block uppercase">TRAINING</span>
               <span className="text-xs font-mono font-bold text-zinc-200 flex items-center gap-1.5 mt-0.5">
-                <TrendingUp className="w-3.5 h-3.5 text-accent" /> Double Progression
+                <TrendingUp className="w-3.5 h-3.5 text-accent" /> Smart Progression
               </span>
             </div>
             <div className="p-3 bg-surface/60 border border-line rounded-xl text-left">
               <span className="text-[10px] font-mono text-zinc-500 block uppercase">NUTRITION</span>
               <span className="text-xs font-mono font-bold text-zinc-200 flex items-center gap-1.5 mt-0.5">
-                <Apple className="w-3.5 h-3.5 text-accent" /> TDEE Goal Wizard
+                <Apple className="w-3.5 h-3.5 text-accent" /> Adaptive Targets
               </span>
             </div>
             <div className="p-3 bg-surface/60 border border-line rounded-xl text-left">
               <span className="text-[10px] font-mono text-zinc-500 block uppercase">PRIVACY</span>
               <span className="text-xs font-mono font-bold text-zinc-200 flex items-center gap-1.5 mt-0.5">
-                <Lock className="w-3.5 h-3.5 text-accent" /> Scoped & Isolated
+                <Lock className="w-3.5 h-3.5 text-accent" /> Private by Design
               </span>
             </div>
           </div>
@@ -170,9 +167,9 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
         <section id="interactive-preview" className="scroll-mt-20">
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
             <div>
-              <span className="text-xs font-mono text-accent uppercase tracking-wider block">LIVE HUD SIMULATOR</span>
+              <span className="text-xs font-mono text-accent uppercase tracking-wider block">PRODUCT PREVIEW</span>
               <h2 className="text-2xl sm:text-3xl font-black text-zinc-100 tracking-tight mt-1">
-                ENGINEERED FOR THE SERIOUS LIFTER
+                BUILT FOR SERIOUS TRAINING
               </h2>
             </div>
             {/* Tab Pills */}
@@ -241,7 +238,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
                 </div>
 
                 <p className="text-xs text-zinc-400 leading-relaxed font-mono">
-                  // Iron Log evaluates rep targets, RPE / RIR readings, and set failure thresholds across your last 3 workouts. When ceiling volume is sustained, it signals the exact micro-load bump required.
+                  IronLog AI evaluates rep targets, RPE / RIR readings, and set failure thresholds across your last 3 workouts. When ceiling volume is sustained, it signals the exact micro-load bump required.
                 </p>
               </div>
             )}
@@ -336,7 +333,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
                 </div>
 
                 <p className="text-xs text-zinc-400 leading-relaxed font-mono">
-                  // Calculates basal metabolic rate using Katch-McArdle body composition formula. Accounts for activity multiplier, training load, and user-specified caloric surplus or deficit.
+                  Calculates basal metabolic rate using Katch-McArdle body composition formula. Accounts for activity multiplier, training load, and user-specified caloric surplus or deficit.
                 </p>
               </div>
             )}
@@ -372,7 +369,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
                 </div>
 
                 <p className="text-xs text-zinc-400 leading-relaxed font-mono">
-                  // Unlogged days are excluded. Missing values are never filled with fabricated zeros or synthetic predictions. Every trendline is strictly anchored in ground truth.
+                  Unlogged days are excluded. Missing values are never filled with fabricated zeros or synthetic predictions. Every trendline is strictly anchored in ground truth.
                 </p>
               </div>
             )}
@@ -382,12 +379,12 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
         {/* The 8 Fitness OS Core Engines Directory */}
         <section id="engines" className="scroll-mt-20">
           <div className="text-center max-w-2xl mx-auto mb-12">
-            <span className="text-xs font-mono text-accent uppercase tracking-wider block">CAPABILITIES OVERVIEW</span>
+            <span className="text-xs font-mono text-accent uppercase tracking-wider block">THE PLATFORM</span>
             <h2 className="text-2xl sm:text-4xl font-black text-zinc-100 tracking-tight mt-1">
-              THE 8 CORE ATHLETIC ENGINES
+              EVERYTHING YOU NEED TO TRAIN SMARTER
             </h2>
             <p className="text-sm text-zinc-400 mt-3">
-              Every engine is built to work offline, synchronize with your encrypted user profile, and respect recorded data integrity.
+              Every module works together, from your first set to your long-term progress, and is built on data you actually recorded.
             </p>
           </div>
 
@@ -451,7 +448,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
                 Long-term progress analytics over 7d, 30d, 90d, 6mo, and all-time ranges. Epley estimated 1RM calculations with verified data only.
               </p>
               <div className="mt-4 pt-3 border-t border-line/60 flex items-center justify-between text-[11px] font-mono text-zinc-400">
-                <span>Zero Synthetic Fluff</span>
+                <span>Verified Data Only</span>
                 <span className="text-accent font-bold">ACTIVE</span>
               </div>
             </div>
@@ -528,13 +525,13 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-1.5 text-xs font-mono text-accent mb-2">
                 <Lock className="w-3.5 h-3.5" />
-                <span>USER-SCOPED ARCHITECTURE</span>
+                <span>PRIVATE BY DESIGN</span>
               </div>
               <h3 className="text-xl sm:text-2xl font-bold text-zinc-100">
                 Your Training Data Belongs to You.
               </h3>
               <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
-                Iron Log utilizes a local-first, user-scoped persistence architecture. Every workout, set, weight entry, and nutrition record is cryptographically tied to your private account scope. No telemetry selling, no creepy ad trackers, and zero synthetic filler data.
+                Your workouts, nutrition and body metrics are tied to your private account. We do not sell your data or run ad trackers, and we never fill your history with made-up numbers.
               </p>
               <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono text-zinc-300">
                 <li className="flex items-center gap-2">
@@ -543,11 +540,11 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-accent" />
-                  <span>Offline PWA local storage caching</span>
+                  <span>Local-first storage on your device</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-accent" />
-                  <span>Instant multi-device cloud synchronization</span>
+                  <span>Email-verified account sign-in</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-accent" />
@@ -560,7 +557,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
               <button
                 type="button"
                 onClick={onGoToSignUp}
-                className="w-full sm:w-auto px-6 py-3.5 text-xs font-mono font-bold text-zinc-950 bg-accent hover:brightness-110 active:scale-95 transition-all rounded-xl shadow-[0_0_20px_rgba(206,255,0,0.25)] flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-6 py-3.5 text-xs font-mono font-bold text-zinc-950 bg-accent hover:brightness-110 active:scale-95 transition-all rounded-xl shadow-[0_0_20px_rgba(139,249,9,0.25)] flex items-center justify-center gap-2"
               >
                 <span>Create Free Account</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -579,9 +576,9 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
         {/* Technical Specs & FAQ */}
         <section id="faq" className="scroll-mt-20">
           <div className="text-center max-w-xl mx-auto mb-10">
-            <span className="text-xs font-mono text-accent uppercase tracking-wider block">FREQUENTLY ASKED QUESTIONS</span>
+            <span className="text-xs font-mono text-accent uppercase tracking-wider block">FAQ</span>
             <h2 className="text-2xl font-black text-zinc-100 tracking-tight mt-1">
-              SYSTEM SPECIFICATIONS
+              QUESTIONS, ANSWERED
             </h2>
           </div>
 
@@ -589,7 +586,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
             <div className="p-5 bg-surface border border-line rounded-xl">
               <h4 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
                 <ChevronRight className="w-4 h-4 text-accent" />
-                How does Iron Log calculate progressive overload?
+                How does IronLog AI calculate progressive overload?
               </h4>
               <p className="mt-2 text-xs text-zinc-400 leading-relaxed">
                 Rather than arbitrary weight bumps, the engine tracks your specified target rep range (e.g. 8–10 reps). Once all target sets clear the top of the range at valid RPE, it recommends a micro-load jump (+1.25kg to +2.5kg) on the next session.
@@ -632,20 +629,18 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
         <section className="p-8 sm:p-12 rounded-3xl bg-gradient-to-b from-surface-2 to-surface border border-line text-center relative overflow-hidden shadow-2xl">
           <div className="absolute inset-0 bg-accent/5 pointer-events-none" />
           <div className="relative z-10 max-w-2xl mx-auto flex flex-col items-center">
-            <div className="w-12 h-12 rounded-2xl bg-accent text-zinc-950 flex items-center justify-center font-black mb-4 shadow-lg shadow-accent/20">
-              <Dumbbell className="w-6 h-6" />
-            </div>
+            <BrandEmblem className="h-14 mb-4" />
             <h2 className="text-2xl sm:text-4xl font-black text-zinc-100 tracking-tight">
-              TAKE COMMAND OF YOUR ATHLETIC PERFORMANCE
+              TRAIN SMARTER. BUILD STRONGER.
             </h2>
             <p className="text-sm text-zinc-400 mt-3 max-w-lg leading-relaxed">
-              Join thousands of dedicated athletes using Iron Log to automate progressive overload, master their nutrition, and shatter plateaus.
+              Start free and let IronLog AI guide your progression, nutrition and recovery.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={handleSignUp}
-                className="w-full sm:w-auto px-8 py-3.5 text-sm font-mono font-bold text-zinc-950 bg-accent hover:brightness-110 active:scale-95 transition-all rounded-xl shadow-[0_0_30px_rgba(206,255,0,0.35)] flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-8 py-3.5 text-sm font-mono font-bold text-zinc-950 bg-accent hover:brightness-110 active:scale-95 transition-all rounded-xl shadow-[0_0_30px_rgba(139,249,9,0.35)] flex items-center justify-center gap-2"
               >
                 <span>Create Free Account</span>
                 <ArrowRight className="w-4 h-4" />
@@ -666,12 +661,8 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
       <footer className="w-full border-t border-line py-8 px-4 sm:px-8 mt-12 bg-surface text-xs font-mono text-zinc-400">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-5 h-5 rounded bg-accent/20 text-accent flex items-center justify-center">
-              <Dumbbell className="w-3 h-3" />
-            </div>
-            <span className="font-bold text-zinc-200">IRON LOG // RESHAPE OS</span>
-            <span className="text-zinc-600">|</span>
-            <span className="text-zinc-500">v2.4.0 RELEASE</span>
+            <BrandEmblem className="h-5" />
+            <span className="font-bold text-zinc-200">IRONLOG AI // TRAIN SMARTER. BUILD STRONGER.</span>
           </div>
 
           <div className="flex items-center gap-4">

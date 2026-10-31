@@ -131,7 +131,7 @@ export const AccountSecurity: React.FC = () => {
       <div className="border-t border-line pt-4 space-y-2">
         <h4 className="text-sm font-medium text-danger">Delete account</h4>
         <p className="text-label text-zinc-500">
-          Permanently deletes your Iron Log account and removes this account's data from this device. Data saved on other
+          Permanently deletes your IronLog AI account and removes this account's data from this device. Data saved on other
           devices stays there until you sign in on them and erase it. This cannot be undone.
         </p>
         <Button type="button" variant="danger" onClick={() => setDeleteOpen(true)}>

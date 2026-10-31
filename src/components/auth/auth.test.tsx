@@ -361,10 +361,10 @@ describe('homepage before sign in and sign up', () => {
     await emit('INITIAL_SESSION', null);
 
     // Verifies homepage content is rendered first
-    expect(text()).toContain('IRON LOG');
-    expect(text()).toContain('OS v2.4');
-    expect(text()).toContain('Precision Training');
-    expect(text()).toContain('THE 8 CORE ATHLETIC ENGINES');
+    expect(text()).toContain('IRONLOG AI');
+    expect(text()).not.toMatch(/v2\.4/);
+    expect(text()).toContain('Train Smarter.');
+    expect(text()).toContain('EVERYTHING YOU NEED TO TRAIN SMARTER');
     expect(q('[data-testid="private"]')).toBeNull();
   });
 
@@ -383,12 +383,12 @@ describe('homepage before sign in and sign up', () => {
     // Click Sign In on the homepage
     await click('Sign in');
     expect(text()).toContain('Welcome back');
-    expect(text()).toContain('Sign in to your Iron Log account');
+    expect(text()).toContain('Sign in to your IronLog AI account');
 
     // Click Back to Homepage
     await click('Back to Homepage');
-    expect(text()).toContain('Precision Training');
-    expect(text()).toContain('THE 8 CORE ATHLETIC ENGINES');
+    expect(text()).toContain('Train Smarter.');
+    expect(text()).toContain('EVERYTHING YOU NEED TO TRAIN SMARTER');
   });
 
   it('navigates from homepage to sign up and allows returning to homepage', async () => {
@@ -410,8 +410,8 @@ describe('homepage before sign in and sign up', () => {
 
     // Click Back to Homepage
     await click('Back to Homepage');
-    expect(text()).toContain('Precision Training');
-    expect(text()).toContain('THE 8 CORE ATHLETIC ENGINES');
+    expect(text()).toContain('Train Smarter.');
+    expect(text()).toContain('EVERYTHING YOU NEED TO TRAIN SMARTER');
   });
 });
 

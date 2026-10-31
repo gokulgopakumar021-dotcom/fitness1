@@ -1,6 +1,6 @@
 {
-  "name": "IRON LOG — Personal Fitness OS",
-  "description": "Professional strength-training, progressive overload engine, nutrition & body metrics tracking operating system.",
+  "name": "IRONLOG AI — AI-Powered Fitness & Personal Training Platform",
+  "description": "AI-powered fitness and personal training: strength tracking, progressive overload, nutrition, recovery, Workout Mirror and Body Scan.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

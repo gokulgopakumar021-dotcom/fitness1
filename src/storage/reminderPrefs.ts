@@ -1,7 +1,7 @@
 import { scopedKey } from './storageScope';
 
 /**
- * Reminder preferences. Reminders are delivered as browser notifications by hooks/useReminders while Iron Log
+ * Reminder preferences. Reminders are delivered as browser notifications by hooks/useReminders while IronLog AI
  * is open (tab or installed app). There is no push server / service worker, so nothing fires when the app is closed.
  */
 export const REMINDER_PREFS_KEY = 'ironlog_reminder_prefs_v1';

@@ -251,7 +251,7 @@ export const HydrationPacingAlert: React.FC<HydrationPacingAlertProps> = ({
             unit === 'oz' ? `${deficitOz} fl oz` : `${deficitMl.toLocaleString()} ml`;
 
           dispatchPushNotification(
-            'Iron Log — Hydration Alert',
+            'IronLog AI — Hydration Alert',
             `You are ${formattedDeficit} behind your hourly hydration target. Drink a glass of water now to stay on pace!`
           );
 
@@ -289,7 +289,7 @@ export const HydrationPacingAlert: React.FC<HydrationPacingAlertProps> = ({
       if (permission === 'granted') {
         updateSettings({ enabled: true });
         dispatchPushNotification(
-          'Iron Log — Hydration Alerts Enabled',
+          'IronLog AI — Hydration Alerts Enabled',
           `Hourly hydration reminders scheduled for ${settings.wakeHour}:00 to ${settings.sleepHour}:00.`
         );
         setTestSentMessage('Push notifications enabled & test alert sent!');
@@ -307,7 +307,7 @@ export const HydrationPacingAlert: React.FC<HydrationPacingAlertProps> = ({
       unit === 'oz' ? `${Math.max(8, deficitOz)} fl oz` : `${Math.max(250, deficitMl)} ml`;
 
     dispatchPushNotification(
-      'Iron Log — Hydration Test Alert',
+      'IronLog AI — Hydration Test Alert',
       `Sample check: Currently at ${unit === 'oz' ? `${currentOz} oz` : `${currentWaterMl} ml`}. Target pace is ${unit === 'oz' ? `${expectedIntakeOz} oz` : `${expectedIntakeMl} ml`}.`
     );
 

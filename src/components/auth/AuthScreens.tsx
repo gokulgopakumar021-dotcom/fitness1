@@ -1,6 +1,7 @@
 import React, { useId, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Dumbbell, Eye, EyeOff, Loader2, MailCheck } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Eye, EyeOff, Loader2, MailCheck } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { BrandLogo } from '../ui/BrandLogo';
 import { useAuth } from '../../context/AuthContext';
 import {
   PASSWORD_MIN,
@@ -21,7 +22,7 @@ const AuthLayout: React.FC<{
 }> = ({ title, subtitle, onBackToHome, children }) => (
   <div className="min-h-dvh bg-[var(--bg-canvas)] text-[var(--text-primary)] font-sans flex items-center justify-center px-4 py-10">
     <main className="w-full max-w-md">
-      <div className="flex items-center justify-between mb-6 px-1">
+      <div className={onBackToHome ? 'flex items-center justify-between mb-4 px-1' : 'hidden'}>
         {onBackToHome ? (
           <button
             type="button"
@@ -31,13 +32,10 @@ const AuthLayout: React.FC<{
             <ArrowLeft className="w-3.5 h-3.5" aria-hidden />
             <span>BACK TO HOME</span>
           </button>
-        ) : (
-          <div />
-        )}
-        <div className="flex items-center gap-2 text-accent">
-          <Dumbbell className="w-5 h-5" aria-hidden />
-          <span className="font-mono font-bold tracking-widest text-xs">IRON LOG</span>
-        </div>
+        ) : null}
+      </div>
+      <div className="flex justify-center mb-6">
+        <BrandLogo variant="full" eager className="h-28 sm:h-36" />
       </div>
       <div className="bg-surface border border-line rounded-2xl p-5 sm:p-7 shadow-xl">
         <h1 className="text-xl font-bold text-zinc-100">{title}</h1>
@@ -50,13 +48,16 @@ const AuthLayout: React.FC<{
 
 export const SplashScreen: React.FC = () => (
   <div className="min-h-dvh bg-[var(--bg-canvas)] flex items-center justify-center" role="status" aria-busy="true" aria-live="polite">
-    <Loader2 className="w-6 h-6 text-accent animate-spin" aria-hidden />
+    <div className="flex flex-col items-center gap-6 px-6">
+      <BrandLogo variant="full" eager className="h-40 sm:h-48" />
+      <Loader2 className="w-6 h-6 text-accent animate-spin" aria-hidden />
+    </div>
     <span className="sr-only">Checking your session…</span>
   </div>
 );
 
 export const SetupErrorScreen: React.FC<{ message: string | null }> = ({ message }) => (
-  <AuthLayout title="Setup required" subtitle="Iron Log can't reach its account service yet.">
+  <AuthLayout title="Setup required" subtitle="IronLog AI can't reach its account service yet.">
     <div role="alert" className="flex gap-2 text-sm text-warning bg-warning/10 border border-warning/30 rounded-xl p-3">
       <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden />
       <span>{message ?? 'Supabase is not configured.'}</span>
@@ -263,7 +264,7 @@ const SignInForm: React.FC<FormProps> = ({ email, setEmail, go, callbackError, o
   });
 
   return (
-    <AuthLayout title="Welcome back" subtitle="Sign in to your Iron Log account." onBackToHome={onBackToHome}>
+    <AuthLayout title="Welcome back" subtitle="Sign in to your IronLog AI account." onBackToHome={onBackToHome}>
       <form onSubmit={submit} noValidate className="space-y-4" aria-busy={busy}>
         <FormError message={callbackError ?? formError} />
         <Field label="Email" type="email" value={email} onChange={setEmail} error={errors.email} autoComplete="email" disabled={busy} autoFocus />

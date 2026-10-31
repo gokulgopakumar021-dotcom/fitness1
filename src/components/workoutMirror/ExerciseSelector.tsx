@@ -16,6 +16,7 @@ import { ExerciseCategory, ExerciseDefinition, WorkoutMirrorExerciseId } from '.
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
+import { BrandEmblem } from '../ui/BrandLogo';
 import { Modal } from '../ui/Modal';
 import { cn } from '../ui/cn';
 
@@ -56,6 +57,7 @@ export const ExerciseSelector: React.FC<ExerciseSelectorProps> = ({ onSelectExer
       {/* Header Banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-surface via-surface to-surface-2 p-6 sm:p-8 border border-line">
         <div className="relative z-10 max-w-2xl">
+          <BrandEmblem className="h-9 mb-3" />
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/25 text-accent text-xs font-semibold mb-3">
             <Sparkles className="w-3.5 h-3.5 text-volt-adaptive" />
             <span>On-Device Computer Vision</span>

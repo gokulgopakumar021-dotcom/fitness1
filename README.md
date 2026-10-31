@@ -22,7 +22,7 @@ View your app in AI Studio: https://ai.studio/apps/9e70170b-d25f-42c0-b10e-2f9d8
 
 ## Accounts (Supabase Auth)
 
-Iron Log requires sign-in. Authentication uses Supabase Auth (email + password, email verification, password reset).
+IronLog AI requires sign-in. Authentication uses Supabase Auth (email + password, email verification, password reset).
 
 ### 1. Configure the app
 1. `cp .env.example .env.local`

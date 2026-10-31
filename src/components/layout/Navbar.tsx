@@ -27,6 +27,7 @@ import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
 import { useTheme } from '../../context/ThemeContext';
 import { Modal } from '../ui/Modal';
 import { cn } from '../ui/cn';
+import { BrandEmblem } from '../ui/BrandLogo';
 
 export type NavTab =
   | 'home'
@@ -130,14 +131,14 @@ export const TopHeader: React.FC<HeaderProps> = ({
             type="button"
             onClick={() => onSelectTab('home')}
             className="flex items-center gap-2.5 select-none shrink-0"
-            aria-label="Iron Log home"
+            aria-label="IronLog AI home"
           >
-            <span className="w-8 h-8 rounded-lg bg-accent text-accent-ink flex items-center justify-center text-[13px] font-extrabold tracking-tight">
-              IL
-            </span>
+            <BrandEmblem className="h-7 sm:h-8" />
             <span className="flex items-baseline gap-2">
-              <span className="text-[17px] font-bold tracking-tight text-[var(--text-primary)] leading-none">Iron Log</span>
-              <span className="hidden md:inline text-xs font-medium text-[var(--text-muted)]">Reshape OS</span>
+              <span className="text-[15px] sm:text-[17px] font-extrabold italic tracking-tight text-[var(--text-primary)] leading-none">
+                IRONLOG <span className="text-accent">AI</span>
+              </span>
+              <span className="hidden xl:inline text-xs font-medium text-[var(--text-muted)]">Train smarter. Build stronger.</span>
             </span>
           </button>
 

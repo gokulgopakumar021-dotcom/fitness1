@@ -41,7 +41,7 @@ export class PhotoStorageNotConsentedError extends Error {
 }
 export class BodyScanDeleteBlockedError extends Error {
   constructor() {
-    super('Deletion is blocked by another open Iron Log tab. Close other tabs and try again.');
+    super('Deletion is blocked by another open IronLog AI tab. Close other tabs and try again.');
     this.name = 'BodyScanDeleteBlockedError';
   }
 }

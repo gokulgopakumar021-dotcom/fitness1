@@ -22,7 +22,7 @@ import { DynamicWarmupModal } from './DynamicWarmupModal';
 import { DreamPhysiqueModal } from './DreamPhysiqueModal';
 import { AdaptiveReviewModal } from './AdaptiveReviewModal';
 import { NavTab } from '../layout/Navbar';
-import { Badge, Button, Card } from '../ui';
+import { Badge, BrandEmblem, Button, Card } from '../ui';
 import { getFormInsights } from '../../services/workoutMirror/mirrorStorage';
 
 interface ChatMessage {
@@ -208,8 +208,8 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
       {/* TRAINER HEADER */}
       <Card pad="sm" className="shrink-0 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-control bg-accent/10 border border-accent/30 flex items-center justify-center text-volt-adaptive shrink-0">
-            <Bot className="w-5 h-5" aria-hidden />
+          <div className="h-10 w-14 rounded-control bg-black border border-accent/30 flex items-center justify-center shrink-0 px-1.5">
+            <BrandEmblem className="h-6" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">

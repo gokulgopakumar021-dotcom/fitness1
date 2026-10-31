@@ -411,7 +411,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({ profile, onProfile
             unit="%"
             value={(v) => v}
             deltaValue={(v) => v}
-            footer={<p className="text-xs text-zinc-500">Entered by you. Not measured by Iron Log.</p>}
+            footer={<p className="text-xs text-zinc-500">Entered by you. Not measured by IronLog AI.</p>}
           />
         )}
 
@@ -434,7 +434,7 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({ profile, onProfile
             </summary>
             <p className="mt-2 leading-relaxed">
               BMI = weight (kg) ÷ height (m)². It is a broad screening number. Muscle is denser than fat, so strength-trained
-              people can score high at a lean body-fat level. Iron Log never estimates body fat from BMI.
+              people can score high at a lean body-fat level. IronLog AI never estimates body fat from BMI.
             </p>
           </details>
         </Card>

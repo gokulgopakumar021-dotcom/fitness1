@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, Database, KeyRound, Palette, Ruler, Dumbbell, User } from 'lucide-react';
-import { Button, PageHeader, SectionNav, SectionNavItem } from '../ui';
+import { BrandLogo, Button, PageHeader, SectionNav, SectionNavItem } from '../ui';
+import { BRAND } from '../../brand';
 import type { UserProfile } from '../../types';
 import { db } from '../../storage/db';
 import { useAuth } from '../../context/AuthContext';
@@ -236,6 +237,10 @@ export const SettingsView: React.FC<SettingsProps> = ({
           )}
         </div>
       </div>
+      <footer className="mt-10 flex flex-col items-center gap-2 text-center">
+        <BrandLogo variant="lockup" className="h-16 opacity-90" />
+        <p className="text-xs text-[var(--text-muted)]">{BRAND.description}</p>
+      </footer>
     </div>
   );
 };

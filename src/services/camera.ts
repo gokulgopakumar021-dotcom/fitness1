@@ -80,8 +80,8 @@ const FAILURES: Record<CameraFailureCode, Omit<CameraFailure, 'code'>> = {
   permission_denied: {
     title: 'Camera access was blocked',
     message:
-      'Iron Log cannot use your camera because permission was not granted. To take Body Scan photos, allow camera access for this site in your browser or device settings, then try again.',
-    hint: 'If you are viewing Iron Log inside an embedded preview, the page hosting it must also allow camera access.',
+      'IronLog AI cannot use your camera because permission was not granted. To take Body Scan photos, allow camera access for this site in your browser or device settings, then try again.',
+    hint: 'If you are viewing IronLog AI inside an embedded preview, the page hosting it must also allow camera access.',
   },
   permission_revoked: {
     title: 'Camera access was turned off',
@@ -91,7 +91,7 @@ const FAILURES: Record<CameraFailureCode, Omit<CameraFailure, 'code'>> = {
   insecure_context: {
     title: 'Camera needs a secure connection',
     message:
-      'Browsers only allow camera access on secure (HTTPS) pages. Open Iron Log over HTTPS, or from localhost during development.',
+      'Browsers only allow camera access on secure (HTTPS) pages. Open IronLog AI over HTTPS, or from localhost during development.',
   },
   unsupported: {
     title: 'Camera is not supported here',

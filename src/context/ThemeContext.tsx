@@ -10,7 +10,7 @@ interface ThemeContextType {
 
 const THEME_STORAGE_KEY = 'ironlog_athlete_theme';
 // Browser chrome colour (mobile address bar) per theme; matches --bg-canvas
-const THEME_COLOR: Record<ThemeMode, string> = { dark: '#06080e', light: '#f2f4f8' };
+const THEME_COLOR: Record<ThemeMode, string> = { dark: '#050505', light: '#f2f4f8' };
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: 'dark',

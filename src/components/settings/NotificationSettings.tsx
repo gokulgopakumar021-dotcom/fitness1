@@ -59,7 +59,7 @@ export const NotificationSettings: React.FC = () => {
       <SectionHeading
         level={3}
         title="Notifications"
-        description="Reminders appear as browser notifications while Iron Log is open. Nothing is sent when the app is closed."
+        description="Reminders appear as browser notifications while IronLog AI is open. Nothing is sent when the app is closed."
       />
       <span id="notifications-heading" className="sr-only">
         Notifications

@@ -99,7 +99,7 @@ export const CaptureSession: React.FC<CaptureSessionProps> = ({ createEngine = c
       <p className="flex items-start gap-2 text-sm leading-relaxed text-zinc-400">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
         <span>
-          Photo capture is available as a preview. After you accept a photo, Iron Log looks for body landmarks in it on this
+          Photo capture is available as a preview. After you accept a photo, IronLog AI looks for body landmarks in it on this
           device only. Measurements and saving are not available yet, so taking these photos does not complete a scan. Photos
           and detected landmarks are kept only in this tab and are not saved or uploaded, even if you allowed photo storage.
         </span>

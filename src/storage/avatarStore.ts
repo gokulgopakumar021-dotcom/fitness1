@@ -1,7 +1,7 @@
 import { scopedKey } from './storageScope';
 
 /**
- * Profile photo, kept on this device only (localStorage, scoped per account like all Iron Log data).
+ * Profile photo, kept on this device only (localStorage, scoped per account like all IronLog AI data).
  * Stored under its own key, NOT inside UserProfile, so it never travels with the profile object into
  * props, backups or AI prompts. Always a small JPEG data URL produced by utils/avatarImage.
  */

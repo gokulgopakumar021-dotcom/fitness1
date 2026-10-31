@@ -32,6 +32,7 @@ export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose, cr
         </Button>
         <PageHeader
           className="mb-0 sm:mb-0"
+          eyebrow="IRONLOG AI"
           title="Body Scan"
           description="Guided front and side photos, checked for body landmarks on this device. Preview: nothing is measured or saved yet."
         />
@@ -42,7 +43,7 @@ export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose, cr
           <h2 className="text-base font-semibold text-white">Body Scan is for adults</h2>
           <p className="text-sm text-zinc-400 leading-relaxed">
             Body Scan is available to users aged {BODY_SCAN_MIN_AGE} and over. Your profile age is below{' '}
-            {BODY_SCAN_MIN_AGE}. If that is a mistake, you can correct it in Settings. The rest of Iron Log is
+            {BODY_SCAN_MIN_AGE}. If that is a mistake, you can correct it in Settings. The rest of IronLog AI is
             unaffected.
           </p>
         </Card>

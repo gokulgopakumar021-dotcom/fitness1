@@ -534,8 +534,8 @@ const EXPLORE: { tab: NavTab; label: string; hint: string; icon: React.ReactNode
 ];
 
 export const HomeExploreCard: React.FC<{ onNavigate: Navigate; className?: string }> = ({ onNavigate, className }) => (
-  <Card as="section" aria-label="More in Iron Log" className={className}>
-    <SectionHeading title="More in Iron Log" />
+  <Card as="section" aria-label="More in IronLog AI" className={className}>
+    <SectionHeading title="More in IronLog AI" />
     <nav aria-label="Other screens">
       <ul className="-mx-2 space-y-0.5">
         {EXPLORE.map((item) => (

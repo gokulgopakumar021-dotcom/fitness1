@@ -218,7 +218,7 @@ export const CameraSetupGuide: React.FC<CameraSetupGuideProps> = ({
             <AlertCircle className="w-12 h-12 text-danger mb-3" />
             <h3 className="text-lg font-bold text-zinc-100">Camera Permission Blocked</h3>
             <p className="text-xs text-zinc-400 max-w-sm mt-1">
-              Iron Log needs camera access to operate the Workout Mirror. Please enable camera access in
+              IronLog AI needs camera access to operate the Workout Mirror. Please enable camera access in
               your browser or device settings and try again.
             </p>
             <Button

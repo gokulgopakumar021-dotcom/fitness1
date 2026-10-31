@@ -56,7 +56,7 @@ export const ConsentStep: React.FC<ConsentStepProps> = ({ onAccepted }) => {
           <Lock className="w-4 h-4 text-accent shrink-0 mt-0.5" aria-hidden="true" />
           <span>
             <strong className="text-zinc-100">Stays on your device.</strong> Body Scan is built to analyse photos on
-            your device. It does not upload photos to Iron Log servers, AI services or analytics.
+            your device. It does not upload photos to IronLog AI servers, AI services or analytics.
           </span>
         </li>
         <li className="flex gap-3">

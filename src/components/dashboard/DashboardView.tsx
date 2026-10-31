@@ -271,7 +271,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
       <PageHeader
-        eyebrow="Athlete performance radar"
+        eyebrow="IRONLOG AI · Athlete performance radar"
         title={profile.name ? profile.name : 'Athlete discipline'}
         description="Precision double-overload tracking, AI recovery guidance, and automated nutritional balance."
         actions={
@@ -504,7 +504,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
       )}
 
       {/* EXPLORE */}
-      <section aria-label="Explore Iron Log">
+      <section aria-label="Explore IronLog AI">
         <SectionHeading title="Explore" description="Jump into any part of your training system." />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {quickLaunch.map((q) => (
@@ -557,7 +557,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
           <div className="flex items-center gap-2.5 text-sm text-[var(--text-secondary)]">
             <Sparkles className="w-4 h-4 text-warning shrink-0" aria-hidden />
             <span>
-              Want to preview Iron Log with populated session history, progression logs, and nutrition metrics?
+              Want to preview IronLog AI with populated session history, progression logs, and nutrition metrics?
             </span>
           </div>
           <Button variant="secondary" size="sm" onClick={onLoadDemoData} className="shrink-0">

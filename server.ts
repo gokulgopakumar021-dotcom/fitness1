@@ -1684,7 +1684,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`IRON LOG server listening on http://0.0.0.0:${PORT}`);
+    console.log(`IRONLOG AI server listening on http://0.0.0.0:${PORT}`);
   });
 }
 

@@ -155,20 +155,20 @@ export const SmartAlertsConfigModal: React.FC<SmartAlertsConfigModalProps> = ({
 
   // Test Notification Trigger
   const handleTestNotification = (type: string) => {
-    let title = 'Iron Log — Smart Hydration Alert';
+    let title = 'IronLog AI — Smart Hydration Alert';
     let body = 'Hydration reminder scheduled according to your smart pacing profile.';
 
     if (type === 'lag') {
-      title = 'Iron Log — Lag Alert';
+      title = 'IronLog AI — Lag Alert';
       body = 'You are 14 fl oz (414 ml) behind your hourly target. Take a hydration break!';
     } else if (type === 'midday') {
-      title = 'Iron Log — Midday Hydration Check-In';
+      title = 'IronLog AI — Midday Hydration Check-In';
       body = 'It is 1:00 PM: you have reached 45% of your target. Drink 16 oz to stay primed.';
     } else if (type === 'preworkout') {
-      title = 'Iron Log — Pre-Workout Hydration Prime';
+      title = 'IronLog AI — Pre-Workout Hydration Prime';
       body = 'Drink 16 fl oz / 500 ml 45 min before lifting for optimal intra-cellular pump.';
     } else if (type === 'quiet') {
-      title = 'Iron Log — Quiet Hours Active';
+      title = 'IronLog AI — Quiet Hours Active';
       body = 'Notifications are currently suppressed during your custom quiet window.';
     }
 

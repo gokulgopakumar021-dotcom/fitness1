@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ------------------------------------------------------------------
-   IRON LOG DESIGN SYSTEM
+   IRONLOG AI DESIGN SYSTEM
    Theme-aware tokens. The CSS variables below switch between the dark
    and light themes (ThemeContext toggles `.dark` / `.light` on <html>).
    Tailwind token utilities (bg-surface, border-line, text-accent ...)
@@ -9,30 +9,30 @@
 ------------------------------------------------------------------- */
 :root,
 .dark {
-  --bg-canvas: #06080e;
-  --bg-surface: #0d111a;
-  --bg-surface-elevated: #131824;
-  --bg-surface-3: #1a2030;
-  --bg-subtle: #090c13;
+  --bg-canvas: #050505;
+  --bg-surface: #111315;
+  --bg-surface-elevated: #191d1f;
+  --bg-surface-3: #22272a;
+  --bg-subtle: #0a0b0c;
   --border-card: rgba(255, 255, 255, 0.08);
   --border-card-hover: rgba(255, 255, 255, 0.18);
   --card-shadow: none;
   --card-shadow-hover: none;
   --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --header-bg: rgba(6, 8, 14, 0.88);
-  --sidebar-bg: #070910;
-  --input-bg: #090c14;
+  --text-secondary: #a6adb2;
+  --text-muted: #80888d;
+  --header-bg: rgba(5, 5, 5, 0.88);
+  --sidebar-bg: #070808;
+  --input-bg: #0b0c0d;
   --input-border: rgba(255, 255, 255, 0.1);
   --chip-bg: rgba(255, 255, 255, 0.06);
-  --accent-volt: #ceff00;
+  --accent-volt: #8bf909;
   --accent-volt-contrast: #000000;
-  --accent-text: #ceff00;
+  --accent-text: #8bf909;
 
-  --accent: #ceff00;
-  --accent-hover: #d8ff33;
-  --accent-ink: #06080e;
+  --accent: #8bf909;
+  --accent-hover: #a2ff33;
+  --accent-ink: #050505;
   --success: #34d399;
   --warning: #fbbf24;
   --danger: #f87171;
@@ -41,14 +41,14 @@
   --overlay: rgba(0, 0, 0, 0.7);
 
   /* Chart palette: series 1 follows the brand accent */
-  --chart-1: #ceff00;
+  --chart-1: #8bf909;
   --chart-2: #38bdf8;
   --chart-3: #c084fc;
   --chart-4: #fb923c;
   --chart-5: #34d399;
   --chart-grid: rgba(255, 255, 255, 0.07);
-  --chart-axis: #64748b;
-  --chart-ring: #0d111a;
+  --chart-axis: #80888d;
+  --chart-ring: #111315;
 }
 
 .light {
@@ -69,7 +69,7 @@
   --input-bg: #f8fafc;
   --input-border: rgba(15, 23, 42, 0.14);
   --chip-bg: rgba(15, 23, 42, 0.05);
-  --accent-volt: #ceff00;
+  --accent-volt: #8bf909;
   --accent-volt-contrast: #000000;
   --accent-text: #15803d;
 
@@ -159,18 +159,18 @@
 }
 
 @theme {
-  /* Lime family -> Iron Log volt ramp (dark theme values) */
-  --color-lime-50: #fbffe0;
-  --color-lime-100: #f3ffb3;
-  --color-lime-200: #e9ff80;
-  --color-lime-300: #dfff4d;
-  --color-lime-400: #ceff00;
-  --color-lime-500: #aed420;
-  --color-lime-600: #86a617;
-  --color-lime-700: #647c14;
-  --color-lime-800: #4c5e14;
-  --color-lime-900: #3a4814;
-  --color-lime-950: #1d2606;
+  /* Lime family -> IronLog AI brand ramp (sampled from the official logo: ~#8bf909) */
+  --color-lime-50: #f6ffe5;
+  --color-lime-100: #e8ffc2;
+  --color-lime-200: #d2ff8f;
+  --color-lime-300: #b4ff4d;
+  --color-lime-400: #8bf909;
+  --color-lime-500: #72d406;
+  --color-lime-600: #58a606;
+  --color-lime-700: #437d0a;
+  --color-lime-800: #36600e;
+  --color-lime-900: #2c4e10;
+  --color-lime-950: #142a04;
 }
 
 @layer base {
@@ -324,4 +324,12 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* IRONLOG AI logo: artwork has white/silver parts, so give it a dark plate on the light theme. */
+html.light .brand-logo {
+  background: #050505;
+  border-radius: 0.75rem;
+  padding: 0.35em 0.5em;
+  box-sizing: content-box;
 }

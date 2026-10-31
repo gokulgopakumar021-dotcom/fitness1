@@ -24,6 +24,9 @@
     "video:backfill-media": "tsx scripts/video-library/probeBackfillSql.ts"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
     "@google/genai": "^2.4.0",
     "@mediapipe/tasks-vision": "0.10.35",
     "@supabase/supabase-js": "^2.118.0",
@@ -41,6 +44,7 @@
     "vite": "^8.3.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
     "@electric-sql/pglite": "^0.5.12",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",

@@ -324,7 +324,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
           {/* LOOKING UP SPINNER */}
           {isLookingUp && (
             <div className="py-12 flex flex-col items-center justify-center text-center space-y-3">
-              <div className="w-12 h-12 rounded-full border-2 border-line border-t-[#CEFF00] animate-spin" />
+              <div className="w-12 h-12 rounded-full border-2 border-line border-t-accent animate-spin" />
               <div className="text-sm font-bold text-white font-nrc tracking-wide">
                 Searching Open Food Facts...
               </div>

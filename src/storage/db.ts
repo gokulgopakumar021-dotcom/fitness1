@@ -826,7 +826,7 @@ class IronLogDB {
   // --- Export and Import ---
   exportFullBackupJSON(): string {
     const backup = {
-      app: 'IRON LOG — Personal Fitness OS',
+      app: 'IRONLOG AI',
       version: '1.0.0',
       exportedAt: new Date().toISOString(),
       profile: this.getProfile(),
