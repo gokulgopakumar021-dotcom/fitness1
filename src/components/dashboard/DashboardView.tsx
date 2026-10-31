@@ -174,14 +174,14 @@ export const DashboardView: React.FC<DashboardProps> = ({
     return acc + calculateVolumeLoad(s.exercises.flatMap((e) => e.sets));
   }, 0);
 
-  // Reshape athletic tier ladder
+  // Reshape athletic tier ladder (colours are theme tokens, so they follow dark/light)
   const RESHAPE_TIERS = [
-    { name: 'Foundational', minVol: 0, maxVol: 25000, color: '#facc15', label: 'Tier I · Bronze' },
-    { name: 'Progressive', minVol: 25000, maxVol: 100000, color: '#fb923c', label: 'Tier II · Copper' },
-    { name: 'Disciplined', minVol: 100000, maxVol: 500000, color: '#4ade80', label: 'Tier III · Silver' },
-    { name: 'Advanced', minVol: 500000, maxVol: 1500000, color: '#38bdf8', label: 'Tier IV · Cyan' },
-    { name: 'Elite Master', minVol: 1500000, maxVol: 5000000, color: '#c084fc', label: 'Tier V · Platinum' },
-    { name: 'Reshape Titan', minVol: 5000000, maxVol: Infinity, color: '#CEFF00', label: 'Reshape Titan' }
+    { name: 'Foundational', minVol: 0, maxVol: 25000, color: 'var(--warning)', label: 'Tier I · Bronze' },
+    { name: 'Progressive', minVol: 25000, maxVol: 100000, color: 'var(--chart-4)', label: 'Tier II · Copper' },
+    { name: 'Disciplined', minVol: 100000, maxVol: 500000, color: 'var(--chart-5)', label: 'Tier III · Silver' },
+    { name: 'Advanced', minVol: 500000, maxVol: 1500000, color: 'var(--chart-2)', label: 'Tier IV · Cyan' },
+    { name: 'Elite Master', minVol: 1500000, maxVol: 5000000, color: 'var(--chart-3)', label: 'Tier V · Platinum' },
+    { name: 'Reshape Titan', minVol: 5000000, maxVol: Infinity, color: 'var(--chart-1)', label: 'Reshape Titan' }
   ];
 
   let currentLevelIdx = 0;

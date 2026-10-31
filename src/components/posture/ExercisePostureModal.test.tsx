@@ -196,22 +196,40 @@ describe('ExercisePostureModal (on ui/Modal) - full guide', () => {
     expect(text()).toContain('Phase: Setup / Starting Alignment');
   });
 
-  it('uses theme tokens only outside the diagram: no hard-coded palette colours in the dialog or its tabs', async () => {
+  it('uses theme tokens only: no hard-coded palette colours or hex values in the dialog, diagram included', async () => {
     await mountModal();
     const check = () => {
-      const dialog = (document.querySelector('[role="dialog"]') as HTMLElement).cloneNode(true) as HTMLElement;
-      // The anatomical diagram (visual tab) keeps its own colours until the colour-token step.
-      dialog.querySelectorAll('svg[viewBox="0 0 300 240"]').forEach((n) => (n.closest('.relative.bg-canvas') ?? n).remove());
-      const html = dialog.innerHTML;
+      const html = (document.querySelector('[role="dialog"]') as HTMLElement).innerHTML;
       expect(html).not.toMatch(/(lime|amber|sky|emerald|rose|fuchsia)-\d{3}/);
       expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+      expect(html).not.toMatch(/rgba?\(/);
     };
+    check(); // visual tab: diagram, legend, grid overlay
     for (const tab of ['Step Checkpoints', 'Form Mistakes & Fixes', 'Tempo & Breathing', 'AI Form Coach']) {
       await click(byText(tab));
       check();
     }
     await click(byText('Ask Coach'));
     check();
+  });
+
+  it('draws the diagram with theme variables and gives it an accessible name for each position', async () => {
+    await mountModal();
+    const svg = document.querySelector('svg[viewBox="0 0 300 240"]') as SVGElement;
+    expect(svg.getAttribute('role')).toBe('img');
+    expect(svg.getAttribute('aria-label')).toContain('Barbell Back Squat movement diagram');
+    const used = new Set(Array.from(svg.querySelectorAll('[stroke],[fill]')).flatMap((n) => [n.getAttribute('stroke'), n.getAttribute('fill')]).filter(Boolean));
+    for (const v of ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-5)', 'var(--warning)', 'var(--danger)', 'var(--chart-axis)', 'var(--text-primary)']) {
+      expect(used.has(v)).toBe(true);
+    }
+    // legend swatches use the same tokens as the strokes they explain
+    const legend = Array.from(document.querySelectorAll('span.rounded-full')).map((n) => n.className).join(' ');
+    for (const c of ['bg-chart-1', 'bg-chart-2', 'bg-warning', 'bg-danger']) expect(legend).toContain(c);
+
+    await click(byText('View Depth'));
+    expect(svg.getAttribute('aria-label')).toContain('bottom position');
+    await click(byText('View Setup'));
+    expect(svg.getAttribute('aria-label')).toContain('setup position');
   });
 });
 

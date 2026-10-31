@@ -127,7 +127,7 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
     return (
       <div className="relative bg-canvas border border-line rounded-2xl p-4 flex flex-col items-center justify-center overflow-hidden">
         {/* Alignment Grid Overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1f293710_1px,transparent_1px),linear-gradient(to_bottom,#1f293710_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,var(--chart-grid)_1px,transparent_1px),linear-gradient(to_bottom,var(--chart-grid)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 
         {/* Phase Indicator & Mode Toggles */}
         <div className="w-full flex items-center justify-between z-10 mb-2">
@@ -135,7 +135,7 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
             <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-surface-2 border border-line text-zinc-300 font-bold">
               {isBottom ? 'Phase: Bottom / Max Contraction' : 'Phase: Setup / Starting Alignment'}
             </span>
-            <span className="text-[11px] font-mono text-lime-400 bg-lime-400/10 px-2 py-0.5 rounded border border-lime-400/30 font-bold">
+            <span className="text-[11px] font-mono text-accent bg-accent/10 px-2 py-0.5 rounded border border-accent/30 font-bold">
               Active Form Model
             </span>
           </div>
@@ -147,7 +147,7 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
               }}
               className="px-2 py-1 bg-surface-2 hover:bg-surface-3 text-zinc-200 border border-line rounded-lg text-xs font-mono flex items-center gap-1"
             >
-              {isPlayingAnimation ? <Pause className="w-3 h-3 text-amber-400" /> : <Play className="w-3 h-3 text-lime-400" />}
+              {isPlayingAnimation ? <Pause className="w-3 h-3 text-warning" /> : <Play className="w-3 h-3 text-accent" />}
               <span>{isPlayingAnimation ? 'Pause' : 'Play Loop'}</span>
             </button>
 
@@ -165,19 +165,24 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
 
         {/* Dynamic Vector Anatomical Mannequin */}
         <div className="w-full max-w-sm h-64 relative flex items-center justify-center">
-          <svg viewBox="0 0 300 240" className="w-full h-full select-none">
+          <svg
+            viewBox="0 0 300 240"
+            className="w-full h-full select-none"
+            role="img"
+            aria-label={`${data.name} movement diagram, ${isBottom ? 'bottom position' : 'setup position'}`}
+          >
             {/* Ground / Platform */}
-            <line x1="20" y1="210" x2="280" y2="210" stroke="#374151" strokeWidth="3" strokeDasharray="4 4" />
-            <text x="30" y="225" fill="#6b7280" fontSize="9" fontFamily="monospace">STABLE LIFTING PLATFORM</text>
+            <line x1="20" y1="210" x2="280" y2="210" stroke="var(--chart-axis)" strokeWidth="3" strokeDasharray="4 4" />
+            <text x="30" y="225" fill="var(--chart-axis)" fontSize="9" fontFamily="monospace">STABLE LIFTING PLATFORM</text>
 
             {/* Vertical Bar Path Line (Center of Gravity) */}
-            <line x1="150" y1="30" x2="150" y2="210" stroke="#10b98140" strokeWidth="1.5" strokeDasharray="3 3" />
-            <text x="155" y="45" fill="#10b981" fontSize="8" fontFamily="monospace">MIDFOOT CENTER OF MASS</text>
+            <line x1="150" y1="30" x2="150" y2="210" stroke="var(--chart-5)" strokeOpacity="0.25" strokeWidth="1.5" strokeDasharray="3 3" />
+            <text x="155" y="45" fill="var(--chart-5)" fontSize="8" fontFamily="monospace">MIDFOOT CENTER OF MASS</text>
 
             {data.diagramType === 'squat' && (
               <g className="transition-all duration-300">
                 {/* Feet */}
-                <ellipse cx="150" cy="210" rx="20" ry="4" fill="#6b7280" />
+                <ellipse cx="150" cy="210" rx="20" ry="4" fill="var(--chart-axis)" />
 
                 {/* Shins & Knees */}
                 <line
@@ -185,11 +190,11 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
                   y1="210"
                   x2={isBottom ? '175' : '155'}
                   y2={isBottom ? '165' : '135'}
-                  stroke="#a3e635"
+                  stroke="var(--chart-1)"
                   strokeWidth="8"
                   strokeLinecap="round"
                 />
-                <circle cx={isBottom ? '175' : '155'} cy={isBottom ? '165' : '135'} r="6" fill="#facc15" />
+                <circle cx={isBottom ? '175' : '155'} cy={isBottom ? '165' : '135'} r="6" fill="var(--warning)" />
 
                 {/* Thigh / Femur (Primary Quad) */}
                 <line
@@ -197,11 +202,11 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
                   y1={isBottom ? '165' : '135'}
                   x2={isBottom ? '125' : '148'}
                   y2={isBottom ? '165' : '85'}
-                  stroke="#10b981"
+                  stroke="var(--chart-5)"
                   strokeWidth="10"
                   strokeLinecap="round"
                 />
-                <circle cx={isBottom ? '125' : '148'} cy={isBottom ? '165' : '85'} r="7" fill="#facc15" />
+                <circle cx={isBottom ? '125' : '148'} cy={isBottom ? '165' : '85'} r="7" fill="var(--warning)" />
 
                 {/* Torso / Spine (Neutral Alignment) */}
                 <line
@@ -209,13 +214,13 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
                   y1={isBottom ? '165' : '85'}
                   x2={isBottom ? '150' : '150'}
                   y2={isBottom ? '95' : '45'}
-                  stroke="#38bdf8"
+                  stroke="var(--chart-2)"
                   strokeWidth="8"
                   strokeLinecap="round"
                 />
 
                 {/* Head */}
-                <circle cx={isBottom ? '158' : '150'} cy={isBottom ? '80' : '30'} r="11" fill="#9ca3af" />
+                <circle cx={isBottom ? '158' : '150'} cy={isBottom ? '80' : '30'} r="11" fill="var(--text-secondary)" />
 
                 {/* Barbell Across Traps */}
                 <line
@@ -223,33 +228,33 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
                   y1={isBottom ? '95' : '45'}
                   x2="200"
                   y2={isBottom ? '95' : '45'}
-                  stroke="#e2e8f0"
+                  stroke="var(--text-primary)"
                   strokeWidth="5"
                   strokeLinecap="round"
                 />
                 {/* Weight Plates */}
-                <rect x="92" y={isBottom ? '75' : '25'} width="8" height="40" rx="2" fill="#ef4444" />
-                <rect x="200" y={isBottom ? '75' : '25'} width="8" height="40" rx="2" fill="#ef4444" />
+                <rect x="92" y={isBottom ? '75' : '25'} width="8" height="40" rx="2" fill="var(--danger)" />
+                <rect x="200" y={isBottom ? '75' : '25'} width="8" height="40" rx="2" fill="var(--danger)" />
 
                 {/* Joint Angle Overlay Labels */}
                 {isBottom ? (
                   <>
-                    <text x="185" y="160" fill="#a3e635" fontSize="10" fontWeight="bold" fontFamily="monospace">
+                    <text x="185" y="160" fill="var(--chart-1)" fontSize="10" fontWeight="bold" fontFamily="monospace">
                       KNEE ~115°
                     </text>
-                    <text x="75" y="165" fill="#38bdf8" fontSize="10" fontWeight="bold" fontFamily="monospace">
+                    <text x="75" y="165" fill="var(--chart-2)" fontSize="10" fontWeight="bold" fontFamily="monospace">
                       PARALLEL DEPTH
                     </text>
-                    <text x="110" y="125" fill="#facc15" fontSize="9" fontFamily="monospace">
+                    <text x="110" y="125" fill="var(--warning)" fontSize="9" fontFamily="monospace">
                       NEUTRAL SPINE
                     </text>
                   </>
                 ) : (
                   <>
-                    <text x="170" y="130" fill="#a3e635" fontSize="10" fontWeight="bold" fontFamily="monospace">
+                    <text x="170" y="130" fill="var(--chart-1)" fontSize="10" fontWeight="bold" fontFamily="monospace">
                       TALL STANCE
                     </text>
-                    <text x="165" y="50" fill="#38bdf8" fontSize="10" fontWeight="bold" fontFamily="monospace">
+                    <text x="165" y="50" fill="var(--chart-2)" fontSize="10" fontWeight="bold" fontFamily="monospace">
                       TRAPS SHELF
                     </text>
                   </>
@@ -260,23 +265,23 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
             {data.diagramType === 'bench' && (
               <g className="transition-all duration-300">
                 {/* Flat Bench Pad */}
-                <rect x="50" y="140" width="200" height="15" rx="3" fill="#1f2937" stroke="#374151" strokeWidth="1" />
+                <rect x="50" y="140" width="200" height="15" rx="3" fill="var(--bg-surface-elevated)" stroke="var(--chart-axis)" strokeWidth="1" />
                 {/* Bench Legs */}
-                <rect x="65" y="155" width="10" height="55" fill="#111827" />
-                <rect x="225" y="155" width="10" height="55" fill="#111827" />
+                <rect x="65" y="155" width="10" height="55" fill="var(--chart-axis)" />
+                <rect x="225" y="155" width="10" height="55" fill="var(--chart-axis)" />
 
                 {/* Athlete Torso Arch */}
                 <path
                   d="M 75 140 Q 120 125 180 140 L 195 185"
-                  stroke="#38bdf8"
+                  stroke="var(--chart-2)"
                   strokeWidth="8"
                   fill="none"
                   strokeLinecap="round"
                 />
                 {/* Head on Bench */}
-                <circle cx="65" cy="132" r="10" fill="#9ca3af" />
+                <circle cx="65" cy="132" r="10" fill="var(--text-secondary)" />
                 {/* Feet Planted */}
-                <line x1="195" y1="185" x2="195" y2="210" stroke="#6b7280" strokeWidth="6" strokeLinecap="round" />
+                <line x1="195" y1="185" x2="195" y2="210" stroke="var(--chart-axis)" strokeWidth="6" strokeLinecap="round" />
 
                 {/* Arms & Barbell */}
                 <line
@@ -284,17 +289,17 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
                   y1="130"
                   x2={isBottom ? '110' : '120'}
                   y2={isBottom ? '145' : '85'}
-                  stroke="#a3e635"
+                  stroke="var(--chart-1)"
                   strokeWidth="7"
                   strokeLinecap="round"
                 />
-                <circle cx={isBottom ? '110' : '120'} cy={isBottom ? '145' : '85'} r="5" fill="#facc15" />
+                <circle cx={isBottom ? '110' : '120'} cy={isBottom ? '145' : '85'} r="5" fill="var(--warning)" />
                 <line
                   x1={isBottom ? '110' : '120'}
                   y1={isBottom ? '145' : '85'}
                   x2={isBottom ? '125' : '125'}
                   y2={isBottom ? '120' : '60'}
-                  stroke="#10b981"
+                  stroke="var(--chart-5)"
                   strokeWidth="6"
                   strokeLinecap="round"
                 />
@@ -305,17 +310,17 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
                   y1={isBottom ? '120' : '60'}
                   x2="190"
                   y2={isBottom ? '120' : '60'}
-                  stroke="#e2e8f0"
+                  stroke="var(--text-primary)"
                   strokeWidth="5"
                   strokeLinecap="round"
                 />
-                <rect x="52" y={isBottom ? '102' : '42'} width="8" height="36" rx="2" fill="#ef4444" />
-                <rect x="190" y={isBottom ? '102' : '42'} width="8" height="36" rx="2" fill="#ef4444" />
+                <rect x="52" y={isBottom ? '102' : '42'} width="8" height="36" rx="2" fill="var(--danger)" />
+                <rect x="190" y={isBottom ? '102' : '42'} width="8" height="36" rx="2" fill="var(--danger)" />
 
-                <text x="135" y={isBottom ? '115' : '55'} fill="#a3e635" fontSize="10" fontWeight="bold" fontFamily="monospace">
+                <text x="135" y={isBottom ? '115' : '55'} fill="var(--chart-1)" fontSize="10" fontWeight="bold" fontFamily="monospace">
                   {isBottom ? 'STERNALLY TOUCHED (0.5s)' : 'ARMS STACKED AT LOCKOUT'}
                 </text>
-                <text x="90" y="165" fill="#38bdf8" fontSize="9" fontFamily="monospace">
+                <text x="90" y="165" fill="var(--chart-2)" fontSize="9" fontFamily="monospace">
                   ELBOWS TUCKED 45-75°
                 </text>
               </g>
@@ -324,28 +329,28 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
             {data.diagramType !== 'squat' && data.diagramType !== 'bench' && (
               <g className="transition-all duration-300">
                 {/* Generic / Deadlift / Pull Model */}
-                <ellipse cx="150" cy="210" rx="18" ry="4" fill="#6b7280" />
+                <ellipse cx="150" cy="210" rx="18" ry="4" fill="var(--chart-axis)" />
                 {/* Legs */}
-                <line x1="150" y1="210" x2="150" y2="135" stroke="#a3e635" strokeWidth="8" strokeLinecap="round" />
+                <line x1="150" y1="210" x2="150" y2="135" stroke="var(--chart-1)" strokeWidth="8" strokeLinecap="round" />
                 {/* Torso */}
                 <line
                   x1="150"
                   y1="135"
                   x2={isBottom ? '135' : '150'}
                   y2={isBottom ? '80' : '60'}
-                  stroke="#10b981"
+                  stroke="var(--chart-5)"
                   strokeWidth="9"
                   strokeLinecap="round"
                 />
                 {/* Head */}
-                <circle cx={isBottom ? '130' : '150'} cy={isBottom ? '65' : '40'} r="11" fill="#9ca3af" />
+                <circle cx={isBottom ? '130' : '150'} cy={isBottom ? '65' : '40'} r="11" fill="var(--text-secondary)" />
                 {/* Arms holding weight */}
                 <line
                   x1={isBottom ? '135' : '150'}
                   y1={isBottom ? '80' : '60'}
                   x2={isBottom ? '145' : '150'}
                   y2={isBottom ? '130' : '100'}
-                  stroke="#38bdf8"
+                  stroke="var(--chart-2)"
                   strokeWidth="6"
                   strokeLinecap="round"
                 />
@@ -355,14 +360,14 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
                   y1={isBottom ? '130' : '100'}
                   x2="200"
                   y2={isBottom ? '130' : '100'}
-                  stroke="#e2e8f0"
+                  stroke="var(--text-primary)"
                   strokeWidth="5"
                   strokeLinecap="round"
                 />
-                <rect x="92" y={isBottom ? '112' : '82'} width="8" height="36" rx="2" fill="#ef4444" />
-                <rect x="200" y={isBottom ? '112' : '82'} width="8" height="36" rx="2" fill="#ef4444" />
+                <rect x="92" y={isBottom ? '112' : '82'} width="8" height="36" rx="2" fill="var(--danger)" />
+                <rect x="200" y={isBottom ? '112' : '82'} width="8" height="36" rx="2" fill="var(--danger)" />
 
-                <text x="70" y="30" fill="#a3e635" fontSize="10" fontWeight="bold" fontFamily="monospace">
+                <text x="70" y="30" fill="var(--chart-1)" fontSize="10" fontWeight="bold" fontFamily="monospace">
                   NEUTRAL SPINE CURVATURE
                 </text>
               </g>
@@ -373,19 +378,19 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
         {/* Anatomical Color Legend */}
         <div className="w-full mt-3 pt-2 border-t border-line flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-lime-400" />
+            <span className="w-2.5 h-2.5 rounded-full bg-chart-1" />
             <span className="text-zinc-300">Primary Agonist</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-sky-400" />
+            <span className="w-2.5 h-2.5 rounded-full bg-chart-2" />
             <span className="text-zinc-300">Synergist Movement</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+            <span className="w-2.5 h-2.5 rounded-full bg-warning" />
             <span className="text-zinc-300">Joint Pivots &amp; Stabilizers</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+            <span className="w-2.5 h-2.5 rounded-full bg-danger" />
             <span className="text-zinc-300">Resistance Axis</span>
           </div>
         </div>

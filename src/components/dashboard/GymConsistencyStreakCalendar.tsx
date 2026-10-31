@@ -266,7 +266,7 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
         <div className="flex items-center gap-3">
           <div className="bg-canvas/90 border border-accent/40 rounded-2xl px-5 py-3 flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-xl bg-accent flex items-center justify-center text-accent-ink font-nrc font-bold text-xl shadow-md">
-              <Flame className="w-6 h-6 fill-black stroke-[2]" />
+              <Flame className="w-6 h-6 fill-current stroke-[2]" />
             </div>
             <div>
               <div className="flex items-baseline gap-1.5">
@@ -283,7 +283,7 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
                     <CheckCircle2 className="w-3.5 h-3.5" /> Trained Today
                   </span>
                 ) : stats.isStreakActiveToday ? (
-                  <span className="text-amber-400">Streak Active · Train Today</span>
+                  <span className="text-warning">Streak Active · Train Today</span>
                 ) : (
                   <span className="text-zinc-500">Log workout to start</span>
                 )}
@@ -298,13 +298,18 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
         {/* LEFT: CIRCULAR ACTIVITY RINGS (SVG) */}
         <div className="md:col-span-5 flex flex-col items-center justify-center p-5 bg-canvas/80 rounded-2xl border border-line relative shadow-inner">
           <div className="relative w-48 h-48 flex items-center justify-center">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 200 200">
-              {/* Ring 1 Track & Progress: Consistency (Volt Lime) */}
+            <svg
+              className="w-full h-full -rotate-90"
+              viewBox="0 0 200 200"
+              role="img"
+              aria-label={`Monthly activity rings: consistency ${stats.monthlyConsistencyRate}%, training time ${stats.totalMinutesThisMonth} minutes, volume ${Math.round(stats.totalVolumeThisMonth / 1000)}k`}
+            >
+              {/* Ring 1 Track & Progress: Consistency (chart-1, the brand accent) */}
               <circle
                 cx="100"
                 cy="100"
                 r="82"
-                stroke="rgba(255,255,255,0.06)"
+                stroke="var(--chart-grid)"
                 strokeWidth="13"
                 fill="none"
               />
@@ -312,22 +317,22 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
                 cx="100"
                 cy="100"
                 r="82"
-                stroke="#CEFF00"
+                stroke="var(--chart-1)"
                 strokeWidth="13"
                 strokeDasharray="515"
                 strokeDashoffset={515 - (515 * Math.min(100, stats.monthlyConsistencyRate)) / 100}
                 strokeLinecap="round"
                 fill="none"
                 className="transition-all duration-1000 ease-out"
-                style={{ filter: 'drop-shadow(0 0 6px rgba(206,255,0,0.5))' }}
+                style={{ filter: 'drop-shadow(0 0 6px color-mix(in srgb, var(--chart-1) 50%, transparent))' }}
               />
 
-              {/* Ring 2 Track & Progress: Training Time / Minutes (Electric Cyan) */}
+              {/* Ring 2 Track & Progress: Training Time / Minutes (chart-2) */}
               <circle
                 cx="100"
                 cy="100"
                 r="64"
-                stroke="rgba(255,255,255,0.06)"
+                stroke="var(--chart-grid)"
                 strokeWidth="13"
                 fill="none"
               />
@@ -335,7 +340,7 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
                 cx="100"
                 cy="100"
                 r="64"
-                stroke="#00E5FF"
+                stroke="var(--chart-2)"
                 strokeWidth="13"
                 strokeDasharray="402"
                 strokeDashoffset={
@@ -344,15 +349,15 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
                 strokeLinecap="round"
                 fill="none"
                 className="transition-all duration-1000 ease-out"
-                style={{ filter: 'drop-shadow(0 0 6px rgba(0,229,255,0.5))' }}
+                style={{ filter: 'drop-shadow(0 0 6px color-mix(in srgb, var(--chart-2) 50%, transparent))' }}
               />
 
-              {/* Ring 3 Track & Progress: Volume Load (Cyber Crimson) */}
+              {/* Ring 3 Track & Progress: Volume Load (danger) */}
               <circle
                 cx="100"
                 cy="100"
                 r="46"
-                stroke="rgba(255,255,255,0.06)"
+                stroke="var(--chart-grid)"
                 strokeWidth="13"
                 fill="none"
               />
@@ -360,7 +365,7 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
                 cx="100"
                 cy="100"
                 r="46"
-                stroke="#FF3B30"
+                stroke="var(--danger)"
                 strokeWidth="13"
                 strokeDasharray="289"
                 strokeDashoffset={
@@ -369,7 +374,7 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
                 strokeLinecap="round"
                 fill="none"
                 className="transition-all duration-1000 ease-out"
-                style={{ filter: 'drop-shadow(0 0 6px rgba(255,59,48,0.5))' }}
+                style={{ filter: 'drop-shadow(0 0 6px color-mix(in srgb, var(--danger) 50%, transparent))' }}
               />
             </svg>
 
@@ -396,8 +401,8 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
               </span>
             </div>
             <div className="p-2.5 rounded-xl bg-surface-2/60 border border-line">
-              <div className="flex items-center justify-center gap-1.5 text-[11px] font-mono font-bold text-sky-400">
-                <span className="w-2 h-2 rounded-full bg-sky-400" />
+              <div className="flex items-center justify-center gap-1.5 text-[11px] font-mono font-bold text-chart-2">
+                <span className="w-2 h-2 rounded-full bg-chart-2" />
                 <span>Time</span>
               </div>
               <span className="text-xs font-mono font-bold text-zinc-200 mt-0.5 block">
@@ -437,10 +442,10 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
           <div className="p-4 bg-canvas/80 border border-line rounded-2xl flex flex-col justify-between">
             <div className="flex items-center justify-between text-zinc-400 text-xs font-mono font-bold">
               <span>LONGEST RECORD</span>
-              <Award className="w-4 h-4 text-amber-400" />
+              <Award className="w-4 h-4 text-warning" />
             </div>
             <div className="my-2">
-              <span className="text-3xl font-nrc font-bold text-amber-400">
+              <span className="text-3xl font-nrc font-bold text-warning">
                 {stats.longestStreak}
               </span>
               <span className="text-xs font-mono text-zinc-500 ml-1">days</span>
@@ -451,10 +456,10 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
           <div className="p-4 bg-canvas/80 border border-line rounded-2xl flex flex-col justify-between">
             <div className="flex items-center justify-between text-zinc-400 text-xs font-mono font-bold">
               <span>TOTAL SESSIONS</span>
-              <Dumbbell className="w-4 h-4 text-sky-400" />
+              <Dumbbell className="w-4 h-4 text-chart-2" />
             </div>
             <div className="my-2">
-              <span className="text-3xl font-nrc font-bold text-sky-400">
+              <span className="text-3xl font-nrc font-bold text-chart-2">
                 {stats.totalWorkouts}
               </span>
               <span className="text-xs font-mono text-zinc-500 ml-1">logged</span>
@@ -465,10 +470,10 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
           <div className="p-4 bg-canvas/80 border border-line rounded-2xl flex flex-col justify-between">
             <div className="flex items-center justify-between text-zinc-400 text-xs font-mono font-bold">
               <span>WEEKLY TARGET</span>
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <TrendingUp className="w-4 h-4 text-success" />
             </div>
             <div className="my-2">
-              <span className="text-3xl font-nrc font-bold text-emerald-400">
+              <span className="text-3xl font-nrc font-bold text-success">
                 {profile.trainingDaysPerWeek || 4}
               </span>
               <span className="text-xs font-mono text-zinc-500 ml-1">days / wk</span>
@@ -585,8 +590,8 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
                   cell.hasWorkout
                     ? 'bg-accent/10 border-accent/40 hover:border-accent cursor-pointer'
                     : cell.isToday
-                    ? 'bg-surface-2/70 border-white/20 text-zinc-300'
-                    : 'bg-canvas/40 border-line text-zinc-500 hover:border-white/10'
+                    ? 'bg-surface-2/70 border-line-strong text-zinc-300'
+                    : 'bg-canvas/40 border-line text-zinc-500 hover:border-line-strong'
                 } ${isSelected ? 'ring-2 ring-accent' : ''}`}
               >
                 <div className="flex items-center justify-between w-full">
@@ -683,14 +688,14 @@ export const GymConsistencyStreakCalendar: React.FC<GymConsistencyProps> = ({
               key={idx}
               className={`p-3.5 rounded-2xl border transition-all text-left flex flex-col justify-between h-24 ${
                 m.unlocked
-                  ? 'bg-canvas/90 border-amber-400/40 text-amber-300 shadow-md'
+                  ? 'bg-canvas/90 border-warning/40 text-warning shadow-md'
                   : 'bg-canvas/40 border-line text-zinc-600'
               }`}
             >
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-extrabold">{m.days}D</span>
                 <Award
-                  className={`w-4 h-4 ${m.unlocked ? 'text-amber-400 fill-amber-400' : 'text-zinc-700'}`}
+                  className={`w-4 h-4 ${m.unlocked ? 'text-warning fill-warning' : 'text-zinc-700'}`}
                 />
               </div>
               <div>
