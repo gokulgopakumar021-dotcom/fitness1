@@ -20,7 +20,7 @@ function sensitiveError(): Error & { code?: string } {
 }
 
 function printed(spy: ReturnType<typeof vi.spyOn>): string {
-  return JSON.stringify(spy.mock.calls.map((c) => c.map((a) => (a instanceof Error ? { name: a.name, message: a.message, stack: a.stack } : a))));
+  return JSON.stringify(spy.mock.calls.map((c: unknown[]) => c.map((a: unknown) => (a instanceof Error ? { name: a.name, message: a.message, stack: a.stack } : a))));
 }
 
 describe('clientLog: production redaction', () => {
