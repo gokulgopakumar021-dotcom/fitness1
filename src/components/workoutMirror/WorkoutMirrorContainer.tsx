@@ -7,13 +7,15 @@ import {
 } from '../../types/workoutMirror';
 import { EXERCISE_CATALOG } from '../../services/workoutMirror/exerciseCatalog';
 import { CameraController } from '../../services/camera';
+import { mirrorPoseService } from '../../services/workoutMirror/mirrorPoseService';
 import { saveMirrorSession } from '../../services/workoutMirror/mirrorStorage';
+import { getStorageScope } from '../../storage/storageScope';
 import { ExerciseSelector } from './ExerciseSelector';
-import { CameraSetupGuide } from './CameraSetupGuide';
+import { PreWorkoutCalibration } from './PreWorkoutCalibration';
 import { LiveMirrorView } from './LiveMirrorView';
 import { PostWorkoutMirrorReport } from './PostWorkoutMirrorReport';
 
-type MirrorStage = 'select' | 'setup' | 'live' | 'report';
+type MirrorStage = 'select' | 'calibrate' | 'setup' | 'live' | 'report';
 
 interface WorkoutMirrorContainerProps {
   initialExerciseId?: WorkoutMirrorExerciseId;
@@ -30,7 +32,7 @@ export const WorkoutMirrorContainer: React.FC<WorkoutMirrorContainerProps> = ({
   const cameraController = cameraControllerRef.current;
 
   const [stage, setStage] = useState<MirrorStage>(() =>
-    initialExerciseId && EXERCISE_CATALOG[initialExerciseId] ? 'setup' : 'select'
+    initialExerciseId && EXERCISE_CATALOG[initialExerciseId] ? 'calibrate' : 'select'
   );
 
   const [selectedExercise, setSelectedExercise] = useState<ExerciseDefinition | null>(() =>
@@ -42,10 +44,11 @@ export const WorkoutMirrorContainer: React.FC<WorkoutMirrorContainerProps> = ({
   const [currentSetNumber, setCurrentSetNumber] = useState(1);
   const [completedSets, setCompletedSets] = useState<MirrorSetData[]>([]);
 
-  // Guarantee that camera stream is always released on unmount
+  // Guarantee that camera stream and pose model are released on unmount
   useEffect(() => {
     return () => {
       cameraController.stop();
+      mirrorPoseService.dispose();
     };
   }, [cameraController]);
 
@@ -54,7 +57,7 @@ export const WorkoutMirrorContainer: React.FC<WorkoutMirrorContainerProps> = ({
     setSelectedExercise(exercise);
     setCompletedSets([]);
     setCurrentSetNumber(1);
-    setStage('setup');
+    setStage('calibrate');
   };
 
   // Handler: Ready to start from setup guide
@@ -80,7 +83,7 @@ export const WorkoutMirrorContainer: React.FC<WorkoutMirrorContainerProps> = ({
   // Handler: Log another set
   const handleLogAnotherSet = () => {
     setCurrentSetNumber((prev) => prev + 1);
-    setStage('setup');
+    setStage('calibrate');
   };
 
   // Handler: Discard
@@ -99,9 +102,28 @@ export const WorkoutMirrorContainer: React.FC<WorkoutMirrorContainerProps> = ({
       const totalScore = completedSets.reduce((sum, s) => sum + s.averageFormScore, 0);
       const overallConsistency = Math.round(totalScore / completedSets.length);
 
+      // Aggregate observations across sets
+      const obsMap = new Map<string, number>();
+      completedSets.forEach((s) => {
+        if (s.observationsSummary) {
+          Object.entries(s.observationsSummary).forEach(([code, count]) => {
+            obsMap.set(code, (obsMap.get(code) || 0) + count);
+          });
+        }
+      });
+      const primaryObservations = Array.from(obsMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([code]) => code);
+
+      const feedbackNotes =
+        primaryObservations.length > 0
+          ? primaryObservations
+          : selectedExercise.techniquePoints || [];
+
       const session: WorkoutMirrorSession = {
         id: `mirror-${Date.now()}`,
-        userId: 'local-user',
+        userId: getStorageScope() || 'local-user',
         exerciseId: selectedExercise.id,
         exerciseName: selectedExercise.name,
         startedAt: new Date(Date.now() - totalActiveTime * 1000).toISOString(),
@@ -109,8 +131,8 @@ export const WorkoutMirrorContainer: React.FC<WorkoutMirrorContainerProps> = ({
         totalDurationSec: totalActiveTime,
         sets: completedSets,
         overallConsistencyScore: overallConsistency,
-        primaryObservations: [],
-        feedbackNotes: [],
+        primaryObservations,
+        feedbackNotes,
       };
 
       saveMirrorSession(session);
@@ -130,9 +152,27 @@ export const WorkoutMirrorContainer: React.FC<WorkoutMirrorContainerProps> = ({
     const totalScore = completedSets.reduce((sum, s) => sum + s.averageFormScore, 0);
     const overallConsistency = Math.round(totalScore / completedSets.length);
 
+    const obsMap = new Map<string, number>();
+    completedSets.forEach((s) => {
+      if (s.observationsSummary) {
+        Object.entries(s.observationsSummary).forEach(([code, count]) => {
+          obsMap.set(code, (obsMap.get(code) || 0) + count);
+        });
+      }
+    });
+    const primaryObservations = Array.from(obsMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([code]) => code);
+
+    const feedbackNotes =
+      primaryObservations.length > 0
+        ? primaryObservations
+        : selectedExercise.techniquePoints || [];
+
     return {
       id: `current-mirror-${Date.now()}`,
-      userId: 'local-user',
+      userId: getStorageScope() || 'local-user',
       exerciseId: selectedExercise.id,
       exerciseName: selectedExercise.name,
       startedAt: new Date(Date.now() - totalActiveTime * 1000).toISOString(),
@@ -140,8 +180,8 @@ export const WorkoutMirrorContainer: React.FC<WorkoutMirrorContainerProps> = ({
       totalDurationSec: totalActiveTime,
       sets: completedSets,
       overallConsistencyScore: overallConsistency,
-      primaryObservations: [],
-      feedbackNotes: [],
+      primaryObservations,
+      feedbackNotes,
     };
   }, [selectedExercise, completedSets]);
 
@@ -151,8 +191,8 @@ export const WorkoutMirrorContainer: React.FC<WorkoutMirrorContainerProps> = ({
         <ExerciseSelector onSelectExercise={handleSelectExercise} />
       )}
 
-      {stage === 'setup' && selectedExercise && (
-        <CameraSetupGuide
+      {(stage === 'calibrate' || stage === 'setup') && selectedExercise && (
+        <PreWorkoutCalibration
           exercise={selectedExercise}
           cameraController={cameraController}
           onReadyToStart={handleReadyToStart}

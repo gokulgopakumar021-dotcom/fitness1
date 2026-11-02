@@ -88,6 +88,9 @@ export class MirrorPoseService {
           minTrackingConfidence: 0.5,
           outputSegmentationMasks: false,
         });
+      } catch (err) {
+        this.initPromise = null;
+        throw err;
       } finally {
         this.isInitializing = false;
       }

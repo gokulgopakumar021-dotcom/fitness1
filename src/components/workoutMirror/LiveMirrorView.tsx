@@ -81,6 +81,11 @@ export const LiveMirrorView: React.FC<LiveMirrorViewProps> = ({
   const repRecordsRef = useRef<RepetitionRecord[]>([]);
   const frameScoresRef = useRef<number[]>([]);
   const animFrameRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef<number>(0);
+  const prevPhaseRef = useRef<MovementPhase>('idle');
+  const prevRepCountRef = useRef<number>(0);
+  const prevScoreRef = useRef<number>(100);
+  const prevConfidenceRef = useRef<number>(100);
 
   // Sync voice coach setting
   const toggleVoice = () => {
@@ -126,81 +131,103 @@ export const LiveMirrorView: React.FC<LiveMirrorViewProps> = ({
       const canvas = canvasRef.current;
 
       if (!isPaused && video && video.readyState >= 2) {
-        // Run on-device MediaPipe inference
-        const rawLandmarks = mirrorPoseService.detectForVideo(video, timestamp);
+        if (timestamp - lastFrameTimeRef.current >= 32) {
+          lastFrameTimeRef.current = timestamp;
 
-        if (rawLandmarks) {
-          // Smooth jitter
-          const smoothed = filterRef.current.filter(rawLandmarks);
+          // Run on-device MediaPipe inference
+          const rawLandmarks = mirrorPoseService.detectForVideo(video, timestamp);
 
-          // Evaluate visibility & tracking quality
-          const visibility = evaluateBodyVisibility(smoothed);
-          setTrackingConfidence(Math.round(visibility.averageConfidence * 100));
+          if (rawLandmarks) {
+            // Smooth jitter
+            const smoothed = filterRef.current.filter(rawLandmarks);
 
-          // Analyze exercise technique and repetitions
-          const engine = engineRef.current;
-          const result = engine.processFrame(smoothed, timestamp);
+            // Evaluate visibility & tracking quality
+            const visibility = evaluateBodyVisibility(smoothed);
+            const conf = Math.round(visibility.averageConfidence * 100);
+            if (Math.abs(prevConfidenceRef.current - conf) >= 5) {
+              prevConfidenceRef.current = conf;
+              setTrackingConfidence(conf);
+            }
 
-          setPhase(result.movementPhase);
-          setRepCount(result.repCount);
-          setFormScore(result.formScoreThisFrame);
-          frameScoresRef.current.push(result.formScoreThisFrame);
+            // Analyze exercise technique and repetitions
+            const engine = engineRef.current;
+            const result = engine.processFrame(smoothed, timestamp);
 
-          // Handle repetition event
-          if (result.repCompletedThisFrame) {
-            setRepCompletedPulse(true);
-            setTimeout(() => setRepCompletedPulse(false), 800);
+            if (prevPhaseRef.current !== result.movementPhase) {
+              prevPhaseRef.current = result.movementPhase;
+              setPhase(result.movementPhase);
+            }
 
-            globalVoiceCoach.speakRepCount(result.repCount);
+            if (prevRepCountRef.current !== result.repCount) {
+              prevRepCountRef.current = result.repCount;
+              setRepCount(result.repCount);
+            }
 
-            repRecordsRef.current.push({
-              repNumber: result.repCount,
-              durationMs: 2000,
-              formScore: result.formScoreThisFrame,
-              observations: [...result.observations],
-              wasCameraVerified: true,
-            });
-          }
+            if (Math.abs(prevScoreRef.current - result.formScoreThisFrame) >= 2) {
+              prevScoreRef.current = result.formScoreThisFrame;
+              setFormScore(result.formScoreThisFrame);
+            }
+            frameScoresRef.current.push(result.formScoreThisFrame);
 
-          // Handle feedback & voice corrections
-          const feedbackResult = feedbackRef.current.processObservations(
-            result.observations,
-            timestamp
-          );
-          setActiveFeedback(feedbackResult.active);
+            // Handle repetition event
+            if (result.repCompletedThisFrame) {
+              setRepCompletedPulse(true);
+              setTimeout(() => setRepCompletedPulse(false), 800);
 
-          if (feedbackResult.newSpeechCue && !result.repCompletedThisFrame) {
-            globalVoiceCoach.speakCorrection(feedbackResult.newSpeechCue);
-          }
+              globalVoiceCoach.speakRepCount(result.repCount);
 
-          // Render high-contrast skeleton overlay
-          if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              canvas.width = video.videoWidth || 640;
-              canvas.height = video.videoHeight || 480;
+              repRecordsRef.current.push({
+                repNumber: result.repCount,
+                durationMs: 2000,
+                formScore: result.formScoreThisFrame,
+                observations: [...result.observations],
+                wasCameraVerified: true,
+              });
+            }
 
-              if (showSkeleton) {
-                let theme: 'volt' | 'warning' | 'alert' = 'volt';
-                if (result.formScoreThisFrame < 70) theme = 'alert';
-                else if (result.formScoreThisFrame < 85) theme = 'warning';
+            // Handle feedback & voice corrections
+            const feedbackResult = feedbackRef.current.processObservations(
+              result.observations,
+              timestamp
+            );
+            setActiveFeedback(feedbackResult.active);
 
-                mirrorPoseService.drawSkeleton(ctx, smoothed, canvas.width, canvas.height, {
-                  highlightJoints: feedbackResult.active?.highlightJoints,
-                  colorTheme: theme,
-                  mirrorHorizontally: cameraState.facing === 'user',
-                });
-              } else {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (feedbackResult.newSpeechCue && !result.repCompletedThisFrame) {
+              globalVoiceCoach.speakCorrection(feedbackResult.newSpeechCue);
+            }
+
+            // Render high-contrast skeleton overlay
+            if (canvas) {
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+
+                if (showSkeleton) {
+                  let theme: 'volt' | 'warning' | 'alert' = 'volt';
+                  if (result.formScoreThisFrame < 70) theme = 'alert';
+                  else if (result.formScoreThisFrame < 85) theme = 'warning';
+
+                  mirrorPoseService.drawSkeleton(ctx, smoothed, canvas.width, canvas.height, {
+                    highlightJoints: feedbackResult.active?.highlightJoints,
+                    colorTheme: theme,
+                    mirrorHorizontally: cameraState.facing === 'user',
+                  });
+                } else {
+                  ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
               }
             }
-          }
-        } else {
-          // No person detected in this frame
-          setTrackingConfidence(0);
-          if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+          } else {
+            // No person detected in this frame
+            if (prevConfidenceRef.current !== 0) {
+              prevConfidenceRef.current = 0;
+              setTrackingConfidence(0);
+            }
+            if (canvas) {
+              const ctx = canvas.getContext('2d');
+              if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
           }
         }
       }

@@ -1,11 +1,12 @@
 import { WorkoutMirrorSession, WorkoutMirrorExerciseId } from '../../types/workoutMirror';
+import { scopedKey } from '../../storage/storageScope';
 
 const STORAGE_KEY = 'ironlog_mirror_sessions_v1';
 
 export function getMirrorSessions(): WorkoutMirrorSession[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(scopedKey(STORAGE_KEY));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -19,7 +20,7 @@ export function saveMirrorSession(session: WorkoutMirrorSession): void {
   try {
     const existing = getMirrorSessions();
     const updated = [session, ...existing.filter((s) => s.id !== session.id)].slice(0, 50);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem(scopedKey(STORAGE_KEY), JSON.stringify(updated));
   } catch {
     // quota exceeded or private mode
   }

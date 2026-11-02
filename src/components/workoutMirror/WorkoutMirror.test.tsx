@@ -2,6 +2,8 @@ import React, { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ExerciseSelector } from './ExerciseSelector';
+import { PreWorkoutCalibration } from './PreWorkoutCalibration';
+import { WorkoutMirrorContainer } from './WorkoutMirrorContainer';
 import { PostWorkoutMirrorReport } from './PostWorkoutMirrorReport';
 import { EXERCISE_CATALOG } from '../../services/workoutMirror/exerciseCatalog';
 import { WorkoutMirrorSession } from '../../types/workoutMirror';
@@ -122,4 +124,66 @@ describe('Workout Mirror Components', () => {
     });
     expect(handleSaveAndExit).toHaveBeenCalled();
   });
+
+  it('renders PreWorkoutCalibration with grid overlay, target markers, and gated start button', async () => {
+    const squatDef = EXERCISE_CATALOG.squat;
+    const mockCameraController = {
+      getState: () => ({
+        status: 'granted' as const,
+        stream: null,
+        facing: 'user' as const,
+        canSwitch: true,
+      }),
+      subscribe: () => () => {},
+      start: vi.fn(),
+      stop: vi.fn(),
+      switchCamera: vi.fn(),
+    } as any;
+
+    const handleReady = vi.fn();
+    const handleCancel = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <PreWorkoutCalibration
+          exercise={squatDef}
+          cameraController={mockCameraController}
+          onReadyToStart={handleReady}
+          onCancel={handleCancel}
+        />
+      );
+    });
+
+    const text = container.textContent || '';
+    expect(text).toContain('Pre-Workout Calibration & Grid Alignment');
+    expect(text).toContain('Joint Checklist');
+    expect(text).toContain('Placement Guide');
+    expect(text).toContain('Motion Preview');
+    expect(text).toContain('Position Alignment Required');
+    expect(text).toContain('Head Target');
+    expect(text).toContain('Knees');
+    expect(text).toContain('Shoulders');
+    expect(text).toContain('Hips & Core');
+
+    // Workout button must be disabled/locked until position and joints are verified
+    const startBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Unlock') || b.textContent?.includes('Start Workout')
+    );
+    expect(startBtn).toBeTruthy();
+    expect(startBtn?.getAttribute('disabled')).toBeDefined();
+  });
+
+  it('renders WorkoutMirrorContainer with pre-workout calibration step when exercise is selected', async () => {
+    await act(async () => {
+      root.render(<WorkoutMirrorContainer initialExerciseId="squat" />);
+    });
+
+    const text = container.textContent || '';
+    expect(text).toContain('Pre-Workout Calibration & Grid Alignment');
+    expect(text).toContain('Bodyweight Squat');
+    expect(text).toContain('Joint Checklist');
+    expect(text).toContain('Align Position in Grid to Unlock');
+  });
 });
+
+

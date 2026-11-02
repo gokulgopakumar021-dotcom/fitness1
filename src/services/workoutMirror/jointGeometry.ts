@@ -3,6 +3,9 @@ import {
   POSE_LANDMARKS,
   BodyVisibilityStatus,
   CameraDistanceStatus,
+  WorkoutMirrorExerciseId,
+  JointCheckItem,
+  CalibrationEvaluation,
 } from '../../types/workoutMirror';
 
 /**
@@ -280,3 +283,148 @@ export function evaluateBodyVisibility(
     averageConfidence,
   };
 }
+
+const EXERCISE_REQUIRED_JOINTS: Record<string, string[]> = {
+  squat: ['head', 'shoulders', 'hips', 'knees', 'feet'],
+  pushup: ['head', 'shoulders', 'elbows', 'wrists', 'hips', 'feet'],
+  forward_lunge: ['head', 'shoulders', 'hips', 'knees', 'feet'],
+  reverse_lunge: ['head', 'shoulders', 'hips', 'knees', 'feet'],
+  shoulder_press: ['head', 'shoulders', 'elbows', 'wrists', 'hips'],
+  bicep_curl: ['shoulders', 'elbows', 'wrists', 'hips'],
+  plank: ['head', 'shoulders', 'elbows', 'hips', 'feet'],
+  jumping_jack: ['head', 'shoulders', 'wrists', 'hips', 'feet'],
+};
+
+const JOINT_DEFINITIONS = [
+  {
+    id: 'head',
+    name: 'Head & Neck',
+    landmarkIndices: [POSE_LANDMARKS.NOSE, POSE_LANDMARKS.LEFT_EAR, POSE_LANDMARKS.RIGHT_EAR],
+    detail: 'Gaze direction & cervical spine alignment',
+  },
+  {
+    id: 'shoulders',
+    name: 'Shoulders',
+    landmarkIndices: [POSE_LANDMARKS.LEFT_SHOULDER, POSE_LANDMARKS.RIGHT_SHOULDER],
+    detail: 'Torso lean, level shoulders & chest pride',
+  },
+  {
+    id: 'elbows',
+    name: 'Elbows',
+    landmarkIndices: [POSE_LANDMARKS.LEFT_ELBOW, POSE_LANDMARKS.RIGHT_ELBOW],
+    detail: 'Arm flexion angle & pressing path',
+  },
+  {
+    id: 'wrists',
+    name: 'Wrists & Hands',
+    landmarkIndices: [POSE_LANDMARKS.LEFT_WRIST, POSE_LANDMARKS.RIGHT_WRIST],
+    detail: 'Hand position, grip height & overhead lockout',
+  },
+  {
+    id: 'hips',
+    name: 'Hips & Core',
+    landmarkIndices: [POSE_LANDMARKS.LEFT_HIP, POSE_LANDMARKS.RIGHT_HIP],
+    detail: 'Hip hinge depth & pelvic alignment',
+  },
+  {
+    id: 'knees',
+    name: 'Knees',
+    landmarkIndices: [POSE_LANDMARKS.LEFT_KNEE, POSE_LANDMARKS.RIGHT_KNEE],
+    detail: 'Flexion angle, tracking over toes & valgus',
+  },
+  {
+    id: 'feet',
+    name: 'Ankles & Feet',
+    landmarkIndices: [
+      POSE_LANDMARKS.LEFT_ANKLE,
+      POSE_LANDMARKS.RIGHT_ANKLE,
+      POSE_LANDMARKS.LEFT_FOOT_INDEX,
+      POSE_LANDMARKS.RIGHT_FOOT_INDEX,
+    ],
+    detail: 'Stance width, foot stability & heel contact',
+  },
+];
+
+/**
+ * Evaluates individual joint detection and camera calibration against specific exercise requirements.
+ */
+export function evaluateJointCalibration(
+  landmarks: MirrorPoint[] | null,
+  exerciseId: WorkoutMirrorExerciseId
+): CalibrationEvaluation {
+  const visibilityStatus = evaluateBodyVisibility(landmarks);
+  const requiredList = EXERCISE_REQUIRED_JOINTS[exerciseId] || ['shoulders', 'hips', 'knees'];
+
+  if (!landmarks || landmarks.length < 33) {
+    const joints: JointCheckItem[] = JOINT_DEFINITIONS.map((def) => ({
+      id: def.id,
+      name: def.name,
+      landmarkIndices: def.landmarkIndices,
+      isRequired: requiredList.includes(def.id),
+      detected: false,
+      confidence: 0,
+      status: 'occluded',
+      detail: def.detail,
+    }));
+
+    return {
+      isFullyCalibrated: false,
+      overallConfidence: 0,
+      distanceStatus: visibilityStatus.distanceStatus,
+      advice: visibilityStatus.advice,
+      totalRequired: requiredList.length,
+      passedRequired: 0,
+      joints,
+    };
+  }
+
+  const joints: JointCheckItem[] = JOINT_DEFINITIONS.map((def) => {
+    const confidences = def.landmarkIndices.map((idx) => {
+      const pt = landmarks[idx];
+      return pt && typeof pt.visibility === 'number' ? pt.visibility : 0;
+    });
+
+    const avgConf = confidences.reduce((a, b) => a + b, 0) / Math.max(1, confidences.length);
+    const score = Math.round(avgConf * 100);
+
+    let status: 'verified' | 'fair' | 'occluded' = 'occluded';
+    if (score >= 65) {
+      status = 'verified';
+    } else if (score >= 35) {
+      status = 'fair';
+    }
+
+    return {
+      id: def.id,
+      name: def.name,
+      landmarkIndices: def.landmarkIndices,
+      isRequired: requiredList.includes(def.id),
+      detected: status !== 'occluded',
+      confidence: score,
+      status,
+      detail: def.detail,
+    };
+  });
+
+  const totalRequired = requiredList.length;
+  const passedRequired = joints.filter(
+    (j) => j.isRequired && (j.status === 'verified' || j.status === 'fair')
+  ).length;
+
+  const overallConfidence = Math.round(visibilityStatus.averageConfidence * 100);
+  const isFullyCalibrated =
+    passedRequired === totalRequired &&
+    visibilityStatus.distanceStatus === 'optimal' &&
+    overallConfidence >= 60;
+
+  return {
+    isFullyCalibrated,
+    overallConfidence,
+    distanceStatus: visibilityStatus.distanceStatus,
+    advice: visibilityStatus.advice,
+    totalRequired,
+    passedRequired,
+    joints,
+  };
+}
+

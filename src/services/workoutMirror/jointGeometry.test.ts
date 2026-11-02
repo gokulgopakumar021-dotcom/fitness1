@@ -8,6 +8,7 @@ import {
   calculateMidpoint,
   LandmarkSmoothingFilter,
   evaluateBodyVisibility,
+  evaluateJointCalibration,
 } from './jointGeometry';
 import { MirrorPoint, POSE_LANDMARKS } from '../../types/workoutMirror';
 
@@ -106,4 +107,36 @@ describe('jointGeometry', () => {
     expect(partialRes.areFeetVisible).toBe(false);
     expect(partialRes.isFullyVisible).toBe(false);
   });
+
+  it('evaluates joint calibration requirements and verifies key joints per exercise', () => {
+    // Null landmarks before camera detection
+    const uncalibrated = evaluateJointCalibration(null, 'squat');
+    expect(uncalibrated.isFullyCalibrated).toBe(false);
+    expect(uncalibrated.passedRequired).toBe(0);
+    expect(uncalibrated.totalRequired).toBe(5); // Head, Shoulders, Hips, Knees, Feet
+
+    // Full body detected with optimal framing
+    const fullBody: MirrorPoint[] = Array.from({ length: 33 }, (_, i) => ({
+      x: 0.5,
+      y: 0.15 + (i / 33) * 0.7, // spans ~0.7 height (optimal)
+      visibility: 0.95,
+    }));
+
+    const calibrated = evaluateJointCalibration(fullBody, 'squat');
+    expect(calibrated.isFullyCalibrated).toBe(true);
+    expect(calibrated.passedRequired).toBe(5);
+    expect(calibrated.overallConfidence).toBeGreaterThanOrEqual(90);
+
+    const kneeJoint = calibrated.joints.find((j) => j.id === 'knees');
+    expect(kneeJoint?.isRequired).toBe(true);
+    expect(kneeJoint?.status).toBe('verified');
+    expect(kneeJoint?.detected).toBe(true);
+
+    // Bicep curl requires upper body joints (shoulders, elbows, wrists, hips)
+    const curlCalib = evaluateJointCalibration(fullBody, 'bicep_curl');
+    expect(curlCalib.totalRequired).toBe(4);
+    const elbowJoint = curlCalib.joints.find((j) => j.id === 'elbows');
+    expect(elbowJoint?.isRequired).toBe(true);
+  });
 });
+

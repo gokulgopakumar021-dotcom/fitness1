@@ -166,3 +166,26 @@ export interface BodyVisibilityStatus {
   missingLandmarks: string[];
   averageConfidence: number;
 }
+
+export type JointStatusTone = 'verified' | 'fair' | 'occluded';
+
+export interface JointCheckItem {
+  id: string;
+  name: string;
+  landmarkIndices: number[];
+  isRequired: boolean;
+  detected: boolean;
+  confidence: number;
+  status: JointStatusTone;
+  detail: string;
+}
+
+export interface CalibrationEvaluation {
+  isFullyCalibrated: boolean;
+  overallConfidence: number;
+  distanceStatus: CameraDistanceStatus;
+  advice: string;
+  totalRequired: number;
+  passedRequired: number;
+  joints: JointCheckItem[];
+}

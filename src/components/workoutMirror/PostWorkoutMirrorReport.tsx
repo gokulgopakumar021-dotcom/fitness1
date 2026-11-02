@@ -39,6 +39,10 @@ export const PostWorkoutMirrorReport: React.FC<PostWorkoutMirrorReportProps> = (
     0
   );
   const detectedReps = session.sets.reduce((sum, set) => sum + set.detectedReps, 0);
+  const trackingQuality =
+    totalReps > 0
+      ? Math.min(100, Math.round((detectedReps / Math.max(1, totalReps)) * 100))
+      : 100;
 
   const formatDuration = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -128,8 +132,25 @@ export const PostWorkoutMirrorReport: React.FC<PostWorkoutMirrorReportProps> = (
 
         <Card className="p-4 border-line">
           <div className="text-xs text-zinc-400 font-medium">Tracking Quality</div>
-          <div className="text-2xl font-bold text-emerald-400 mt-1">98%</div>
-          <div className="text-[11px] text-zinc-400 mt-1">High confidence</div>
+          <div
+            className={cn(
+              'text-2xl font-bold mt-1',
+              trackingQuality >= 85
+                ? 'text-emerald-400'
+                : trackingQuality >= 65
+                ? 'text-amber-400'
+                : 'text-zinc-400'
+            )}
+          >
+            {trackingQuality}%
+          </div>
+          <div className="text-[11px] text-zinc-400 mt-1">
+            {trackingQuality >= 85
+              ? 'High confidence'
+              : trackingQuality >= 65
+              ? 'Moderate tracking'
+              : 'Adjusted by user'}
+          </div>
         </Card>
       </div>
 

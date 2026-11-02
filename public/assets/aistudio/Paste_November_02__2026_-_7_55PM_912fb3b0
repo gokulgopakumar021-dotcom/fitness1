@@ -1,0 +1,989 @@
+# IRONLOG AI — Phase 1B Final Security Remediation
+## Continue from Task 8A → Complete Task 8 → Task 9 → Stage 6 → Stage 7
+
+You are continuing the security remediation and technical audit of my existing product, IRONLOG AI.
+
+This is an ongoing engineering project. Previous stages have already been completed, reviewed, and pushed to the GitHub main branch.
+
+Your task is to complete all remaining work in this phase, validate it rigorously, and produce the final security remediation report and patch.
+
+This is a security-sensitive codebase. Do not make assumptions, do not claim something is verified unless you have actually tested it, and do not weaken security controls simply to make tests pass.
+
+Work carefully and preserve existing product functionality.
+
+---
+
+# 1. CURRENT PROJECT STATE
+
+IRONLOG AI is an AI-powered fitness application.
+
+Technology stack:
+
+- React 19
+- Vite
+- TypeScript
+- Tailwind CSS
+- Express backend (`server.ts`)
+- Supabase Authentication
+- Supabase PostgreSQL
+- Gemini AI integration
+- Capacitor dependencies for future Android and iOS applications
+
+The long-term objective is to maintain one shared codebase supporting web, Android and iOS.
+
+The current priority is completing the security remediation and technical audit before beginning mobile compatibility work or adding new product features.
+
+## Current progress
+
+The following work has already been completed:
+
+- Phase 1 security remediation.
+- Phase 1B Stages 1–4.
+- Stage 5 Task 4: Supabase quota verification and local PostgreSQL tests.
+- Stage 5 Task 5: per-route failure policy.
+- Stage 5 Task 6: `public.rls_auto_enable()` investigation and explicitly authorised live permission hardening.
+- Stage 5 Task 7: frontend console/logging review and remediation.
+- Task 4 and Task 5 interim patches were applied and pushed to `main`.
+- Task 6 live SQL change was applied and verified.
+- Task 7 changes have been applied and pushed to `main`.
+- A small interim Task 8A patch has been prepared.
+
+Do not repeat completed tasks unless your verification reveals a genuine problem.
+
+The original Phase 1 baseline was commit:
+
+`73c2ec4`
+
+The Stage 3 baseline was:
+
+`cd828f1`
+
+The Stage 4 baseline was:
+
+`30a55de`
+
+The current `main` branch has moved forward since then.
+
+I will supply the latest `main` commit hash separately:
+
+`[INSERT LATEST MAIN COMMIT HASH HERE]`
+
+Treat the actual repository state as authoritative. Verify it independently.
+
+---
+
+# 2. MANDATORY FIRST STEP — BASELINE VERIFICATION
+
+Before modifying any file:
+
+1. Inspect the current Git branch.
+2. Inspect the current HEAD commit.
+3. Inspect the working tree.
+4. Confirm whether the working tree is clean.
+5. Confirm that `main` matches the commit hash I supplied.
+6. Inspect recent commit history.
+7. Compare the current code against the supplied handover documents.
+8. Inspect the Task 8A interim patch in full.
+9. Determine which Task 8A changes are already present in `main`.
+10. Identify missing, duplicated, incomplete or risky changes.
+
+Do not blindly apply the Task 8A patch.
+
+If the branch, commit or working tree differs from what I supplied, stop and explain the discrepancy before making changes.
+
+If the patch has already been applied, verify the resulting implementation instead of applying it again.
+
+If the patch has not been applied, inspect it first and apply it only in an isolated working branch or sandbox.
+
+Do not modify `main` directly.
+
+Do not commit, push, merge or deploy.
+
+After baseline verification, provide a short plan for the remaining work.
+
+---
+
+# 3. DECISIONS THAT MUST BE PRESERVED
+
+The following architectural and security decisions have already been made.
+
+Do not change them without explaining the reason and obtaining my approval.
+
+## Redis and rate limiting
+
+- Redis is the production default.
+- Production must not silently fall back to in-memory rate limiting.
+- Redis is required in production when the production configuration specifies it.
+- If required Redis infrastructure is unavailable, startup or request handling must fail according to the established failure policy.
+- Local development may use explicitly configured memory storage.
+- Degraded modes must be explicitly configured, logged, documented and global.
+- No per-route override of the global rate-limit failure policy.
+
+## AI quota
+
+- Supabase is the production default quota store.
+- Memory storage must be explicitly selected and must warn.
+- Fail closed by default.
+- Do not allow untracked or unlimited AI requests when production quota enforcement is unavailable.
+- Quota is counted on attempt.
+- There is no quota refund.
+- Do not change the quota-counting semantics.
+
+## Sensitive endpoints
+
+These endpoints must always fail closed:
+
+- `extract-plan`
+- `ai-generate-physique`
+- `ai-physique-analysis`
+
+The physique routes are text-only, not image-bearing. `extract-plan` is the route that forwards files.
+
+## Barcode endpoint
+
+Barcode is rate-limited only, not quota-limited.
+
+It follows the global rate-limit policy.
+
+## Health endpoint
+
+Keep the existing public health endpoint behaviour unchanged.
+
+Do not expose internal Redis, quota, database or security configuration through the health endpoint.
+
+## Supabase access
+
+Supabase must remain read-only unless I explicitly authorise a specific operation.
+
+Do not run migrations, modify database permissions, change dashboard settings or modify production configuration without my explicit approval.
+
+---
+
+# 4. TASK 8 — CSP AND SECURITY HEADER VERIFICATION
+
+Task 8A has an interim patch.
+
+First inspect the patch and the current implementation. Establish exactly what it changes.
+
+Then complete the remaining CSP and security-header verification.
+
+The objective is to ensure the security policy supports the actual application without unnecessarily weakening the browser security model.
+
+## 4.1 Review the current security headers
+
+Inspect the actual Helmet and Express configuration.
+
+Review at least:
+
+- Content-Security-Policy.
+- `default-src`.
+- `script-src`.
+- `style-src`.
+- `img-src`.
+- `connect-src`.
+- `font-src`.
+- `media-src`.
+- `worker-src`.
+- `object-src`.
+- `base-uri`.
+- `frame-ancestors`.
+- `form-action`.
+- `upgrade-insecure-requests`.
+- `X-Content-Type-Options`.
+- `X-Frame-Options`, where applicable.
+- `Referrer-Policy`.
+- HSTS, where applicable.
+- Permissions Policy.
+- CORS behaviour.
+
+Determine which headers are applied in development and production.
+
+Do not assume that a policy is effective merely because the header exists in source code.
+
+Verify the actual response headers.
+
+## 4.2 Verify actual browser behaviour
+
+Test the real application in a browser wherever the environment supports it.
+
+Check:
+
+1. Supabase authentication.
+2. Supabase session refresh.
+3. API requests to the Express backend.
+4. Gemini requests through the backend.
+5. Image upload.
+6. Image preview.
+7. Camera access.
+8. MediaPipe model loading.
+9. Model assets served from the expected origin.
+10. Blob URL usage.
+11. Workers and WebAssembly if used.
+12. Fonts and external static assets.
+13. Any third-party services used by the application.
+
+Inspect browser console errors and network failures.
+
+Distinguish CSP violations from unrelated browser errors.
+
+Do not claim that browser behaviour is verified if only static source inspection was performed.
+
+## 4.3 Capacitor compatibility
+
+Review how the current CSP and security headers may affect Capacitor Android and iOS webviews.
+
+Check:
+
+- Capacitor origin behaviour.
+- Local bundled asset loading.
+- API origin configuration.
+- Supabase authentication.
+- Camera and media permissions.
+- Blob URLs.
+- Model loading.
+- Native plugin interactions.
+
+Do not begin the full mobile compatibility project in this phase.
+
+Only identify and address security-policy issues that can be verified safely within the current scope.
+
+## 4.4 CSP changes
+
+If changes are required:
+
+- Make the smallest necessary changes.
+- Explain why each directive needs to change.
+- Avoid wildcard sources.
+- Avoid broad `unsafe-eval`.
+- Avoid broad `unsafe-inline`.
+- Do not allow unnecessary external domains.
+- Do not weaken `frame-ancestors`, `object-src`, or `base-uri`.
+- Preserve production restrictions.
+- Do not introduce insecure development behaviour into production.
+
+Add tests for the actual header values and their environment-specific behaviour.
+
+## 4.5 Task 8A completion report
+
+Document:
+
+- Existing policy.
+- Changes in the interim patch.
+- Additional changes made.
+- Browser tests performed.
+- Network requests verified.
+- Capacitor considerations.
+- Remaining CSP limitations.
+- Any unverified behaviour.
+
+Clearly label each claim as:
+
+- FIXED AND VERIFIED
+- FIXED BUT NOT FULLY VERIFIED
+- PARTIALLY FIXED
+- NOT FIXED
+- DEFERRED
+
+Do not overstate browser or mobile verification.
+
+---
+
+# 5. TASK 9 — NPM SUPPLY-CHAIN AND DEPENDENCY SECURITY REVIEW
+
+The earlier audit identified four moderate npm advisories involving:
+
+- `glob`
+- `minimatch`
+- `rimraf`
+- `@capacitor/cli`
+
+These advisories were deliberately not force-fixed earlier because a proposed forced fix could downgrade Capacitor CLI to a major version 4 release.
+
+Reassess the current dependency state.
+
+## 5.1 Audit the current dependency tree
+
+Run:
+
+- `npm audit`
+- `npm audit --json`
+- `npm ls`
+- Dependency tree inspection for each affected package.
+
+Identify:
+
+- Exact affected package and version.
+- Advisory identifier.
+- Severity.
+- Vulnerable version range.
+- Fixed version range.
+- Whether the dependency is direct or transitive.
+- Whether it is a production dependency or development dependency.
+- Which parent package introduces it.
+- Whether the affected code is reachable during application runtime.
+- Whether it is used only during development, building, testing or CLI operations.
+
+Do not rely on the previous advisory report alone. Verify the current registry and lockfile state.
+
+## 5.2 Evaluate safe upgrade paths
+
+For each advisory, examine:
+
+1. Whether a non-breaking patch upgrade is available.
+2. Whether a compatible minor upgrade is available.
+3. Whether the parent package has a safe update.
+4. Whether an npm override is safe and supported.
+5. Whether the vulnerable code is actually reachable.
+6. Whether a major version upgrade is required.
+7. Whether the change could break Capacitor or the build process.
+
+Do not force a major downgrade.
+
+Do not use `npm audit fix --force`.
+
+Do not add arbitrary overrides without verifying compatibility.
+
+## 5.3 Dependency changes
+
+If a safe fix is available:
+
+- Implement it in the isolated working branch.
+- Update the lockfile correctly.
+- Run `npm ci`.
+- Run the full test suite.
+- Run the production build.
+- Verify Capacitor-related dependencies still work.
+
+If no safe fix is available:
+
+- Preserve the existing compatible dependency.
+- Explain the risk and why it is retained.
+- Document possible mitigations.
+- State whether it blocks production release.
+
+Do not hide or suppress advisories simply to produce a clean audit.
+
+## 5.4 Supply-chain report
+
+Provide a table containing:
+
+- Package.
+- Current version.
+- Advisory.
+- Severity.
+- Dependency type.
+- Parent dependency.
+- Reachability assessment.
+- Available fix.
+- Action taken.
+- Residual risk.
+
+---
+
+# 6. STAGE 6 — COMPLETE REGRESSION AND SECURITY VALIDATION
+
+Once Tasks 8 and 9 are complete, perform a full regression test.
+
+Do not rely on previous test results.
+
+Run all tests against the final code.
+
+## 6.1 Environment setup
+
+The project uses:
+
+- Node.js.
+- npm.
+- Redis.
+- PostgreSQL 16 for local integration tests.
+
+In a Linux sandbox, if necessary:
+
+- Run `apt-get update`.
+- Install Redis server.
+- Install PostgreSQL 16.
+- Start PostgreSQL using `pg_ctlcluster 16 main start`.
+- Recheck PostgreSQL status before running tests because the service may stop between steps.
+- Start Redis and verify that it accepts connections.
+
+Use the required test environment variables.
+
+For Redis:
+
+`REQUIRE_REDIS_TESTS=1`
+
+`REDIS_TEST_URL=redis://127.0.0.1:6379`
+
+For PostgreSQL, use the documented local integration-test URL.
+
+Never put production credentials into test configuration.
+
+Do not connect integration tests to the production database.
+
+## 6.2 Required test sequence
+
+Run:
+
+1. `npm ci`
+2. Redis integration tests with `REQUIRE_REDIS_TESTS=1`.
+3. PostgreSQL integration tests.
+4. Full test suite.
+5. Server authentication tests.
+6. AI schema validation tests.
+7. AI quota tests.
+8. Rate-limit tests.
+9. Route failure-policy tests.
+10. Client API contract tests.
+11. Frontend logging tests, if available.
+12. Security-header and CSP tests.
+13. TypeScript checks.
+14. Production build.
+15. `npm audit`.
+16. `git diff --check`.
+
+Also verify the application starts under:
+
+- Explicit local memory configuration.
+- Production-style Redis configuration.
+- Production-style Supabase quota configuration, using a safe test setup.
+- Redis unavailable conditions.
+- Quota store unavailable conditions.
+
+Do not use the production environment to simulate failures.
+
+## 6.3 Mandatory Redis integration verification
+
+Redis integration tests must not silently skip.
+
+Verify:
+
+- Atomic rate limiting.
+- Exact boundaries.
+- Expiry.
+- Concurrent requests.
+- Multiple application instances.
+- Redis outage.
+- Redis reconnection.
+- Timeout behaviour.
+- Fail-closed policy.
+- Explicit degraded mode.
+- Correct response headers.
+
+If Redis is unavailable while `REQUIRE_REDIS_TESTS=1`, the test suite must fail.
+
+## 6.4 Mandatory PostgreSQL verification
+
+Verify:
+
+- Quota limits.
+- Concurrent quota consumption.
+- Per-user isolation.
+- Per-feature isolation.
+- Invalid limit handling.
+- UTC day rollover.
+- Direct table access restrictions.
+- Function permissions.
+- Missing user ID behaviour.
+- Failure handling.
+
+Use local PostgreSQL only.
+
+## 6.5 Baseline comparison
+
+The Phase 1 baseline was:
+
+- 2,201 passing tests.
+- TypeScript checks passing.
+- Production build passing.
+- Four moderate npm advisories remaining.
+
+A later Stage 4/5 checkpoint reported:
+
+- 139 test files.
+- 2,628 tests passing.
+- Zero skipped.
+- TypeScript clean.
+- `git diff --check` clean.
+
+These are historical results, not proof of the current state.
+
+Report the actual final results.
+
+Include:
+
+- Number of test files.
+- Total tests.
+- Passed tests.
+- Failed tests.
+- Skipped tests.
+- Redis integration test results.
+- PostgreSQL integration test results.
+- TypeScript status.
+- Build status.
+- npm audit status.
+- Git diff status.
+
+Explain any difference from the previous checkpoint.
+
+Do not reduce test coverage to obtain a passing result.
+
+---
+
+# 7. SUPABASE VERIFICATION AND TASK 6 HISTORY
+
+Task 6 previously investigated and hardened:
+
+`public.rls_auto_enable()`
+
+The function was found to be:
+
+- SECURITY DEFINER.
+- Owned by `postgres`.
+- Configured with `search_path=pg_catalog`.
+- Used by the `ensure_rls` event trigger.
+- Not created by an existing repository migration.
+
+An explicitly authorised live migration was applied.
+
+After the change, the ACL was verified as:
+
+`{postgres, service_role}`
+
+The `ensure_rls` event trigger remained enabled.
+
+A local PostgreSQL test showed direct calls fail and the trigger is unaffected by the permission revoke.
+
+Preserve this history in the final report.
+
+## Outstanding Task 6 points
+
+The following are still open unless independently verified:
+
+1. No matching guarded repository migration has been added yet.
+2. Leaked-password protection status was not verified.
+3. Supabase security advisor has not been rerun after the permission change.
+4. A live probe verifying that `ensure_rls` enables RLS on a newly created table has not been performed.
+
+Do not make any live Supabase changes.
+
+Do not run a migration.
+
+Do not create a live scratch table.
+
+Do not change dashboard settings.
+
+You may inspect live schema state only if the connected tools provide safe read-only access.
+
+If a guarded repository migration is advisable, prepare it separately and explain why it is necessary. Do not apply it.
+
+The guarded migration must:
+
+- Check whether `public.rls_auto_enable()` exists using `to_regprocedure` or an appropriate catalog lookup.
+- Be safe when the function does not exist.
+- Apply the intended permission restriction.
+- Avoid breaking `ensure_rls`.
+- Include a clear comment explaining the function and event-trigger relationship.
+
+Ask for my approval before adding it if there is any uncertainty about the correct repository migration history.
+
+For leaked-password protection and the security advisor, clearly report what is and is not verifiable.
+
+Use these verification labels:
+
+- Verified against local DB.
+- Verified against live schema.
+- Verified through an authenticated application request.
+- Not verified.
+
+Do not describe a live schema check as an authenticated application test.
+
+---
+
+# 8. OPTIONAL CLIENT ERROR-HANDLING WORK — DO NOT IMPLEMENT WITHOUT APPROVAL
+
+Earlier reviews identified that the client does not currently handle these API error codes:
+
+- `quota_exceeded`
+- `quota_unavailable`
+- `rate_limited`
+- `rate_limit_unavailable`
+
+The client also does not currently read `Retry-After`.
+
+Three server routes have no identified client caller:
+
+- `generate-plan`
+- `ai-workout-insights`
+- `ai-nutrition-coach`
+
+These are known findings.
+
+For this phase:
+
+- Inspect whether the Task 8 or Task 9 changes affect them.
+- Document the current behaviour.
+- Do not redesign client error handling.
+- Do not disable the three routes.
+- Do not remove functionality.
+- Do not add unrelated features.
+
+Only implement these changes if I explicitly authorise them.
+
+---
+
+# 9. STAGE 7 — FINAL DOCUMENTATION AND DELIVERABLES
+
+After the implementation and regression testing are complete, create the following deliverables.
+
+## 9.1 Final security remediation report
+
+Create:
+
+`IRONLOG_AI_SECURITY_REMEDIATION_REPORT.md`
+
+This report must extend the existing Phase 1 report rather than replace its history.
+
+Include the following sections:
+
+### A. Executive summary
+
+- Original security posture.
+- Phase 1 improvements.
+- Phase 1B improvements.
+- Current security status.
+- Remaining production blockers.
+
+### B. Original security findings
+
+Preserve the original SEC-01 through SEC-09 findings.
+
+For each finding, document:
+
+- Original issue.
+- Phase 1 remediation.
+- Phase 1B remediation.
+- Current status.
+- Evidence.
+- Remaining limitations.
+
+Use the status labels:
+
+- FIXED AND VERIFIED
+- FIXED BUT NOT FULLY VERIFIED
+- PARTIALLY FIXED
+- NOT FIXED
+- DEFERRED
+
+Do not delete original findings.
+
+### C. Phase 1B stage history
+
+Summarise:
+
+- Stages 1–4.
+- Task 4: quota verification.
+- Task 5: per-route failure policy.
+- Task 6: `rls_auto_enable()` investigation and live ACL change.
+- Task 7: frontend logging review.
+- Task 8A and Task 8 completion.
+- Task 9: dependency review.
+- Stage 6: final regression testing.
+
+### D. Redis architecture
+
+Document:
+
+- Redis store implementation.
+- Atomic Lua script behaviour.
+- Key hashing and bounded keys.
+- Timeouts.
+- Reconnection behaviour.
+- Production configuration.
+- Local development configuration.
+- Fail-closed behaviour.
+- Explicit degraded mode.
+- Integration test evidence.
+
+### E. AI quota architecture
+
+Document:
+
+- Supabase quota store.
+- Memory store configuration.
+- Atomic quota enforcement.
+- UTC rollover.
+- Per-user and per-feature isolation.
+- Quota counted on attempt.
+- No refund policy.
+- Quota-store outage behaviour.
+- Sensitive endpoint fail-closed policy.
+
+### F. Route failure policy
+
+Document the policy for every relevant API route.
+
+Include:
+
+- Rate-limit behaviour.
+- Quota behaviour.
+- Failure mode.
+- Whether degraded mode is permitted.
+- Reason for the policy.
+
+Preserve the decision that the three sensitive routes always fail closed.
+
+### G. Supabase security
+
+Include:
+
+- Quota migration.
+- RLS status.
+- Function permissions.
+- SECURITY DEFINER configuration.
+- `rls_auto_enable()` investigation.
+- Live ACL hardening.
+- `ensure_rls` event-trigger status.
+- Leaked-password protection status.
+- Security advisor status.
+- Remaining verification gaps.
+
+Clearly separate live changes already made from proposed changes that have not been applied.
+
+### H. Frontend logging
+
+Include:
+
+- Original console call review.
+- Sensitive data exposure risks.
+- Changes made.
+- Redaction strategy.
+- Development versus production logging.
+- Remaining issues.
+
+### I. CSP and browser security
+
+Include:
+
+- Security headers.
+- CSP directives.
+- Browser verification.
+- Supabase behaviour.
+- API behaviour.
+- Image upload.
+- Camera.
+- MediaPipe.
+- Blob URLs.
+- Capacitor considerations.
+- Remaining limitations.
+
+### J. npm dependency security
+
+Include the full package advisory table.
+
+Explain retained advisories and mitigations.
+
+### K. Final regression results
+
+Include actual test counts and results.
+
+### L. Remaining risks and deferred work
+
+Use the original master audit categories:
+
+- FN
+- PF
+- MOB
+- TST
+
+Do not silently mark unrelated findings as resolved.
+
+Identify items that belong to future mobile compatibility work.
+
+### M. Production prerequisites
+
+List everything that must be configured, tested or approved before production deployment.
+
+Do not imply the application is production-ready if unresolved critical or high risks remain.
+
+## 9.2 Final patch
+
+Create:
+
+`ironlog-security-phase1b-final.patch`
+
+Requirements:
+
+- Incremental over the latest verified `main` commit.
+- Contains only intended Phase 1B final changes not already present in `main`.
+- Does not duplicate Task 4, Task 5, Task 7 or Task 8A changes already pushed.
+- Does not include generated build output.
+- Does not include credentials or environment secrets.
+- Does not contain unrelated formatting changes.
+- Does not include changes to the live database.
+- Applies cleanly to a fresh checkout of the stated base commit.
+
+Verify the patch by:
+
+1. Creating a clean temporary checkout of the base commit.
+2. Applying the final patch.
+3. Running `git diff --check`.
+4. Installing dependencies.
+5. Running the relevant tests.
+6. Running TypeScript checks.
+7. Running the production build.
+
+If the sandbox cannot perform a particular verification, state that clearly.
+
+Do not claim that the patch applies cleanly unless you actually tested it.
+
+## 9.3 Configuration documentation
+
+Update or create the relevant documentation for:
+
+- Redis local development.
+- Redis production configuration.
+- Supabase quota configuration.
+- Rate-limit failure policies.
+- Quota failure policies.
+- Redis integration tests.
+- PostgreSQL integration tests.
+- CSP and security headers.
+- Browser verification.
+- Dependency security review.
+
+Use safe placeholders.
+
+Never include actual secrets.
+
+## 9.4 Final change summary
+
+Create a concise summary containing:
+
+- Files added.
+- Files modified.
+- Security issues fixed.
+- Tests added.
+- Tests executed.
+- Remaining issues.
+- Deferred tasks.
+- Exact commands I need to run locally.
+- The base commit for the final patch.
+- Whether the patch has been tested on a fresh checkout.
+
+---
+
+# 10. STRICT ENGINEERING AND CHANGE-MANAGEMENT RULES
+
+These rules are mandatory.
+
+1. Do not commit.
+2. Do not push.
+3. Do not merge.
+4. Do not deploy.
+5. Do not modify the live Supabase database.
+6. Do not run Supabase migrations.
+7. Do not change Supabase dashboard settings.
+8. Do not change production environment variables.
+9. Do not expose credentials or tokens.
+10. Do not ask me to paste secrets into the conversation.
+11. Do not remove existing functionality to make tests pass.
+12. Do not introduce unrelated features.
+13. Do not weaken security policies merely to eliminate errors.
+14. Do not suppress failing tests.
+15. Do not silently skip integration tests.
+16. Do not claim browser testing if only static inspection was performed.
+17. Do not claim live verification if only local tests were run.
+18. Do not overwrite existing audit history.
+19. Do not modify `main` directly.
+20. Do not perform any live or destructive action without explicit approval.
+
+If a credential-dependent operation is required, stop and provide the exact command for me to execute locally.
+
+If a live database change is required, prepare the SQL separately and wait for explicit authorisation.
+
+---
+
+# 11. EXECUTION METHOD
+
+Complete the work in this order:
+
+**Stage A — Baseline and Task 8A inspection**
+- Verify Git state.
+- Inspect the interim patch.
+- Identify completed and missing changes.
+- Produce a short gap analysis.
+
+**Stage B — Complete Task 8**
+- Finish CSP and security-header review.
+- Perform actual browser verification where possible.
+- Test relevant application flows.
+- Review Capacitor considerations.
+- Add focused tests.
+- Produce Task 8 completion evidence.
+
+**Stage C — Complete Task 9**
+- Review all four npm advisories.
+- Identify dependency reachability.
+- Evaluate safe upgrade options.
+- Make only justified and tested changes.
+- Document remaining risk.
+
+**Stage D — Stage 6 regression**
+- Start required local services.
+- Run Redis integration tests in strict mode.
+- Run PostgreSQL integration tests.
+- Run all tests.
+- Run TypeScript.
+- Run production build.
+- Run npm audit.
+- Run Git diff checks.
+- Report actual results.
+
+**Stage E — Stage 7 deliverables**
+- Extend the security remediation report.
+- Produce the final patch.
+- Verify the patch on a clean checkout.
+- Update configuration documentation.
+- Produce the final change summary.
+
+Do not skip stages.
+
+Do not mark a stage complete before its verification is complete.
+
+---
+
+# 12. STATUS UPDATE FORMAT
+
+At the end of each stage, provide:
+
+### Completed
+What was actually completed.
+
+### Files changed
+Exact paths of added, modified or deleted files.
+
+### Tests performed
+Commands executed and actual results.
+
+### Verification status
+Clearly distinguish local verification, live schema verification, authenticated application verification and unverified items.
+
+### Outstanding risks
+What remains unresolved.
+
+### Safety assessment
+Whether the work is safe to proceed to the next stage.
+
+---
+
+# 13. FINAL OBJECTIVE
+
+The goal is to complete the remaining Phase 1B security remediation and produce an auditable, test-backed, reviewable result.
+
+The final output must represent the actual code and test state, not the intended state.
+
+Do not optimise for a clean-looking report or a high passing-test count.
+
+Optimise for correctness, security, preservation of existing functionality and honest verification.
+
+Start with the Git baseline verification and Task 8A patch inspection. Do not modify files until that inspection and gap analysis are complete.
