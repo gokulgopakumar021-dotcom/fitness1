@@ -30,6 +30,7 @@ import {
 } from '../../types';
 import { calculateLocalRecoveryInsights } from '../../utils/recoveryAnalytics';
 import { NavTab } from '../layout/Navbar';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface AiRecoveryInsightsPanelProps {
   profile: UserProfile;
@@ -62,7 +63,7 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
     setAiError(null);
 
     try {
-      const response = await fetch('/api/ai-recovery-insights', {
+      const response = await apiFetch('/api/ai-recovery-insights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

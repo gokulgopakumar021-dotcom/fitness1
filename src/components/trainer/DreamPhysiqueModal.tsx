@@ -19,6 +19,7 @@ import { Input } from '../ui/Input';
 import { LoadingState } from '../ui/LoadingState';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { MACRO_META } from '../nutrition/MacroBar';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface DreamPhysique {
   archetype: string;
@@ -139,7 +140,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
   const handleGeneratePhysique = async () => {
     setIsGenerating(true);
     try {
-      const res = await fetch('/api/ai-generate-physique', {
+      const res = await apiFetch('/api/ai-generate-physique', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -169,7 +170,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
   const analyzePhysiqueWithCoach = async (physiqueToAnalyze: DreamPhysique) => {
     setIsAnalyzing(true);
     try {
-      const res = await fetch('/api/ai-physique-analysis', {
+      const res = await apiFetch('/api/ai-physique-analysis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

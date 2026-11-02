@@ -1,4 +1,5 @@
 import { AdaptiveReview, AiExplanation, CoachingContext } from './types';
+import { apiFetch } from '../../lib/apiFetch';
 
 export type ExplainOutcome =
   | { kind: 'ai'; explanation: AiExplanation }
@@ -15,12 +16,16 @@ export async function requestAiExplanation(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
   try {
-    const res = await fetchImpl('/api/adaptive-coach/explain', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ context }),
-      signal: controller.signal
-    });
+    const res = await apiFetch(
+      '/api/adaptive-coach/explain',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context }),
+        signal: controller.signal
+      },
+      { fetchImpl }
+    );
     let data: any = null;
     try {
       data = await res.json();

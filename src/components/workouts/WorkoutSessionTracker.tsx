@@ -47,6 +47,7 @@ import {
   cn
 } from '../ui';
 import { ExerciseCard } from './ExerciseCard';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface WorkoutTrackerProps {
   profile: UserProfile;
@@ -219,7 +220,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
     setAiCoachLoading(true);
 
     try {
-      const res = await fetch('/api/ai-exercise-coach', {
+      const res = await apiFetch('/api/ai-exercise-coach', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

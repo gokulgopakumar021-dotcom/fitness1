@@ -61,6 +61,7 @@ import {
   totalWorkingReps,
   weightPrHistory
 } from '../../utils/progressionPresentation';
+import { apiFetch } from '../../lib/apiFetch';
 
 /** Signed change with an arrow icon and screen-reader text, so direction never relies on colour alone. */
 const DeltaChip: React.FC<{ value: number; suffix?: string }> = ({ value, suffix = '' }) => {
@@ -339,7 +340,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
     setAiTuningData(null);
 
     try {
-      const res = await fetch('/api/ai-plan-overload-tuning', {
+      const res = await apiFetch('/api/ai-plan-overload-tuning', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

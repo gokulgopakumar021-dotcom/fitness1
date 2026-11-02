@@ -4,6 +4,7 @@ import { UserProfile, WorkoutSession } from '../../types';
 import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
 import { NavTab } from '../layout/Navbar';
 import { Badge, Button, Card } from '../ui';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface FloatingTrainerWidgetProps {
   currentTab: NavTab;
@@ -34,7 +35,7 @@ export const FloatingTrainerWidget: React.FC<FloatingTrainerWidgetProps> = ({
     setQuickReply(null);
 
     try {
-      const response = await fetch('/api/ai-personal-trainer', {
+      const response = await apiFetch('/api/ai-personal-trainer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -38,6 +38,7 @@ import {
   SegmentedControl,
   Textarea
 } from '../ui';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface NutritionViewProps {
   profile: UserProfile;
@@ -231,7 +232,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile, onProfile
     setAiMealError(null);
 
     try {
-      const res = await fetch('/api/ai-food-parser', {
+      const res = await apiFetch('/api/ai-food-parser', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: aiMealQuery })

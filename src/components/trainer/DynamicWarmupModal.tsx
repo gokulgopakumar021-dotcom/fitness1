@@ -17,6 +17,7 @@ import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { ErrorState } from '../ui/ErrorState';
 import { LoadingState } from '../ui/LoadingState';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface WarmupPhase {
   phase: 'Raise' | 'Activate' | 'Mobilize' | 'Potentiate';
@@ -97,7 +98,7 @@ export const DynamicWarmupModal: React.FC<DynamicWarmupModalProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/ai-warmup-generator', {
+      const res = await apiFetch('/api/ai-warmup-generator', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

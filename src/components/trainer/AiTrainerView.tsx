@@ -24,6 +24,7 @@ import { AdaptiveReviewModal } from './AdaptiveReviewModal';
 import { NavTab } from '../layout/Navbar';
 import { Badge, BrandEmblem, Button, Card } from '../ui';
 import { getFormInsights } from '../../services/workoutMirror/mirrorStorage';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface ChatMessage {
   id: string;
@@ -119,7 +120,7 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
     setIsSending(true);
 
     try {
-      const response = await fetch('/api/ai-personal-trainer', {
+      const response = await apiFetch('/api/ai-personal-trainer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

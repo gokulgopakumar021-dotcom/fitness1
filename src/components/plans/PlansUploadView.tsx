@@ -43,6 +43,7 @@ import {
   Select,
   SectionHeading
 } from '../ui';
+import { apiFetch } from '../../lib/apiFetch';
 
 export interface PlansUploadProps {
   profile: UserProfile;
@@ -293,7 +294,7 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
             fileBase64 = result.split(',')[1];
           }
 
-          const res = await fetch('/api/extract-plan', {
+          const res = await apiFetch('/api/extract-plan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

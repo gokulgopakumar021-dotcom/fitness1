@@ -12,6 +12,7 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Input } from '../ui/Input';
 import { SegmentedControl } from '../ui/SegmentedControl';
+import { apiFetch } from '../../lib/apiFetch';
 
 interface ExercisePostureModalProps {
   exerciseName: string;
@@ -94,7 +95,7 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
     const query = promptQuery || aiCustomQuestion || `Provide elite biomechanical form cues for ${data.name} for an athlete with ${profile?.trainingExperience || 'intermediate'} experience.`;
 
     try {
-      const response = await fetch('/api/ai-form-analyzer', {
+      const response = await apiFetch('/api/ai-form-analyzer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

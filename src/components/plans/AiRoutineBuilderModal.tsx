@@ -32,6 +32,7 @@ import {
   recommendOptimalSplitFromHeatmap,
   summarizeMuscleHeatmapForAi
 } from '../../utils/aiRoutineEngine';
+import { apiFetch } from '../../lib/apiFetch';
 
 export interface AiRoutineBuilderModalProps {
   isOpen: boolean;
@@ -204,7 +205,7 @@ export const AiRoutineBuilderModal: React.FC<AiRoutineBuilderModalProps> = ({
         injuriesOrDeload: undefined
       };
 
-      const response = await fetch('/api/generate-ai-routine', {
+      const response = await apiFetch('/api/generate-ai-routine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

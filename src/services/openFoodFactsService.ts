@@ -1,4 +1,5 @@
 import { ScannedFoodNutrients, ScannedFoodProduct } from '../types';
+import { apiFetch } from '../lib/apiFetch';
 
 /**
  * Parses raw nutrient number safely.
@@ -220,7 +221,7 @@ export async function lookupProductByBarcode(
   }
 
   try {
-    const res = await fetch(`/api/nutrition/barcode/${encodeURIComponent(barcode)}`, {
+    const res = await apiFetch(`/api/nutrition/barcode/${encodeURIComponent(barcode)}`, {
       headers: { Accept: 'application/json' }
     });
 
