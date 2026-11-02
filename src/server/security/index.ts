@@ -2,7 +2,7 @@ import type { Express, NextFunction, Request, Response } from 'express';
 import { createAuthMiddleware, createSupabaseVerifier, type TokenVerifier } from './auth';
 import { loadSecurityConfig, type SecurityConfig } from './config';
 import { createCors } from './cors';
-import { resolvePolicy } from './endpoints';
+import { isAlwaysClosed, resolvePolicy } from './endpoints';
 import { apiNotFound, errorHandler } from './errors';
 import { createSecurityHeaders } from './headers';
 import { createJsonBody } from './jsonBody';
@@ -31,7 +31,13 @@ const isHealth = (req: Request) => (req.method === 'GET' || req.method === 'HEAD
 export function installSecurity(app: Express, deps: SecurityDeps = {}): SecurityConfig {
   const config = deps.config ?? loadSecurityConfig();
   const now = deps.now ?? Date.now;
+  if (!deps.rateStore && config.rateStore === 'redis') {
+    // createApp() cannot connect on its own (it is synchronous). Booting without the shared store would silently mean
+    // per-process limits, which is exactly what this configuration forbids: use prepareSecurityRuntime() in startServer().
+    throw new Error('RATE_LIMIT_STORE=redis but no rate store was provided to the app.');
+  }
   const rateStore = deps.rateStore ?? new MemoryRateStore(now);
+  const closedRoute = (req: Request) => isAlwaysClosed(req.method, req.path);
   const quotaStore =
     deps.quotaStore ?? (config.quotaStore === 'supabase' ? new ResilientQuotaStore(new SupabaseQuotaStore(config), new MemoryQuotaStore()) : new MemoryQuotaStore());
   const verify = deps.verifyToken ?? createSupabaseVerifier(config);
@@ -46,14 +52,23 @@ export function installSecurity(app: Express, deps: SecurityDeps = {}): Security
 
   app.use(
     '/api',
-    createRateLimiter({ name: 'ip', windowMs: 60_000, max: config.rateIpPerMin, key: (req) => req.ip ?? 'unknown', store: rateStore, now })
+    createRateLimiter({
+      name: 'ip',
+      windowMs: 60_000,
+      max: config.rateIpPerMin,
+      key: (req) => req.ip ?? 'unknown',
+      store: rateStore,
+      now,
+      alwaysClosed: closedRoute,
+      failOpen: isHealth // the public probe must answer even if the shared store is down; it exposes nothing
+    })
   );
 
   app.use('/api', createAuthMiddleware({ config, verify, failureStore: rateStore, now }));
 
   app.use(
     '/api',
-    createRateLimiter({ name: 'user', windowMs: 60_000, max: config.rateUserPerMin, key: (req) => req.user?.id, store: rateStore, now })
+    createRateLimiter({ name: 'user', windowMs: 60_000, max: config.rateUserPerMin, key: (req) => req.user?.id, store: rateStore, now, alwaysClosed: closedRoute })
   );
 
   // Endpoint policy: unknown paths 404 (after auth, so route existence is not revealed to anonymous callers).
@@ -76,7 +91,8 @@ export function installSecurity(app: Express, deps: SecurityDeps = {}): Security
         return req.user && p ? `${p.bucket}:${req.user.id}` : undefined;
       },
       store: rateStore,
-      now
+      now,
+      alwaysClosed: closedRoute
     })
   );
 

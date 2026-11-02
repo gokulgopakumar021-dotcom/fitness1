@@ -220,7 +220,7 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
     setAiCoachLoading(true);
 
     try {
-      const res = await apiFetch('/api/ai-exercise-coach', {
+      const res = await apiFetch('/api/exercise-coach', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

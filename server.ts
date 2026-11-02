@@ -5,10 +5,12 @@ import path from 'path';
 import { GoogleGenAI } from '@google/genai';
 import { generateAdaptiveReview } from './src/utils/adaptiveCoach/engine';
 import { parseAiExplanation, validateCoachingContext } from './src/utils/adaptiveCoach/validate';
-import { installApiTail, installSecurity, handleRouteError, type SecurityDeps } from './src/server/security';
+import { installApiTail, installSecurity, handleRouteError, loadSecurityConfig, type SecurityDeps } from './src/server/security';
+import { prepareSecurityRuntime } from './src/server/security/runtime';
 import { logger, serializeError } from './src/server/security/logger';
 import { ui, UNTRUSTED_NOTICE } from './src/server/security/prompt';
 import { validateExtractedPlan } from './src/server/security/aiOutput';
+import { capFreeText, checkAiOutput } from './src/server/security/aiSchemas';
 
 dotenv.config();
 
@@ -219,7 +221,7 @@ Format strictly as valid JSON matching this schema:
       parsedData = JSON.parse(cleaned);
     }
 
-    return res.json({ success: true, plan: parsedData });
+    return res.json({ success: true, plan: checkAiOutput('generatePlan', parsedData, req) });
   } catch (error: any) {
     return handleRouteError(req, res, error, { message: 'Failed to generate plan' }, 'Plan generation:');
   }
@@ -274,7 +276,7 @@ Respond strictly with valid JSON matching:
       parsedData = JSON.parse(cleaned);
     }
 
-    return res.json({ success: true, data: parsedData });
+    return res.json({ success: true, data: checkAiOutput('exerciseCoach', parsedData, req) });
   } catch (error: any) {
     return handleRouteError(req, res, error, { message: 'Failed to get coaching advice' }, 'Exercise coach:');
   }
@@ -408,14 +410,16 @@ Return STRICTLY a JSON object matching this schema:
       parsedData = JSON.parse(cleaned);
     }
 
+    const routineOut = checkAiOutput('generateAiRoutine', parsedData, req);
+
     return res.json({
       success: true,
       routine: {
-        ...parsedData,
+        ...routineOut,
         id: `routine-ai-${Date.now()}`,
         createdAt: new Date().toISOString(),
         isAiGenerated: true,
-        equipmentUsed: Array.from(new Set(parsedData.exercises?.map((e: any) => e.equipment) || []))
+        equipmentUsed: Array.from(new Set(routineOut.exercises?.map((e: any) => e.equipment) || []))
       }
     });
   } catch (error: any) {
@@ -602,7 +606,7 @@ Format strictly as valid JSON matching this schema:
       parsedData = JSON.parse(cleaned);
     }
 
-    return res.json({ success: true, items: parsedData.items || [] });
+    return res.json({ success: true, items: checkAiOutput('foodParser', parsedData, req).items });
   } catch (error: any) {
     return handleRouteError(req, res, error, { message: 'Failed to parse food' }, 'AI Food parser:');
   }
@@ -658,7 +662,7 @@ Format strictly as JSON:
       parsedData = JSON.parse(cleaned);
     }
 
-    return res.json({ success: true, insights: parsedData });
+    return res.json({ success: true, insights: checkAiOutput('workoutInsights', parsedData, req) });
   } catch (error: any) {
     return handleRouteError(req, res, error, { message: 'Failed to get insights' }, 'AI Workout insights:');
   }
@@ -739,7 +743,7 @@ Format strictly as JSON:
       parsedData = JSON.parse(cleaned);
     }
 
-    return res.json({ success: true, calibrations: parsedData });
+    return res.json({ success: true, calibrations: checkAiOutput('planOverloadTuning', parsedData, req) });
   } catch (error: any) {
     return handleRouteError(req, res, error, { message: 'Failed to calibrate plan overload analytics' }, 'AI Plan Overload Tuning:');
   }
@@ -795,7 +799,7 @@ Format strictly as JSON:
       parsedData = JSON.parse(cleaned);
     }
 
-    return res.json({ success: true, plan: parsedData });
+    return res.json({ success: true, plan: checkAiOutput('nutritionCoach', parsedData, req) });
   } catch (error: any) {
     return handleRouteError(req, res, error, { message: 'Failed to calculate macros' }, 'AI Nutrition coach:');
   }
@@ -912,7 +916,7 @@ Format strictly as JSON matching this schema:
       parsedData = JSON.parse(cleaned);
     }
 
-    return res.json({ success: true, recovery: parsedData });
+    return res.json({ success: true, recovery: checkAiOutput('recoveryInsights', parsedData, req) });
   } catch (error: any) {
     return handleRouteError(req, res, error, { message: 'Failed to calculate recovery insights' }, 'AI Recovery insights:');
   }
@@ -987,7 +991,7 @@ COACHING DIRECTIVES:
       }
     });
 
-    const reply = response.text || 'Keep driving forward with pristine form!';
+    const reply = capFreeText(response.text, 4000, 'Keep driving forward with pristine form!');
     return res.json({ success: true, reply });
   } catch (error: any) {
     return handleRouteError(req, res, error, { message: 'Coach Iron is momentarily unavailable.', extra: { reply: 'Remember to brace your core, keep your spine neutral, and maintain a 3-second eccentric on working sets.' } }, 'AI Personal Trainer:');
@@ -1099,7 +1103,7 @@ Keep response direct and formatted with clear bullet points.`;
       config: { temperature: 0.2 }
     });
 
-    return res.json({ success: true, cues: response.text });
+    return res.json({ success: true, cues: capFreeText(response.text, 3000) });
   } catch (error: any) {
     return handleRouteError(req, res, error, { message: 'Failed to generate form cues' }, 'AI Form Analyzer:');
   }
@@ -1240,7 +1244,7 @@ Format strictly as JSON with this schema:
       parsed = JSON.parse(cleaned);
     }
 
-    return res.json({ success: true, routine: parsed });
+    return res.json({ success: true, routine: checkAiOutput('warmupGenerator', parsed, req) });
   } catch (error: any) {
     return handleRouteError(req, res, error, { message: 'Failed to generate warm-up' }, 'AI Warmup Generator:');
   }
@@ -1320,7 +1324,7 @@ Write a crisp, motivating 2-3 sentence visual description detailing this exact p
       config: { temperature: 0.3 }
     });
 
-    const description = response.text || basePhysique.description;
+    const description = capFreeText(response.text, 1000, basePhysique.description);
 
     return res.json({
       success: true,
@@ -1664,7 +1668,7 @@ Generate an exhaustive, scientifically rigorous transformation roadmap strictly 
       parsed = JSON.parse(cleaned);
     }
 
-    return res.json({ success: true, blueprint: parsed });
+    return res.json({ success: true, blueprint: checkAiOutput('physiqueBlueprint', parsed, req) });
   } catch (error: any) {
     return handleRouteError(req, res, error, { message: 'Failed to analyze physique' }, 'AI Physique Analysis:');
   }
@@ -1675,7 +1679,11 @@ return app;
 }
 
 async function startServer() {
-  const app = createApp();
+  // Validates configuration and connects the shared rate-limit store BEFORE accepting traffic. Throws (process exits
+  // non-zero) instead of falling back to per-process counters.
+  const config = loadSecurityConfig();
+  const runtime = await prepareSecurityRuntime(config);
+  const app = createApp({ config, rateStore: runtime.rateStore });
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -1690,10 +1698,22 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`IRONLOG AI server listening on http://0.0.0.0:${PORT}`);
   });
+  const shutdown = () => {
+    server.close(() => void runtime.close().finally(() => process.exit(0)));
+    setTimeout(() => process.exit(0), 5_000).unref();
+  };
+  process.once('SIGTERM', shutdown);
+  process.once('SIGINT', shutdown);
 }
 
 // Not started when imported by tests (Vitest sets VITEST).
-if (!process.env.VITEST) startServer();
+if (!process.env.VITEST) {
+  startServer().catch((err) => {
+    // Static/credential-free messages only (see StartupConfigError and prepareSecurityRuntime).
+    console.error(`IRONLOG AI refused to start: ${err instanceof Error ? err.message : 'unknown error'}`);
+    process.exit(1);
+  });
+}

@@ -48,3 +48,15 @@ export function resolvePolicy(method: string, path: string): EndpointPolicy | un
   if (method.toUpperCase() === 'GET' && /^\/nutrition\/barcode\/[^/]+$/.test(clean)) return BARCODE_POLICY;
   return undefined;
 }
+
+/**
+ * Buckets that never accept a degraded (per-instance) rate count: if the shared store is down they get 503
+ * `rate_limit_unavailable`, whatever RATE_LIMIT_FAILURE_POLICY says. These are the costliest routes (image-bearing
+ * Gemini calls). Quota enforcement for them is fail-closed too (see quota.ts).
+ */
+export const ALWAYS_CLOSED_BUCKETS: ReadonlySet<string> = new Set(['extract-plan', 'ai-generate-physique', 'ai-physique-analysis']);
+
+export function isAlwaysClosed(method: string, path: string): boolean {
+  const p = resolvePolicy(method, path);
+  return !!p && ALWAYS_CLOSED_BUCKETS.has(p.bucket);
+}

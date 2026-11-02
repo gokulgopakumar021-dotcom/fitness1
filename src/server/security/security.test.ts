@@ -11,6 +11,7 @@ vi.mock('@google/genai', () => ({
 
 import { createApp } from '../../../server';
 import { ENDPOINTS, resolvePolicy } from './endpoints';
+import { UNIVERSAL_MODEL_OUTPUT } from './aiFixtures';
 import { MemoryQuotaStore, ResilientQuotaStore, type QuotaStore } from './quota';
 import { fakeToken, listen, mockVerifier, testConfig } from './testUtils';
 import { buildCoachingContext } from '../../utils/adaptiveCoach/context';
@@ -35,7 +36,8 @@ const GEMINI_SECRET_ERROR = Object.assign(
   { status: 429 }
 );
 
-const PLAN_JSON = JSON.stringify({ planName: 'P', trainingSplit: 'PPL', days: [{ dayName: 'Day 1', exercises: [{ name: 'Bench Press', workingSets: 3, repRange: '8-12', targetRir: 2, restSeconds: 90 }] }] });
+// Satisfies every route's output schema (see aiFixtures.ts); route-specific shapes are tested in aiSchemas.test.ts.
+const PLAN_JSON = JSON.stringify(UNIVERSAL_MODEL_OUTPUT);
 
 async function boot(opts: Parameters<typeof createApp>[0] = {}) {
   const app: Express = createApp({ verifyToken: mockVerifier, config: testConfig(), ...opts });
