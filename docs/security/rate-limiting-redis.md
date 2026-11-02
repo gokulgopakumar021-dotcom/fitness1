@@ -5,7 +5,7 @@
 | Layer | Store | Shared across instances |
 |---|---|---|
 | Per-IP, per-user, per-endpoint per-minute limits, failed-auth lockout | `RATE_LIMIT_STORE` (`memory` or `redis`) | only with `redis` |
-| Daily AI quota | `QUOTA_STORE` (`memory` or `supabase`) | only with `supabase` |
+| Daily AI quota | `QUOTA_STORE` (`memory` or `supabase`); see [quota-store.md](./quota-store.md) | only with `supabase` |
 
 ## Configuration
 

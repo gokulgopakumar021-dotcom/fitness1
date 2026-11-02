@@ -6,7 +6,7 @@ import { isAlwaysClosed, resolvePolicy } from './endpoints';
 import { apiNotFound, errorHandler } from './errors';
 import { createSecurityHeaders } from './headers';
 import { createJsonBody } from './jsonBody';
-import { createQuotaGate, MemoryQuotaStore, ResilientQuotaStore, SupabaseQuotaStore, type QuotaStore } from './quota';
+import { createQuotaGate, DegradingQuotaStore, MemoryQuotaStore, SupabaseQuotaStore, type QuotaStore } from './quota';
 import { createRateLimiter, MemoryRateStore, type RateStore } from './rateLimit';
 import { requestContext } from './requestContext';
 import { validateBody } from './validation';
@@ -38,8 +38,12 @@ export function installSecurity(app: Express, deps: SecurityDeps = {}): Security
   }
   const rateStore = deps.rateStore ?? new MemoryRateStore(now);
   const closedRoute = (req: Request) => isAlwaysClosed(req.method, req.path);
-  const quotaStore =
-    deps.quotaStore ?? (config.quotaStore === 'supabase' ? new ResilientQuotaStore(new SupabaseQuotaStore(config), new MemoryQuotaStore()) : new MemoryQuotaStore());
+  const buildQuotaStore = (): QuotaStore => {
+    if (config.quotaStore !== 'supabase') return new MemoryQuotaStore();
+    const shared = new SupabaseQuotaStore(config);
+    return config.quotaFailurePolicy === 'degraded' ? new DegradingQuotaStore(shared, new MemoryQuotaStore(), now) : shared;
+  };
+  const quotaStore = deps.quotaStore ?? buildQuotaStore();
   const verify = deps.verifyToken ?? createSupabaseVerifier(config);
 
   app.disable('x-powered-by');

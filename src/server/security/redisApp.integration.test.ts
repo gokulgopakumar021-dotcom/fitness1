@@ -15,7 +15,7 @@ import { DegradingRateStore, MemoryRateStore, type RateStore } from './rateLimit
 import { RedisRateStore } from './redisRateStore';
 import { acquireRedis, redisSuite, TcpProxy, urlViaProxy, type RedisTarget } from './redisTestHarness';
 import { prepareSecurityRuntime, StartupConfigError } from './runtime';
-import { fakeToken, listen, mockVerifier, testConfig } from './testUtils';
+import { fakeToken, listen, mockVerifier, testConfig, QUOTA_ENV } from './testUtils';
 
 const target: RedisTarget | null = await acquireRedis();
 const prefix = `app${Math.random().toString(36).slice(2, 10)}`;
@@ -186,7 +186,7 @@ redisSuite('Rate limiting through the real Express pipeline on Redis', target, (
 
 redisSuite('Startup runtime with Redis (prepareSecurityRuntime)', target, () => {
   it('connects, reports a credential-free summary, and hands back a working shared store', async () => {
-    const cfg = loadSecurityConfig({ NODE_ENV: 'production', RATE_LIMIT_STORE: 'redis', REDIS_URL: urlViaProxy(target!, proxy) });
+    const cfg = loadSecurityConfig({ NODE_ENV: 'production', ...QUOTA_ENV, RATE_LIMIT_STORE: 'redis', REDIS_URL: urlViaProxy(target!, proxy) });
     const rt = await prepareSecurityRuntime(cfg, { readyTimeoutMs: 3000 });
     try {
       expect(rt.summary).toMatchObject({ rateStore: 'redis', rateFailurePolicy: 'closed' });
@@ -205,7 +205,7 @@ redisSuite('Startup runtime with Redis (prepareSecurityRuntime)', target, () => 
   });
 
   it('degraded policy wraps the Redis store and says so', async () => {
-    const cfg = loadSecurityConfig({ NODE_ENV: 'production', REDIS_URL: urlViaProxy(target!, proxy), RATE_LIMIT_FAILURE_POLICY: 'degraded' });
+    const cfg = loadSecurityConfig({ NODE_ENV: 'production', ...QUOTA_ENV, REDIS_URL: urlViaProxy(target!, proxy), RATE_LIMIT_FAILURE_POLICY: 'degraded' });
     const rt = await prepareSecurityRuntime(cfg, { readyTimeoutMs: 3000 });
     try {
       expect(rt.rateStore).toBeInstanceOf(DegradingRateStore);
@@ -220,7 +220,7 @@ redisSuite('Startup runtime with Redis (prepareSecurityRuntime)', target, () => 
     await proxy.cut();
     for (const policy of ['closed', 'degraded']) {
       const url = urlViaProxy(target!, proxy);
-      const cfg = loadSecurityConfig({ NODE_ENV: 'production', REDIS_URL: url, RATE_LIMIT_FAILURE_POLICY: policy });
+      const cfg = loadSecurityConfig({ NODE_ENV: 'production', ...QUOTA_ENV, REDIS_URL: url, RATE_LIMIT_FAILURE_POLICY: policy });
       const err = await prepareSecurityRuntime(cfg, { readyTimeoutMs: 600 }).then(() => null, (e: Error) => e);
       expect(err?.message).toMatch(/refusing to start/);
       expect(err?.message).not.toContain(url);
@@ -231,7 +231,7 @@ redisSuite('Startup runtime with Redis (prepareSecurityRuntime)', target, () => 
 
 describe('Startup runtime without Redis', () => {
   it('refuses invalid configuration with setting names only', async () => {
-    const cfg = loadSecurityConfig({ NODE_ENV: 'production', REDIS_URL: 'redis://:topsecret@h:1', RATE_LIMIT_FAILURE_POLICY: 'sometimes', RATE_LIMIT_STORE: 'nope' });
+    const cfg = loadSecurityConfig({ NODE_ENV: 'production', ...QUOTA_ENV, REDIS_URL: 'redis://:topsecret@h:1', RATE_LIMIT_FAILURE_POLICY: 'sometimes', RATE_LIMIT_STORE: 'nope' });
     const err = await prepareSecurityRuntime(cfg).then(() => null, (e: unknown) => e);
     expect(err).toBeInstanceOf(StartupConfigError);
     expect((err as Error).message).toMatch(/RATE_LIMIT_FAILURE_POLICY/);
@@ -239,7 +239,7 @@ describe('Startup runtime without Redis', () => {
   });
 
   it('production without REDIS_URL refuses to start (no silent memory fallback)', async () => {
-    const cfg = loadSecurityConfig({ NODE_ENV: 'production' });
+    const cfg = loadSecurityConfig({ NODE_ENV: 'production', ...QUOTA_ENV });
     expect(cfg.rateStore).toBe('redis');
     await expect(prepareSecurityRuntime(cfg)).rejects.toBeInstanceOf(StartupConfigError);
   });
@@ -249,7 +249,7 @@ describe('Startup runtime without Redis', () => {
   });
 
   it('explicit memory store works in production, with a loud warning that limits are not shared', async () => {
-    const rt = await prepareSecurityRuntime(loadSecurityConfig({ NODE_ENV: 'production', RATE_LIMIT_STORE: 'memory' }));
+    const rt = await prepareSecurityRuntime(loadSecurityConfig({ NODE_ENV: 'production', ...QUOTA_ENV, RATE_LIMIT_STORE: 'memory' }));
     expect(rt.summary.rateStore).toBe('memory');
     expect(logged()).toContain('not shared between instances');
     await rt.close();

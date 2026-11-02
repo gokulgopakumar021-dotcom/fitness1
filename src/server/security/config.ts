@@ -10,7 +10,14 @@ export interface SecurityConfig {
   authFailMax: number;
   authFailWindowMs: number;
   quotaOverrides: Record<string, number>;
+  /** Backend for the daily AI quota. Production defaults to `supabase` (shared, restart-safe); `memory` must be explicit. */
   quotaStore: 'memory' | 'supabase';
+  /**
+   * What happens when the shared quota store is unavailable. `closed` (default) = 503 `quota_unavailable`;
+   * `degraded` = per-instance counting (limits multiply by instance count), announced via X-Quota-Mode and logs.
+   * The always-closed routes (extract-plan, physique) never degrade.
+   */
+  quotaFailurePolicy: 'closed' | 'degraded';
   /** Backend for per-IP / per-user / per-endpoint rate limits. Production defaults to `redis` (shared across instances). */
   rateStore: 'memory' | 'redis';
   /** Never logged verbatim: may contain credentials. Use redactRedisUrl() for logs. */
@@ -110,6 +117,37 @@ export function loadSecurityConfig(env: Env = process.env): SecurityConfig {
     if (production) warnings.push('Production is using the per-process memory rate store: limits are not shared between instances and reset on restart.');
   }
 
+  const supabaseUrl = (env.SUPABASE_URL || env.VITE_SUPABASE_URL || '').trim() || undefined;
+  const supabaseKey =
+    (env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY || '').trim() || undefined;
+
+  const rawQuota = (env.QUOTA_STORE ?? '').trim().toLowerCase();
+  let quotaStore: 'memory' | 'supabase';
+  if (rawQuota === '') {
+    // Production must opt OUT of the shared quota explicitly; per-process counters would multiply every limit by the instance count.
+    quotaStore = production ? 'supabase' : 'memory';
+  } else if (rawQuota === 'memory' || rawQuota === 'supabase') {
+    quotaStore = rawQuota;
+  } else {
+    problems.push('QUOTA_STORE must be "memory" or "supabase".');
+    quotaStore = production ? 'supabase' : 'memory';
+  }
+
+  const rawQuotaPolicy = (env.QUOTA_FAILURE_POLICY ?? '').trim().toLowerCase();
+  let quotaFailurePolicy: 'closed' | 'degraded' = 'closed';
+  if (rawQuotaPolicy === 'degraded') quotaFailurePolicy = 'degraded';
+  else if (rawQuotaPolicy !== '' && rawQuotaPolicy !== 'closed') problems.push('QUOTA_FAILURE_POLICY must be "closed" or "degraded".');
+
+  if (quotaStore === 'supabase') {
+    if (!supabaseUrl || !supabaseKey) problems.push('QUOTA_STORE=supabase (the production default) requires SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or the VITE_ equivalents).');
+    if (quotaFailurePolicy === 'degraded') {
+      warnings.push('QUOTA_FAILURE_POLICY=degraded: if the quota store fails, daily limits count per instance (not shared); extract-plan and physique routes still fail closed.');
+    }
+  } else {
+    if (quotaFailurePolicy === 'degraded') warnings.push('QUOTA_FAILURE_POLICY=degraded has no effect with QUOTA_STORE=memory.');
+    if (production) warnings.push('Production is using the per-process memory quota store: daily limits are not shared between instances and reset on restart.');
+  }
+
   return {
     production,
     rateStore,
@@ -117,9 +155,8 @@ export function loadSecurityConfig(env: Env = process.env): SecurityConfig {
     rateFailurePolicy,
     problems,
     warnings,
-    supabaseUrl: (env.SUPABASE_URL || env.VITE_SUPABASE_URL || '').trim() || undefined,
-    supabaseKey:
-      (env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY || '').trim() || undefined,
+    supabaseUrl,
+    supabaseKey,
     requireVerifiedEmail: bool(env.AUTH_REQUIRE_VERIFIED_EMAIL),
     trustProxy,
     corsOrigins: [...origins],
@@ -128,6 +165,7 @@ export function loadSecurityConfig(env: Env = process.env): SecurityConfig {
     authFailMax: int(env.AUTH_FAIL_MAX, 30),
     authFailWindowMs: int(env.AUTH_FAIL_WINDOW_SEC, 900) * 1000,
     quotaOverrides,
-    quotaStore: (env.QUOTA_STORE ?? 'memory').toLowerCase() === 'supabase' ? 'supabase' : 'memory'
+    quotaStore,
+    quotaFailurePolicy
   };
 }

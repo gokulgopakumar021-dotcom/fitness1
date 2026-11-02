@@ -40,3 +40,6 @@ export async function listen(app: Express) {
       })
   };
 }
+
+/** A complete, non-secret Supabase setup so production-shaped configs satisfy the QUOTA_STORE=supabase default. Nothing connects to it. */
+export const QUOTA_ENV = { SUPABASE_URL: 'https://abc.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test_not_real' };
