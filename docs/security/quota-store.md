@@ -99,3 +99,5 @@ SUPABASE_URL=... SUPABASE_PUBLISHABLE_KEY=... VERIFY_QUOTA_JWT=... npm run verif
 To check the **application** path end to end (auth middleware + quota gate + store), start the server with the same
 variables plus `QUOTA_STORE=supabase`, send authenticated requests until you receive `429 quota_exceeded`, then point
 `SUPABASE_URL` at an unreachable host and confirm `503 quota_unavailable` with `Retry-After: 5`.
+
+Which routes fail closed and which may degrade, with the justification for each: [route-failure-policy.md](route-failure-policy.md).

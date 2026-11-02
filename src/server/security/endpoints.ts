@@ -51,8 +51,12 @@ export function resolvePolicy(method: string, path: string): EndpointPolicy | un
 
 /**
  * Buckets that never accept a degraded (per-instance) rate count: if the shared store is down they get 503
- * `rate_limit_unavailable`, whatever RATE_LIMIT_FAILURE_POLICY says. These are the costliest routes (image-bearing
- * Gemini calls). Their daily quota is fail-closed too: DegradingQuotaStore never counts them in memory (see quota.ts).
+ * `rate_limit_unavailable`, whatever RATE_LIMIT_FAILURE_POLICY says. `extract-plan` is the only route that forwards
+ * user-supplied files (up to 14 MB, PDF/image) to Gemini. The two physique routes are text-only and take body-composition
+ * inputs; `ai-physique-analysis` returns the largest structured output of any route (nutrition and training blueprint),
+ * `ai-generate-physique` a short capped description. Keeping both closed is an owner decision (one Dream Physique flow),
+ * not a cost rule: see docs/security/route-failure-policy.md. Their daily quota is fail-closed too:
+ * DegradingQuotaStore never counts them in memory (see quota.ts).
  */
 export const ALWAYS_CLOSED_BUCKETS: ReadonlySet<string> = new Set(['extract-plan', 'ai-generate-physique', 'ai-physique-analysis']);
 

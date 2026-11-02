@@ -30,6 +30,8 @@ a successful start.
 
 ## Failure policy while running
 
+The route-by-route outcome (which routes are always closed, which may degrade, and why) is in [route-failure-policy.md](route-failure-policy.md).
+
 | Situation | `closed` (default) | `degraded` |
 |---|---|---|
 | Redis down or too slow (500 ms command timeout) | `503 rate_limit_unavailable`, `Retry-After: 5` | per-instance counting, header `X-RateLimit-Mode: degraded` |
