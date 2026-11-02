@@ -1,4 +1,5 @@
--- Per-user daily AI usage counters (SEC-02). NOT APPLIED to any project yet: review, then apply deliberately.
+-- Per-user daily AI usage counters (SEC-02). Applied to the live project on 2026-11-02 (recorded there as migration
+-- `ai_usage_quota`, version 20261102045148). Comment-only edit; the SQL below is unchanged.
 -- The server calls consume_ai_quota with the caller's own JWT (no service-role key on the server).
 -- The UTC day is computed inside the function so a caller cannot choose which day's counter to touch.
 -- A user who calls the function directly can only increment their OWN counters (i.e. lock themselves out earlier).

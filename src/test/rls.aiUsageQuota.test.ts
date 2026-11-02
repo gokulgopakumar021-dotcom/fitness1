@@ -7,7 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 /**
  * Runs the REAL ai_usage_quota migration in an in-process Postgres with a simulated auth schema and roles (same approach
  * as the other rls.*.test.ts). PGlite is single-connection, so true multi-connection concurrency is NOT exercised here;
- * the atomicity argument rests on INSERT .. ON CONFLICT DO UPDATE .. WHERE and must be verified on the live project.
+ * the atomicity argument rests on INSERT .. ON CONFLICT DO UPDATE .. WHERE; real multi-connection concurrency is covered by
+ * src/server/security/quota.pg.integration.test.ts (real PostgreSQL), and the live project by `npm run verify:quota`.
  */
 const MIGRATION = readFileSync(resolve(import.meta.dirname, '../../supabase/migrations/20261031000000_ai_usage_quota.sql'), 'utf8');
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';

@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "fetch:pose-model": "node scripts/fetch-pose-model.mjs",
+    "verify:quota": "tsx scripts/verify-quota.ts",
     "video:inventory": "tsx scripts/video-library/inventory.ts",
     "video:ingest": "tsx scripts/video-library/ingest.ts",
     "video:sample": "tsx scripts/video-library/sample.ts",

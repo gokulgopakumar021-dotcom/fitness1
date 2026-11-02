@@ -44,6 +44,58 @@ reset when the server restarts. To exercise the shared store locally set `QUOTA_
 
 ## Tests
 
-`src/server/security/quotaFailure.test.ts` (store error mapping, degraded store, all 15 AI routes under both policies,
-wiring from configuration, configuration rules) and `startup.process.test.ts` (real `tsx server.ts` refusals). Supabase is
-faked at the `supabase-js` boundary; **no test talks to a real Supabase project** (see the Stage 5 verification for that).
+- `src/server/security/quotaFailure.test.ts` (store error mapping, degraded store, all 15 AI routes under both
+  policies, wiring from configuration, configuration rules) and `startup.process.test.ts` (real `tsx server.ts`
+  refusals). Supabase is faked at the `supabase-js` boundary; **no automated test talks to a real Supabase project**.
+- `src/test/rls.aiUsageQuota.test.ts`: the real migration in PGlite (single connection: RLS, grants, argument checks).
+- `src/server/security/quota.pg.integration.test.ts`: the real migration on a **real PostgreSQL server** with 60
+  simultaneous connections (exactly `limit` allowed), user and bucket isolation, UTC day key independent of the session
+  time zone, previous-day counters, limit 0, SQLSTATEs, `anon` and direct table access refused, catalog checks
+  (RLS on, no policies, `SECURITY DEFINER`, `search_path = ''`, EXECUTE only for `authenticated`, none for PUBLIC).
+  It needs `psql` on PATH and a **throw-away** PostgreSQL server in `PG_TEST_URL` (it creates a scratch database and,
+  if missing, the cluster-wide roles `anon` and `authenticated`). Without `PG_TEST_URL` it is reported as skipped;
+  with `REQUIRE_PG_TESTS=1` a missing server is a failure (use that in CI).
+
+  ```bash
+  docker run --rm -d --name pgtest -e POSTGRES_PASSWORD=pw -p 55432:5432 postgres:16
+  REQUIRE_PG_TESTS=1 PG_TEST_URL=postgresql://postgres:pw@127.0.0.1:55432/postgres npx vitest run src/server/security/quota.pg.integration.test.ts
+  docker rm -f pgtest
+  ```
+  ```powershell
+  # Windows: run from WSL (sudo apt install postgresql-client), or have psql.exe on PATH
+  $env:REQUIRE_PG_TESTS="1"; $env:PG_TEST_URL="postgresql://postgres:pw@127.0.0.1:55432/postgres"
+  npx vitest run src/server/security/quota.pg.integration.test.ts
+  ```
+- `scripts/verify-quota.test.ts`: the verification script's logic against a fake store.
+
+## Verifying a real project (`npm run verify:quota`)
+
+There is deliberately **no start-up check** for the migration. A boot-time call to `consume_ai_quota` needs a user's JWT
+(the server has none at boot), and the function is not executable by `anon`, so a publishable-key-only schema lookup is
+not a dependable existence check (not verified against PostgREST's introspection output). Instead, a missing or mis-granted function surfaces as `503 quota_unavailable` (log reason `rpc_PGRST202`,
+`rpc_42883` or `rpc_42501`) and this opt-in script tells you why before you go live.
+
+It runs the production `SupabaseQuotaStore` against your project with a real user JWT. Values come from environment
+variables and are never printed. Use a **dedicated test account**.
+
+```powershell
+# PowerShell (values typed into your own shell, never into chat)
+$env:SUPABASE_URL="https://<project-ref>.supabase.co"
+$env:SUPABASE_PUBLISHABLE_KEY="<publishable key>"
+$env:VERIFY_QUOTA_EMAIL="<test account email>"; $env:VERIFY_QUOTA_PASSWORD="<its password>"   # or: $env:VERIFY_QUOTA_JWT="<access token>"
+npm run verify:quota                 # read-only: limit-0 probe + anonymous caller refused; writes nothing
+npm run verify:quota -- --consume    # also: limit 3 sequence (3 allowed, 4th refused) + 8 simultaneous calls (exactly 3 allowed)
+```
+```bash
+SUPABASE_URL=... SUPABASE_PUBLISHABLE_KEY=... VERIFY_QUOTA_JWT=... npm run verify:quota
+```
+
+- The default mode calls `consume_ai_quota(<bucket>, 0)`; with limit 0 the function returns before touching the table.
+- `--consume` writes two counter rows (`verify-quota-seq-*`, `verify-quota-par-*`) for the test user. Remove them in the
+  Supabase SQL editor: `delete from public.ai_usage_counters where bucket like 'verify-quota-%';`
+- Email/password mode signs in and so creates an auth session for that account.
+- Exit codes: 0 all passed, 1 a check failed, 2 bad configuration.
+
+To check the **application** path end to end (auth middleware + quota gate + store), start the server with the same
+variables plus `QUOTA_STORE=supabase`, send authenticated requests until you receive `429 quota_exceeded`, then point
+`SUPABASE_URL` at an unreachable host and confirm `503 quota_unavailable` with `Retry-After: 5`.
