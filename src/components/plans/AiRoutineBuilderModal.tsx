@@ -33,6 +33,7 @@ import {
   summarizeMuscleHeatmapForAi
 } from '../../utils/aiRoutineEngine';
 import { apiFetch } from '../../lib/apiFetch';
+import { logClientWarn } from '../../lib/clientLog';
 
 export interface AiRoutineBuilderModalProps {
   isOpen: boolean;
@@ -222,7 +223,7 @@ export const AiRoutineBuilderModal: React.FC<AiRoutineBuilderModalProps> = ({
         throw new Error(data.error || 'Failed to generate routine');
       }
     } catch (err: any) {
-      console.warn('Gemini routine generation fallback activated:', err);
+      logClientWarn('ai routine generation failed, using offline fallback', err);
       // Deterministic evidence-based fallback matching the exact same heatmap and equipment
       const fallback = generateOfflineAdaptiveRoutine(
         heatmapReports,

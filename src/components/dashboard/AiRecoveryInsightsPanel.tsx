@@ -31,6 +31,7 @@ import {
 import { calculateLocalRecoveryInsights } from '../../utils/recoveryAnalytics';
 import { NavTab } from '../layout/Navbar';
 import { apiFetch } from '../../lib/apiFetch';
+import { logClientWarn } from '../../lib/clientLog';
 
 interface AiRecoveryInsightsPanelProps {
   profile: UserProfile;
@@ -100,7 +101,7 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
         setAiError(data.error || 'Could not fetch AI recovery insights. Using biomechanical heuristic.');
       }
     } catch (err: any) {
-      console.warn('AI Recovery API offline or failed, using local model:', err);
+      logClientWarn('ai recovery insights failed, using local model', err);
       setAiError('Gemini API is unavailable. Displaying local sports-science recovery calculation.');
     } finally {
       setIsLoadingAi(false);

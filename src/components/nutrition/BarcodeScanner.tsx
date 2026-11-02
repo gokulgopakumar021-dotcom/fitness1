@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { MealCategory, ScannedFoodProduct } from '../../types';
+import { logClientError, logClientWarn } from '../../lib/clientLog';
 import {
   lookupProductByBarcode,
   calculatePortionNutrients,
@@ -117,7 +118,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         }
         await html5QrCodeRef.current.clear();
       } catch (err) {
-        console.warn('Scanner stop warning:', err);
+        logClientWarn('barcode scanner stop failed', err);
       }
       html5QrCodeRef.current = null;
     }
@@ -180,7 +181,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         );
       } catch (err: any) {
         if (isMounted) {
-          console.error('Camera start error:', err);
+          logClientError('barcode scanner camera start failed', err);
           setScannerError(
             err?.message ||
               'Unable to access camera. Please ensure camera permissions are allowed, or enter the barcode manually.'

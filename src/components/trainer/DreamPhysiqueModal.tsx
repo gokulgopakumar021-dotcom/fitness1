@@ -20,6 +20,7 @@ import { LoadingState } from '../ui/LoadingState';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { MACRO_META } from '../nutrition/MacroBar';
 import { apiFetch } from '../../lib/apiFetch';
+import { logClientError } from '../../lib/clientLog';
 
 interface DreamPhysique {
   archetype: string;
@@ -159,7 +160,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
         analyzePhysiqueWithCoach(data.physique);
       }
     } catch (err) {
-      console.error(err);
+      logClientError('ai physique generation failed', err);
       showToast('Failed to visualize physique. Please retry.');
     } finally {
       setIsGenerating(false);
@@ -183,7 +184,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
         setBlueprint(data.blueprint);
       }
     } catch (err) {
-      console.error(err);
+      logClientError('ai physique analysis failed', err);
       showToast('Analysis error. Fallback plan generated.');
     } finally {
       setIsAnalyzing(false);

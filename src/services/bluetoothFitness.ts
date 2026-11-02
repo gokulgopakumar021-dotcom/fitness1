@@ -1,4 +1,5 @@
 import { BluetoothDeviceInfo, HeartRateData, calculateHeartRateZone } from '../types/bluetooth';
+import { logClientError } from '../lib/clientLog';
 
 type HeartRateCallback = (data: HeartRateData) => void;
 type BatteryCallback = (level: number) => void;
@@ -119,7 +120,7 @@ class BluetoothFitnessService {
         batteryLevel: 95
       };
     } catch (error: any) {
-      console.error('Bluetooth connection failed:', error);
+      logClientError('bluetooth connection failed', error);
       const msg = error?.name === 'NotFoundError'
         ? 'Bluetooth pairing cancelled or no gadget selected.'
         : error?.message || 'Failed to connect to Bluetooth gadget.';

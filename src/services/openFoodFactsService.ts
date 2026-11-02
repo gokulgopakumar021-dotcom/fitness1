@@ -1,5 +1,6 @@
 import { ScannedFoodNutrients, ScannedFoodProduct } from '../types';
 import { apiFetch } from '../lib/apiFetch';
+import { logClientError } from '../lib/clientLog';
 
 /**
  * Parses raw nutrient number safely.
@@ -258,7 +259,7 @@ export async function lookupProductByBarcode(
       fromCache: data.fromCache
     };
   } catch (err: any) {
-    console.error('Barcode lookup network error:', err);
+    logClientError('barcode lookup network error', err);
     return {
       success: false,
       found: false,

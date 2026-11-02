@@ -28,6 +28,7 @@ import {
   saveStoredSmartAlertsConfig
 } from './SmartAlertsConfigModal';
 import { Select } from '../ui';
+import { logClientError, logClientWarn } from '../../lib/clientLog';
 
 const ML_PER_FL_OZ = 29.5735296;
 
@@ -185,7 +186,7 @@ export const HydrationPacingAlert: React.FC<HydrationPacingAlertProps> = ({
           tag: 'hydration-hourly-pacing'
         });
       } catch (err) {
-        console.warn('System push notification dispatch error:', err);
+        logClientWarn('hydration notification dispatch failed', err);
       }
     }
     if (smartConfig.soundChime && settings.soundEnabled) {
@@ -298,7 +299,7 @@ export const HydrationPacingAlert: React.FC<HydrationPacingAlertProps> = ({
         updateSettings({ enabled: false });
       }
     } catch (e) {
-      console.error('Error requesting notification permission:', e);
+      logClientError('notification permission request failed', e);
     }
   };
 

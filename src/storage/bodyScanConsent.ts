@@ -1,5 +1,6 @@
 import { BODY_SCAN_CONSENT_VERSION, BodyScanConsent } from '../types/bodyScan';
 import { scopedKey } from './storageScope';
+import { logClientError } from '../lib/clientLog';
 
 /** Contains no images, only the user's consent choices. */
 export const BODY_SCAN_CONSENT_KEY = 'ironlog_bodyscan_consent_v1';
@@ -29,7 +30,7 @@ export function getBodyScanConsent(): BodyScanConsent | null {
       };
     }
   } catch (e) {
-    console.error('Failed reading body scan consent');
+    logClientError('storage: failed reading body scan consent');
   }
   return null;
 }

@@ -18,6 +18,7 @@ import { Card } from '../ui/Card';
 import { ErrorState } from '../ui/ErrorState';
 import { LoadingState } from '../ui/LoadingState';
 import { apiFetch } from '../../lib/apiFetch';
+import { logClientError } from '../../lib/clientLog';
 
 interface WarmupPhase {
   phase: 'Raise' | 'Activate' | 'Mobilize' | 'Potentiate';
@@ -119,7 +120,7 @@ export const DynamicWarmupModal: React.FC<DynamicWarmupModalProps> = ({
         throw new Error(data.error || 'Failed to generate warm-up routine');
       }
     } catch (err: any) {
-      console.error(err);
+      logClientError('ai warm-up generation failed', err);
       setError(err?.message || 'Error generating routine');
     } finally {
       setIsLoading(false);

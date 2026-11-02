@@ -12,6 +12,7 @@ import {
 import { STARTER_PPL_PLAN, STARTER_UPPER_LOWER_PLAN } from '../data/starterPlans';
 import { COMMON_FOOD_DATABASE } from '../data/foodDatabase';
 import { scopedKey, keysInCurrentScope } from './storageScope';
+import { logClientError } from '../lib/clientLog';
 
 const BASE_KEYS = {
   PROFILE: 'ironlog_profile_v1',
@@ -69,7 +70,7 @@ class IronLogDB {
       const data = localStorage.getItem(STORAGE_KEYS.PROFILE);
       if (data) return JSON.parse(data);
     } catch (e) {
-      console.error('Failed reading profile', e);
+      logClientError('storage: Failed reading profile', e);
     }
     return { ...DEFAULT_PROFILE };
   }
@@ -82,7 +83,7 @@ class IronLogDB {
     try {
       if (localStorage.getItem(STORAGE_KEYS.PROFILE) !== null) return false;
     } catch (e) {
-      console.error('Failed checking profile', e);
+      logClientError('storage: Failed checking profile', e);
       return false;
     }
     return this.saveProfile({ ...DEFAULT_PROFILE, name: displayName });
@@ -94,7 +95,7 @@ class IronLogDB {
       localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(profile));
       return true;
     } catch (e) {
-      console.error('Failed saving profile', e);
+      logClientError('storage: Failed saving profile', e);
       return false;
     }
   }
@@ -108,7 +109,7 @@ class IronLogDB {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {
-      console.error('Failed reading plans', e);
+      logClientError('storage: Failed reading plans', e);
     }
     // Return starter templates by default
     const starters = [{ ...STARTER_PPL_PLAN }, { ...STARTER_UPPER_LOWER_PLAN }];
@@ -120,7 +121,7 @@ class IronLogDB {
     try {
       localStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(plans));
     } catch (e) {
-      console.error('Failed saving plans', e);
+      logClientError('storage: Failed saving plans', e);
     }
   }
 
@@ -145,7 +146,7 @@ class IronLogDB {
         if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
-      console.error('Failed reading sessions', e);
+      logClientError('storage: Failed reading sessions', e);
     }
     return [];
   }
@@ -154,7 +155,7 @@ class IronLogDB {
     try {
       localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(sessions));
     } catch (e) {
-      console.error('Failed saving sessions', e);
+      logClientError('storage: Failed saving sessions', e);
     }
   }
 
@@ -180,7 +181,7 @@ class IronLogDB {
       const data = localStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION);
       if (data) return JSON.parse(data);
     } catch (e) {
-      console.error('Failed reading active session', e);
+      logClientError('storage: Failed reading active session', e);
     }
     return null;
   }
@@ -193,7 +194,7 @@ class IronLogDB {
         localStorage.removeItem(STORAGE_KEYS.ACTIVE_SESSION);
       }
     } catch (e) {
-      console.error('Failed saving active session', e);
+      logClientError('storage: Failed saving active session', e);
     }
   }
 
@@ -219,7 +220,7 @@ class IronLogDB {
       const data = localStorage.getItem(STORAGE_KEYS.NUTRITION_LOGS);
       if (data) return JSON.parse(data);
     } catch (e) {
-      console.error('Failed reading nutrition logs', e);
+      logClientError('storage: Failed reading nutrition logs', e);
     }
     return [];
   }
@@ -230,7 +231,7 @@ class IronLogDB {
       localStorage.setItem(STORAGE_KEYS.NUTRITION_LOGS, JSON.stringify(logs));
       return true;
     } catch (e) {
-      console.error('Failed saving nutrition logs', e);
+      logClientError('storage: Failed saving nutrition logs', e);
       return false;
     }
   }
@@ -256,7 +257,7 @@ class IronLogDB {
   /** Returns true only when the write actually succeeded. */
   saveNutritionLogForDate(log: DailyNutritionLog): boolean {
     if (!this.storedArrayIsWritable(STORAGE_KEYS.NUTRITION_LOGS)) {
-      console.error('Refusing to overwrite unreadable nutrition logs');
+      logClientError('storage: Refusing to overwrite unreadable nutrition logs');
       return false;
     }
     const logs = this.getNutritionLogs();
@@ -275,7 +276,7 @@ class IronLogDB {
       const data = localStorage.getItem(STORAGE_KEYS.CUSTOM_FOODS);
       if (data) return JSON.parse(data);
     } catch (e) {
-      console.error('Failed reading custom foods', e);
+      logClientError('storage: Failed reading custom foods', e);
     }
     return [];
   }
@@ -284,7 +285,7 @@ class IronLogDB {
     try {
       localStorage.setItem(STORAGE_KEYS.CUSTOM_FOODS, JSON.stringify(foods));
     } catch (e) {
-      console.error('Failed saving custom foods', e);
+      logClientError('storage: Failed saving custom foods', e);
     }
   }
 
@@ -303,7 +304,7 @@ class IronLogDB {
         }
       }
     } catch (e) {
-      console.error('Failed reading body metrics', e);
+      logClientError('storage: Failed reading body metrics', e);
     }
     return [];
   }
@@ -314,7 +315,7 @@ class IronLogDB {
       localStorage.setItem(STORAGE_KEYS.BODY_METRICS, JSON.stringify(metrics));
       return true;
     } catch (e) {
-      console.error('Failed saving body metrics', e);
+      logClientError('storage: Failed saving body metrics', e);
       return false;
     }
   }
@@ -331,7 +332,7 @@ class IronLogDB {
    */
   addOrUpdateBodyMetric(entry: BodyMetricEntry): boolean {
     if (!this.storedArrayIsWritable(STORAGE_KEYS.BODY_METRICS)) {
-      console.error('Refusing to overwrite unreadable body metrics');
+      logClientError('storage: Refusing to overwrite unreadable body metrics');
       return false;
     }
     const list = this.getBodyMetrics();
@@ -377,7 +378,7 @@ class IronLogDB {
         }
       }
     } catch (e) {
-      console.error('Failed reading sleep logs', e);
+      logClientError('storage: Failed reading sleep logs', e);
     }
     return [];
   }
@@ -386,7 +387,7 @@ class IronLogDB {
     try {
       localStorage.setItem(STORAGE_KEYS.SLEEP_LOGS, JSON.stringify(logs));
     } catch (e) {
-      console.error('Failed saving sleep logs', e);
+      logClientError('storage: Failed saving sleep logs', e);
     }
   }
 
@@ -418,7 +419,7 @@ class IronLogDB {
       const data = localStorage.getItem(STORAGE_KEYS.UPLOADED_DOCS);
       if (data) return JSON.parse(data);
     } catch (e) {
-      console.error('Failed reading uploaded docs', e);
+      logClientError('storage: Failed reading uploaded docs', e);
     }
     return [];
   }
@@ -427,7 +428,7 @@ class IronLogDB {
     try {
       localStorage.setItem(STORAGE_KEYS.UPLOADED_DOCS, JSON.stringify(docs));
     } catch (e) {
-      console.error('Failed saving uploaded docs', e);
+      logClientError('storage: Failed saving uploaded docs', e);
     }
   }
 
@@ -448,7 +449,7 @@ class IronLogDB {
       const data = localStorage.getItem(STORAGE_KEYS.RECOMMENDATIONS);
       if (data) return JSON.parse(data);
     } catch (e) {
-      console.error('Failed reading recommendations', e);
+      logClientError('storage: Failed reading recommendations', e);
     }
     return [];
   }
@@ -457,7 +458,7 @@ class IronLogDB {
     try {
       localStorage.setItem(STORAGE_KEYS.RECOMMENDATIONS, JSON.stringify(recs));
     } catch (e) {
-      console.error('Failed saving recommendations', e);
+      logClientError('storage: Failed saving recommendations', e);
     }
   }
 
