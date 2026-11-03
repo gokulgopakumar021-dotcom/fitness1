@@ -206,7 +206,13 @@ describe('Workout Mirror: live camera frames and landmarks stay on the device', 
     }
     const storage = stripComments(read(MIRROR_STORAGE));
     expect([...storage.matchAll(/STORAGE_KEY\s*=\s*'([^']+)'/g)].map((m) => m[1])).toEqual(['ironlog_mirror_sessions_v1']);
-    expect([...storage.matchAll(/localStorage\.(getItem|setItem)\(([^)]*?)[,)]/g)].every((m) => m[2].trim() === 'STORAGE_KEY')).toBe(true);
+    // Every localStorage call in the mirror module must be a get/set of exactly scopedKey(STORAGE_KEY): one key,
+    // namespaced per account, never a bare or second key.
+    const calls = [...storage.matchAll(/localStorage\.(\w+)\(/g)];
+    const scopedCalls = [...storage.matchAll(/localStorage\.(getItem|setItem)\(\s*scopedKey\(STORAGE_KEY\)\s*[,)]/g)];
+    expect(calls.length).toBeGreaterThan(0);
+    expect(scopedCalls).toHaveLength(calls.length); // no other method (removeItem, clear, ...) and no unscoped key
+    expect(storage).toMatch(/import \{ scopedKey \} from '\.\.\/\.\.\/storage\/storageScope'/);
   });
 
   it('the stored session types hold scores and counts only: no landmark, frame or image fields', () => {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { scopedKey } from '../../storage/storageScope';
 import {
   Bell,
   BellRing,
@@ -70,7 +71,7 @@ export const HydrationPacingAlert: React.FC<HydrationPacingAlertProps> = ({
 }) => {
   const [settings, setSettings] = useState<HydrationReminderSettings>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(scopedKey(STORAGE_KEY));
       if (saved) return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
     } catch {
       // ignore
@@ -101,7 +102,7 @@ export const HydrationPacingAlert: React.FC<HydrationPacingAlertProps> = ({
     const updated = { ...settings, ...partial };
     setSettings(updated);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      localStorage.setItem(scopedKey(STORAGE_KEY), JSON.stringify(updated));
     } catch {
       // ignore
     }
@@ -243,7 +244,7 @@ export const HydrationPacingAlert: React.FC<HydrationPacingAlertProps> = ({
 
       // Rate limit alerts to intervalHours
       try {
-        const lastAlertStr = localStorage.getItem(LAST_ALERT_TIMESTAMP_KEY);
+        const lastAlertStr = localStorage.getItem(scopedKey(LAST_ALERT_TIMESTAMP_KEY));
         const lastAlertTs = lastAlertStr ? parseInt(lastAlertStr, 10) : 0;
         const hoursSinceLastAlert = (Date.now() - lastAlertTs) / (1000 * 60 * 60);
 
@@ -256,7 +257,7 @@ export const HydrationPacingAlert: React.FC<HydrationPacingAlertProps> = ({
             `You are ${formattedDeficit} behind your hourly hydration target. Drink a glass of water now to stay on pace!`
           );
 
-          localStorage.setItem(LAST_ALERT_TIMESTAMP_KEY, Date.now().toString());
+          localStorage.setItem(scopedKey(LAST_ALERT_TIMESTAMP_KEY), Date.now().toString());
         }
       } catch {
         // ignore storage errors

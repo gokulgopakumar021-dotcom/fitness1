@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { scopedKey } from '../../storage/storageScope';
 import {
   Bell,
   Clock,
@@ -55,7 +56,7 @@ export const SMART_ALERTS_STORAGE_KEY = 'ironlog_smart_hydration_alerts_v1';
 
 export function getStoredSmartAlertsConfig(): SmartAlertsConfig {
   try {
-    const raw = localStorage.getItem(SMART_ALERTS_STORAGE_KEY);
+    const raw = localStorage.getItem(scopedKey(SMART_ALERTS_STORAGE_KEY));
     if (raw) {
       return { ...DEFAULT_SMART_ALERTS_CONFIG, ...JSON.parse(raw) };
     }
@@ -67,7 +68,7 @@ export function getStoredSmartAlertsConfig(): SmartAlertsConfig {
 
 export function saveStoredSmartAlertsConfig(config: SmartAlertsConfig): void {
   try {
-    localStorage.setItem(SMART_ALERTS_STORAGE_KEY, JSON.stringify(config));
+    localStorage.setItem(scopedKey(SMART_ALERTS_STORAGE_KEY), JSON.stringify(config));
   } catch {
     // ignore
   }

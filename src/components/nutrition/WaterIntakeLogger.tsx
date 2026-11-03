@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Droplets, Minus, RotateCcw, Info, ArrowRight } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { db } from '../../storage/db';
+import { scopedKey } from '../../storage/storageScope';
 import { calculateHydrationGoal, HydrationGoalResult } from '../../utils/calculations';
 import { calculateHydrationStreak } from '../../utils/hydrationStreak';
 import { HydrationHistoryChart } from './HydrationHistoryChart';
@@ -24,6 +25,9 @@ export interface WaterIntakeLoggerProps {
 // 1 US fluid ounce = 29.5735296 ml
 const ML_PER_FL_OZ = 29.5735296;
 
+// Base name only: always read/written through scopedKey() so the unit preference is per account.
+const WATER_UNIT_KEY = 'ironlog_water_unit';
+
 export const WaterIntakeLogger: React.FC<WaterIntakeLoggerProps> = ({
   waterMl,
   onUpdateWater,
@@ -37,7 +41,7 @@ export const WaterIntakeLogger: React.FC<WaterIntakeLoggerProps> = ({
   // Unit preference (default to imperial 'oz' if profile preferredUnit is lbs, otherwise check localStorage)
   const [unit, setUnit] = useState<WaterUnit>(() => {
     try {
-      const saved = localStorage.getItem('ironlog_water_unit');
+      const saved = localStorage.getItem(scopedKey(WATER_UNIT_KEY));
       if (saved === 'oz' || saved === 'ml') return saved;
       if (profile.preferredUnit === 'lbs') return 'oz';
     } catch {
@@ -60,7 +64,7 @@ export const WaterIntakeLogger: React.FC<WaterIntakeLoggerProps> = ({
     setUnit(newUnit);
     setCustomUnit(newUnit);
     try {
-      localStorage.setItem('ironlog_water_unit', newUnit);
+      localStorage.setItem(scopedKey(WATER_UNIT_KEY), newUnit);
     } catch {
       // ignore
     }
