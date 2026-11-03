@@ -1,6 +1,6 @@
 # Vercel Stage 1 — Express-on-Vercel Preview Spike Report
 
-**Status (update 3): routing fix applied, awaiting Preview re-test. Earlier: spike implemented; first Preview deployment (commit `68e9809`) built green but the function crashed at runtime (C-04, extensionless import). Fix applied in a follow-up commit; Preview re-verification pending.**
+**Status: spike works on Preview (deployment `fitness1-qkxdly50q`, built from the rewrite fix). Remaining items listed under "Not yet verified" / "Requires owner action".**
 
 ## 1. Starting point
 - Branch: `main`, commit `dcec169` ("Add files via upload"), working tree clean.
@@ -48,20 +48,35 @@
 - **Catch-all limitation confirmed:** `api/[...path].ts` matched only single-segment paths. `/api/__vercel_spike/path`, `/api/__vercel_spike/unknown` and `/api/foo/bar` all returned Vercel platform `NOT_FOUND` (not Express). `/api/foo/bar` has no underscore, so the underscore prefix is not the cause.
 - Fix (commit 3, owner-approved): rename to `api/index.ts` plus the one scoped rewrite above. Local simulation (per-file esbuild emit under native Node ESM) serves `/api/health`, `/api/__vercel_spike/path` and `/api/foo/bar` correctly. **Not yet verified on Preview.** Key open question: whether Express still sees the original `/api/...` path after the rewrite.
 
+### Confirmed by Preview deployment (third deployment `fitness1-qkxdly50q-fitness-67e0.vercel.app`, rewrite fix; Vercel Authentication on, tested via `vercel curl` and a signed-in browser console)
+| Request | Result |
+|---|---|
+| `GET /api/health` | 200, `{"ok":true,"service":"ironlog-vercel-spike","runtime":"vercel-function","version":"stage1-spike-1"}` |
+| `GET /api/__vercel_spike/path` | 200, `method:"GET"`, `path:"/api/__vercel_spike/path"`, `routeMatched:true`, `originalUrl:"/api/__vercel_spike/path?path=__vercel_spike%2Fpath"` |
+| `POST /api/__vercel_spike/method` body `{"a":1}` | 200, `{"ok":true,"method":"POST","path":"/api/__vercel_spike/method","body":{"a":1}}` |
+| `GET /api/__vercel_spike/unknown` | 404 Express JSON `spike_route_not_found`, `routeMatched:false`, path preserved |
+| `GET /api/__vercel_spike/method` (wrong method) | 404 Express JSON `spike_route_not_found` |
+| `GET /api/foo/bar` | 404 Express JSON `not_found`, path `/api/foo/bar` (nested routing works) |
+| `GET /manifest.webmanifest` | IronLog manifest returned (static unaffected) |
+| `GET /brand/icon-512.png` | binary image returned (static unaffected) |
+| `GET /some/unknown/path` | Vercel platform `NOT_FOUND`, unchanged from pre-spike behaviour (no SPA fallback added) |
+
+- Express receives the original `/api/...` path in `req.path` after the rewrite.
+- **Rewrite side effect (Stage 2 must handle):** the rewrite appends a `path` query parameter. `req.originalUrl` and `req.query` contain `?path=<segments>` that the client never sent. Any real route, middleware, logger or signature check that reads `req.query.path` or the full URL must account for this (for example by ignoring or stripping a reserved `path` key, or by testing an alternative routing form).
+- No secrets or environment variables were needed; none were added.
+
 ### Not yet verified
-- Vercel discovers `api/[...path].ts` alongside the Vite preset with no `vercel.json`.
-- Express receives the original `/api/...` path (`req.url`/`req.path`) under catch-all routing. The `/api/__vercel_spike/path` endpoint is built to answer this.
-- Extensionless relative import `./_spike/app` resolves on Vercel in a `"type": "module"` project (C-04).
-- TypeScript 7 / Node version compatibility of Vercel's function build (C-05; no `engines` set).
-- Static assets, `/` and `/some/unknown/path` behaviour with `api/` present (expected unchanged: no rewrites were added).
-- Whether Preview Deployment Protection blocks unauthenticated `curl`.
+- `GET /` (frontend root) on the third Preview was not explicitly tested; `/manifest.webmanifest` and `/brand/icon-512.png` were.
+- The deployment's commit hash and branch (expected `9fb746b` on `spike/vercel-express-preview`) were not confirmed from the dashboard.
+- Node version and function bundle size from the Vercel build log.
+- That no Production deployment changed (owner to confirm on the Deployments page).
+- Behaviour with a real app (`createApp`, Redis, Supabase, Gemini, security pipeline), `TRUST_PROXY`, client IP, large bodies, `maxDuration`: out of scope for Stage 1.
 
 ### Requires owner action
-1. Push the branch: `git push -u origin spike/vercel-express-preview` (no push was made from here).
-2. Confirm Vercel creates a **Preview** deployment for the branch (Git integration) or authorize one. Do not promote it.
-3. In the Vercel project, confirm no env vars are needed (none are) and note the Preview URL; if Deployment Protection is on, use the bypass token or a signed-in browser.
-4. Send me the Preview URL; I will run the checklist (`/`, `/api/health`, `/api/__vercel_spike/path`, `/api/__vercel_spike/method`, `/api/__vercel_spike/unknown`, `/manifest.webmanifest`, `/brand/icon-512.png`, `/some/unknown/path`).
-5. Check the Vercel build log for the function's Node version and bundle size.
+1. Confirm in the Vercel dashboard that the tested deployment is commit `9fb746b` on `spike/vercel-express-preview`, and that Production still points to its previous deployment.
+2. Note the Node version and function size shown in the build log.
+3. Confirm `GET /` loads on the Preview in a signed-in browser.
+4. Decide whether to keep Vercel Authentication on for Previews (recommended); testing used `vercel curl` and a signed-in browser.
 
 ## 6. Fix and fallbacks
 - **Applied (follow-up commit):** `api/[...path].ts` now imports `./_spike/app.js`. Local: 10/10 spike tests, `tsc` clean; a per-file esbuild emit run under native Node ESM served `/api/health`, the path diagnostic (original path preserved) and the spike 404 correctly. This simulation is not a Vercel result.
@@ -69,7 +84,7 @@
 - If Express sees a stripped or different path: single `api/index.ts` function plus one narrowly scoped `/api/(.*)` rewrite in `vercel.json`, explained rule-by-rule before adding.
 
 ## 7. Does the spike prove Option 2 is viable?
-**Not yet.** Function discovery without `vercel.json` is confirmed on Preview and the module-resolution problem is identified and fixed locally. Original-path preservation, nested-path routing and static compatibility are still unverified on Preview.
+**Yes for the platform mechanics, with two conditions.** On a real Preview, an Express app runs as a Vercel Function inside the existing Vite project, receives the original `/api/...` path, handles GET and POST with JSON bodies, returns controlled JSON errors, and leaves static assets and non-API 404 behaviour unchanged. It needed two corrections found by the spike: the `.js` import specifier (C-04) and `api/index.ts` plus a scoped `/api/:path*` rewrite (the `[...path]` catch-all only matched single-segment paths here). Conditions: Stage 2 must handle the rewrite-injected `path` query parameter, and the remaining items above should be confirmed. Nothing here validates the real backend, security pipeline, Redis or body-size behaviour.
 
 ## 8. Recommended next step
-Perform owner steps 1–5, run the Preview checklist, and update this report with real Preview results. Stage 2 should not begin until that is reviewed and approved.
+Complete the owner confirmations, review this report, and explicitly approve Stage 2. Stage 2 should (a) keep the `.js` import-specifier convention for server code (or pre-bundle with esbuild, audit item S-4), (b) keep `api/index.ts` and the scoped rewrite, (c) design around the injected `path` query parameter, and (d) not start until approved.
