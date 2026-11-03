@@ -1,6 +1,6 @@
 # Vercel Stage 1 — Express-on-Vercel Preview Spike Report
 
-**Status: spike implemented; first Preview deployment (commit `68e9809`) built green but the function crashed at runtime (C-04, extensionless import). Fix applied in a follow-up commit; Preview re-verification pending.**
+**Status (update 3): routing fix applied, awaiting Preview re-test. Earlier: spike implemented; first Preview deployment (commit `68e9809`) built green but the function crashed at runtime (C-04, extensionless import). Fix applied in a follow-up commit; Preview re-verification pending.**
 
 ## 1. Starting point
 - Branch: `main`, commit `dcec169` ("Add files via upload"), working tree clean.
@@ -11,11 +11,12 @@
 - Branch: `spike/vercel-express-preview` (from `main`). Not merged. Commit hash: see `git log -1` (the commit containing this report).
 
 ## 3. Files created (nothing existing was modified)
-- `api/[...path].ts` — catch-all function entry; default-exports the spike Express app.
+- `api/index.ts` — single function entry (renamed from `api/[...path].ts` in commit 3); default-exports the spike Express app.
+- `vercel.json` (commit 3, owner-approved) — one rule: `rewrites: [{ source: "/api/:path*", destination: "/api" }]`. Matches only `/api` and `/api/*`; no effect on `/`, static assets, `/manifest.webmanifest`, `/brand/*` or unknown non-API paths; no SPA fallback; no framework/build/output changes.
 - `api/_spike/app.ts` — isolated Express app (underscore prefix so Vercel does not treat it as its own function).
 - `src/server/vercelSpike/vercelSpike.test.ts` — 10 tests (placed under `src/` because `vitest.config.ts` only includes `src/**` and `scripts/**`, which was deliberately left unmodified).
 - `docs/deployment/VERCEL_STAGE_1_SPIKE_REPORT.md` — this file.
-- No `vercel.json`, no dependency changes, no config changes, no env vars.
+- No dependency changes, no env vars.
 
 ## 4. Design
 - Imports only `express`. Does not import `server.ts`, Redis, Supabase, Gemini or security code. No `app.listen`, timers, signal handlers or `process.env` reads.
@@ -41,6 +42,11 @@
 - Deployment Protection (Vercel Authentication) is on for Previews; checks need `vercel curl` or a signed-in browser.
 - Owner's browser request to `/api/__vercel_spike/path` returned Vercel's platform `NOT_FOUND` (before the CLI test). Unexplained; may reflect nested-path routing under `[...path]` or something else. **Re-test after the fix.**
 - Original-path behaviour, POST, unknown-route 404 and static checks: **not yet verified on Preview** (function never ran).
+
+### Confirmed by Preview deployment (second deployment, commit `57e0d5d`, with `.js` import fix)
+- Import fix worked: function starts. `GET /api/health%60` (stray backtick typed by mistake) returned the Express JSON 404 `{"ok":false,"error":"not_found","method":"GET","path":"/api/health%60"}`: Express received the full original path for a single-segment URL.
+- **Catch-all limitation confirmed:** `api/[...path].ts` matched only single-segment paths. `/api/__vercel_spike/path`, `/api/__vercel_spike/unknown` and `/api/foo/bar` all returned Vercel platform `NOT_FOUND` (not Express). `/api/foo/bar` has no underscore, so the underscore prefix is not the cause.
+- Fix (commit 3, owner-approved): rename to `api/index.ts` plus the one scoped rewrite above. Local simulation (per-file esbuild emit under native Node ESM) serves `/api/health`, `/api/__vercel_spike/path` and `/api/foo/bar` correctly. **Not yet verified on Preview.** Key open question: whether Express still sees the original `/api/...` path after the rewrite.
 
 ### Not yet verified
 - Vercel discovers `api/[...path].ts` alongside the Vite preset with no `vercel.json`.

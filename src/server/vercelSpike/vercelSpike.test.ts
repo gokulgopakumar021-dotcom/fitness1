@@ -3,7 +3,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createSpikeApp, SPIKE_SERVICE, SPIKE_VERSION } from '../../../api/_spike/app';
-import handler from '../../../api/[...path]';
+import handler from '../../../api/index';
 
 let server: http.Server;
 let base = '';
