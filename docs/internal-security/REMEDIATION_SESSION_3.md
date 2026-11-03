@@ -3,7 +3,7 @@
 Date: 3 November 2026
 Scope (in this order, one finding at a time, owner approval after each): step 0 IL-04 follow-up, IL-05, then IL-07, IL-08, IL-09, IL-10.
 
-**Final status: PARTIALLY COMPLETED (in progress; updated after each approved item).** Only step 0 is done so far. This file does not claim the application is fully secure. Release decision unchanged: **CONDITIONALLY READY (web only)**; Android/iOS remain NOT IMPLEMENTED / NOT VERIFIED.
+**Final status: PARTIALLY COMPLETED (in progress; updated after each approved item).** Step 0 (pushed as `d766c5d`) and IL-05 are done so far. This file does not claim the application is fully secure. Release decision unchanged: **CONDITIONALLY READY (web only)**; Android/iOS remain NOT IMPLEMENTED / NOT VERIFIED.
 
 ---
 
@@ -11,7 +11,7 @@ Scope (in this order, one finding at a time, owner approval after each): step 0 
 
 | Item | Value |
 |---|---|
-| Branch / HEAD | `main` at `7fdc7e6` ("il03-il06-il04plan-remediation"), on top of `e91d092`. `git fetch` showed no divergence; working tree clean. The task text had an unfilled placeholder for the Session 2 push hash, so the hash itself could not be compared: HEAD was accepted because it is the direct child of `e91d092` and contains exactly the Session 2 files. |
+| Branch / HEAD (session start) | `main` at `7fdc7e6` ("il03-il06-il04plan-remediation"), on top of `e91d092`. `git fetch` showed no divergence; working tree clean. The task text had an unfilled placeholder for the Session 2 push hash, so the hash itself could not be compared: HEAD was accepted because it is the direct child of `e91d092` and contains exactly the Session 2 files. |
 | Baseline tests | **2,641 passed, 0 failed, 36 skipped** (141 files passed, 2 skipped). Reproduced at the start of this session. `npx tsc --noEmit` exit 0. |
 | Live migrations (read-only `list_migrations`) | Last is `20261103061647 ai_quota_bucket_allowlist`, as expected. |
 | Live security advisor (re-run 3 Nov 2026 06:21 UTC) | 1 INFO + 3 WARN entries: `auth_leaked_password_protection` WARN (IL-02, open by owner decision); `authenticated_security_definer_function_executable` WARN on `consume_ai_quota` and `delete_own_account` (by design, signed-in users must call both; same as Session 2); `rls_enabled_no_policy` INFO on `ai_usage_counters` (by design). So IL-02 is the only *accepted open risk*, but it is not the only item the advisor lists. IL-02 was not touched and is **not** enabled. |
@@ -44,32 +44,64 @@ The applied migration raises `22023 unknown bucket` for any bucket outside the 1
 
 ---
 
-## C. Regression results (after step 0)
+## B2. IL-05 — Capacitor CLI dev-dependency advisories (LOW)
+
+### Findings re-captured (the audit had no versions or IDs)
+| Package | Installed | Advisory | Fixed in |
+|---|---|---|---|
+| `glob` | 13.0.6 | GHSA-3g3m-2fjr-6pw4 (abort signal does not stop a running search) | 14.0.2 or later |
+| `minimatch` | 10.2.6 | GHSA-g3hv-75wg-m249 (denial of service, crafted patterns) | 11.0.1 or later |
+| `rimraf` 6.1.3, `@capacitor/cli` 8.6.0 | | flagged only through the chain above | n/a |
+
+All four are `dev` in the lockfile; `npm audit --omit=dev` = 0 before and after. Single chain: `@capacitor/cli` -> `rimraf ^6.0.1` -> `glob ^13.0.3` -> `minimatch ^10.2.2`. The CLI calls `rimraf` only in `cap migrate` and the iOS archive build.
+
+### Why no upgrade
+`@capacitor/cli` 8.6.0 is the latest stable release; the newest `rimraf` (6.1.3) still requires `glob ^13`; `@capacitor/cli` 9.0.0-beta.0 still uses `rimraf ^6` and needs Node 24 or later. `npm audit fix --force` would downgrade the CLI to 4.8.2 beside `@capacitor/core|android|ios` 8.6.0 and was not used.
+
+### Change (owner approved the overrides)
+- `package.json`: `"overrides": { "glob": "^14.0.3", "minimatch": "^11.0.4" }`.
+- `package-lock.json`: only `glob` 13.0.6 -> 14.0.3, `minimatch` 10.2.6 -> 11.0.4, `path-scurry` 2.0.2 -> 3.0.0, and the new `@isaacs/nonrecursive-glob-match` 1.0.3 (all dev). Edited so that no other entry changes: a plain `npm install` in the sandbox also added six unrelated nested `@tailwindcss/oxide-wasm32-wasi` entries, which were deliberately left out.
+- `docs/security/dependency-overrides.md`: reason, trade-off, and when to remove the override.
+- `src/test/devDependencyOverrides.test.ts` (4 tests): fails if the overrides are missing or their floor is below the fixed versions, if any `glob` or `minimatch` copy in the lockfile is below the fixed version, or if they stop being dev-only.
+
+### Evidence
+- From the real lockfile: `npm ci --ignore-scripts` succeeds, `npm ls` exit 0 (shows `glob@14.0.3 overridden`, `minimatch@11.0.4 overridden`, `rimraf@6.1.3`, `@capacitor/cli@8.6.0`), `npm audit` and `npm audit --omit=dev`: **0 vulnerabilities**.
+- Functional spot checks (sandbox copy): `npx cap --version` prints 8.6.0; `rimraf` removes a folder and glob patterns; `glob` rejects an already-aborted search with `AbortError`.
+- **Mutation checks (all restored, files byte-identical):** overrides removed: 1 test fails; lockfile back to the old entries: 1 fails; glob override floor lowered to `^13.0.6`: 1 fails; `minimatch` 11.0.0 in the lockfile: 1 fails.
+
+### Residual risk and NOT verified
+- `rimraf` 6 declares `glob ^13`, so `glob` 14 with it is an off-spec combination. Remove the override when a `@capacitor/cli` release resolves fixed versions by itself.
+- NOT VERIFIED: the CLI against real Android/iOS projects (none exist), and a Windows `npm ci`.
+
+---
+
+## C. Regression results (after IL-05)
 
 | Check | Result | Evidence |
 |---|---|---|
 | TypeScript | PASS | `npx tsc --noEmit` exit 0 |
-| Full tests | PASS | 141 files passed, 2 skipped; **2,648 passed, 0 failed, 36 skipped** (baseline 2,641 / 0 / 36; +7 = the new tests) |
+| Full tests | PASS | 142 files passed, 2 skipped; **2,652 passed, 0 failed, 36 skipped** (session baseline 2,641 / 0 / 36; step 0 added 7, IL-05 added 4) |
+| Dependency audit | PASS | `npm audit` 0 vulnerabilities (was 4 moderate); `npm audit --omit=dev` 0; `npm ci` and `npm ls` clean |
 | 36 skipped | NOT VERIFIED | Same env-gated Redis / real-PostgreSQL suites as the baseline |
 | Production build | PASS | `rm -rf dist && npx vite build` built; no `aistudio` or `.md` files in `dist/` |
-| Mutation checks | PASS | See section B |
+| Mutation checks | PASS | See sections B and B2 |
 | Live Supabase | READ-ONLY | `list_projects`, `get_advisors(security)`, `list_migrations` only |
 
 ---
 
 ## D. Git changes (nothing committed, pushed or deployed)
 
-Modified: `scripts/verify-quota.ts`, `scripts/verify-quota.test.ts`, `docs/security/quota-store.md`
-Added: `docs/internal-security/REMEDIATION_SESSION_3.md` (this file; later patches extend it, so they depend on this one)
+Step 0 (pushed by the owner as `d766c5d`): `scripts/verify-quota.ts`, `scripts/verify-quota.test.ts`, `docs/security/quota-store.md`, `docs/internal-security/REMEDIATION_SESSION_3.md`.
+IL-05 (patch against `d766c5d`, not committed): modified `package.json`, `package-lock.json`, `docs/internal-security/REMEDIATION_SESSION_3.md`; added `docs/security/dependency-overrides.md`, `src/test/devDependencyOverrides.test.ts`.
 
-No dependency, lockfile, migration, config or mobile change.
+No migration, live-database, config or mobile change. Later patches extend this file, so each depends on the one before.
 
 ---
 
 ## E. Remaining findings
 
-IL-05, IL-07, IL-08, IL-09, IL-10: not started. IL-02: open by owner decision. Observations carried over (not changed): `ThemeContext` unscoped key (allow-listed), public GitHub repository containing `docs/internal-security/`, unknown `/assets/*` paths return the SPA shell.
+IL-05: done (overrides, pending owner approval of the patch). IL-07, IL-08, IL-09, IL-10: not started. IL-02: open by owner decision. Observations carried over (not changed): `ThemeContext` unscoped key (allow-listed), public GitHub repository containing `docs/internal-security/`, unknown `/assets/*` paths return the SPA shell.
 
 ## F. Final status
 
-**PARTIALLY COMPLETED** (in progress): step 0 done, pending owner approval.
+**PARTIALLY COMPLETED** (in progress): step 0 done and pushed; IL-05 done, pending owner approval of its patch.
