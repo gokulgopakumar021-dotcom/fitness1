@@ -84,15 +84,24 @@ $env:SUPABASE_URL="https://<project-ref>.supabase.co"
 $env:SUPABASE_PUBLISHABLE_KEY="<publishable key>"
 $env:VERIFY_QUOTA_EMAIL="<test account email>"; $env:VERIFY_QUOTA_PASSWORD="<its password>"   # or: $env:VERIFY_QUOTA_JWT="<access token>"
 npm run verify:quota                 # read-only: limit-0 probe + anonymous caller refused; writes nothing
-npm run verify:quota -- --consume    # also: limit 3 sequence (3 allowed, 4th refused) + 8 simultaneous calls (exactly 3 allowed)
+npm run verify:quota -- --consume    # also: limit 3 sequence (3 allowed, 4th refused) + 8 simultaneous calls (exactly 3 allowed); writes 2 rows
 ```
 ```bash
 SUPABASE_URL=... SUPABASE_PUBLISHABLE_KEY=... VERIFY_QUOTA_JWT=... npm run verify:quota
 ```
 
-- The default mode calls `consume_ai_quota(<bucket>, 0)`; with limit 0 the function returns before touching the table.
-- `--consume` writes two counter rows (`verify-quota-seq-*`, `verify-quota-par-*`) for the test user. Remove them in the
-  Supabase SQL editor: `delete from public.ai_usage_counters where bucket like 'verify-quota-%';`
+- Since the IL-04 migration (`20261103000000_ai_quota_bucket_allowlist.sql`) the live function accepts only the buckets of
+  the `ai: true` endpoints in `src/server/security/endpoints.ts` and raises `22023 unknown bucket` for any other name, even
+  with limit 0. The script therefore uses real bucket names taken from that list and invents none. If it reports
+  `rpc_22023`, the script and the applied allow-list disagree. `scripts/verify-quota.test.ts` fails if the script uses a
+  bucket that is not an `ai: true` bucket (checked against `endpoints.ts` and against the list inside the migration file).
+- The default mode calls `consume_ai_quota(<real bucket>, 0)`; with limit 0 the function validates the bucket and returns
+  before touching the table.
+- `--consume` uses two further real buckets with limit 3 and so leaves two counter rows (`used = 3`) for the test user for
+  the rest of that UTC day. Use a **dedicated test account only**: those buckets are real, so the account's own quota for
+  them is used up for the day. Run it at most once per UTC day per account; a second run the same day fails the two
+  consumption checks (the output says why). The rows need no manual cleanup: the function deletes a user's counters older
+  than 7 days the first time that user uses any bucket on a new UTC day, and they also disappear if the test user is deleted.
 - Email/password mode signs in and so creates an auth session for that account.
 - Exit codes: 0 all passed, 1 a check failed, 2 bad configuration.
 

@@ -3,7 +3,7 @@
  * start-up and never run by tests against a real project.
  *
  *   npm run verify:quota                 read-only probe (writes nothing)
- *   npm run verify:quota -- --consume    additionally consumes a throw-away bucket (writes 2 counter rows, see below)
+ *   npm run verify:quota -- --consume    additionally consumes two REAL AI buckets of the test user (writes 2 counter rows)
  *
  * It drives the SAME `SupabaseQuotaStore` class the server uses, so it checks the real code path:
  * publishable key + the caller's JWT -> PostgREST -> `public.consume_ai_quota`.
@@ -15,16 +15,22 @@
  *   VERIFY_QUOTA_EMAIL + VERIFY_QUOTA_PASSWORD  a dedicated test account; the script signs in itself and keeps the
  *                                             token in memory (this creates an auth session for that account).
  *
- * The default probe calls `consume_ai_quota(<bucket>, 0)`. With a limit of 0 the function returns before it touches
- * the table, so it proves existence, EXECUTE permission for `authenticated`, auth.uid() resolution and the reply shape
- * without consuming anything. `--consume` uses two unique `verify-quota-*` buckets (limit 3) and leaves two counter
- * rows for the test user; they do not affect real buckets. Remove them with the SQL in docs/security/quota-store.md.
+ * Since the IL-04 migration (20261103000000_ai_quota_bucket_allowlist.sql) the live function accepts ONLY the buckets
+ * of the `ai: true` endpoints in src/server/security/endpoints.ts and raises 22023 `unknown bucket` for anything else,
+ * so this script takes its buckets from that same list and invents none.
+ *
+ * The default probe calls `consume_ai_quota(<real bucket>, 0)`. With a limit of 0 the function validates the bucket and
+ * then returns before it touches the table, so it proves existence, EXECUTE permission for `authenticated`, auth.uid()
+ * resolution, the allow-list and the reply shape without consuming anything. `--consume` uses two further real buckets
+ * (limit 3) and leaves two counter rows (used = 3) for the test user for the rest of that UTC day, so it can be run once
+ * per UTC day per test account and the account must be a dedicated one. The rows are removed by the function's own
+ * 7-day housekeeping; see docs/security/quota-store.md.
  *
  * Exit code: 0 all checks passed, 1 a check failed, 2 bad usage or configuration.
  */
-import { randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
+import { ENDPOINTS } from '../src/server/security/endpoints';
 import { QuotaStoreUnavailableError, SupabaseQuotaStore, type QuotaStore } from '../src/server/security/quota';
 
 export interface Check {
@@ -47,6 +53,7 @@ const HINTS: Record<string, string> = {
   rpc_PGRST202: 'function not found in the API schema cache: migration not applied to this project, or the schema cache has not reloaded',
   rpc_42883: 'function does not exist: migration not applied',
   rpc_42501: 'permission denied: EXECUTE is not granted to `authenticated`',
+  rpc_22023: 'the function refused the arguments or the bucket ("unknown bucket"): this script and the live allow-list disagree, compare endpoints.ts with the applied migration',
   rpc_28000: 'the function did not see an authenticated user (auth.uid() is null)',
   rpc_PGRST301: 'the API rejected the JWT (expired, wrong project, or bad signature)',
   rpc_PGRST303: 'the API rejected the JWT',
@@ -72,6 +79,13 @@ function inspectJwt(token: string, nowSeconds: number): { ok: boolean; detail: s
   return { ok: true, detail: `valid shape, expires in ${Math.round((payload.exp - nowSeconds) / 60)} min` };
 }
 
+/**
+ * The only buckets this script may use: the `ai: true` buckets of the real endpoints, in the order they are declared.
+ * The live function rejects every other name (IL-04). The first is used for the limit-0 probes, the next two for --consume.
+ */
+export const AI_BUCKETS: readonly string[] = Object.values(ENDPOINTS).filter((p) => p.ai).map((p) => p.bucket);
+const [PROBE_BUCKET, SEQ_BUCKET, PAR_BUCKET] = AI_BUCKETS;
+
 const req = (bucket: string, limit: number, accessToken: string) => ({
   userId: 'verify-quota',
   bucket,
@@ -90,7 +104,7 @@ export async function runVerification(opts: VerifyOptions): Promise<Check[]> {
   if (!jwt.ok) return checks;
 
   try {
-    const d = await opts.store.consume(req('verify-quota-probe', 0, opts.token));
+    const d = await opts.store.consume(req(PROBE_BUCKET, 0, opts.token));
     const ok = d.allowed === false && d.used === 0;
     push('function reachable and executable by `authenticated` (limit-0 probe, writes nothing)', ok, ok ? 'answered allowed=false used=0' : `unexpected answer allowed=${d.allowed} used=${d.used}`);
     if (!ok) return checks;
@@ -101,7 +115,7 @@ export async function runVerification(opts: VerifyOptions): Promise<Check[]> {
 
   if (opts.anonToken) {
     try {
-      await opts.store.consume(req('verify-quota-probe', 0, opts.anonToken));
+      await opts.store.consume(req(PROBE_BUCKET, 0, opts.anonToken));
       push('anonymous caller is refused', false, 'an anonymous call was ANSWERED; EXECUTE must not be granted to anon/PUBLIC');
     } catch (e) {
       // A refusal only counts if the API itself answered; a timeout or network error proves nothing about permissions.
@@ -111,18 +125,18 @@ export async function runVerification(opts: VerifyOptions): Promise<Check[]> {
   }
 
   if (opts.consume) {
-    const id = randomBytes(4).toString('hex');
     try {
-      const seqBucket = `verify-quota-seq-${id}`;
+      const seqBucket = SEQ_BUCKET;
       const seq = [];
       for (let i = 0; i < 4; i++) seq.push(await opts.store.consume(req(seqBucket, 3, opts.token)));
       const okSeq = seq.map((d) => `${d.allowed}:${d.used}`).join(',') === 'true:1,true:2,true:3,false:3';
-      push('limit 3: three calls allowed, the fourth refused with the counter held at 3', okSeq, seq.map((d) => `${d.allowed ? 'allow' : 'deny'}(${d.used})`).join(' '));
+      const seqDetail = seq.map((d) => `${d.allowed ? 'allow' : 'deny'}(${d.used})`).join(' ');
+      push('limit 3: three calls allowed, the fourth refused with the counter held at 3', okSeq, !okSeq && !seq[0].allowed ? `${seqDetail}; the counter was already at its limit, so --consume was probably already run today (UTC) for this account: wait for 00:00 UTC or use another dedicated test account` : seqDetail);
 
-      const parBucket = `verify-quota-par-${id}`;
+      const parBucket = PAR_BUCKET;
       const par = await Promise.all(Array.from({ length: 8 }, () => opts.store.consume(req(parBucket, 3, opts.token))));
       const allowed = par.filter((d) => d.allowed).length;
-      push('8 simultaneous requests against limit 3: exactly 3 allowed', allowed === 3, `${allowed} allowed, ${par.length - allowed} refused`);
+      push('8 simultaneous requests against limit 3: exactly 3 allowed', allowed === 3, `${allowed} allowed, ${par.length - allowed} refused${allowed === 0 ? '; the counter was already at its limit, so --consume was probably already run today (UTC) for this account' : ''}`);
     } catch (e) {
       push('consumption sequence', false, e instanceof QuotaStoreUnavailableError ? describeReason(e.reason) : 'unexpected error');
     }
@@ -162,7 +176,7 @@ async function main(): Promise<number> {
   }
 
   const consume = args.includes('--consume');
-  console.log(consume ? 'Mode: probe + consume (writes two verify-quota-* counter rows for the test user)' : 'Mode: read-only probe (nothing is written)');
+  console.log(consume ? 'Mode: probe + consume (writes two real-bucket counter rows for the test user, used = 3 each)' : 'Mode: read-only probe (nothing is written)');
   const checks = await runVerification({ store: new SupabaseQuotaStore({ supabaseUrl: url, supabaseKey: key }, { timeoutMs: 10_000 }), token: token!, anonToken: key, consume });
   for (const c of checks) console.log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name}\n      ${c.detail}`);
   const failed = checks.filter((c) => !c.ok).length;
