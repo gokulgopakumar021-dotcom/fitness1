@@ -10,6 +10,19 @@ sites in 17 files; IndexedDB for Body Scan) and have not been re-counted.
 - `apiFetch` reads the session through `supabase.auth.getSession()` on each call. It stores nothing itself and does not
   change how the session persists.
 
+## Why a localStorage session is accepted on the web (IL-07)
+Any script that runs in the page can read `localStorage`, so the session is only as safe as the page is free of script
+injection. On the **web** this is accepted, standard supabase-js behaviour, because of two mitigations:
+- A strict production CSP: `script-src 'self' 'wasm-unsafe-eval'`, no `'unsafe-inline'` or `'unsafe-eval'` for scripts
+  (`src/server/security/headers.ts`; asserted in `src/server/security/security.test.ts`). It has **not** been verified in a
+  real browser (IL-10).
+- No DOM or script injection sinks in production code. `src/test/noXssSinks.test.ts` fails if production code under `src/`
+  uses `dangerouslySetInnerHTML`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`, `eval` or `new Function`.
+  It is a text scan: it cannot see third-party libraries or sinks built dynamically.
+
+Moving the token to Keychain/Keystore-backed storage is only required for the native apps and is **not** done here
+(see "Future token approach" below); that remains a blocker for any mobile release.
+
 ## Sensitive local data (by what `db.ts` reads/writes)
 Profile (body weight, height, goals), workout plans and sessions, active session, nutrition logs, custom foods, body
 metrics, sleep logs, uploaded plan documents, AI recommendations, Body Scan consent flag, and Body Scan photos/landmarks

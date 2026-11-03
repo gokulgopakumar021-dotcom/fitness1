@@ -3,7 +3,7 @@
 Date: 3 November 2026
 Scope (in this order, one finding at a time, owner approval after each): step 0 IL-04 follow-up, IL-05, then IL-07, IL-08, IL-09, IL-10.
 
-**Final status: PARTIALLY COMPLETED (in progress; updated after each approved item).** Step 0 (pushed as `d766c5d`) and IL-05 are done so far. This file does not claim the application is fully secure. Release decision unchanged: **CONDITIONALLY READY (web only)**; Android/iOS remain NOT IMPLEMENTED / NOT VERIFIED.
+**Final status: PARTIALLY COMPLETED (in progress; updated after each approved item).** Step 0 (pushed as `d766c5d`), IL-05 (pushed as `321e3c6`) and IL-07 (web part) are done so far. This file does not claim the application is fully secure. Release decision unchanged: **CONDITIONALLY READY (web only)**; Android/iOS remain NOT IMPLEMENTED / NOT VERIFIED.
 
 ---
 
@@ -75,16 +75,36 @@ All four are `dev` in the lockfile; `npm audit --omit=dev` = 0 before and after.
 
 ---
 
-## C. Regression results (after IL-05)
+## B3. IL-07 — Supabase session persisted in localStorage (INFORMATIONAL on web; blocker for mobile)
+
+### Re-checked against current `main` (`321e3c6`)
+- `src/lib/supabase.ts` still uses `persistSession: true` with the default storage, PKCE flow. Unchanged; this is standard supabase-js behaviour.
+- The audit's mitigations: (1) strict production CSP, already asserted in `security.test.ts` (no `unsafe-inline`/`unsafe-eval` for scripts); (2) no XSS sinks in `src/`. Re-run: **zero** uses of `dangerouslySetInnerHTML`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`, `eval` or `new Function` in production code (matches exist only inside test files that read rendered HTML). Mitigation (2) was not enforced by any test anywhere.
+- The finding stays accurate and is not a vulnerability on the web; it needs no behavioural change.
+
+### Scope decision
+The remediation the audit gives for native (Keychain/Keystore-backed storage adapter) is mobile configuration, which this session excludes, and no native project exists. **Not done, still open for the mobile phase.**
+
+### Change (web only: documentation and a tripwire, no production code)
+- `src/test/noXssSinks.test.ts` (3 tests): fails if production code uses any of the sinks above; the scanner is itself tested on synthetic code (comments, look-alikes such as `model.eval()`), and a coverage check makes sure the scan really walks the tree. Accepted exceptions would need an entry in an `ALLOWED` list with a reason (empty today).
+- `docs/security/local-data-and-tokens.md`: new section "Why a localStorage session is accepted on the web (IL-07)".
+
+### Evidence
+- Mutation checks (all restored): `innerHTML` assignment added to `src/lib/supabase.ts`: fails; `dangerouslySetInnerHTML` in a new component: fails; `eval` in a new util: fails; control: the same sink inside a `.test.ts` file does not fail; scanner weakened (innerHTML pattern removed): the synthetic test fails.
+- Limits: text scan only; third-party libraries, computed property access and cross-module sinks are not covered. CSP behaviour in a real browser: NOT VERIFIED (that is IL-10).
+
+---
+
+## C. Regression results (after IL-07)
 
 | Check | Result | Evidence |
 |---|---|---|
 | TypeScript | PASS | `npx tsc --noEmit` exit 0 |
-| Full tests | PASS | 142 files passed, 2 skipped; **2,652 passed, 0 failed, 36 skipped** (session baseline 2,641 / 0 / 36; step 0 added 7, IL-05 added 4) |
+| Full tests | PASS | 143 files passed, 2 skipped; **2,655 passed, 0 failed, 36 skipped** (session baseline 2,641 / 0 / 36; step 0 added 7, IL-05 added 4, IL-07 added 3) |
 | Dependency audit | PASS | `npm audit` 0 vulnerabilities (was 4 moderate); `npm audit --omit=dev` 0; `npm ci` and `npm ls` clean |
 | 36 skipped | NOT VERIFIED | Same env-gated Redis / real-PostgreSQL suites as the baseline |
 | Production build | PASS | `rm -rf dist && npx vite build` built; no `aistudio` or `.md` files in `dist/` |
-| Mutation checks | PASS | See sections B and B2 |
+| Mutation checks | PASS | See sections B, B2 and B3 |
 | Live Supabase | READ-ONLY | `list_projects`, `get_advisors(security)`, `list_migrations` only |
 
 ---
@@ -92,7 +112,9 @@ All four are `dev` in the lockfile; `npm audit --omit=dev` = 0 before and after.
 ## D. Git changes (nothing committed, pushed or deployed)
 
 Step 0 (pushed by the owner as `d766c5d`): `scripts/verify-quota.ts`, `scripts/verify-quota.test.ts`, `docs/security/quota-store.md`, `docs/internal-security/REMEDIATION_SESSION_3.md`.
-IL-05 (patch against `d766c5d`, not committed): modified `package.json`, `package-lock.json`, `docs/internal-security/REMEDIATION_SESSION_3.md`; added `docs/security/dependency-overrides.md`, `src/test/devDependencyOverrides.test.ts`.
+IL-05 (pushed by the owner as `321e3c6`): modified `package.json`, `package-lock.json`, `docs/internal-security/REMEDIATION_SESSION_3.md`; added `docs/security/dependency-overrides.md`, `src/test/devDependencyOverrides.test.ts`.
+
+IL-07 (patch against `321e3c6`, not committed): modified `docs/security/local-data-and-tokens.md`, `docs/internal-security/REMEDIATION_SESSION_3.md`; added `src/test/noXssSinks.test.ts`.
 
 No migration, live-database, config or mobile change. Later patches extend this file, so each depends on the one before.
 
@@ -100,8 +122,8 @@ No migration, live-database, config or mobile change. Later patches extend this 
 
 ## E. Remaining findings
 
-IL-05: done (overrides, pending owner approval of the patch). IL-07, IL-08, IL-09, IL-10: not started. IL-02: open by owner decision. Observations carried over (not changed): `ThemeContext` unscoped key (allow-listed), public GitHub repository containing `docs/internal-security/`, unknown `/assets/*` paths return the SPA shell.
+IL-05: done and pushed. IL-07: web part done (tripwire and docs, pending owner approval); the native token-storage part is mobile work and stays open. IL-08, IL-09, IL-10: not started. IL-02: open by owner decision. Observations carried over (not changed): `ThemeContext` unscoped key (allow-listed), public GitHub repository containing `docs/internal-security/`, unknown `/assets/*` paths return the SPA shell.
 
 ## F. Final status
 
-**PARTIALLY COMPLETED** (in progress): step 0 done and pushed; IL-05 done, pending owner approval of its patch.
+**PARTIALLY COMPLETED** (in progress): step 0 and IL-05 done and pushed; IL-07 web part done, pending owner approval of its patch.
