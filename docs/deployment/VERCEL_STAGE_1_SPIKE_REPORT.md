@@ -1,6 +1,6 @@
 # Vercel Stage 1 — Express-on-Vercel Preview Spike Report
 
-**Status: spike implemented and verified locally. NOT yet deployed to Preview. Preview verification requires owner action.**
+**Status: spike implemented; first Preview deployment (commit `68e9809`) built green but the function crashed at runtime (C-04, extensionless import). Fix applied in a follow-up commit; Preview re-verification pending.**
 
 ## 1. Starting point
 - Branch: `main`, commit `dcec169` ("Add files via upload"), working tree clean.
@@ -34,8 +34,13 @@
   - Excluded (not run, need Redis/Postgres or spawn processes): `redisRateStore.integration.test.ts`, `redisApp.integration.test.ts`, `quota.pg.integration.test.ts`, `startup.process.test.ts`.
 - Informational probe: importing `api/[...path].ts` under plain Node ESM (`--experimental-strip-types`) fails with `ERR_MODULE_NOT_FOUND` on the extensionless `./_spike/app` import. This does not predict Vercel's behaviour (Vercel compiles TypeScript itself) but it is exactly the risk C-04 in the compatibility audit describes, and the Preview deployment is the real test.
 
-### Confirmed by Preview deployment
-- **Nothing.** No Preview deployment was created from this environment, so no Preview result is claimed.
+### Confirmed by Preview deployment (first deployment, commit `68e9809`, Vercel runtime logs + CLI)
+- Build succeeded (owner-reported green).
+- Vercel discovered and compiled `api/[...path].ts` as a function with no `vercel.json`: `GET /api/health` returned `FUNCTION_INVOCATION_FAILED` (a crash, not a platform 404).
+- **C-04 confirmed.** Runtime log: `ERR_MODULE_NOT_FOUND: Cannot find module '/var/task/api/_spike/app' imported from /var/task/api/[...path].js`. Vercel emits per-file JS under `/var/task/api/` and Node ESM does not resolve extensionless relative imports in this `"type": "module"` project.
+- Deployment Protection (Vercel Authentication) is on for Previews; checks need `vercel curl` or a signed-in browser.
+- Owner's browser request to `/api/__vercel_spike/path` returned Vercel's platform `NOT_FOUND` (before the CLI test). Unexplained; may reflect nested-path routing under `[...path]` or something else. **Re-test after the fix.**
+- Original-path behaviour, POST, unknown-route 404 and static checks: **not yet verified on Preview** (function never ran).
 
 ### Not yet verified
 - Vercel discovers `api/[...path].ts` alongside the Vite preset with no `vercel.json`.
@@ -52,12 +57,13 @@
 4. Send me the Preview URL; I will run the checklist (`/`, `/api/health`, `/api/__vercel_spike/path`, `/api/__vercel_spike/method`, `/api/__vercel_spike/unknown`, `/manifest.webmanifest`, `/brand/icon-512.png`, `/some/unknown/path`).
 5. Check the Vercel build log for the function's Node version and bundle size.
 
-## 6. Prepared fallbacks (not applied)
-- If the function fails with `ERR_MODULE_NOT_FOUND`: change the import to `./_spike/app.js` (or pre-bundle with the existing `esbuild` devDependency — audit item S-4).
+## 6. Fix and fallbacks
+- **Applied (follow-up commit):** `api/[...path].ts` now imports `./_spike/app.js`. Local: 10/10 spike tests, `tsc` clean; a per-file esbuild emit run under native Node ESM served `/api/health`, the path diagnostic (original path preserved) and the spike 404 correctly. This simulation is not a Vercel result.
+- If it still fails: pre-bundle with the existing `esbuild` devDependency (audit item S-4).
 - If Express sees a stripped or different path: single `api/index.ts` function plus one narrowly scoped `/api/(.*)` rewrite in `vercel.json`, explained rule-by-rule before adding.
 
 ## 7. Does the spike prove Option 2 is viable?
-**Not yet.** Locally the isolated Express app works and the frontend build is unaffected. Viability depends on the Preview results above (function discovery, original path, module resolution).
+**Not yet.** Function discovery without `vercel.json` is confirmed on Preview and the module-resolution problem is identified and fixed locally. Original-path preservation, nested-path routing and static compatibility are still unverified on Preview.
 
 ## 8. Recommended next step
 Perform owner steps 1–5, run the Preview checklist, and update this report with real Preview results. Stage 2 should not begin until that is reviewed and approved.
