@@ -18,7 +18,8 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const root = process.cwd();
-const serverSrc = readFileSync(join(root, 'server.ts'), 'utf8');
+// Routes are registered by createApp(), which Stage 3.1 moved verbatim from server.ts to src/server/app.ts.
+const serverSrc = readFileSync(join(root, 'src/server/app.ts'), 'utf8');
 const serverRoutes = [...serverSrc.matchAll(/app\.(get|post|put|delete|patch)\(\s*'(\/api\/[^']*)'/g)].map((m) => ({
   method: m[1].toUpperCase(),
   path: m[2]
