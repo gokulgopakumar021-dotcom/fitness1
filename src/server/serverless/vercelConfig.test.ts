@@ -6,8 +6,8 @@ import { ALLOWED_EXTERNALS } from '../../../scripts/bundle-api.mjs';
 
 /**
  * Stage 3.8 guards. They pin what vercel.json and package.json are allowed to say so that nothing broad, invented or
- * environment-specific slips in: owner decisions are pinned here: Node 24.x, maxDuration 120 s. The region (D-3) stays unset until the Upstash
- * region is decided.
+ * environment-specific slips in: owner decisions are pinned here: Node 24.x, maxDuration 120 s. The region is hnd1 (Tokyo), matching Supabase
+ * ap-northeast-1; the Upstash database must be created in the same AWS region.
  */
 const ROOT = path.resolve(import.meta.dirname, '../../..');
 const readJson = (rel: string) => JSON.parse(readFileSync(path.join(ROOT, rel), 'utf8'));
@@ -16,7 +16,7 @@ const pkg = readJson('package.json');
 
 describe('vercel.json (Stage 3.8)', () => {
   it('has only the keys this stage allows: no framework, build, output, install, header, redirect or routes override', () => {
-    const allowed = ['rewrites', 'functions', '$schema'];
+    const allowed = ['rewrites', 'functions', 'regions', '$schema'];
     expect(Object.keys(vercel).filter((k) => !allowed.includes(k))).toEqual([]);
   });
 
@@ -28,9 +28,9 @@ describe('vercel.json (Stage 3.8)', () => {
     expect(vercel.functions).toEqual({ 'api/index.js': { maxDuration: 120 } });
   });
 
-  it('sets no region anywhere until the Upstash region is decided (hnd1 is only a proposal)', () => {
-    expect(vercel.regions).toBeUndefined();
-    expect(JSON.stringify(vercel.functions)).not.toMatch(/region|hnd1/i);
+  it('runs the function in exactly one region, hnd1 (Tokyo), matching the Supabase project region ap-northeast-1; Upstash must be created in AWS ap-northeast-1 too', () => {
+    expect(vercel.regions).toEqual(['hnd1']);
+    expect(JSON.stringify(vercel.functions)).not.toMatch(/region|hnd1/i); // vercel.json takes regions at the top level only
   });
 
   it('the rewrite cannot capture the frontend: manifest, icons and the root are static files outside /api', () => {

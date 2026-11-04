@@ -12,8 +12,8 @@ Owner decisions received after the first review, now applied:
 | 1 | Node.js `24.x` | `package.json` `"engines": { "node": "24.x" }` (Vercel maps it to the latest 24.x) |
 | 2 | `maxDuration` 120 s | `vercel.json` `functions["api/index.js"].maxDuration = 120` |
 | 3 | Gemini timeout max 90 s, real abort | `src/server/gemini.ts` `createGenAI()`; all 15 `new GoogleGenAI(...)` in `src/server/app.ts` now call it |
-| 4 | Fluid Compute enabled | **Vercel dashboard setting, not in the repo. Owner action** (see below) |
-| 5 / 6 | Region proposed `hnd1`; set no `regions` until Upstash region is decided | **No `regions` value set.** A test fails if one is added by accident |
+| 4 | Fluid Compute enabled | Vercel dashboard setting, not in the repo. **Owner confirmed it is already enabled** (not verifiable from the repo; a Preview build will confirm `maxDuration: 120` is accepted) |
+| 5 / 6 | Function region matched to Supabase, Upstash to match | `vercel.json` `"regions": ["hnd1"]` (Tokyo). Supabase project region read from the connected project: `ap-northeast-1` (CONFIRMED, read-only metadata). Vercel documents `hnd1` = `ap-northeast-1`, Tokyo (DOCUMENTED). **Upstash must be created in AWS `ap-northeast-1` (Tokyo): owner action.** |
 
 ### Gemini deadline design (CONFIRMED by local tests with a fake fetch)
 
@@ -25,9 +25,9 @@ Owner decisions received after the first review, now applied:
 
 ### Owner actions (not performed, not possible from the repo)
 
-1. Enable **Fluid compute** for the Vercel project. `maxDuration: 120` on Hobby is only valid with Fluid on (UNVERIFIED which plan you use); a Preview build will show whether Vercel accepts it.
+1. ~~Enable Fluid compute~~ Done by the owner. `maxDuration: 120` depends on it; plan tier is still UNVERIFIED.
 2. Confirm the project's **Node.js Version** dashboard setting does not conflict (`engines.node` overrides it, DOCUMENTED).
-3. Decide the Upstash region; then choose the function region (`hnd1` proposed) and add `regions` in a small follow-up patch.
+3. Create the Upstash Redis database in **AWS ap-northeast-1 (Tokyo)** so function, Redis and Supabase share one region. Not done here (no Upstash configuration is authorised in Stage 3A). A different Upstash region risks spurious 503s against the 500 ms Redis command timeout (Stage 2 R-5); latency is UNVERIFIED until a Preview run.
 4. Local verification ran on Node 22; Node 24 is UNVERIFIED until a Preview build. The bundle target (`node22`) runs on 24.
 
 ## Review
@@ -43,9 +43,7 @@ Owner decisions received after the first review, now applied:
 
 ## Values still unset
 
-| Setting | Why |
-|---|---|
-| `regions` | Upstash region undecided (decision 6). Neither Supabase nor Redis region is known to the repo. Vercel's default is `iad1`. A cross-region Redis can cause spurious 503s against the 500 ms command timeout (Stage 2 R-5). |
+None of the decided settings are open. The Upstash database itself does not exist yet (owner action above).
 
 ## Not changed
 

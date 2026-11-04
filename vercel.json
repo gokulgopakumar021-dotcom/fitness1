@@ -5,6 +5,9 @@
       "destination": "/api"
     }
   ],
+  "regions": [
+    "hnd1"
+  ],
   "functions": {
     "api/index.js": {
       "maxDuration": 120
