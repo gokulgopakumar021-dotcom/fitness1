@@ -6,6 +6,7 @@
 // Why a bundle: the server dependency graph uses extensionless relative imports (58 of them in 18 files), which Node's
 // ESM loader rejects. Bundling resolves them at build time with zero source edits. Why npm packages stay external: Vercel
 // traces and ships them from node_modules, and bundling them would only inflate and obscure the file.
+// The comparison ignores CRLF vs LF (Git on Windows may check the file out with CRLF; .gitattributes also pins it to LF).
 // The output is deterministic (no minification, no timestamps, no absolute paths, no source map) so a stale bundle is
 // detectable by byte comparison. Nothing from the environment is inlined (no `define`).
 import { build } from 'esbuild';
@@ -87,7 +88,7 @@ async function main() {
   const out = path.join(ROOT, OUTFILE);
   if (check) {
     if (!existsSync(out)) problems.push(`${OUTFILE} is missing (run: npm run build:api)`);
-    else if (readFileSync(out, 'utf8') !== built.code) problems.push(`${OUTFILE} is stale (run: npm run build:api)`);
+    else if (readFileSync(out, 'utf8').replace(/\r\n/g, '\n') !== built.code) problems.push(`${OUTFILE} is stale (run: npm run build:api)`);
   }
   if (problems.length) {
     for (const p of problems) console.error(`api bundle: ${p}`);
