@@ -6,8 +6,8 @@ import { ALLOWED_EXTERNALS } from '../../../scripts/bundle-api.mjs';
 
 /**
  * Stage 3.8 guards. They pin what vercel.json and package.json are allowed to say so that nothing broad, invented or
- * environment-specific slips in: the owner decisions (maxDuration D-2/D-9, region D-3, Node version D-5) are NOT set
- * here, and the tests keep it that way until the owner supplies values.
+ * environment-specific slips in: owner decisions are pinned here: Node 24.x, maxDuration 120 s. The region (D-3) stays unset until the Upstash
+ * region is decided.
  */
 const ROOT = path.resolve(import.meta.dirname, '../../..');
 const readJson = (rel: string) => JSON.parse(readFileSync(path.join(ROOT, rel), 'utf8'));
@@ -24,13 +24,13 @@ describe('vercel.json (Stage 3.8)', () => {
     expect(vercel.rewrites).toEqual([{ source: '/api/:__ironlog_api_path*', destination: '/api' }]);
   });
 
-  it('any functions entry targets only api/index.js and sets only reviewed keys (owner-decided values, never guessed)', () => {
-    const fns = vercel.functions ?? {};
-    for (const [glob, cfg] of Object.entries<Record<string, unknown>>(fns)) {
-      expect(glob).toBe('api/index.js');
-      expect(Object.keys(cfg).filter((k) => !['maxDuration', 'memory'].includes(k))).toEqual([]);
-    }
-    expect(vercel.regions).toBeUndefined(); // region is owner decision D-3
+  it('configures only api/index.js, with the owner-decided maxDuration of 120 s and nothing else', () => {
+    expect(vercel.functions).toEqual({ 'api/index.js': { maxDuration: 120 } });
+  });
+
+  it('sets no region anywhere until the Upstash region is decided (hnd1 is only a proposal)', () => {
+    expect(vercel.regions).toBeUndefined();
+    expect(JSON.stringify(vercel.functions)).not.toMatch(/region|hnd1/i);
   });
 
   it('the rewrite cannot capture the frontend: manifest, icons and the root are static files outside /api', () => {
@@ -58,7 +58,7 @@ describe('package.json build settings (Stage 3.8)', () => {
   });
 });
 
-describe('Node version floor (owner decision D-5 stays open)', () => {
+describe('Node version floor (D-5 decided: 24.x)', () => {
   const BUNDLE_TARGET_MAJOR = 22; // scripts/bundle-api.mjs target: 'node22'
 
   const floorOf = (range: string | undefined): number => {
@@ -77,8 +77,8 @@ describe('Node version floor (owner decision D-5 stays open)', () => {
     expect(floors['@supabase/supabase-js']).toBeGreaterThanOrEqual(22);
   });
 
-  it('package.json does not set engines.node yet (the exact major is the owner\u2019s call); if set later it must be >= the floor', () => {
-    if (pkg.engines?.node === undefined) return;
+  it('package.json pins the owner-decided Node major (24.x), which is at or above the dependency floor', () => {
+    expect(pkg.engines).toEqual({ node: '24.x' });
     expect(floorOf(pkg.engines.node)).toBeGreaterThanOrEqual(22);
   });
 });

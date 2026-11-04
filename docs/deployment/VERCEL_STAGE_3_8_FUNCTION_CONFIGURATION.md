@@ -1,11 +1,34 @@
 # Stage 3.8: Vercel Function configuration
 
-Status: local review only. Nothing deployed, no Vercel setting or environment variable changed.
+Status: local only. Nothing deployed, no Vercel setting or environment variable changed.
 Labels: CONFIRMED (read or run locally), DOCUMENTED (vendor documentation), INFERRED, UNVERIFIED.
 
 ## Result
 
-`vercel.json` and `package.json` are **unchanged by this stage**. Every value 3.8 could set is either already correct or depends on an owner decision, and the stage instructions forbid guessing those. Guard tests (`src/server/serverless/vercelConfig.test.ts`) now pin the current state.
+Owner decisions received after the first review, now applied:
+
+| # | Decision | Applied as |
+|---|---|---|
+| 1 | Node.js `24.x` | `package.json` `"engines": { "node": "24.x" }` (Vercel maps it to the latest 24.x) |
+| 2 | `maxDuration` 120 s | `vercel.json` `functions["api/index.js"].maxDuration = 120` |
+| 3 | Gemini timeout max 90 s, real abort | `src/server/gemini.ts` `createGenAI()`; all 15 `new GoogleGenAI(...)` in `src/server/app.ts` now call it |
+| 4 | Fluid Compute enabled | **Vercel dashboard setting, not in the repo. Owner action** (see below) |
+| 5 / 6 | Region proposed `hnd1`; set no `regions` until Upstash region is decided | **No `regions` value set.** A test fails if one is added by accident |
+
+### Gemini deadline design (CONFIRMED by local tests with a fake fetch)
+
+- One `AbortController` per `generateContent` call fires at 90 s for the **whole** call. The SDK's `httpOptions.timeout` alone is per attempt, and the installed SDK retries 408/429/5xx up to 5 attempts with back-off (CONFIRMED in the SDK source), so a per-attempt timeout could run for minutes. A test proves repeated 503s do not extend the deadline.
+- The abort surfaces as `AbortError`, which the existing `classifyError` already maps to `504 upstream_timeout` with a fixed message. No provider text, key or stack is returned. No route handler changed other than the client constructor.
+- The timer is cleared when the call settles; a caller-supplied abort signal and the existing `User-Agent` header are preserved.
+- 90 s is 30 s below `maxDuration` (120 s), leaving room to validate and answer. Each AI route makes one Gemini call, so the route total stays under 120 s. The adaptive-explanation route keeps its own shorter 20 s race.
+- This is a behaviour change (Stage 2 listed it as needing approval; approved by decision 3). It does not alter authentication, rate limits, quotas or response shapes for successful calls.
+
+### Owner actions (not performed, not possible from the repo)
+
+1. Enable **Fluid compute** for the Vercel project. `maxDuration: 120` on Hobby is only valid with Fluid on (UNVERIFIED which plan you use); a Preview build will show whether Vercel accepts it.
+2. Confirm the project's **Node.js Version** dashboard setting does not conflict (`engines.node` overrides it, DOCUMENTED).
+3. Decide the Upstash region; then choose the function region (`hnd1` proposed) and add `regions` in a small follow-up patch.
+4. Local verification ran on Node 22; Node 24 is UNVERIFIED until a Preview build. The bundle target (`node22`) runs on 24.
 
 ## Review
 
@@ -18,15 +41,11 @@ Labels: CONFIRMED (read or run locally), DOCUMENTED (vendor documentation), INFE
 | Node version floor | Installed `@supabase/supabase-js` 2.118.0 requires Node >= 22; `redis` 6.3.0 and `@google/genai` 2.31.0 require >= 20; `helmet` >= 18. The bundle targets `node22`. **Node 20 is below the floor.** | CONFIRMED (package metadata) |
 | Vercel Node versions | 24.x (default), 22.x and 20.x are offered; `engines.node` overrides the dashboard setting; `>=20.0.0` maps to the latest 24.x. | DOCUMENTED (Vercel docs, page dated 2026-02-27) |
 
-## Values left unset (owner decisions)
+## Values still unset
 
-| Setting | Why it is not set | What is needed |
-|---|---|---|
-| `engines.node` (D-5) | The floor (22) is established, but 22.x versus 24.x is a policy choice. Local tests ran on Node 22. A range such as `>=22` would resolve to the latest 24.x on Vercel. | Choose `22.x` or `24.x`. Also check the project's **Node.js Version** dashboard setting is not 20.x. |
-| `functions["api/index.js"].maxDuration` (D-2, D-9) | Allowed values depend on plan tier and Fluid compute; Stage 2 found the Vercel pages disagree by mode. 13 of 15 Gemini calls have no per-call timeout, so `maxDuration` is the only ceiling. Stage 0's 60 s was only a placeholder. | Plan tier, Fluid on/off, accepted worst-case Gemini wait. |
-| `regions` (D-3) | Should sit near the Supabase and Redis regions (4 Redis and 2 Supabase round trips precede Gemini). Neither region is known to this repo. Vercel's default is `iad1`. | Supabase project region and the intended Upstash region. |
-
-When values arrive the change is one `functions` block in `vercel.json` (and `regions` if wanted) plus `engines.node`; the guard tests already accept a `functions` entry for `api/index.js` with only `maxDuration`/`memory`, and require `engines.node` >= 22 if present. `regions` must be added to the test allow-list deliberately.
+| Setting | Why |
+|---|---|
+| `regions` | Upstash region undecided (decision 6). Neither Supabase nor Redis region is known to the repo. Vercel's default is `iad1`. A cross-region Redis can cause spurious 503s against the 500 ms command timeout (Stage 2 R-5). |
 
 ## Not changed
 

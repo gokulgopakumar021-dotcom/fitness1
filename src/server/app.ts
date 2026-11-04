@@ -1,5 +1,5 @@
 import express from 'express';
-import { GoogleGenAI } from '@google/genai';
+import { createGenAI } from './gemini';
 import { generateAdaptiveReview } from '../utils/adaptiveCoach/engine';
 import { parseAiExplanation, validateCoachingContext } from '../utils/adaptiveCoach/validate';
 import { installApiTail, installSecurity, handleRouteError, type SecurityDeps } from './security';
@@ -35,7 +35,7 @@ app.post('/api/extract-plan', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGenAI({ apiKey });
     const prompt = `${UNTRUSTED_NOTICE}
 You are an expert strength-and-conditioning coach and workout plan parser.
 Parse this workout document/file into structured JSON format.
@@ -146,7 +146,7 @@ app.post('/api/generate-plan', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGenAI({ apiKey });
     const prompt = `${UNTRUSTED_NOTICE}
 You are an elite strength-and-conditioning specialist and program architect.
 Design a periodized, evidence-based strength & hypertrophy workout plan.
@@ -219,7 +219,7 @@ app.post('/api/exercise-coach', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGenAI({ apiKey });
     const prompt = `${UNTRUSTED_NOTICE}
 You are a high-performance strength coach.
 Provide concise, actionable advice for an athlete currently performing: "${ui(exerciseName)}" (${ui(equipment || 'general equipment')}).
@@ -285,7 +285,7 @@ app.post('/api/generate-ai-routine', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({
+    const ai = createGenAI({
       apiKey,
       httpOptions: {
         headers: {
@@ -547,7 +547,7 @@ app.post('/api/ai-food-parser', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGenAI({ apiKey });
     const prompt = `${UNTRUSTED_NOTICE}
 You are an accurate sports nutritionist and food database analyst.
 Parse this food description into individual food items with scientifically accurate macronutrients (USDA standard).
@@ -604,7 +604,7 @@ app.post('/api/ai-workout-insights', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGenAI({ apiKey });
     const prompt = `${UNTRUSTED_NOTICE}
 You are an elite strength-training analyst.
 Review this completed workout session and provide concise coaching feedback based strictly on the logged performance.
@@ -660,7 +660,7 @@ app.post('/api/ai-plan-overload-tuning', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGenAI({ apiKey });
     const prompt = `${UNTRUSTED_NOTICE}
 You are a world-class strength-training data analyst and biomechanics coach.
 Analyze this athlete's uploaded workout plan and calibrate scientifically optimal progressive overload analytics rules for each exercise.
@@ -741,7 +741,7 @@ app.post('/api/ai-nutrition-coach', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGenAI({ apiKey });
     const prompt = `${UNTRUSTED_NOTICE}
 You are a sports nutritionist.
 Calculate optimal daily macronutrient targets based on athlete data.
@@ -797,7 +797,7 @@ app.post('/api/ai-recovery-insights', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGenAI({ apiKey });
     const prompt = `${UNTRUSTED_NOTICE}
 You are an elite sports scientist and muscle recovery biomechanist.
 Analyze this athlete's recent workout session logs, training split, and biometrics to identify muscle recovery trends, assess cumulative fatigue, and suggest optimal rest days.
@@ -915,7 +915,7 @@ app.post('/api/ai-personal-trainer', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGenAI({ apiKey });
 
     const systemInstruction = `${UNTRUSTED_NOTICE}
 You are "Coach Iron", an elite AI Fitness Personal Trainer and biomechanics specialist.
@@ -998,7 +998,7 @@ app.post('/api/adaptive-coach/explain', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGenAI({ apiKey });
     const prompt = `${UNTRUSTED_NOTICE}
 You are "Coach Iron". Explain an already-decided training review in plain, encouraging language.
 You may ONLY reword and contextualise. Do NOT change, add or remove adjustments. Do NOT introduce any number, weight, rep count or date that is not in the data below. If unsure, say less.
@@ -1063,7 +1063,7 @@ app.post('/api/ai-form-analyzer', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGenAI({ apiKey });
     const prompt = `${UNTRUSTED_NOTICE}
 You are a world-class strength biomechanist and physical therapist.
 The user is performing: "${ui(exerciseName)}".
@@ -1172,7 +1172,7 @@ app.post('/api/ai-warmup-generator', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGenAI({ apiKey });
     const prompt = `${UNTRUSTED_NOTICE}
 You are a world-class strength and conditioning specialist (CSCS) designing a rapid 5-minute pre-workout dynamic warm-up using the science-backed RAMP protocol (Raise, Activate, Mobilize, Potentiate).
 Workout Name: "${ui(workoutName || 'Today Workout')}"
@@ -1285,7 +1285,7 @@ app.post('/api/ai-generate-physique', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGenAI({ apiKey });
     const prompt = `${UNTRUSTED_NOTICE}
 You are an elite physique coach and aesthetic art director.
 A client wants to visualize their dream target physique with these parameters:
@@ -1556,7 +1556,7 @@ app.post('/api/ai-physique-analysis', async (req, res) => {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGenAI({ apiKey });
     const prompt = `${UNTRUSTED_NOTICE}
 You are "Coach Iron", world-renowned elite bodybuilding and sports nutrition coach.
 A client has generated their dream target physique and wants an exact, personalized diet and workout blueprint to achieve it.

@@ -5,7 +5,32 @@ import { randomUUID as randomUUID2 } from "node:crypto";
 
 // src/server/app.ts
 import express2 from "express";
+
+// src/server/gemini.ts
 import { GoogleGenAI } from "@google/genai";
+var GEMINI_TIMEOUT_MS = 9e4;
+function createGenAI(options, timeoutMs = GEMINI_TIMEOUT_MS) {
+  const ai = new GoogleGenAI({ ...options, httpOptions: { ...options.httpOptions, timeout: timeoutMs } });
+  const models = ai.models;
+  const generate = models.generateContent.bind(models);
+  models.generateContent = (async (params) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const callerSignal = params.config?.abortSignal;
+    const onCallerAbort = () => controller.abort();
+    if (callerSignal) {
+      if (callerSignal.aborted) controller.abort();
+      else callerSignal.addEventListener("abort", onCallerAbort, { once: true });
+    }
+    try {
+      return await generate({ ...params, config: { ...params.config, abortSignal: controller.signal } });
+    } finally {
+      clearTimeout(timer);
+      callerSignal?.removeEventListener("abort", onCallerAbort);
+    }
+  });
+  return ai;
+}
 
 // src/utils/recoveryAnalytics.ts
 function inferMuscleGroup(exerciseName, explicitMuscle) {
@@ -1690,7 +1715,7 @@ function createApp(deps = {}) {
       });
     }
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createGenAI({ apiKey });
       const prompt = `${UNTRUSTED_NOTICE}
 You are an expert strength-and-conditioning coach and workout plan parser.
 Parse this workout document/file into structured JSON format.
@@ -1792,7 +1817,7 @@ ${ui(text2)}` }
       });
     }
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createGenAI({ apiKey });
       const prompt = `${UNTRUSTED_NOTICE}
 You are an elite strength-and-conditioning specialist and program architect.
 Design a periodized, evidence-based strength & hypertrophy workout plan.
@@ -1858,7 +1883,7 @@ Format strictly as valid JSON matching this schema:
       });
     }
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createGenAI({ apiKey });
       const prompt = `${UNTRUSTED_NOTICE}
 You are a high-performance strength coach.
 Provide concise, actionable advice for an athlete currently performing: "${ui(exerciseName)}" (${ui(equipment || "general equipment")}).
@@ -1917,7 +1942,7 @@ Respond strictly with valid JSON matching:
       });
     }
     try {
-      const ai = new GoogleGenAI({
+      const ai = createGenAI({
         apiKey,
         httpOptions: {
           headers: {
@@ -2136,7 +2161,7 @@ Return STRICTLY a JSON object matching this schema:
       });
     }
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createGenAI({ apiKey });
       const prompt = `${UNTRUSTED_NOTICE}
 You are an accurate sports nutritionist and food database analyst.
 Parse this food description into individual food items with scientifically accurate macronutrients (USDA standard).
@@ -2186,7 +2211,7 @@ Format strictly as valid JSON matching this schema:
       });
     }
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createGenAI({ apiKey });
       const prompt = `${UNTRUSTED_NOTICE}
 You are an elite strength-training analyst.
 Review this completed workout session and provide concise coaching feedback based strictly on the logged performance.
@@ -2235,7 +2260,7 @@ Format strictly as JSON:
       });
     }
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createGenAI({ apiKey });
       const prompt = `${UNTRUSTED_NOTICE}
 You are a world-class strength-training data analyst and biomechanics coach.
 Analyze this athlete's uploaded workout plan and calibrate scientifically optimal progressive overload analytics rules for each exercise.
@@ -2308,7 +2333,7 @@ Format strictly as JSON:
       });
     }
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createGenAI({ apiKey });
       const prompt = `${UNTRUSTED_NOTICE}
 You are a sports nutritionist.
 Calculate optimal daily macronutrient targets based on athlete data.
@@ -2357,7 +2382,7 @@ Format strictly as JSON:
       });
     }
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createGenAI({ apiKey });
       const prompt = `${UNTRUSTED_NOTICE}
 You are an elite sports scientist and muscle recovery biomechanist.
 Analyze this athlete's recent workout session logs, training split, and biometrics to identify muscle recovery trends, assess cumulative fatigue, and suggest optimal rest days.
@@ -2467,7 +2492,7 @@ Format strictly as JSON matching this schema:
       });
     }
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createGenAI({ apiKey });
       const systemInstruction = `${UNTRUSTED_NOTICE}
 You are "Coach Iron", an elite AI Fitness Personal Trainer and biomechanics specialist.
 You coach athletes in strength training, progressive overload, bodybuilding, and injury prevention.
@@ -2539,7 +2564,7 @@ COACHING DIRECTIVES:
       return res.json({ success: true, aiAvailable: false, reason: "not_configured", fingerprint: review.fingerprint });
     }
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createGenAI({ apiKey });
       const prompt = `${UNTRUSTED_NOTICE}
 You are "Coach Iron". Explain an already-decided training review in plain, encouraging language.
 You may ONLY reword and contextualise. Do NOT change, add or remove adjustments. Do NOT introduce any number, weight, rep count or date that is not in the data below. If unsure, say less.
@@ -2597,7 +2622,7 @@ Respond with JSON only:
       });
     }
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createGenAI({ apiKey });
       const prompt = `${UNTRUSTED_NOTICE}
 You are a world-class strength biomechanist and physical therapist.
 The user is performing: "${ui(exerciseName)}".
@@ -2698,7 +2723,7 @@ Keep response direct and formatted with clear bullet points.`;
       });
     }
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createGenAI({ apiKey });
       const prompt = `${UNTRUSTED_NOTICE}
 You are a world-class strength and conditioning specialist (CSCS) designing a rapid 5-minute pre-workout dynamic warm-up using the science-backed RAMP protocol (Raise, Activate, Mobilize, Potentiate).
 Workout Name: "${ui(workoutName || "Today Workout")}"
@@ -2798,7 +2823,7 @@ Format strictly as JSON with this schema:
       });
     }
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createGenAI({ apiKey });
       const prompt = `${UNTRUSTED_NOTICE}
 You are an elite physique coach and aesthetic art director.
 A client wants to visualize their dream target physique with these parameters:
@@ -3059,7 +3084,7 @@ Write a crisp, motivating 2-3 sentence visual description detailing this exact p
       });
     }
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createGenAI({ apiKey });
       const prompt = `${UNTRUSTED_NOTICE}
 You are "Coach Iron", world-renowned elite bodybuilding and sports nutrition coach.
 A client has generated their dream target physique and wants an exact, personalized diet and workout blueprint to achieve it.
