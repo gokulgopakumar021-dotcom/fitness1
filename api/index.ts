@@ -1,5 +1,8 @@
-// STAGE 1 SPIKE ONLY: single Vercel Function for /api and /api/* (via the scoped rewrite in vercel.json).
-// Express apps are plain (req, res) request listeners; Vercel invokes the default export.
-import { createSpikeApp } from './_spike/app.js';
+// Vercel Function entry point for /api and /api/* (reached through the scoped rewrite in vercel.json).
+// Vercel invokes the default export with a Node (req, res) pair. All behaviour lives in src/server/serverless/*;
+// this file only wires the real per-instance application provider to the handler.
+// It must stay minimal: nothing here may listen, import the local runner (server.ts) or Vite, or touch process signals.
+import { getApp } from '../src/server/serverless/getApp.js';
+import { createHandler } from '../src/server/serverless/handler.js';
 
-export default createSpikeApp();
+export default createHandler(getApp);

@@ -214,7 +214,8 @@ describe('tripwire: production backend code does not read the query string or re
   }
   // Backend = everything under src/server plus the adaptive-coach helpers the routes import, plus the entry points.
   const files = [...walk(path.join(ROOT, 'src/server')), ...walk(path.join(ROOT, 'src/utils/adaptiveCoach')), path.join(ROOT, 'server.ts')];
-  const ALLOWED = new Set([path.join(ROOT, 'src/server/serverless/normalizeUrl.ts')]);
+  // The normaliser itself, and the handler line that writes the NORMALISED url back (the only legitimate req.url access).
+  const ALLOWED = new Set([path.join(ROOT, 'src/server/serverless/normalizeUrl.ts'), path.join(ROOT, 'src/server/serverless/handler.ts')]);
   const READER = /\breq\.(query|url|originalUrl|baseUrl)\b|\.originalUrl\b|\bsearchParams\b|\bURLSearchParams\b|\bquerystring\b|\breq\.params\b(?!\.barcode)/;
 
   it('scans a non-trivial set of backend files', () => {

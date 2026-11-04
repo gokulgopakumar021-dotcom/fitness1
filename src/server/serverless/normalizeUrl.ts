@@ -3,7 +3,7 @@
  *
  * `vercel.json` rewrites `/api/:__ironlog_api_path*` to the single function `/api`. Because the destination does not
  * use the named parameter, Vercel appends it to the query string. Stage 1 observed that `req.url` keeps the ORIGINAL
- * path (`/api/__vercel_spike/path?path=__vercel_spike%2Fpath`), so only the query needs cleaning. The injected
+ * path (`/api/<route>?path=<route>` in the Stage 1 spike), so only the query needs cleaning. The injected
  * parameter carries nothing Express needs, and leaving it in `req.url` would make it visible in `req.query`,
  * `req.originalUrl` and logs.
  *
