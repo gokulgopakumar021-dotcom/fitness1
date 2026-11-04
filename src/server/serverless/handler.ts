@@ -5,7 +5,7 @@ import { normalizeRewrittenUrl } from './normalizeUrl';
 import { logger } from '../security/logger';
 
 /**
- * Request handler behind the Vercel Function entry point `api/index.ts` (Stage 3.6).
+ * Request handler behind the Vercel Function entry point (source: entry.ts, bundled to api/index.js; Stage 3.6/3.7).
  *
  * Per request it does exactly three things, in this order:
  *  1. strips the reserved rewrite parameter from `req.url` (see normalizeUrl.ts), so Express and everything behind it

@@ -274,15 +274,15 @@ describe('initialisation failure through the handler', () => {
   });
 });
 
-describe('the real function entry (api/index.ts)', () => {
+describe('the real function entry (src/server/serverless/entry.ts, bundled to api/index.js)', () => {
   it('default-exports a request handler and importing it has no side effects', async () => {
-    const mod = await import('../../../api/index');
+    const mod = await import('./entry');
     expect(typeof mod.default).toBe('function');
     expect(Object.keys(mod)).toEqual(['default']);
   });
 
   it('with an unsafe/non-Redis environment it fails closed with a controlled 503 instead of serving from memory', async () => {
-    const mod = await import('../../../api/index');
+    const mod = await import('./entry');
     const srv = await serve(mod.default as unknown as http.RequestListener);
     try {
       const res = await fetch(`${srv.base}/api/health`); // vitest runs with NODE_ENV=test: no Redis store may be selected
@@ -319,7 +319,7 @@ describe('repository hygiene: the Stage 1 diagnostic endpoint is gone', () => {
   });
 
   it('api/ contains exactly one function file (anything else there becomes a public Vercel Function)', () => {
-    expect(readdirSync(path.join(ROOT, 'api'))).toEqual(['index.ts']);
+    expect(readdirSync(path.join(ROOT, 'api'))).toEqual(['index.js']);
   });
 
   it('the endpoint answers 401/404-class, not 200, through the real app', async () => {
@@ -344,7 +344,7 @@ describe('repository hygiene: the Stage 1 diagnostic endpoint is gone', () => {
   });
 
   it('entry point and handler have no listener, timer, signal handler, process exit, Vite or local-runner import', () => {
-    for (const f of ['api/index.ts', 'src/server/serverless/handler.ts']) {
+    for (const f of ['src/server/serverless/entry.ts', 'src/server/serverless/handler.ts']) {
       const src = readFileSync(path.join(ROOT, f), 'utf8');
       expect(src, f).not.toMatch(/\.listen\s*\(/);
       expect(src, f).not.toMatch(/process\.(exit|on|once)\s*\(/);
