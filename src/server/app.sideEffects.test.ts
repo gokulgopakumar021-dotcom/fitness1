@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createApp } from './app';
@@ -15,7 +16,6 @@ import { testConfig } from './security/testUtils';
  */
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const APP = path.join(ROOT, 'src/server/app.ts');
-const TSX = path.join(ROOT, 'node_modules/.bin/tsx');
 
 /** Relative import specifiers (static `from '...'` and side-effect `import '...'`) of a TypeScript source file. */
 function relativeImports(file: string): string[] {
@@ -85,14 +85,14 @@ describe('src/server/app.ts import (runtime)', () => {
   it('importing the module in a fresh Node process creates no listener or handle: the process exits by itself, with no signal handlers', async () => {
     const script = [
       `const before = { sigterm: process.listenerCount('SIGTERM'), sigint: process.listenerCount('SIGINT'), exit: process.listenerCount('exit') };`,
-      `const m = await import(${JSON.stringify(APP)});`,
+      `const m = await import(${JSON.stringify(pathToFileURL(APP).href)});`,
       `const after = { sigterm: process.listenerCount('SIGTERM'), sigint: process.listenerCount('SIGINT'), exit: process.listenerCount('exit') };`,
       `console.log('RESULT ' + JSON.stringify({ hasCreateApp: typeof m.createApp === 'function', before, after }));`
     ].join('\n');
-    const child = spawn(TSX, ['--input-type=module', '-e', script], {
+    const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], {
       cwd: ROOT,
       // No env at all: nothing may read a secret or connect somewhere at import time.
-      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '' },
+      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}) },
       stdio: ['ignore', 'pipe', 'pipe']
     });
     let stdout = '';

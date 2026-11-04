@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -470,13 +471,13 @@ describe('serverless module hygiene', () => {
   it('importing it in a fresh Node process with no environment has no effect: it exits by itself, no handlers, no connection attempt', async () => {
     const script = [
       `const before = [process.listenerCount('SIGTERM'), process.listenerCount('SIGINT'), process.listenerCount('exit')];`,
-      `const m = await import(${JSON.stringify(FILE)});`,
+      `const m = await import(${JSON.stringify(pathToFileURL(FILE).href)});`,
       `const after = [process.listenerCount('SIGTERM'), process.listenerCount('SIGINT'), process.listenerCount('exit')];`,
       `console.log('RESULT ' + JSON.stringify({ ok: typeof m.getApp === 'function' && typeof m.createAppProvider === 'function', same: JSON.stringify(before) === JSON.stringify(after) }));`
     ].join('\n');
-    const child = spawn(path.join(ROOT, 'node_modules/.bin/tsx'), ['--input-type=module', '-e', script], {
+    const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], {
       cwd: ROOT,
-      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '' },
+      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}) },
       stdio: ['ignore', 'pipe', 'pipe']
     });
     let stdout = '';
