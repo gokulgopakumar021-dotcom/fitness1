@@ -8,12 +8,92 @@ import express2 from "express";
 
 // src/server/gemini.ts
 import { GoogleGenAI } from "@google/genai";
+
+// src/server/security/logger.ts
+var SENSITIVE_KEY = /token|authorization|password|passwd|secret|api[-_]?key|cookie|bearer|jwt/i;
+var MAX_STRING = 500;
+var JWT_LIKE = /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}/g;
+var BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
+var GOOGLE_KEY = /AIza[0-9A-Za-z_-]{20,}/g;
+var SB_KEY = /sb_(?:secret|publishable)_[A-Za-z0-9_-]+/g;
+var URL_QUERY_KEY = /([?&](?:key|api_key|apikey|token|access_token)=)[^&\s]+/gi;
+function scrubString(value) {
+  const cleaned = value.replace(JWT_LIKE, "[redacted-jwt]").replace(BEARER, "Bearer [redacted]").replace(GOOGLE_KEY, "[redacted-key]").replace(SB_KEY, "[redacted-key]").replace(URL_QUERY_KEY, "$1[redacted]");
+  return cleaned.length > MAX_STRING ? `${cleaned.slice(0, MAX_STRING)}\u2026[truncated]` : cleaned;
+}
+function redact(value, depth = 0) {
+  if (value == null) return value;
+  if (typeof value === "string") return scrubString(value);
+  if (typeof value !== "object") return value;
+  if (depth > 4) return "[depth-limit]";
+  if (value instanceof Error) return serializeError(value);
+  if (Array.isArray(value)) return value.slice(0, 20).map((v) => redact(v, depth + 1));
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    out[k] = SENSITIVE_KEY.test(k) ? "[redacted]" : redact(v, depth + 1);
+  }
+  return out;
+}
+function serializeError(err) {
+  if (err instanceof Error) {
+    const status = err.status;
+    return {
+      name: err.name,
+      message: scrubString(err.message),
+      ...typeof status === "number" ? { status } : {},
+      stack: err.stack ? scrubString(err.stack.split("\n").slice(0, 6).join("\n")) : void 0
+    };
+  }
+  return { message: scrubString(String(err)) };
+}
+var ORDER = { debug: 10, info: 20, warn: 30, error: 40 };
+function threshold() {
+  const raw = (process.env.LOG_LEVEL || (process.env.NODE_ENV === "production" ? "info" : "debug")).toLowerCase();
+  return ORDER[raw] ?? ORDER.info;
+}
+function emit(level, event, fields) {
+  if (ORDER[level] < threshold()) return;
+  const line = JSON.stringify({ ts: (/* @__PURE__ */ new Date()).toISOString(), level, event, ...redact(fields ?? {}) });
+  const sink = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
+  sink(line);
+}
+var logger = {
+  debug: (event, fields) => emit("debug", event, fields),
+  info: (event, fields) => emit("info", event, fields),
+  warn: (event, fields) => emit("warn", event, fields),
+  error: (event, fields) => emit("error", event, fields)
+};
+
+// src/server/gemini.ts
 var GEMINI_TIMEOUT_MS = 9e4;
-function createGenAI(options, timeoutMs = GEMINI_TIMEOUT_MS) {
+var DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-3.6-flash";
+var GEMINI_FALLBACK_MIN_REMAINING_MS = 1e4;
+var MODEL_ID = /^gemini-[a-z0-9][a-z0-9.\-]*$/;
+var warnedInvalidFallback = false;
+function resolveFallbackModel(raw) {
+  const value = raw?.trim();
+  if (!value) return DEFAULT_GEMINI_FALLBACK_MODEL;
+  if (value.toLowerCase() === "off") return null;
+  if (MODEL_ID.test(value)) return value;
+  if (!warnedInvalidFallback) {
+    warnedInvalidFallback = true;
+    logger.warn("gemini_fallback_config_invalid", { reason: "GEMINI_FALLBACK_MODEL is not a valid model id; fallback disabled" });
+  }
+  return null;
+}
+var normalizeModel = (m) => String(m ?? "").replace(/^models\//, "");
+function isUnavailable(error) {
+  const status = error?.status;
+  return status === 503 || status === "UNAVAILABLE";
+}
+function createGenAI(options, timeoutMs = GEMINI_TIMEOUT_MS, wrapperOptions = {}) {
   const ai = new GoogleGenAI({ ...options, httpOptions: { ...options.httpOptions, timeout: timeoutMs } });
   const models = ai.models;
   const generate = models.generateContent.bind(models);
+  const fallbackModel = resolveFallbackModel(wrapperOptions.fallbackModel ?? process.env.GEMINI_FALLBACK_MODEL);
+  const minRemainingMs = wrapperOptions.minRemainingMs ?? GEMINI_FALLBACK_MIN_REMAINING_MS;
   models.generateContent = (async (params) => {
+    const startedAt = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const callerSignal = params.config?.abortSignal;
@@ -23,7 +103,30 @@ function createGenAI(options, timeoutMs = GEMINI_TIMEOUT_MS) {
       else callerSignal.addEventListener("abort", onCallerAbort, { once: true });
     }
     try {
-      return await generate({ ...params, config: { ...params.config, abortSignal: controller.signal } });
+      try {
+        return await generate({ ...params, config: { ...params.config, abortSignal: controller.signal } });
+      } catch (primaryError) {
+        if (!isUnavailable(primaryError)) throw primaryError;
+        if (!fallbackModel || normalizeModel(params.model) === fallbackModel) throw primaryError;
+        const remainingMs = timeoutMs - (Date.now() - startedAt);
+        if (controller.signal.aborted || remainingMs < minRemainingMs) throw primaryError;
+        logger.warn("gemini_fallback", {
+          from: normalizeModel(params.model),
+          to: fallbackModel,
+          status: primaryError.status
+        });
+        const callerTimeout = params.config?.httpOptions?.timeout;
+        return await generate({
+          ...params,
+          model: fallbackModel,
+          config: {
+            ...params.config,
+            abortSignal: controller.signal,
+            // Transport only: keep the SDK's X-Server-Timeout header in line with what is really left of the deadline.
+            httpOptions: { ...params.config?.httpOptions, timeout: Math.min(remainingMs, callerTimeout ?? remainingMs) }
+          }
+        });
+      }
     } finally {
       clearTimeout(timer);
       callerSignal?.removeEventListener("abort", onCallerAbort);
@@ -402,61 +505,6 @@ function parseAiExplanation(raw, review) {
 
 // src/server/security/auth.ts
 import { createClient } from "@supabase/supabase-js";
-
-// src/server/security/logger.ts
-var SENSITIVE_KEY = /token|authorization|password|passwd|secret|api[-_]?key|cookie|bearer|jwt/i;
-var MAX_STRING = 500;
-var JWT_LIKE = /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}/g;
-var BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
-var GOOGLE_KEY = /AIza[0-9A-Za-z_-]{20,}/g;
-var SB_KEY = /sb_(?:secret|publishable)_[A-Za-z0-9_-]+/g;
-var URL_QUERY_KEY = /([?&](?:key|api_key|apikey|token|access_token)=)[^&\s]+/gi;
-function scrubString(value) {
-  const cleaned = value.replace(JWT_LIKE, "[redacted-jwt]").replace(BEARER, "Bearer [redacted]").replace(GOOGLE_KEY, "[redacted-key]").replace(SB_KEY, "[redacted-key]").replace(URL_QUERY_KEY, "$1[redacted]");
-  return cleaned.length > MAX_STRING ? `${cleaned.slice(0, MAX_STRING)}\u2026[truncated]` : cleaned;
-}
-function redact(value, depth = 0) {
-  if (value == null) return value;
-  if (typeof value === "string") return scrubString(value);
-  if (typeof value !== "object") return value;
-  if (depth > 4) return "[depth-limit]";
-  if (value instanceof Error) return serializeError(value);
-  if (Array.isArray(value)) return value.slice(0, 20).map((v) => redact(v, depth + 1));
-  const out = {};
-  for (const [k, v] of Object.entries(value)) {
-    out[k] = SENSITIVE_KEY.test(k) ? "[redacted]" : redact(v, depth + 1);
-  }
-  return out;
-}
-function serializeError(err) {
-  if (err instanceof Error) {
-    const status = err.status;
-    return {
-      name: err.name,
-      message: scrubString(err.message),
-      ...typeof status === "number" ? { status } : {},
-      stack: err.stack ? scrubString(err.stack.split("\n").slice(0, 6).join("\n")) : void 0
-    };
-  }
-  return { message: scrubString(String(err)) };
-}
-var ORDER = { debug: 10, info: 20, warn: 30, error: 40 };
-function threshold() {
-  const raw = (process.env.LOG_LEVEL || (process.env.NODE_ENV === "production" ? "info" : "debug")).toLowerCase();
-  return ORDER[raw] ?? ORDER.info;
-}
-function emit(level, event, fields) {
-  if (ORDER[level] < threshold()) return;
-  const line = JSON.stringify({ ts: (/* @__PURE__ */ new Date()).toISOString(), level, event, ...redact(fields ?? {}) });
-  const sink = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
-  sink(line);
-}
-var logger = {
-  debug: (event, fields) => emit("debug", event, fields),
-  info: (event, fields) => emit("info", event, fields),
-  warn: (event, fields) => emit("warn", event, fields),
-  error: (event, fields) => emit("error", event, fields)
-};
 
 // src/server/security/errors.ts
 var ApiError = class extends Error {

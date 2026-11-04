@@ -17,11 +17,45 @@ Owner decisions received after the first review, now applied:
 
 ### Gemini deadline design (CONFIRMED by local tests with a fake fetch)
 
-- One `AbortController` per `generateContent` call fires at 90 s for the **whole** call. The SDK's `httpOptions.timeout` alone is per attempt, and the installed SDK retries 408/429/5xx up to 5 attempts with back-off (CONFIRMED in the SDK source), so a per-attempt timeout could run for minutes. A test proves repeated 503s do not extend the deadline.
+- One `AbortController` per `generateContent` call fires at 90 s for the **whole** call, including the fallback attempt described below. The SDK's `httpOptions.timeout` alone is per HTTP attempt. Corrected after review: with `@google/genai` 2.31.0 (the version pinned in `package-lock.json`) and `httpOptions.retryOptions` **unset**, the SDK makes exactly **one** HTTP request and does not retry or back off; it retries (5 attempts, 408/429/500/502/503/504) only when `retryOptions` is set, and `createGenAI()` never sets it (CONFIRMED in the SDK source and by a mocked-fetch test: a 503 is one call). An earlier version of this document said the SDK retries up to 5 times; that was wrong for this configuration. The shared deadline stays as a hard bound regardless.
 - The abort surfaces as `AbortError`, which the existing `classifyError` already maps to `504 upstream_timeout` with a fixed message. No provider text, key or stack is returned. No route handler changed other than the client constructor.
 - The timer is cleared when the call settles; a caller-supplied abort signal and the existing `User-Agent` header are preserved.
 - 90 s is 30 s below `maxDuration` (120 s), leaving room to validate and answer. Each AI route makes one Gemini call, so the route total stays under 120 s. The adaptive-explanation route keeps its own shorter 20 s race.
 - This is a behaviour change (Stage 2 listed it as needing approval; approved by decision 3). It does not alter authentication, rate limits, quotas or response shapes for successful calls.
+
+## Gemini 503 model fallback (Stage B)
+
+Status: local only. Nothing deployed, no Vercel setting or environment variable changed.
+
+Implemented centrally in `createGenAI()` (`src/server/gemini.ts`), so it covers all 15 AI routes without touching `src/server/app.ts`.
+
+| Item | Behaviour |
+|---|---|
+| Primary / fallback | Routes request `gemini-3.8-flash`; the fallback is `gemini-3.6-flash` (GA, same published token price per Google's pricing page, as verified in Stage A). |
+| Trigger | Only a primary failure with HTTP `503` / `UNAVAILABLE`. Everything else is rethrown unchanged: 400, 401, 403, 404, 408, 429 (both models share one project quota), 500, 502, 504, aborts, timeouts, network errors. |
+| What changes | Only the `model` identifier, plus the transport timeout (`httpOptions.timeout` = time left of the shared deadline, so the `X-Server-Timeout` header is truthful). Response MIME type, system instruction, temperature and the rest are identical. |
+| Attempts | At most **2 HTTP requests** per generation (one per model); SDK retries stay disabled. |
+| Deadline | One shared 90 s controller/timer for both attempts; the fallback does not get a fresh 90 s. A caller `AbortSignal` cancels either attempt. Timer and listener are cleaned up in `finally`. |
+| Skipped when | The shared controller is already aborted; the fallback is disabled or invalid; the requested model already is the fallback; fewer than 10 s of the deadline remain (the original 503 is rethrown). |
+| Failure | If the fallback also fails, its error is rethrown and the existing `classifyError` mapping applies (`502 ai_upstream_error`, fixed message). No response format change; provider bodies are never forwarded. |
+| Logging | One `logger.warn('gemini_fallback', { from, to, status })` per activation. No prompt, output, key or provider message. |
+
+### Configuration: `GEMINI_FALLBACK_MODEL` (optional, server-side only)
+
+| Value | Effect |
+|---|---|
+| unset or empty | `gemini-3.6-flash` |
+| `off` | fallback disabled |
+| a model id matching `^gemini-[a-z0-9][a-z0-9.\-]*$` | that model is the fallback |
+| anything else | fallback disabled; one sanitized warning per process (the value is not logged); primary behaviour unchanged |
+
+Never create this as a `VITE_` variable: Vite would copy it into the public bundle. No Vercel environment variable needs to be set for the default behaviour.
+
+### Cost and quota notes
+
+- Both models have the same published per-token price (both double on 2027-01-01, independent of this change), so a fallback call costs the same as a primary call.
+- Google's documentation does not state whether a 503 is billed (UNVERIFIED); none is expected because no output is generated. A successful fallback is billed normally.
+- Quota exhaustion (429) is deliberately not a fallback trigger: both models draw on the same key and project.
 
 ### Owner actions (not performed, not possible from the repo)
 
