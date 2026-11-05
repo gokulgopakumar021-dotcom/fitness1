@@ -22,6 +22,16 @@ const SRC = join(ROOT, 'src');
 /** Device-level (not per-account) keys that are deliberately unscoped. Keep this list short and justified. */
 const DEVICE_LEVEL_ALLOWLIST: ReadonlyArray<{ file: string; keyExpr: string; reason: string }> = [
   {
+    file: 'src/sync/deviceStorage.ts',
+    keyExpr: 'key',
+    reason: 'Raw Storage bridge for the sync layer. Every key it receives is already account-scoped (scopedKeyFor); clear() is unsupported.'
+  },
+  {
+    file: 'src/storage/legacyData.ts',
+    keyExpr: 'legacyKey',
+    reason: 'READ-ONLY access to the pre-account unscoped workout keys, used only by the explicit legacy-data claim. Never written or removed (pinned below).'
+  },
+  {
     file: 'src/context/ThemeContext.tsx',
     keyExpr: 'THEME_STORAGE_KEY',
     reason: 'Light/dark UI preference only; no personal data. Must apply before sign-in (login screen). Not cleared by account erase.'
@@ -141,6 +151,14 @@ describe('IL-03 guard: localStorage keys cannot bypass the account scope', () =>
     for (const f of ['src/storage/resetAll.ts', 'src/storage/db.ts']) {
       expect(readFileSync(join(ROOT, f), 'utf8')).toMatch(/for \(const k of keysInCurrentScope\(\)\) localStorage\.removeItem\(k\)/);
     }
+  });
+
+  it('the legacy-data reader only ever READS unscoped keys and the sync bridge never bypasses scope', () => {
+    const legacy = stripComments(readFileSync(join(ROOT, 'src/storage/legacyData.ts'), 'utf8'));
+    expect(legacy).not.toMatch(/localStorage\.(setItem|removeItem)\s*\(\s*legacyKey/);
+    expect([...legacy.matchAll(/localStorage\.getItem\(\s*legacyKey\s*\)/g)]).toHaveLength(1);
+    const bridge = stripComments(readFileSync(join(ROOT, 'src/sync/deviceStorage.ts'), 'utf8'));
+    expect(bridge).not.toMatch(/localStorage\.clear/);
   });
 
   it('every allow-list entry is still needed and still matches (no stale or widened exceptions)', () => {

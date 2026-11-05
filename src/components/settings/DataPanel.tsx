@@ -6,7 +6,10 @@ import { db } from '../../storage/db';
 import { resetAllAppData } from '../../storage/resetAll';
 import { runAllAutomatedTests, TestResult } from '../../utils/testSuite';
 import { DataControls } from './DataControls';
+import { LegacyDataClaim } from './LegacyDataClaim';
+import { getClaimState, readLegacyWorkoutData } from '../../storage/legacyData';
 import { SettingRow, SettingRows, SettingsCard } from './SettingsParts';
+import { SyncStatusCard } from '../sync/SyncStatusCard';
 
 interface DataPanelProps {
   isDemoMode: boolean;
@@ -67,6 +70,16 @@ export const DataPanel: React.FC<DataPanelProps> = ({ isDemoMode, onLoadDemoData
 
   const [testResults, setTestResults] = useState<TestResult[] | null>(null);
 
+  const [replaceContent, setReplaceContent] = useState<string | null>(null);
+  const [isReplacing, setIsReplacing] = useState(false);
+  const replaceRef = useRef<HTMLInputElement>(null);
+  const [resetNote, setResetNote] = useState<string | null>(null);
+  const [claimOpen, setClaimOpen] = useState(false);
+  const [, setClaimVersion] = useState(0);
+  const legacyNow = readLegacyWorkoutData();
+  const legacyCount = legacyNow.plans.length + legacyNow.sessions.length;
+  const legacyClaimed = getClaimState()?.status === 'claimed';
+
   const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -78,9 +91,9 @@ export const DataPanel: React.FC<DataPanelProps> = ({ isDemoMode, onLoadDemoData
     reader.onload = (event) => {
       try {
         const content = event.target?.result as string;
-        const result = db.importBackupJSON(content);
+        const result = db.importBackupJSON(content); // merges by record id; never deletes
         if (result.success) {
-          setImportStatus('Backup restored successfully! Updating data...');
+          setImportStatus(result.message);
           onProfileReplaced(db.getProfile());
         } else {
           setImportError(result.message);
@@ -90,6 +103,42 @@ export const DataPanel: React.FC<DataPanelProps> = ({ isDemoMode, onLoadDemoData
       }
     };
     reader.readAsText(file);
+  };
+
+  const handlePickReplaceFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImportStatus(null);
+    setImportError(null);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = String(event.target?.result ?? '');
+      try {
+        const parsed = JSON.parse(content);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
+        setReplaceContent(content);
+      } catch {
+        setImportError('That file is not a valid backup. Nothing was changed.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const confirmReplace = () => {
+    if (replaceContent === null) return;
+    setIsReplacing(true);
+    // Backup protection: the current data is downloaded BEFORE anything is replaced.
+    download(db.exportFullBackupJSON(), 'application/json', `ironlog-pre-restore-backup-${today()}.json`);
+    const result = db.importBackupJSON(replaceContent, { mode: 'replace' });
+    setIsReplacing(false);
+    setReplaceContent(null);
+    if (result.success) {
+      setImportStatus(result.message);
+      onProfileReplaced(db.getProfile());
+    } else {
+      setImportError(result.message);
+    }
   };
 
   const closeReset = () => {
@@ -103,7 +152,14 @@ export const DataPanel: React.FC<DataPanelProps> = ({ isDemoMode, onLoadDemoData
     setResetError(null);
     try {
       // Also erases Body Scan data (IndexedDB), which localStorage.clear() cannot reach.
-      await resetAllAppData();
+      const pre = await resetAllAppData();
+      if (pre && pre.cloudEnabled) {
+        setResetNote(
+          pre.cloudChecked
+            ? 'Your workout data was also removed from your account.'
+            : 'Your workout data was removed here. The cloud deletion is queued and finishes when this device is back online.'
+        );
+      }
     } catch (e) {
       setResetError(`${e instanceof Error ? e.message : 'Body Scan data could not be deleted.'} Nothing was reset.`);
       setIsResetting(false);
@@ -132,7 +188,7 @@ export const DataPanel: React.FC<DataPanelProps> = ({ isDemoMode, onLoadDemoData
               </Button>
             </SettingRow>
           ))}
-          <SettingRow label="Restore from JSON backup" description="Replaces your data with the contents of a backup file you exported earlier.">
+          <SettingRow label="Restore from JSON backup" description="Merges a backup file into your data: missing workouts and plans are added and nothing you already have is deleted.">
             <div className="flex flex-col items-start sm:items-end gap-1.5">
               <Button
                 type="button"
@@ -146,6 +202,19 @@ export const DataPanel: React.FC<DataPanelProps> = ({ isDemoMode, onLoadDemoData
               <input ref={fileRef} type="file" accept=".json" onChange={handleImportJSON} className="hidden" aria-label="Choose backup file" />
             </div>
           </SettingRow>
+          <SettingRow label="Replace everything from a backup" description="Destructive: makes your workout data match a backup exactly. Anything not in the backup is deleted here and in your account. A backup of your current data downloads first.">
+            <div className="flex flex-col items-start sm:items-end gap-1.5">
+              <Button type="button" variant="danger" size="sm" icon={<Upload className="w-4 h-4" aria-hidden />} onClick={() => replaceRef.current?.click()}>
+                Replace from backup…
+              </Button>
+              <input ref={replaceRef} type="file" accept=".json" onChange={handlePickReplaceFile} className="hidden" aria-label="Choose backup file to replace data with" />
+            </div>
+          </SettingRow>
+          {legacyCount > 0 && !legacyClaimed && (
+            <SettingRow label="Workouts from before you signed in" description={`${legacyNow.plans.length} plan${legacyNow.plans.length === 1 ? '' : 's'} and ${legacyNow.sessions.length} logged workout${legacyNow.sessions.length === 1 ? '' : 's'} were found on this device. Import them into your account if you want them.`}>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setClaimOpen(true)}>Review & import…</Button>
+            </SettingRow>
+          )}
         </SettingRows>
         {importStatus && (
           <p role="status" className="text-xs text-accent">
@@ -159,7 +228,15 @@ export const DataPanel: React.FC<DataPanelProps> = ({ isDemoMode, onLoadDemoData
         )}
       </SettingsCard>
 
+      <SyncStatusCard />
+
       <DataControls />
+
+      <LegacyDataClaim
+        open={claimOpen}
+        onClose={() => { setClaimOpen(false); setClaimVersion((v) => v + 1); }}
+        onClaimed={() => { setClaimVersion((v) => v + 1); onProfileReplaced(db.getProfile()); }}
+      />
 
       <SettingsCard title="Demo dataset" description="Preview the progressive overload engine and reports using labeled sample workouts.">
         <SettingRows>
@@ -180,10 +257,15 @@ export const DataPanel: React.FC<DataPanelProps> = ({ isDemoMode, onLoadDemoData
         </SettingRows>
       </SettingsCard>
 
-      <SettingsCard danger title="Reset all data" description="Irreversibly erase all training logs, body weight metrics, plans and profile data on this device.">
-        <Button type="button" variant="danger" onClick={() => setShowReset(true)}>
+      <SettingsCard danger title="Reset all data" description="Irreversibly erase all training logs, body weight metrics, plans and profile data on this device. Synced workout data is deleted from your account too.">
+        <Button type="button" variant="danger" onClick={() => { setResetNote(null); setShowReset(true); }}>
           Reset All Data
         </Button>
+        {resetNote && (
+          <p role="status" className="text-xs text-accent">
+            {resetNote}
+          </p>
+        )}
       </SettingsCard>
 
       <SettingsCard
@@ -240,12 +322,32 @@ export const DataPanel: React.FC<DataPanelProps> = ({ isDemoMode, onLoadDemoData
           <p className="text-sm text-zinc-300 leading-relaxed">
             This will permanently delete all your logged workouts, body weight history, nutrition records, custom routines, and any Body Scan records, photos and consent saved on this device.
           </p>
+          <p className="text-sm text-zinc-300 leading-relaxed">
+            Workout plans and sessions synced to your account are deleted there too, and will not come back on your other devices.
+          </p>
           {resetError && (
             <p role="alert" className="text-xs text-danger">
               {resetError}
             </p>
           )}
         </div>
+      </Modal>
+
+      <Modal
+        open={replaceContent !== null}
+        onClose={() => { if (!isReplacing) setReplaceContent(null); }}
+        title="Replace your data with this backup?"
+        size="sm"
+        footer={
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 w-full">
+            <Button type="button" variant="ghost" onClick={() => setReplaceContent(null)} disabled={isReplacing}>Cancel</Button>
+            <Button type="button" variant="danger" onClick={confirmReplace} loading={isReplacing}>Download backup &amp; replace</Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-zinc-300 leading-relaxed">
+          Workouts and plans that are not in this backup will be deleted on this device and in your account. A backup of your current data is downloaded first so you can undo this.
+        </p>
       </Modal>
     </>
   );

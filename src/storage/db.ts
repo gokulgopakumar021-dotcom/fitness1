@@ -11,7 +11,11 @@ import {
 } from '../types';
 import { STARTER_PPL_PLAN, STARTER_UPPER_LOWER_PLAN } from '../data/starterPlans';
 import { COMMON_FOOD_DATABASE } from '../data/foodDatabase';
-import { scopedKey, keysInCurrentScope } from './storageScope';
+import { scopedKey, keysInCurrentScope, getStorageScope, SIGNED_OUT_SCOPE } from './storageScope';
+import { deviceStorage } from '../sync/deviceStorage';
+import { notifyLocalWorkoutChange } from '../sync/syncNotify';
+import { archiveConflict, loadMeta, restoreBookkeeping, snapshotBookkeeping } from '../sync/syncMeta';
+import { emptyStats, mergeById, type MergeResult, type MergeStats } from './backupMerge';
 import { logClientError } from '../lib/clientLog';
 
 const BASE_KEYS = {
@@ -63,6 +67,14 @@ export const DEFAULT_PROFILE: UserProfile = {
   onboardingCompleted: false
 };
 
+export interface ImportSummary {
+  plans: MergeStats;
+  sessions: MergeStats;
+  other: MergeStats;
+  profileApplied: boolean;
+}
+export interface ImportResult { success: boolean; message: string; summary?: ImportSummary }
+
 class IronLogDB {
   // --- Profile ---
   getProfile(): UserProfile {
@@ -113,16 +125,21 @@ class IronLogDB {
     }
     // Return starter templates by default
     const starters = [{ ...STARTER_PPL_PLAN }, { ...STARTER_UPPER_LOWER_PLAN }];
-    this.savePlans(starters);
+    this.writePlans(starters); // seeding is not a user change: it must not wake the sync layer
     return starters;
   }
 
-  savePlans(plans: WorkoutPlan[]): void {
+  private writePlans(plans: WorkoutPlan[]): void {
     try {
       localStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(plans));
     } catch (e) {
       logClientError('storage: Failed saving plans', e);
     }
+  }
+
+  savePlans(plans: WorkoutPlan[]): void {
+    this.writePlans(plans);
+    notifyLocalWorkoutChange();
   }
 
   getActivePlanId(): string | null {
@@ -135,6 +152,7 @@ class IronLogDB {
     } else {
       localStorage.removeItem(STORAGE_KEYS.ACTIVE_PLAN_ID);
     }
+    notifyLocalWorkoutChange();
   }
 
   // --- Workout Sessions ---
@@ -157,6 +175,7 @@ class IronLogDB {
     } catch (e) {
       logClientError('storage: Failed saving sessions', e);
     }
+    notifyLocalWorkoutChange();
   }
 
   addOrUpdateSession(session: WorkoutSession): void {
@@ -196,6 +215,7 @@ class IronLogDB {
     } catch (e) {
       logClientError('storage: Failed saving active session', e);
     }
+    notifyLocalWorkoutChange();
   }
 
   /**
@@ -843,24 +863,121 @@ class IronLogDB {
     return JSON.stringify(backup, null, 2);
   }
 
-  importBackupJSON(jsonStr: string): { success: boolean; message: string } {
+  /**
+   * Restores a JSON backup.
+   *
+   * 'merge' (the default) merges every id-keyed collection BY RECORD ID: missing records are added, matching records
+   * are resolved by the sync conflict rule (later timestamp wins, tie keeps local, the loser goes to the conflict
+   * archive), and records that are absent from the backup are kept. Absence from a backup therefore never deletes
+   * anything, locally or in the cloud.
+   *
+   * 'replace' is the old exact-replacement behaviour. It is destructive (records absent from the backup are removed,
+   * and the sync layer then tombstones them in the cloud), so callers must confirm it and take a backup first.
+   */
+  importBackupJSON(jsonStr: string, options: { mode?: 'merge' | 'replace' } = {}): ImportResult {
     try {
       const data = JSON.parse(jsonStr);
-      if (!data || typeof data !== 'object') {
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
         return { success: false, message: 'Invalid JSON file format.' };
       }
-      if (data.profile) this.saveProfile(data.profile);
-      if (Array.isArray(data.plans)) this.savePlans(data.plans);
-      if (data.activePlanId) this.setActivePlanId(data.activePlanId);
-      if (Array.isArray(data.sessions)) this.saveSessions(data.sessions);
-      if (Array.isArray(data.nutritionLogs)) this.saveNutritionLogs(data.nutritionLogs);
-      if (Array.isArray(data.customFoods)) this.saveCustomFoods(data.customFoods);
-      if (Array.isArray(data.bodyMetrics)) this.saveBodyMetrics(data.bodyMetrics);
-      if (Array.isArray(data.recommendations)) this.saveRecommendations(data.recommendations);
-      return { success: true, message: 'Backup successfully restored.' };
+      return options.mode === 'replace' ? this.replaceFromBackup(data) : this.mergeFromBackup(data);
     } catch (e: any) {
       return { success: false, message: `Failed to parse backup: ${e?.message || 'Unknown error'}` };
     }
+  }
+
+  private replaceFromBackup(data: any): ImportResult {
+    if (data.profile) this.saveProfile(data.profile);
+    if (Array.isArray(data.plans)) this.savePlans(data.plans);
+    if (data.activePlanId) this.setActivePlanId(data.activePlanId);
+    if (Array.isArray(data.sessions)) this.saveSessions(data.sessions);
+    if (Array.isArray(data.nutritionLogs)) this.saveNutritionLogs(data.nutritionLogs);
+    if (Array.isArray(data.customFoods)) this.saveCustomFoods(data.customFoods);
+    if (Array.isArray(data.bodyMetrics)) this.saveBodyMetrics(data.bodyMetrics);
+    if (Array.isArray(data.recommendations)) this.saveRecommendations(data.recommendations);
+    return { success: true, message: 'Backup restored. Your data now matches the backup exactly.' };
+  }
+
+  /** Merges `incoming` workout records into storage by id and verifies the write. Returns null when nothing could be written. */
+  mergeWorkoutRecords(kind: 'plans' | 'sessions', incoming: unknown[]): (MergeResult<any> & { verified: boolean }) | null {
+    const uid = getStorageScope() ?? SIGNED_OUT_SCOPE;
+    const meta = loadMeta(deviceStorage, uid);
+    const localList: any[] = kind === 'plans' ? this.getPlans() : this.getSessions();
+    const result = mergeById(localList, incoming, {
+      kind,
+      localTime: (rec) => {
+        const t = Date.parse(meta.records[kind][String(rec.id)]?.cua ?? '');
+        return Number.isFinite(t) ? t : 0;
+      }
+    });
+    if (result.changedIds.length === 0 && result.losers.length === 0) return { ...result, verified: true };
+    if (result.changedIds.length > 0) {
+      if (kind === 'plans') this.savePlans(result.merged);
+      else this.saveSessions(result.merged);
+      const stored: any[] = kind === 'plans' ? this.getPlans() : this.getSessions();
+      const byId = new Map(stored.map((r) => [r.id, JSON.stringify(r)]));
+      const verified = result.changedIds.every((id) => byId.get(id) === JSON.stringify(result.merged.find((r) => r.id === id)));
+      if (!verified) {
+        // Put the previous list back exactly; nothing of the import is kept half-applied.
+        if (kind === 'plans') this.savePlans(localList);
+        else this.saveSessions(localList);
+        return null;
+      }
+    }
+    for (const l of result.losers) {
+      archiveConflict(deviceStorage, uid, { at: new Date().toISOString(), kind, id: l.id, reason: l.reason, data: l.data });
+    }
+    return { ...result, verified: true };
+  }
+
+  private mergeFromBackup(data: any): ImportResult {
+    const summary: ImportSummary = { plans: emptyStats(), sessions: emptyStats(), other: emptyStats(), profileApplied: false };
+    const add = (into: MergeStats, from: MergeStats) => {
+      for (const k of Object.keys(into) as (keyof MergeStats)[]) into[k] += from[k];
+    };
+
+    if (Array.isArray(data.plans)) {
+      const r = this.mergeWorkoutRecords('plans', data.plans);
+      if (!r) return { success: false, message: 'Backup could not be written to this device. Nothing was changed.' };
+      summary.plans = r.stats;
+    }
+    if (Array.isArray(data.sessions)) {
+      const r = this.mergeWorkoutRecords('sessions', data.sessions);
+      if (!r) return { success: false, message: 'Backup could not be written to this device. Plans were merged; workout history was left unchanged.' };
+      summary.sessions = r.stats;
+    }
+
+    const mergeOther = <T extends { id: string }>(incoming: unknown, local: T[], save: (list: T[]) => unknown) => {
+      if (!Array.isArray(incoming)) return;
+      const r = mergeById(local, incoming, { kind: 'other' });
+      if (r.changedIds.length > 0) save(r.merged);
+      add(summary.other, r.stats);
+    };
+    mergeOther(data.nutritionLogs, this.getNutritionLogs(), (l) => this.saveNutritionLogs(l));
+    mergeOther(data.customFoods, this.getCustomFoods(), (l) => this.saveCustomFoods(l));
+    mergeOther(data.bodyMetrics, this.getBodyMetrics(), (l) => this.saveBodyMetrics(l));
+    mergeOther(data.recommendations, this.getRecommendations(), (l) => this.saveRecommendations(l));
+
+    // Single-record settings: a restore must not overwrite the choices of an account that is already set up.
+    if (data.profile && !this.getProfile().onboardingCompleted) {
+      this.saveProfile(data.profile);
+      summary.profileApplied = true;
+    }
+    const currentActive = this.getActivePlanId();
+    if (typeof data.activePlanId === 'string' && (!currentActive || !this.getPlans().some((p) => p.id === currentActive))) {
+      if (this.getPlans().some((p) => p.id === data.activePlanId)) this.setActivePlanId(data.activePlanId);
+    }
+
+    const w = summary.plans.added + summary.sessions.added;
+    const kept = summary.plans.keptLocal + summary.sessions.keptLocal;
+    const parts = [`${summary.plans.added} plan${summary.plans.added === 1 ? '' : 's'} and ${summary.sessions.added} workout${summary.sessions.added === 1 ? '' : 's'} added`];
+    if (summary.plans.replaced + summary.sessions.replaced > 0) parts.push(`${summary.plans.replaced + summary.sessions.replaced} updated from newer backup versions`);
+    if (kept > 0) parts.push(`${kept} kept your newer version (the backup copy is saved in the conflict archive)`);
+    return {
+      success: true,
+      message: `Backup merged: ${parts.join('; ')}. Nothing already on this device was deleted.${w === 0 && kept === 0 ? ' Everything in the backup was already here.' : ''}`,
+      summary
+    };
   }
 
   exportWorkoutsCSV(): string {
@@ -952,11 +1069,17 @@ class IronLogDB {
   }
 
   resetAllData(): void {
+    // The sync bookkeeping (which records the cloud holds, and any deletion still waiting for the cloud to confirm)
+    // must survive the wipe: it is what lets the sync layer turn "these records are gone" into cloud tombstones.
+    // Without it a reset would look like a brand-new device, and the next sync would download everything again.
+    const uid = getStorageScope();
+    const bookkeeping = uid ? snapshotBookkeeping(deviceStorage, uid) : [];
     // Only the active scope's keys: with an account signed in this must not wipe other accounts' or the
     // legacy on-device data. With no scope it clears the legacy keys (previously: everything).
     for (const k of keysInCurrentScope()) localStorage.removeItem(k);
+    restoreBookkeeping(deviceStorage, bookkeeping);
     this.saveProfile({ ...DEFAULT_PROFILE });
-    this.savePlans([{ ...STARTER_PPL_PLAN }, { ...STARTER_UPPER_LOWER_PLAN }]);
+    this.savePlans([{ ...STARTER_PPL_PLAN }, { ...STARTER_UPPER_LOWER_PLAN }]); // notifies the sync layer
   }
 }
 

@@ -9,7 +9,10 @@ import { acquireRedis, freePort, redisSuite, TcpProxy, urlViaProxy, type RedisTa
  * operator would see: exit codes, stderr, and the live health endpoint. No mocks.
  */
 const ROOT = path.resolve(import.meta.dirname, '../../..');
-const TSX = path.join(ROOT, 'node_modules/.bin/tsx');
+// Cross-platform launch: run the current Node binary with tsx's loader. `node_modules/.bin/tsx` is a shell script on
+// Windows (only `tsx.cmd` is executable there), so spawning it directly fails with ENOENT. One process, so kill() also
+// stops the server itself (no wrapper process left behind).
+const NODE_ARGS = ['--import', 'tsx', 'server.ts'];
 
 interface Run {
   code: number | null;
@@ -18,9 +21,9 @@ interface Run {
 }
 
 function launch(env: Record<string, string>) {
-  const child = spawn(TSX, ['server.ts'], {
+  const child = spawn(process.execPath, NODE_ARGS, {
     cwd: ROOT,
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', NODE_ENV: 'production', SUPABASE_URL: 'https://abc.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test_not_real', ...env },
+    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}), NODE_ENV: 'production', SUPABASE_URL: 'https://abc.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test_not_real', ...env },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   let stdout = '';

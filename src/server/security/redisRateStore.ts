@@ -51,6 +51,9 @@ const peekScript = defineScript({
   transformReply: (reply: unknown) => reply as [number, number]
 });
 
+/** PING cadence for idle connections. Well below typical managed-Redis/NAT idle timeouts, far above command latency. */
+export const DEFAULT_PING_INTERVAL_MS = 15_000;
+export const DEFAULT_RECYCLE_AFTER_TIMEOUTS = 3;
 export const MAX_WINDOW_MS = 24 * 60 * 60 * 1000;
 const PREFIX_RE = /^[A-Za-z0-9_.-]{1,40}$/;
 
@@ -87,6 +90,19 @@ export interface RedisRateStoreOptions {
   keyPrefix?: string;
   connectTimeoutMs?: number;
   commandTimeoutMs?: number;
+  /**
+   * Application-level PING interval for an otherwise idle connection (0 disables). Serverless instances can sit idle
+   * and then be reused; periodic PINGs keep the connection active through idle-connection timeouts of proxies and
+   * managed Redis, and surface a dead socket (via the 'error' listener below) so the client reconnects BEFORE a
+   * user request has to discover it. TCP keep-alive stays at the client default (on, 30 s initial delay).
+   */
+  pingIntervalMs?: number;
+  /**
+   * Consecutive command timeouts after which the connection is presumed dead (silently stalled socket, e.g. after an
+   * instance was suspended) and the client is replaced by a fresh one. 0 disables. Only timeouts count: a fast error
+   * is already handled by the client's own reconnect strategy.
+   */
+  recycleAfterTimeouts?: number;
   now?: () => number;
   /** Throttle for repeated "unavailable" log lines. */
   logEveryMs?: number;
@@ -98,7 +114,12 @@ type ScriptClient = {
 };
 
 export class RedisRateStore implements RateStore {
-  private readonly client: ReturnType<typeof createClient> & ScriptClient;
+  private client: ReturnType<typeof createClient> & ScriptClient;
+  private readonly options: RedisRateStoreOptions;
+  private readonly connectTimeout: number;
+  private readonly pingInterval: number;
+  private readonly recycleAfter: number;
+  private consecutiveTimeouts = 0;
   private readonly prefix: string;
   private readonly commandTimeoutMs: number;
   private readonly now: () => number;
@@ -114,31 +135,71 @@ export class RedisRateStore implements RateStore {
     this.commandTimeoutMs = opts.commandTimeoutMs ?? 500;
     this.now = opts.now ?? Date.now;
     this.logEveryMs = opts.logEveryMs ?? 10_000;
-    const connectTimeout = opts.connectTimeoutMs ?? 2_000;
+    this.options = opts;
+    this.connectTimeout = opts.connectTimeoutMs ?? 2_000;
+    this.pingInterval = opts.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
+    if (!Number.isInteger(this.pingInterval) || this.pingInterval < 0) throw new RangeError('pingIntervalMs must be a non-negative integer');
+    this.recycleAfter = opts.recycleAfterTimeouts ?? DEFAULT_RECYCLE_AFTER_TIMEOUTS;
+    if (!Number.isInteger(this.recycleAfter) || this.recycleAfter < 0) throw new RangeError('recycleAfterTimeouts must be a non-negative integer');
+    this.client = this.openClient();
+  }
 
+  /** Builds a client and starts connecting in the background; requests are refused (not queued) until it is ready. */
+  private openClient(): ReturnType<typeof createClient> & ScriptClient {
+    const opts = this.options;
     const client = createClient({
       url: opts.url,
       // Commands fail immediately while disconnected instead of queueing until reconnect: a request must get its
       // 503 (or its degraded decision) now, not after an unbounded wait.
       disableOfflineQueue: true,
+      // 0 leaves the client option unset (disabled). The client clears its ping timer on close()/destroy().
+      ...(this.pingInterval > 0 ? { pingInterval: this.pingInterval } : {}),
       socket: {
-        connectTimeout,
+        connectTimeout: this.connectTimeout,
         // Reconnect forever with capped exponential back-off plus jitter, so recovery needs no restart.
         reconnectStrategy: (retries: number) => Math.min(2 ** Math.min(retries, 6) * 50, 2_000) + Math.floor(Math.random() * 100)
       },
       scripts: { hitScript, peekScript }
     } as any) as unknown as ReturnType<typeof createClient> & ScriptClient;
 
-    // Without an 'error' listener node-redis would crash the process on a connection error.
-    client.on('error', (err: unknown) => this.noteDown('connection_error', err));
+    // Without an 'error' listener node-redis would crash the process on a connection error. Listeners ignore events
+    // from a client that has already been replaced, so a retired client can never affect the live one.
+    client.on('error', (err: unknown) => {
+      if (client !== this.client) return;
+      this.noteDown('connection_error', err);
+      // The periodic PING has no per-request guard; its timeout is the earliest signal of a silently dead socket.
+      if ((err as { name?: string } | undefined)?.name === 'TimeoutError') this.noteTimeout();
+    });
     client.on('ready', () => {
+      if (client !== this.client) return;
       if (this.wasDown) logger.info('rate_store_recovered', { store: 'redis', target: redactRedisUrl(opts.url) });
       else logger.info('rate_store_connected', { store: 'redis', target: redactRedisUrl(opts.url) });
       this.wasDown = false;
     });
-    this.client = client;
-    // Connect in the background; requests are refused (not queued) until the client reports ready.
-    void client.connect().catch((err: unknown) => this.noteDown('initial_connect_failed', err));
+    void client.connect().catch((err: unknown) => {
+      if (client === this.client) this.noteDown('initial_connect_failed', err);
+    });
+    return client;
+  }
+
+  /** Counts a timeout; after the configured run of them, swaps in a fresh client (a stalled socket never recovers alone). */
+  private noteTimeout() {
+    this.consecutiveTimeouts += 1;
+    if (this.recycleAfter > 0 && this.consecutiveTimeouts >= this.recycleAfter) this.recycle();
+  }
+
+  private recycle() {
+    if (this.closed) return;
+    this.consecutiveTimeouts = 0;
+    const stale = this.client;
+    logger.warn('rate_store_recycling_connection', { store: 'redis', reason: 'consecutive_command_timeouts', threshold: this.recycleAfter });
+    // Install the replacement first so no request is ever routed to a client that is being torn down.
+    this.client = this.openClient();
+    try {
+      stale.destroy();
+    } catch {
+      /* already closed */
+    }
   }
 
   get isReady(): boolean {
@@ -194,13 +255,16 @@ export class RedisRateStore implements RateStore {
     }
     let timer: NodeJS.Timeout | undefined;
     try {
-      return await Promise.race([
+      const result = await Promise.race([
         fn(),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(Object.assign(new Error('redis command timeout'), { code: 'COMMAND_TIMEOUT' })), this.commandTimeoutMs);
         })
       ]);
+      this.consecutiveTimeouts = 0;
+      return result;
     } catch (err) {
+      if ((err as { code?: string } | undefined)?.code === 'COMMAND_TIMEOUT') this.noteTimeout();
       this.noteDown(`${op}_failed`, err);
       throw new RateStoreUnavailableError();
     } finally {

@@ -280,6 +280,114 @@ redisSuite('RedisRateStore against a real Redis', target, () => {
     });
   });
 
+  describe('serverless connection lifecycle (Stage 3.4)', () => {
+    it('a silently stalled connection is recycled after consecutive timeouts, then serves again without a restart', async () => {
+      const s = await ready(makeStore({ commandTimeoutMs: 150, recycleAfterTimeouts: 3, pingIntervalMs: 0 }));
+      const k = `user:stale-${Math.random()}`;
+      await s.hit(k, 60_000);
+      proxy.stall(); // sockets stay open, nothing answers: the client still believes it is ready
+      for (let i = 0; i < 3; i++) await expect(s.hit(k, 60_000)).rejects.toBeInstanceOf(RateStoreUnavailableError);
+      expect(logged()).toContain('rate_store_recycling_connection');
+      proxy.unstall();
+      const h = await eventually(() => s.hit(k, 60_000), 5000);
+      // Same Redis data, only the connection was replaced. unstall() flushes the held INCRs, so the count may be higher.
+      expect(h.count).toBeGreaterThanOrEqual(2);
+    });
+
+    it('stays failed-closed on every request while the connection is stalled (no memory fallback, no hang)', async () => {
+      const s = await ready(makeStore({ commandTimeoutMs: 120, recycleAfterTimeouts: 0, pingIntervalMs: 0 }));
+      proxy.stall();
+      for (let i = 0; i < 6; i++) {
+        const t0 = Date.now();
+        await expect(s.hit('user:fc', 5000)).rejects.toBeInstanceOf(RateStoreUnavailableError);
+        expect(Date.now() - t0).toBeLessThan(1000);
+      }
+      expect(s).not.toBeInstanceOf(MemoryRateStore);
+      expect(logged()).not.toContain('rate_store_recycling_connection'); // 0 disables recycling
+      proxy.unstall();
+    });
+
+    it('a successful command resets the timeout run, so scattered timeouts never trigger a recycle', async () => {
+      const s = await ready(makeStore({ commandTimeoutMs: 120, recycleAfterTimeouts: 3, pingIntervalMs: 0 }));
+      for (let round = 0; round < 3; round++) {
+        proxy.stall();
+        await expect(s.hit('user:r', 5000)).rejects.toBeInstanceOf(RateStoreUnavailableError);
+        await expect(s.hit('user:r', 5000)).rejects.toBeInstanceOf(RateStoreUnavailableError);
+        proxy.unstall();
+        await eventually(() => s.hit('user:r', 5000), 3000);
+      }
+      expect(logged()).not.toContain('rate_store_recycling_connection');
+    });
+
+    it('a retired client cannot crash or confuse the live one (repeated recycles, one live connection)', async () => {
+      const s = await ready(makeStore({ commandTimeoutMs: 100, recycleAfterTimeouts: 1, pingIntervalMs: 0 }));
+      for (let i = 0; i < 3; i++) {
+        proxy.stall();
+        await expect(s.hit('user:cyc', 5000)).rejects.toBeInstanceOf(RateStoreUnavailableError);
+        proxy.unstall();
+        await eventually(() => s.hit('user:cyc', 5000), 5000);
+      }
+      expect(s.isReady).toBe(true);
+    });
+
+    it('a close() after a recycle releases the live client and stays closed (no resurrection)', async () => {
+      const s = await ready(makeStore({ commandTimeoutMs: 100, recycleAfterTimeouts: 1, pingIntervalMs: 0 }));
+      proxy.stall();
+      await expect(s.hit('user:cl', 5000)).rejects.toBeInstanceOf(RateStoreUnavailableError);
+      proxy.unstall();
+      await eventually(() => s.hit('user:cl', 5000), 5000);
+      await s.close();
+      expect(s.isReady).toBe(false);
+      await expect(s.hit('user:cl', 5000)).rejects.toBeInstanceOf(RateStoreUnavailableError);
+    });
+
+    it('idle PINGs keep running on a healthy connection and do not disturb it', async () => {
+      const s = await ready(makeStore({ pingIntervalMs: 50 }));
+      await sleep(400);
+      expect(s.isReady).toBe(true);
+      expect((await s.hit(`user:idle-${Math.random()}`, 5000)).count).toBe(1);
+      expect(logged()).not.toContain('rate_store_unavailable');
+    });
+
+    it('an idle connection cut by the network is re-established without any request, and the next request succeeds', async () => {
+      const s = await ready(makeStore({ pingIntervalMs: 50 }));
+      await proxy.cut();
+      await eventually(async () => {
+        if (s.isReady) throw new Error('still believes it is ready');
+      }, 3000);
+      await proxy.restore();
+      expect(await s.waitUntilReady(5000)).toBe(true);
+      expect((await s.hit(`user:cut-${Math.random()}`, 5000)).count).toBe(1);
+    });
+
+    it('readiness: not ready before connect completes against a dead target, ready only once connected', async () => {
+      const dead = new RedisRateStore({ url: 'redis://127.0.0.1:1', keyPrefix: prefix, connectTimeoutMs: 100, logEveryMs: 0 });
+      stores.push(dead);
+      expect(dead.isReady).toBe(false);
+      expect(await dead.waitUntilReady(300)).toBe(false);
+      const live = makeStore();
+      expect(await live.waitUntilReady(3000)).toBe(true);
+      expect(live.isReady).toBe(true);
+    });
+
+    it('rejects invalid lifecycle options at construction', () => {
+      expect(() => new RedisRateStore({ url: 'redis://127.0.0.1:1', pingIntervalMs: -1 })).toThrow(RangeError);
+      expect(() => new RedisRateStore({ url: 'redis://127.0.0.1:1', pingIntervalMs: 1.5 })).toThrow(RangeError);
+      expect(() => new RedisRateStore({ url: 'redis://127.0.0.1:1', recycleAfterTimeouts: -2 })).toThrow(RangeError);
+    });
+
+    it('no secret reaches the logs during stall, recycle and recovery', async () => {
+      const s = await ready(makeStore({ commandTimeoutMs: 100, recycleAfterTimeouts: 2, pingIntervalMs: 0 }));
+      proxy.stall();
+      for (let i = 0; i < 2; i++) await expect(s.hit('user:sec', 5000)).rejects.toBeInstanceOf(RateStoreUnavailableError);
+      proxy.unstall();
+      await eventually(() => s.hit('user:sec', 5000), 5000);
+      const out = logged();
+      if (target!.password) expect(out).not.toContain(target!.password);
+      expect(out).not.toContain('AUTH');
+    });
+  });
+
   describe('DegradingRateStore over real Redis', () => {
     it('uses Redis while healthy, per-instance counts while down (flagged), and returns to Redis on recovery', async () => {
       const redis = await ready(makeStore());

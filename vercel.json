@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:__ironlog_api_path*",
+      "destination": "/api"
+    }
+  ],
+  "regions": [
+    "hnd1"
+  ],
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 120
+    }
+  }
+}

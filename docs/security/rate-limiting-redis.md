@@ -66,3 +66,13 @@ TCP proxy that can cut, restore and stall the connection.
 
 Run `npm ci`, `npm run lint`, `npm test` and `npm run build` with a Redis 7 service and `REQUIRE_REDIS_TESTS=1` plus
 `REDIS_TEST_URL` set, so a missing Redis can never produce a green run. (This repository has no CI workflow yet: TST-01.)
+
+## Connection lifecycle in serverless (Stage 3.4)
+
+`RedisRateStore` keeps one client per function instance and hardens it for instances that idle, are suspended and are reused:
+
+- **Idle PING** (`pingIntervalMs`, default 15 000 ms, `0` disables): the node-redis `pingInterval` option keeps an idle connection active and surfaces a dead one through the existing `error` listener. TCP keep-alive stays at the client default (on, 30 s initial delay).
+- **Stalled-socket recycle** (`recycleAfterTimeouts`, default 3, `0` disables): a socket that goes silent (no error, no reply) leaves the client "ready", so every request would otherwise 503 until the OS gives up. After N *consecutive* command timeouts (a success resets the run; a periodic-PING timeout also counts) the store opens a fresh client and destroys the stale one. Events from a retired client are ignored.
+- Unchanged: `disableOfflineQueue`, 500 ms command timeout, 2 s connect timeout, unbounded capped reconnect, fail-closed behaviour, key construction, thresholds. No memory fallback is introduced.
+- `REDIS_URL` must be the TCP/TLS URL (`rediss://default:<password>@<host>:6379`), never an HTTPS REST URL.
+- Not verified here: behaviour after a *real* platform suspension and against Upstash (Preview, Stage 4).
