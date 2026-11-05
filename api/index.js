@@ -67,7 +67,7 @@ var logger = {
 
 // src/server/gemini.ts
 var GEMINI_TIMEOUT_MS = 9e4;
-var DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-3.6-flash";
+var DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-3.5-flash-lite";
 var GEMINI_FALLBACK_MIN_REMAINING_MS = 1e4;
 var GEMINI_RETRY_BASE_DELAY_MS = 1e3;
 var GEMINI_RETRY_MAX_DELAY_MS = 2e3;
@@ -191,9 +191,9 @@ function createGenAI(options, timeoutMs = GEMINI_TIMEOUT_MS, wrapperOptions = {}
         logger.info("gemini_retry_succeeded", { generationId, model: requested, attempts: attemptedModels.length, elapsedMs: elapsedMs() });
         return response;
       } catch (e) {
-        if (!isUnavailable(e)) return giveUp(e, "non_retryable");
-        error = e;
         failedStatuses.push(safeStatus(e));
+        if (!isUnavailable(e)) return giveUp(e, controller.signal.aborted ? "aborted" : "non_retryable");
+        error = e;
       }
       if (!fallbackModel || requested === fallbackModel) return giveUp(error, "no_fallback");
       if (controller.signal.aborted) return giveUp(error, "aborted");
@@ -205,7 +205,7 @@ function createGenAI(options, timeoutMs = GEMINI_TIMEOUT_MS, wrapperOptions = {}
         return response;
       } catch (e) {
         failedStatuses.push(safeStatus(e));
-        return giveUp(e, isUnavailable(e) ? "exhausted" : "non_retryable");
+        return giveUp(e, isUnavailable(e) ? "exhausted" : controller.signal.aborted ? "aborted" : "non_retryable");
       }
     } finally {
       clearTimeout(timer);
@@ -1828,6 +1828,7 @@ function capFreeText(value, max, fallback = "") {
 
 // src/server/app.ts
 var COACH_MAX_OUTPUT_TOKENS = 4096;
+var COACH_TIMEOUT_MS = 45e3;
 function createApp(deps = {}) {
   const app = express2();
   installSecurity(app, deps);
@@ -2619,7 +2620,7 @@ Format strictly as JSON matching this schema:
       });
     }
     try {
-      const ai = createGenAI({ apiKey });
+      const ai = createGenAI({ apiKey }, COACH_TIMEOUT_MS);
       const systemInstruction = `${UNTRUSTED_NOTICE}
 You are "Coach Iron", an elite AI Fitness Personal Trainer and biomechanics specialist.
 You coach athletes in strength training, progressive overload, bodybuilding, and injury prevention.
@@ -2666,7 +2667,7 @@ COACHING DIRECTIVES:
         contents: chatContents,
         config: {
           systemInstruction,
-          // Short bulleted coaching replies: LOW thinking is supported by gemini-3.8-flash and gemini-3.6-flash (the
+          // Short bulleted coaching replies: LOW thinking is supported by gemini-3.8-flash and the gemini-3.5-flash-lite fallback (the
           // default MEDIUM only adds latency and billed output tokens; MINIMAL is rejected by 3.8). maxOutputTokens also
           // covers thinking tokens, so it is generous relative to the 4000-character reply cap.
           thinkingConfig: { thinkingLevel: "LOW" },

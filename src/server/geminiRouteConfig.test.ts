@@ -11,7 +11,7 @@ vi.mock('@google/genai', () => ({
 }));
 
 import { createApp } from '../../server';
-import { COACH_MAX_OUTPUT_TOKENS } from './app';
+import { COACH_MAX_OUTPUT_TOKENS, COACH_TIMEOUT_MS } from './app';
 import { fakeToken, listen, mockVerifier, testConfig } from './security/testUtils';
 
 /**
@@ -90,5 +90,13 @@ describe('Gemini request configuration per route', () => {
     expect(src.match(/maxOutputTokens\s*:/g)).toHaveLength(1);
     const trainer = src.slice(src.indexOf("app.post('/api/ai-personal-trainer'"), src.indexOf("app.post('/api/adaptive-coach/explain'"));
     expect(trainer).toContain("thinkingLevel: 'LOW'");
+  });
+
+  it('only the AI Coach route sets the shorter 45 s deadline; every other route keeps the 90 s default', () => {
+    const src = readFileSync(new URL('./app.ts', import.meta.url), 'utf8');
+    expect(COACH_TIMEOUT_MS).toBe(45_000);
+    const trainer = src.slice(src.indexOf("app.post('/api/ai-personal-trainer'"), src.indexOf("app.post('/api/adaptive-coach/explain'"));
+    expect(trainer).toContain('createGenAI({ apiKey }, COACH_TIMEOUT_MS)');
+    expect(src.match(/COACH_TIMEOUT_MS\)/g)).toHaveLength(1); // exactly one call site passes it
   });
 });

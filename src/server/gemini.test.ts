@@ -96,7 +96,7 @@ function scripted(steps: Step[], log: Call[], onCall?: (n: number) => void) {
 }
 
 const PRIMARY = 'gemini-3.8-flash';
-const FALLBACK = 'gemini-3.6-flash';
+const FALLBACK = 'gemini-3.5-flash-lite';
 const req = { model: 'm', contents: [{ role: 'user', parts: [{ text: 'x' }] }] };
 const prodReq = {
   model: PRIMARY,
@@ -430,6 +430,46 @@ describe('createGenAI: bounded 503 recovery (retry primary once, then one fallba
     expect(logs.events().at(-1)).toMatchObject({ reason: 'insufficient_time', attempts: 2, fallbackAttempted: false });
   });
 
+  it('11d. a non-503 failure of the primary retry is recorded in statuses (429) and ends recovery as non_retryable', async () => {
+    const log: Call[] = [];
+    const logs = captureLogs();
+    const err = await make([{ status: 503 }, { status: 429 }], log).models.generateContent(prodReq).then(() => null, (e: unknown) => e);
+    expect(log.map((c) => c.model)).toEqual([PRIMARY, PRIMARY]); // no fallback after a non-503
+    expect(fail(err).status).toBe(429);
+    expect(logs.events().at(-1)).toMatchObject({ event: 'gemini_recovery_failed', reason: 'non_retryable', attempts: 2, statuses: [503, 429], fallbackAttempted: false });
+  });
+
+  it('11e. a caller abort during the primary retry request is logged as aborted (not non_retryable), status recorded', async () => {
+    const log: Call[] = [];
+    const logs = captureLogs();
+    const ctl = new AbortController();
+    const ai = createGenAI({ apiKey: 'k', httpOptions: { fetch: scripted([{ status: 503 }, 'hang'], log, (n) => { if (n === 2) ctl.abort(); }) } }, 60_000, FAST_RETRY);
+    const err = await ai.models.generateContent({ ...prodReq, config: { ...prodReq.config, abortSignal: ctl.signal } }).then(() => null, (e: unknown) => e);
+    expect(log).toHaveLength(2);
+    expect(fail(err).name).toBe('AbortError');
+    expect(logs.events().at(-1)).toMatchObject({ event: 'gemini_recovery_failed', reason: 'aborted', attempts: 2, statuses: [503, 'ABORTED'], fallbackAttempted: false });
+  });
+
+  it('11f. a non-503 failure of the fallback request is logged as non_retryable with all three statuses', async () => {
+    const log: Call[] = [];
+    const logs = captureLogs();
+    const err = await make([{ status: 503 }, { status: 503 }, { status: 429 }], log).models.generateContent(prodReq).then(() => null, (e: unknown) => e);
+    expect(log.map((c) => c.model)).toEqual([PRIMARY, PRIMARY, FALLBACK]);
+    expect(fail(err).status).toBe(429);
+    expect(logs.events().at(-1)).toMatchObject({ event: 'gemini_recovery_failed', reason: 'non_retryable', attempts: 3, statuses: [503, 503, 429], fallbackAttempted: true });
+  });
+
+  it('11g. a caller abort during the fallback request is logged as aborted', async () => {
+    const log: Call[] = [];
+    const logs = captureLogs();
+    const ctl = new AbortController();
+    const ai = createGenAI({ apiKey: 'k', httpOptions: { fetch: scripted([{ status: 503 }, { status: 503 }, 'hang'], log, (n) => { if (n === 3) ctl.abort(); }) } }, 60_000, FAST_RETRY);
+    const err = await ai.models.generateContent({ ...prodReq, config: { ...prodReq.config, abortSignal: ctl.signal } }).then(() => null, (e: unknown) => e);
+    expect(log.map((c) => c.model)).toEqual([PRIMARY, PRIMARY, FALLBACK]);
+    expect(fail(err).name).toBe('AbortError');
+    expect(logs.events().at(-1)).toMatchObject({ event: 'gemini_recovery_failed', reason: 'aborted', attempts: 3, statuses: [503, 503, 'ABORTED'], fallbackAttempted: true });
+  });
+
   it('12. fallback disabled ("off"): the primary is retried once, then the 503 is rethrown (two requests, no fallback)', async () => {
     const log: Call[] = [];
     const logs = captureLogs();
@@ -616,7 +656,7 @@ describe('createGenAI: back-off timing (deterministic fake timers, production de
 });
 
 describe('GEMINI_FALLBACK_MODEL configuration', () => {
-  it('10a. unset or empty uses the default gemini-3.6-flash', () => {
+  it('10a. unset or empty uses the default gemini-3.5-flash-lite (a different family than the gemini-3.8-flash primary)', () => {
     expect(DEFAULT_GEMINI_FALLBACK_MODEL).toBe(FALLBACK);
     expect(resolveFallbackModel(undefined)).toBe(FALLBACK);
     expect(resolveFallbackModel('')).toBe(FALLBACK);

@@ -44,12 +44,18 @@ import { logger } from './security/logger';
  * A first-attempt success, and a first-attempt failure that is not a 503, log nothing here (the route logs those).
  *
  * Configuration (server-side only, never a `VITE_` variable): `GEMINI_FALLBACK_MODEL`
- *   unset / empty -> `gemini-3.6-flash`;  `off` -> disabled;  invalid model id -> disabled + one sanitized warning.
+ *   unset / empty -> `gemini-3.5-flash-lite`;  `off` -> disabled;  invalid model id -> disabled + one sanitized warning.
  *
  * The overall deadline must stay below the Vercel function `maxDuration` (120 s, vercel.json) so the route can answer.
  */
 export const GEMINI_TIMEOUT_MS = 90_000;
-export const DEFAULT_GEMINI_FALLBACK_MODEL = 'gemini-3.6-flash';
+/**
+ * Default fallback: a different (Flash-Lite) family than the primary, so it is more likely to have capacity when the
+ * primary Flash family is overloaded (a same-family fallback was 503 at the same moment in production). Stable per Google's
+ * model list; supports thinking levels minimal/low/medium/high, system instructions and JSON output, so the AI Coach
+ * request (LOW thinking, maxOutputTokens 4096) is valid on it unchanged. Independent capacity is likely, not guaranteed.
+ */
+export const DEFAULT_GEMINI_FALLBACK_MODEL = 'gemini-3.5-flash-lite';
 /** Do not start a retry or the fallback attempt with less than this much of the shared deadline left. */
 export const GEMINI_FALLBACK_MIN_REMAINING_MS = 10_000;
 /** Hard cap on HTTP requests per generation: primary, one primary retry, one fallback. */
@@ -216,9 +222,9 @@ export function createGenAI(
         logger.info('gemini_retry_succeeded', { generationId, model: requested, attempts: attemptedModels.length, elapsedMs: elapsedMs() });
         return response;
       } catch (e) {
-        if (!isUnavailable(e)) return giveUp(e, 'non_retryable');
+        failedStatuses.push(safeStatus(e)); // every failed request is recorded, whatever its status
+        if (!isUnavailable(e)) return giveUp(e, controller.signal.aborted ? 'aborted' : 'non_retryable');
         error = e;
-        failedStatuses.push(safeStatus(e));
       }
 
       // Attempt 3: one request to the fallback model; never retried.
@@ -232,7 +238,7 @@ export function createGenAI(
         return response;
       } catch (e) {
         failedStatuses.push(safeStatus(e));
-        return giveUp(e, isUnavailable(e) ? 'exhausted' : 'non_retryable');
+        return giveUp(e, isUnavailable(e) ? 'exhausted' : controller.signal.aborted ? 'aborted' : 'non_retryable');
       }
     } finally {
       clearTimeout(timer);

@@ -11,6 +11,11 @@ import { capFreeText, checkAiOutput } from './security/aiSchemas';
 
 /** AI Coach output ceiling. Gemini counts thinking tokens against maxOutputTokens; replies are capped at 4000 characters (~1000 tokens). */
 export const COACH_MAX_OUTPUT_TOKENS = 4096;
+/**
+ * AI Coach overall deadline (all recovery attempts and the back-off share it). A chat reply that has not arrived after 45 s
+ * is not worth waiting for; the observed 503 sequence took ~19 s. Only this route uses it; other routes keep the 90 s default.
+ */
+export const COACH_TIMEOUT_MS = 45_000;
 
 /**
  * Builds the Express app. All `/api/*` traffic passes through the security pipeline (request id, headers, CORS,
@@ -917,7 +922,7 @@ app.post('/api/ai-personal-trainer', async (req, res) => {
   }
 
   try {
-    const ai = createGenAI({ apiKey });
+    const ai = createGenAI({ apiKey }, COACH_TIMEOUT_MS);
 
     const systemInstruction = `${UNTRUSTED_NOTICE}
 You are "Coach Iron", an elite AI Fitness Personal Trainer and biomechanics specialist.
@@ -968,7 +973,7 @@ COACHING DIRECTIVES:
       contents: chatContents,
       config: {
         systemInstruction,
-        // Short bulleted coaching replies: LOW thinking is supported by gemini-3.8-flash and gemini-3.6-flash (the
+        // Short bulleted coaching replies: LOW thinking is supported by gemini-3.8-flash and the gemini-3.5-flash-lite fallback (the
         // default MEDIUM only adds latency and billed output tokens; MINIMAL is rejected by 3.8). maxOutputTokens also
         // covers thinking tokens, so it is generous relative to the 4000-character reply cap.
         thinkingConfig: { thinkingLevel: 'LOW' as ThinkingLevel },
