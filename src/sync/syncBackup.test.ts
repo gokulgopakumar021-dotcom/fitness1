@@ -63,7 +63,7 @@ describe('backup / restore and the app storage layer keep working with sync', ()
     expect([...cloud.rows.values()].filter((x) => x.kind === 'sessions' && !x.deleted_at)).toHaveLength(2);
   });
 
-  it('restoring a backup that contains a record deleted since resurrects it (a newer local action wins)', async () => {
+  it('restoring a backup that contains a record deleted since re-adds it: an explicit restore is a newer local action', async () => {
     const cloud = memoryCloud();
     db.saveSessions([sess('s1', '2026-11-01'), sess('s2', '2026-11-02')]);
     await mkEngine(cloud, '2026-11-05T10:00:00.000Z').syncOnce();
@@ -76,13 +76,27 @@ describe('backup / restore and the app storage layer keep working with sync', ()
     expect(db.getSessions().map((s) => s.id).sort()).toEqual(['s1', 's2']);
   });
 
-  it("PINNED BEHAVIOUR: restoring a backup replaces local collections (existing import semantics), so records absent from the backup are deleted in the cloud too", async () => {
+  it('DECISION (Stage 3): restoring an older backup MERGES by id; records absent from the backup are kept locally AND in the cloud', async () => {
     const cloud = memoryCloud();
     db.saveSessions([sess('s1', '2026-11-01')]);
     await mkEngine(cloud).syncOnce();
     const oldBackup = db.exportFullBackupJSON();
     db.addOrUpdateSession(sess('s-new', '2026-11-03')); await mkEngine(cloud).syncOnce();
-    db.importBackupJSON(oldBackup); await mkEngine(cloud).syncOnce();
+    const r = db.importBackupJSON(oldBackup);
+    expect(r.success).toBe(true);
+    await mkEngine(cloud).syncOnce();
+    expect(db.getSessions().map((s) => s.id).sort()).toEqual(['s-new', 's1']);
+    expect(cloud.rows.get('sessions/s-new')?.deleted_at).toBeNull();
+  });
+
+  it('explicit replace mode is still available, is destructive, and tombstones absent records in the cloud', async () => {
+    const cloud = memoryCloud();
+    db.saveSessions([sess('s1', '2026-11-01')]);
+    await mkEngine(cloud).syncOnce();
+    const oldBackup = db.exportFullBackupJSON();
+    db.addOrUpdateSession(sess('s-new', '2026-11-03')); await mkEngine(cloud).syncOnce();
+    expect(db.importBackupJSON(oldBackup, { mode: 'replace' }).success).toBe(true);
+    await mkEngine(cloud).syncOnce();
     expect(db.getSessions().map((s) => s.id)).toEqual(['s1']);
     expect(cloud.rows.get('sessions/s-new')?.deleted_at).not.toBeNull();
   });

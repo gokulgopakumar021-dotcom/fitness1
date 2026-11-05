@@ -3,13 +3,15 @@ import { Button, Card, Modal, SectionHeading } from '../ui';
 import { db } from '../../storage/db';
 import { eraseAllBodyScanData } from '../../storage/bodyScanStore';
 import { clearBodyScanConsent } from '../../storage/bodyScanConsent';
+import { syncBeforeBulkDelete } from '../../sync/bulkDelete';
 
 interface Category {
   id: 'workouts' | 'nutrition' | 'metrics' | 'sleep' | 'bodyscan';
   label: string;
   detail: string;
   count: () => string;
-  erase: () => Promise<void> | void;
+  /** May return a short note to show after the deletion (e.g. about the cloud copy). */
+  erase: () => Promise<void | string> | void | string;
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -18,10 +20,16 @@ const CATEGORIES: Category[] = [
   {
     id: 'workouts',
     label: 'Workout history',
-    detail: 'All logged sessions. Your plans are kept.',
+    detail: 'All logged sessions, on this device and in your account on every device. Your plans are kept.',
     count: () => plural(db.getSessions().length, 'session'),
-    erase: () => {
+    erase: async () => {
+      // Learn the cloud's sessions first so all of them are tombstoned; offline it still deletes and stays queued.
+      const pre = await syncBeforeBulkDelete();
       db.saveSessions([]);
+      if (!pre.cloudEnabled) return undefined;
+      return pre.cloudChecked
+        ? 'Removed from your account too; your other devices will drop them when they sync.'
+        : 'Removed here. The cloud deletion is queued and finishes automatically when this device is back online.';
     }
   },
   {
@@ -83,8 +91,8 @@ export const DataControls: React.FC = () => {
     setBusy(true);
     setError(null);
     try {
-      await pending.erase();
-      setDone(`${pending.label} deleted.`);
+      const note = await pending.erase();
+      setDone(`${pending.label} deleted.${typeof note === 'string' ? ` ${note}` : ''}`);
       setPending(null);
       setVersion((v) => v + 1);
     } catch (e) {

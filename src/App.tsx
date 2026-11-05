@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PreferredUnit, UserProfile, WorkoutSession } from './types';
 import { db } from './storage/db';
 import {
@@ -26,17 +26,38 @@ import { BluetoothGadgetModal } from './components/bluetooth/BluetoothGadgetModa
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { AuthGate } from './components/auth/AuthGate';
+import { SyncProvider, useSync } from './sync/SyncProvider';
+import { LegacyDataClaim } from './components/settings/LegacyDataClaim';
+import { shouldPromptLegacyClaim } from './storage/legacyData';
 import { useReminders } from './hooks/useReminders';
 
 /** The private application. Only ever mounted by AuthGate, after storage is scoped to the signed-in account. */
 function AppShell() {
   useReminders();
   const [currentTab, setCurrentTab] = useState<NavTab>('home');
+  const currentTabRef = useRef<NavTab>('home');
+  currentTabRef.current = currentTab;
   const [profile, setProfile] = useState<UserProfile>(() => db.getProfile());
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(() =>
     db.getActiveSession()
   );
   const [isDemoMode, setIsDemoMode] = useState<boolean>(() => db.isDemoModeActive());
+
+  // Cloud sync: when a cycle downloads changes made on another device, re-read local state and refresh the views.
+  const sync = useSync();
+  const syncDataVersion = sync.state?.dataVersion ?? 0;
+  const [viewKey, setViewKey] = useState(0);
+  useEffect(() => {
+    if (syncDataVersion === 0) return;
+    setProfile(db.getProfile());
+    setActiveSession(db.getActiveSession());
+    // Never remount the workout screen underneath someone who is mid-workout on this device.
+    const midWorkout = currentTabRef.current === 'workouts' && db.getActiveSession() !== null;
+    if (!midWorkout) setViewKey(syncDataVersion);
+  }, [syncDataVersion]);
+
+  // Offer (never force) the one-time import of workouts saved before accounts existed.
+  const [legacyPrompt, setLegacyPrompt] = useState<boolean>(() => shouldPromptLegacyClaim() !== null);
 
   // Listen for database changes & maintain sync
   useEffect(() => {
@@ -118,6 +139,7 @@ function AppShell() {
             tabIndex={-1}
             className="flex-1 px-4 sm:px-6 lg:px-8 pt-5 lg:pt-7 min-w-0 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-12 overflow-x-clip outline-none"
           >
+            <React.Fragment key={viewKey}>
             {currentTab === 'home' && (
               <HomeView
                 profile={profile}
@@ -223,8 +245,19 @@ function AppShell() {
                 onClearDemoData={handleClearDemoData}
               />
             )}
+            </React.Fragment>
           </main>
         </div>
+
+        <LegacyDataClaim
+          open={legacyPrompt}
+          onClose={() => setLegacyPrompt(false)}
+          onClaimed={() => {
+            setProfile(db.getProfile());
+            setActiveSession(db.getActiveSession());
+            setViewKey((k) => k + 1);
+          }}
+        />
 
         {/* Mobile Fixed Bottom Navigation */}
         <MobileBottomNav
@@ -253,7 +286,9 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <AuthGate>
-          <AppShell />
+          <SyncProvider>
+            <AppShell />
+          </SyncProvider>
         </AuthGate>
       </AuthProvider>
     </ThemeProvider>

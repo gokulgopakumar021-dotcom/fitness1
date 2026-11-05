@@ -16,6 +16,8 @@ export interface SyncState {
   lastSyncAt: string | null;
   lastError: string | null;
   attempt: number;
+  /** Increments whenever a cycle changed local records (downloads / conflict resolutions) so views can re-read storage. */
+  dataVersion: number;
 }
 
 type TimerId = ReturnType<typeof setTimeout>;
@@ -58,7 +60,7 @@ export function createSyncController(opts: ControllerOptions): SyncController {
   const pollMs = opts.pollMs ?? 5 * 60_000;
   const random = opts.random ?? Math.random;
 
-  let state: SyncState = { status: 'pending', pending: 0, lastSyncAt: engine.getMeta().lastSyncAt, lastError: null, attempt: 0 };
+  let state: SyncState = { status: 'pending', pending: 0, lastSyncAt: engine.getMeta().lastSyncAt, lastError: null, attempt: 0, dataVersion: 0 };
   const listeners = new Set<Listener>();
   let timer: TimerId | null = null;
   let poll: ReturnType<typeof setInterval> | null = null;
@@ -86,6 +88,8 @@ export function createSyncController(opts: ControllerOptions): SyncController {
       running = false;
     }
     const lastSyncAt = engine.getMeta().lastSyncAt;
+    // Even a failed cycle may have applied pages of remote changes before it stopped.
+    if (res.pulled > 0 || res.conflicts > 0) state = { ...state, dataVersion: state.dataVersion + 1 };
     if (res.ok && res.pending === 0) {
       set({ status: 'synced', pending: 0, lastSyncAt, lastError: null, attempt: 0 });
       return;

@@ -77,6 +77,11 @@ export interface RecordState {
   cua: string;
   /** Set when the record cannot be synced (e.g. too large); it is skipped, never dropped. */
   blocked?: string;
+  /**
+   * A push for this never-acknowledged record has been sent. The server may hold it even though this device never
+   * saw the reply, so a later local delete must still be sent as a tombstone (never silently forgotten).
+   */
+  attempted?: true;
 }
 
 export interface SyncMeta {

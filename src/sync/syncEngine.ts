@@ -124,8 +124,8 @@ export function createSyncEngine(opts: EngineOptions): SyncEngine {
       }
       for (const [id, st] of Object.entries(recs)) {
         if (id in localMap || st.deleted) continue;
-        if (st.baseVersion === 0 && st.syncedHash === null) {
-          delete recs[id]; // never reached the server: nothing to tombstone
+        if (st.baseVersion === 0 && st.syncedHash === null && !st.attempted) {
+          delete recs[id]; // never sent to the server: nothing to tombstone
           continue;
         }
         st.deleted = true;
@@ -332,6 +332,12 @@ export function createSyncEngine(opts: EngineOptions): SyncEngine {
           }
           const data = rec ?? {};
           const pushedHash = rec ? hashOf(rec) : null;
+          if (st.baseVersion === 0 && !st.attempted) {
+            // Persist BEFORE the request: if the reply is lost the server may still hold this record, and a later
+            // local delete must then be sent as a tombstone instead of being forgotten.
+            st.attempted = true;
+            persist(true);
+          }
           const out = await remote.push({
             kind, id, data, clientUpdatedAt: st.cua, baseVersion: st.baseVersion, deleted: st.deleted, deviceId
           });
@@ -339,6 +345,7 @@ export function createSyncEngine(opts: EngineOptions): SyncEngine {
             st.baseVersion = out.row.version;
             st.syncedHash = pushedHash;
             st.dirty = false;
+            delete st.attempted;
             st.localHash = st.deleted ? null : st.localHash;
             res.pushed++;
             persist();

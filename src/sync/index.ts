@@ -4,3 +4,7 @@ export { createSyncController, backoffDelay, type SyncController, type SyncState
 export { createSupabaseRemote, classifyRpcError } from './remoteAdapter';
 export { loadConflicts, getDeviceId } from './syncMeta';
 export { isPristineStarter } from './localAdapter';
+export { deviceStorage } from './deviceStorage';
+export { notifyLocalWorkoutChange, onLocalWorkoutChange } from './syncNotify';
+export { getActiveSync, setActiveSync } from './syncRuntime';
+export { syncBeforeBulkDelete, type PreDeleteSync } from './bulkDelete';

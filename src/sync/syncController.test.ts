@@ -126,3 +126,22 @@ describe('error classification', () => {
     expect(classifyRpcError(error as { code?: string; message?: string }, status as number | undefined).kind).toBe(kind);
   });
 });
+
+describe('sync controller dataVersion (tells the app to re-read storage)', () => {
+  it('increments when a cycle downloaded or resolved records, not when it only uploaded', async () => {
+    const { engine } = fakeEngine([ok({ pushed: 2, pulled: 0 }), ok({ pushed: 0, pulled: 3 }), ok({ pulled: 0, conflicts: 1 }), ok({ pushed: 0, pulled: 0 })]);
+    const c = createSyncController({ engine, isOnline: () => true });
+    await c.retryNow(); expect(c.getState().dataVersion).toBe(0);
+    await c.retryNow(); expect(c.getState().dataVersion).toBe(1);
+    await c.retryNow(); expect(c.getState().dataVersion).toBe(2);
+    await c.retryNow(); expect(c.getState().dataVersion).toBe(2);
+  });
+  it('also counts changes applied by a cycle that then failed part-way', async () => {
+    const failed: SyncResult = { ...fail('transient'), pulled: 4 };
+    const { engine } = fakeEngine([failed]);
+    const c = createSyncController({ engine, isOnline: () => true, maxAttempts: 1 });
+    await c.retryNow();
+    expect(c.getState().dataVersion).toBe(1);
+  });
+});
+

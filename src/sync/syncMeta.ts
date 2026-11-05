@@ -96,3 +96,28 @@ export function archiveConflict(storage: Storage, userId: string, entry: Conflic
     /* archive is best-effort; the winning record is already safe */
   }
 }
+
+/** The two bookkeeping keys of one account, as raw strings, so Reset All Data can wipe the data and keep them. */
+export function snapshotBookkeeping(storage: Storage, userId: string): Array<[string, string]> {
+  const out: Array<[string, string]> = [];
+  for (const base of [META_BASE_KEY, CONFLICTS_BASE_KEY]) {
+    const key = scopedKeyFor(base, userId);
+    try {
+      const v = storage.getItem(key);
+      if (v !== null) out.push([key, v]);
+    } catch {
+      /* unreadable bookkeeping cannot be preserved; the engine rebuilds it without losing records */
+    }
+  }
+  return out;
+}
+
+export function restoreBookkeeping(storage: Storage, snapshot: Array<[string, string]>): void {
+  for (const [key, value] of snapshot) {
+    try {
+      storage.setItem(key, value);
+    } catch {
+      /* quota: nothing more can be done here */
+    }
+  }
+}
