@@ -1,12 +1,13 @@
 // GENERATED FILE. Do not edit. Source: src/server/serverless/entry.ts. Rebuild: npm run build:api
 
 // src/server/serverless/getApp.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
+import { randomUUID as randomUUID3 } from "node:crypto";
 
 // src/server/app.ts
 import express2 from "express";
 
 // src/server/gemini.ts
+import { randomUUID } from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
 
 // src/server/security/logger.ts
@@ -68,6 +69,8 @@ var logger = {
 var GEMINI_TIMEOUT_MS = 9e4;
 var DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-3.6-flash";
 var GEMINI_FALLBACK_MIN_REMAINING_MS = 1e4;
+var GEMINI_RETRY_BASE_DELAY_MS = 1e3;
+var GEMINI_RETRY_MAX_DELAY_MS = 2e3;
 var MODEL_ID = /^gemini-[a-z0-9][a-z0-9.\-]*$/;
 var warnedInvalidFallback = false;
 function resolveFallbackModel(raw) {
@@ -86,13 +89,43 @@ function isUnavailable(error) {
   const status = error?.status;
   return status === 503 || status === "UNAVAILABLE";
 }
+function safeStatus(error) {
+  const status = error?.status;
+  if (typeof status === "number") return status;
+  if (typeof status === "string" && /^[A-Z_]{3,40}$/.test(status)) return status;
+  if (error?.name === "AbortError") return "ABORTED";
+  return void 0;
+}
+function backoffDelayMs(retryIndex, baseMs, maxMs, random) {
+  const jitter = Math.min(Math.max(random(), 0), 0.999999);
+  return Math.min(maxMs, baseMs * 2 ** retryIndex * (1 + jitter));
+}
+var abortError = () => Object.assign(new Error("aborted"), { name: "AbortError" });
+function sleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(abortError());
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(abortError());
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
 function createGenAI(options, timeoutMs = GEMINI_TIMEOUT_MS, wrapperOptions = {}) {
   const ai = new GoogleGenAI({ ...options, httpOptions: { ...options.httpOptions, timeout: timeoutMs } });
   const models = ai.models;
   const generate = models.generateContent.bind(models);
   const fallbackModel = resolveFallbackModel(wrapperOptions.fallbackModel ?? process.env.GEMINI_FALLBACK_MODEL);
   const minRemainingMs = wrapperOptions.minRemainingMs ?? GEMINI_FALLBACK_MIN_REMAINING_MS;
+  const baseMs = wrapperOptions.retryDelay?.baseMs ?? GEMINI_RETRY_BASE_DELAY_MS;
+  const maxMs = wrapperOptions.retryDelay?.maxMs ?? GEMINI_RETRY_MAX_DELAY_MS;
+  const random = wrapperOptions.random ?? Math.random;
   models.generateContent = (async (params) => {
+    const generationId = randomUUID();
     const startedAt = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -102,30 +135,77 @@ function createGenAI(options, timeoutMs = GEMINI_TIMEOUT_MS, wrapperOptions = {}
       if (callerSignal.aborted) controller.abort();
       else callerSignal.addEventListener("abort", onCallerAbort, { once: true });
     }
+    const requested = normalizeModel(params.model);
+    const attemptedModels = [];
+    const failedStatuses = [];
+    const remainingMs = () => timeoutMs - (Date.now() - startedAt);
+    const elapsedMs = () => Date.now() - startedAt;
+    const run = (model) => {
+      const first = attemptedModels.length === 0;
+      attemptedModels.push(model ?? requested);
+      const left = remainingMs();
+      const callerTimeout = params.config?.httpOptions?.timeout;
+      return generate({
+        ...params,
+        ...model ? { model } : {},
+        config: {
+          ...params.config,
+          abortSignal: controller.signal,
+          // Transport only: keep the SDK's X-Server-Timeout header in line with what is really left of the deadline.
+          ...first ? {} : { httpOptions: { ...params.config?.httpOptions, timeout: Math.min(left, callerTimeout ?? left) } }
+        }
+      });
+    };
+    const giveUp = (error, reason) => {
+      logger.warn("gemini_recovery_failed", {
+        generationId,
+        reason,
+        attempts: attemptedModels.length,
+        models: attemptedModels,
+        statuses: failedStatuses,
+        fallbackAttempted: fallbackModel !== null && fallbackModel !== requested && attemptedModels.includes(fallbackModel),
+        elapsedMs: elapsedMs()
+      });
+      throw error;
+    };
     try {
+      let error;
       try {
-        return await generate({ ...params, config: { ...params.config, abortSignal: controller.signal } });
-      } catch (primaryError) {
-        if (!isUnavailable(primaryError)) throw primaryError;
-        if (!fallbackModel || normalizeModel(params.model) === fallbackModel) throw primaryError;
-        const remainingMs = timeoutMs - (Date.now() - startedAt);
-        if (controller.signal.aborted || remainingMs < minRemainingMs) throw primaryError;
-        logger.warn("gemini_fallback", {
-          from: normalizeModel(params.model),
-          to: fallbackModel,
-          status: primaryError.status
-        });
-        const callerTimeout = params.config?.httpOptions?.timeout;
-        return await generate({
-          ...params,
-          model: fallbackModel,
-          config: {
-            ...params.config,
-            abortSignal: controller.signal,
-            // Transport only: keep the SDK's X-Server-Timeout header in line with what is really left of the deadline.
-            httpOptions: { ...params.config?.httpOptions, timeout: Math.min(remainingMs, callerTimeout ?? remainingMs) }
-          }
-        });
+        return await run();
+      } catch (e) {
+        if (!isUnavailable(e)) throw e;
+        error = e;
+        failedStatuses.push(safeStatus(e));
+      }
+      const delayMs = backoffDelayMs(0, baseMs, maxMs, random);
+      if (controller.signal.aborted) return giveUp(error, "aborted");
+      if (remainingMs() - delayMs < minRemainingMs) return giveUp(error, "insufficient_time");
+      logger.warn("gemini_retry", { generationId, attempt: 1, model: requested, status: failedStatuses[0], delayMs: Math.round(delayMs) });
+      try {
+        await sleep(delayMs, controller.signal);
+      } catch (e) {
+        return giveUp(e, "aborted");
+      }
+      try {
+        const response = await run();
+        logger.info("gemini_retry_succeeded", { generationId, model: requested, attempts: attemptedModels.length, elapsedMs: elapsedMs() });
+        return response;
+      } catch (e) {
+        if (!isUnavailable(e)) return giveUp(e, "non_retryable");
+        error = e;
+        failedStatuses.push(safeStatus(e));
+      }
+      if (!fallbackModel || requested === fallbackModel) return giveUp(error, "no_fallback");
+      if (controller.signal.aborted) return giveUp(error, "aborted");
+      if (remainingMs() < minRemainingMs) return giveUp(error, "insufficient_time");
+      logger.warn("gemini_fallback", { generationId, attempt: 2, from: requested, to: fallbackModel, status: failedStatuses[1] });
+      try {
+        const response = await run(fallbackModel);
+        logger.info("gemini_fallback_succeeded", { generationId, from: requested, to: fallbackModel, attempts: attemptedModels.length, elapsedMs: elapsedMs() });
+        return response;
+      } catch (e) {
+        failedStatuses.push(safeStatus(e));
+        return giveUp(e, isUnavailable(e) ? "exhausted" : "non_retryable");
       }
     } finally {
       clearTimeout(timer);
@@ -1404,11 +1484,11 @@ function createRateLimiter(opts) {
 }
 
 // src/server/security/requestContext.ts
-import { randomUUID } from "node:crypto";
+import { randomUUID as randomUUID2 } from "node:crypto";
 var SAFE_ID = /^[A-Za-z0-9._-]{8,64}$/;
 function requestContext(req, res, next) {
   const inbound = req.header("x-request-id");
-  req.requestId = inbound && SAFE_ID.test(inbound) ? inbound : randomUUID();
+  req.requestId = inbound && SAFE_ID.test(inbound) ? inbound : randomUUID2();
   res.setHeader("X-Request-Id", req.requestId);
   next();
 }
@@ -1747,6 +1827,7 @@ function capFreeText(value, max, fallback = "") {
 }
 
 // src/server/app.ts
+var COACH_MAX_OUTPUT_TOKENS = 4096;
 function createApp(deps = {}) {
   const app = express2();
   installSecurity(app, deps);
@@ -1830,8 +1911,7 @@ ${ui(text2)}` }
         model: "gemini-3.8-flash",
         contents,
         config: {
-          responseMimeType: "application/json",
-          temperature: 0.2
+          responseMimeType: "application/json"
         }
       });
       const responseText = response.text || "";
@@ -1906,7 +1986,7 @@ Format strictly as valid JSON matching this schema:
       const response = await ai.models.generateContent({
         model: "gemini-3.8-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        config: { responseMimeType: "application/json", temperature: 0.3 }
+        config: { responseMimeType: "application/json" }
       });
       const responseText = response.text || "";
       let parsedData;
@@ -1954,7 +2034,7 @@ Respond strictly with valid JSON matching:
       const response = await ai.models.generateContent({
         model: "gemini-3.8-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        config: { responseMimeType: "application/json", temperature: 0.2 }
+        config: { responseMimeType: "application/json" }
       });
       const responseText = response.text || "";
       let parsedData;
@@ -2067,8 +2147,7 @@ Return STRICTLY a JSON object matching this schema:
         model: "gemini-3.8-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         config: {
-          responseMimeType: "application/json",
-          temperature: 0.3
+          responseMimeType: "application/json"
         }
       });
       const responseText = response.text || "";
@@ -2234,7 +2313,7 @@ Format strictly as valid JSON matching this schema:
       const response = await ai.models.generateContent({
         model: "gemini-3.8-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        config: { responseMimeType: "application/json", temperature: 0.1 }
+        config: { responseMimeType: "application/json" }
       });
       const responseText = response.text || "";
       let parsedData;
@@ -2283,7 +2362,7 @@ Format strictly as JSON:
       const response = await ai.models.generateContent({
         model: "gemini-3.8-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        config: { responseMimeType: "application/json", temperature: 0.2 }
+        config: { responseMimeType: "application/json" }
       });
       const responseText = response.text || "";
       let parsedData;
@@ -2356,7 +2435,7 @@ Format strictly as JSON:
       const response = await ai.models.generateContent({
         model: "gemini-3.8-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        config: { responseMimeType: "application/json", temperature: 0.2 }
+        config: { responseMimeType: "application/json" }
       });
       const responseText = response.text || "";
       let parsedData;
@@ -2405,7 +2484,7 @@ Format strictly as JSON:
       const response = await ai.models.generateContent({
         model: "gemini-3.8-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        config: { responseMimeType: "application/json", temperature: 0.2 }
+        config: { responseMimeType: "application/json" }
       });
       const responseText = response.text || "";
       let parsedData;
@@ -2515,7 +2594,7 @@ Format strictly as JSON matching this schema:
       const response = await ai.models.generateContent({
         model: "gemini-3.8-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        config: { responseMimeType: "application/json", temperature: 0.2 }
+        config: { responseMimeType: "application/json" }
       });
       const responseText = response.text || "";
       let parsedData;
@@ -2587,7 +2666,11 @@ COACHING DIRECTIVES:
         contents: chatContents,
         config: {
           systemInstruction,
-          temperature: 0.3
+          // Short bulleted coaching replies: LOW thinking is supported by gemini-3.8-flash and gemini-3.6-flash (the
+          // default MEDIUM only adds latency and billed output tokens; MINIMAL is rejected by 3.8). maxOutputTokens also
+          // covers thinking tokens, so it is generous relative to the 4000-character reply cap.
+          thinkingConfig: { thinkingLevel: "LOW" },
+          maxOutputTokens: COACH_MAX_OUTPUT_TOKENS
         }
       });
       const reply = capFreeText(response.text, 4e3, "Keep driving forward with pristine form!");
@@ -2634,7 +2717,7 @@ Respond with JSON only:
       const call = ai.models.generateContent({
         model: "gemini-3.8-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        config: { responseMimeType: "application/json", temperature: 0.2 }
+        config: { responseMimeType: "application/json" }
       });
       const response = await Promise.race([
         call,
@@ -2684,8 +2767,7 @@ Provide concise, high-impact biomechanical form cues:
 Keep response direct and formatted with clear bullet points.`;
       const response = await ai.models.generateContent({
         model: "gemini-3.8-flash",
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        config: { temperature: 0.2 }
+        contents: [{ role: "user", parts: [{ text: prompt }] }]
       });
       return res.json({ success: true, cues: capFreeText(response.text, 3e3) });
     } catch (error) {
@@ -2807,8 +2889,7 @@ Format strictly as JSON with this schema:
         model: "gemini-3.8-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         config: {
-          responseMimeType: "application/json",
-          temperature: 0.2
+          responseMimeType: "application/json"
         }
       });
       const text2 = response.text || "";
@@ -2884,8 +2965,7 @@ A client wants to visualize their dream target physique with these parameters:
 Write a crisp, motivating 2-3 sentence visual description detailing this exact physique's proportions, muscular separation, waist-to-shoulder ratio, and vascularity.`;
       const response = await ai.models.generateContent({
         model: "gemini-3.8-flash",
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        config: { temperature: 0.3 }
+        contents: [{ role: "user", parts: [{ text: prompt }] }]
       });
       const description = capFreeText(response.text, 1e3, basePhysique.description);
       return res.json({
@@ -3208,8 +3288,7 @@ Generate an exhaustive, scientifically rigorous transformation roadmap strictly 
         model: "gemini-3.8-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         config: {
-          responseMimeType: "application/json",
-          temperature: 0.2
+          responseMimeType: "application/json"
         }
       });
       const text2 = response.text || "";
@@ -3570,7 +3649,7 @@ var getApp = createAppProvider().getApp;
 var SAFE_REQUEST_ID = /^[A-Za-z0-9._-]{8,64}$/;
 function resolveRequestId(inbound) {
   const value = Array.isArray(inbound) ? inbound[0] : inbound;
-  return value && SAFE_REQUEST_ID.test(value) ? value : randomUUID2();
+  return value && SAFE_REQUEST_ID.test(value) ? value : randomUUID3();
 }
 var INIT_FAILURE_MESSAGE = "The service is temporarily unavailable. Please try again shortly.";
 function sendInitFailure(req, res, err) {

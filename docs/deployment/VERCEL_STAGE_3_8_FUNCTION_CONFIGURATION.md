@@ -17,45 +17,81 @@ Owner decisions received after the first review, now applied:
 
 ### Gemini deadline design (CONFIRMED by local tests with a fake fetch)
 
-- One `AbortController` per `generateContent` call fires at 90 s for the **whole** call, including the fallback attempt described below. The SDK's `httpOptions.timeout` alone is per HTTP attempt. Corrected after review: with `@google/genai` 2.31.0 (the version pinned in `package-lock.json`) and `httpOptions.retryOptions` **unset**, the SDK makes exactly **one** HTTP request and does not retry or back off; it retries (5 attempts, 408/429/500/502/503/504) only when `retryOptions` is set, and `createGenAI()` never sets it (CONFIRMED in the SDK source and by a mocked-fetch test: a 503 is one call). An earlier version of this document said the SDK retries up to 5 times; that was wrong for this configuration. The shared deadline stays as a hard bound regardless.
+- One `AbortController` per `generateContent` call fires at 90 s for the **whole** call, including the retry, back-off and fallback attempts described below. The SDK's `httpOptions.timeout` alone is per HTTP attempt. Corrected after review: with `@google/genai` 2.31.0 (the version pinned in `package-lock.json`) and `httpOptions.retryOptions` **unset**, the SDK makes exactly **one** HTTP request and does not retry or back off; it retries (5 attempts, 408/429/500/502/503/504) only when `retryOptions` is set, and `createGenAI()` never sets it (CONFIRMED in the SDK source and by a mocked-fetch test: a 503 is one call). An earlier version of this document said the SDK retries up to 5 times; that was wrong for this configuration. The shared deadline stays as a hard bound regardless.
 - The abort surfaces as `AbortError`, which the existing `classifyError` already maps to `504 upstream_timeout` with a fixed message. No provider text, key or stack is returned. No route handler changed other than the client constructor.
 - The timer is cleared when the call settles; a caller-supplied abort signal and the existing `User-Agent` header are preserved.
 - 90 s is 30 s below `maxDuration` (120 s), leaving room to validate and answer. Each AI route makes one Gemini call, so the route total stays under 120 s. The adaptive-explanation route keeps its own shorter 20 s race.
 - This is a behaviour change (Stage 2 listed it as needing approval; approved by decision 3). It does not alter authentication, rate limits, quotas or response shapes for successful calls.
 
-## Gemini 503 model fallback (Stage B)
+## Gemini 503 recovery: one bounded retry, then one fallback request (Stage B, reliability update)
 
 Status: local only. Nothing deployed, no Vercel setting or environment variable changed.
 
-Implemented centrally in `createGenAI()` (`src/server/gemini.ts`), so it covers all 15 AI routes without touching `src/server/app.ts`.
+Implemented centrally in `createGenAI()` (`src/server/gemini.ts`), so it covers all 15 AI routes without any route-level retry code. The fallback model is unchanged (`gemini-3.6-flash`).
 
-| Item | Behaviour |
+### Retry sequence (maximum 3 HTTP attempts per generation)
+
+| Step | Request | Condition to proceed |
+|---|---|---|
+| 1 | Primary model (routes request `gemini-3.8-flash`) | Always. A success is returned immediately and nothing further is started. |
+| 2 | Wait a jittered back-off, then retry the **primary once** | Step 1 returned HTTP `503` / `UNAVAILABLE`, the call is not aborted, and at least 10 s of the deadline would remain **after** the wait. |
+| 3 | **One** request to the fallback model (`gemini-3.6-flash`, never retried) | Step 2 also returned `503` / `UNAVAILABLE`, a fallback is configured and differs from the requested model, the call is not aborted, and at least 10 s of the deadline remain. |
+
+If every attempt fails, the last error is rethrown and the existing `classifyError` mapping applies (`502 ai_upstream_error`, fixed message). No response format change; provider bodies are never forwarded. The fallback and the retry send identical parameters; only the `model` identifier and the transport timeout (`X-Server-Timeout` = time really left of the shared deadline) differ.
+
+### Back-off
+
+`delay = min(2000 ms, 1000 ms x 2^retryIndex x (1 + jitter))`, jitter uniform in `[0, 1)`. Only one retry exists, so `retryIndex` is 0 and the delay is **1.0 to 2.0 s**. There is no delay before the fallback request, so the total recovery delay of one generation is at most 2 s. The wait is abortable and its timer is cleared on every path.
+
+### Error classification
+
+| Result of an attempt | Action |
 |---|---|
-| Primary / fallback | Routes request `gemini-3.8-flash`; the fallback is `gemini-3.6-flash` (GA, same published token price per Google's pricing page, as verified in Stage A). |
-| Trigger | Only a primary failure with HTTP `503` / `UNAVAILABLE`. Everything else is rethrown unchanged: 400, 401, 403, 404, 408, 429 (both models share one project quota), 500, 502, 504, aborts, timeouts, network errors. |
-| What changes | Only the `model` identifier, plus the transport timeout (`httpOptions.timeout` = time left of the shared deadline, so the `X-Server-Timeout` header is truthful). Response MIME type, system instruction, temperature and the rest are identical. |
-| Attempts | At most **2 HTTP requests** per generation (one per model); SDK retries stay disabled. |
-| Deadline | One shared 90 s controller/timer for both attempts; the fallback does not get a fresh 90 s. A caller `AbortSignal` cancels either attempt. Timer and listener are cleaned up in `finally`. |
-| Skipped when | The shared controller is already aborted; the fallback is disabled or invalid; the requested model already is the fallback; fewer than 10 s of the deadline remain (the original 503 is rethrown). |
-| Failure | If the fallback also fails, its error is rethrown and the existing `classifyError` mapping applies (`502 ai_upstream_error`, fixed message). No response format change; provider bodies are never forwarded. |
-| Logging | One `logger.warn('gemini_fallback', { from, to, status })` per activation. No prompt, output, key or provider message. |
+| `503` / `UNAVAILABLE` | Eligible for the next step (see the table above). Capacity errors; Google lists 503 as retryable with back-off. |
+| 400, 401, 403, 404, 408, 429, 500, 502, 504 | Never retried, no fallback; rethrown unchanged. 429 (rate limit or quota) is not a capacity error and retrying it only spends more quota. |
+| Network error, abort, timeout | Never retried; rethrown unchanged (`AbortError` maps to `504 upstream_timeout`). |
+| Success | Returned at once. No further request is ever started. |
+
+### Deadline and cancellation
+
+One `AbortController` and one 90 s timer cover the **whole** generation (all attempts and the back-off). Nothing gets a fresh deadline. A caller `AbortSignal` cancels the current attempt or the back-off wait immediately, and no later attempt is started. The timer and the caller-signal listener are cleaned up in `finally`.
+
+### Logging events (structured JSON, one `generationId` per generation)
+
+| Event | Level | When | Fields |
+|---|---|---|---|
+| `gemini_retry` | warn | a 503 triggered the primary retry | `generationId`, `attempt`, `model`, `status`, `delayMs` |
+| `gemini_retry_succeeded` | info | the primary retry answered | `generationId`, `model`, `attempts`, `elapsedMs` |
+| `gemini_fallback` | warn | a second 503 triggered the fallback request | `generationId`, `attempt`, `from`, `to`, `status` |
+| `gemini_fallback_succeeded` | info | the fallback model answered | `generationId`, `from`, `to`, `attempts`, `elapsedMs` |
+| `gemini_recovery_failed` | warn | recovery ended without a response | `generationId`, `reason`, `attempts`, `models`, `statuses`, `fallbackAttempted`, `elapsedMs` |
+
+`reason` is one of `exhausted`, `no_fallback`, `insufficient_time`, `aborted`, `non_retryable`. A first-attempt success, and a first-attempt failure that is not a 503, emit none of these (the route logs the latter). Never logged: prompts, conversation history, user content, system instructions, API keys, tokens or provider error bodies.
+
+### AI Coach generation settings
+
+`/api/ai-personal-trainer` sends `thinkingConfig.thinkingLevel = "LOW"` and `maxOutputTokens = 4096`. Google's thinking documentation lists `low` as supported on both Gemini 3.8 Flash and Gemini 3.6 Flash (the default is `medium`); `minimal` is **not** supported by 3.8 Flash (it returns a 400) and is deliberately not used. `maxOutputTokens` counts thinking tokens, so 4096 is generous relative to the 4000-character reply cap. The system instruction and response format are unchanged. No other route sets `thinkingConfig` or `maxOutputTokens`.
+
+All 15 AI routes previously sent `temperature` (0.1 to 0.3). Google's troubleshooting guidance says Gemini 3.6 and later ignore `temperature` and `top_p` and may reject them with a 400 in a future release, so they were removed. No other generation setting (for example `responseMimeType`, `systemInstruction`) was changed.
 
 ### Configuration: `GEMINI_FALLBACK_MODEL` (optional, server-side only)
 
 | Value | Effect |
 |---|---|
 | unset or empty | `gemini-3.6-flash` |
-| `off` | fallback disabled |
+| `off` | fallback disabled (the primary is still retried once on a 503) |
 | a model id matching `^gemini-[a-z0-9][a-z0-9.\-]*$` | that model is the fallback |
-| anything else | fallback disabled; one sanitized warning per process (the value is not logged); primary behaviour unchanged |
+| anything else | fallback disabled; one sanitized warning per process (the value is not logged) |
 
-Never create this as a `VITE_` variable: Vite would copy it into the public bundle. No Vercel environment variable needs to be set for the default behaviour.
+Never create this as a `VITE_` variable: Vite would copy it into the public bundle. No Vercel environment variable needs to be set for the default behaviour, and the retry timing is not configurable by environment variable.
 
-### Cost and quota notes
+### Free Tier, quota and cost notes
 
-- Both models have the same published per-token price (both double on 2027-01-01, independent of this change), so a fallback call costs the same as a primary call.
-- Google's documentation does not state whether a 503 is billed (UNVERIFIED); none is expected because no output is generated. A successful fallback is billed normally.
-- Quota exhaustion (429) is deliberately not a fallback trigger: both models draw on the same key and project.
+- The Gemini project is on the **Free Tier**. Google's rate limits apply per project, not per API key, so additional keys from the same project add no capacity. Google states that specified limits are not guaranteed and actual capacity may vary.
+- A 503 is a capacity error; a quota or rate-limit error is a 429. The two are handled differently: 503 is retried within the bounds above, 429 never is.
+- **A paid tier is not documented to eliminate 503 errors.** The retry and fallback improve the chance of an answer during a short capacity spike; they cannot guarantee one during a longer outage.
+- Retries are sent only after a 503, so normal traffic cost is unchanged. In the worst case a failing generation makes 3 HTTP requests instead of 2. Google's documentation does not state whether a 503 is billed (UNVERIFIED); none is expected because no output is generated. A successful response (primary, retry or fallback) is billed normally and nothing is requested after it. This document states no prices or quota values.
+- Lower thinking on the AI Coach reduces billed output tokens relative to the `medium` default; the size of the saving is not measured here.
 
 ### Owner actions (not performed, not possible from the repo)
 

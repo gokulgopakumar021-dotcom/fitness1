@@ -1,4 +1,5 @@
 import express from 'express';
+import type { ThinkingLevel } from '@google/genai';
 import { createGenAI } from './gemini';
 import { generateAdaptiveReview } from '../utils/adaptiveCoach/engine';
 import { parseAiExplanation, validateCoachingContext } from '../utils/adaptiveCoach/validate';
@@ -7,6 +8,9 @@ import { logger, serializeError } from './security/logger';
 import { ui, UNTRUSTED_NOTICE } from './security/prompt';
 import { validateExtractedPlan } from './security/aiOutput';
 import { capFreeText, checkAiOutput } from './security/aiSchemas';
+
+/** AI Coach output ceiling. Gemini counts thinking tokens against maxOutputTokens; replies are capped at 4000 characters (~1000 tokens). */
+export const COACH_MAX_OUTPUT_TOKENS = 4096;
 
 /**
  * Builds the Express app. All `/api/*` traffic passes through the security pipeline (request id, headers, CORS,
@@ -101,8 +105,7 @@ If the document is not a workout plan, return { "error": "Unable to identify a s
       model: 'gemini-3.8-flash',
       contents: contents,
       config: {
-        responseMimeType: 'application/json',
-        temperature: 0.2
+        responseMimeType: 'application/json'
       }
     });
 
@@ -188,7 +191,7 @@ Format strictly as valid JSON matching this schema:
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { responseMimeType: 'application/json', temperature: 0.3 }
+      config: { responseMimeType: 'application/json' }
     });
 
     const responseText = response.text || '';
@@ -243,7 +246,7 @@ Respond strictly with valid JSON matching:
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { responseMimeType: 'application/json', temperature: 0.2 }
+      config: { responseMimeType: 'application/json' }
     });
 
     const responseText = response.text || '';
@@ -375,8 +378,7 @@ Return STRICTLY a JSON object matching this schema:
       model: 'gemini-3.8-flash',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
-        responseMimeType: 'application/json',
-        temperature: 0.3
+        responseMimeType: 'application/json'
       }
     });
 
@@ -573,7 +575,7 @@ Format strictly as valid JSON matching this schema:
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { responseMimeType: 'application/json', temperature: 0.1 }
+      config: { responseMimeType: 'application/json' }
     });
 
     const responseText = response.text || '';
@@ -629,7 +631,7 @@ Format strictly as JSON:
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { responseMimeType: 'application/json', temperature: 0.2 }
+      config: { responseMimeType: 'application/json' }
     });
 
     const responseText = response.text || '';
@@ -710,7 +712,7 @@ Format strictly as JSON:
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { responseMimeType: 'application/json', temperature: 0.2 }
+      config: { responseMimeType: 'application/json' }
     });
 
     const responseText = response.text || '';
@@ -766,7 +768,7 @@ Format strictly as JSON:
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { responseMimeType: 'application/json', temperature: 0.2 }
+      config: { responseMimeType: 'application/json' }
     });
 
     const responseText = response.text || '';
@@ -883,7 +885,7 @@ Format strictly as JSON matching this schema:
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { responseMimeType: 'application/json', temperature: 0.2 }
+      config: { responseMimeType: 'application/json' }
     });
 
     const responseText = response.text || '';
@@ -966,7 +968,11 @@ COACHING DIRECTIVES:
       contents: chatContents,
       config: {
         systemInstruction,
-        temperature: 0.3
+        // Short bulleted coaching replies: LOW thinking is supported by gemini-3.8-flash and gemini-3.6-flash (the
+        // default MEDIUM only adds latency and billed output tokens; MINIMAL is rejected by 3.8). maxOutputTokens also
+        // covers thinking tokens, so it is generous relative to the 4000-character reply cap.
+        thinkingConfig: { thinkingLevel: 'LOW' as ThinkingLevel },
+        maxOutputTokens: COACH_MAX_OUTPUT_TOKENS
       }
     });
 
@@ -1021,7 +1027,7 @@ Respond with JSON only:
     const call = ai.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { responseMimeType: 'application/json', temperature: 0.2 }
+      config: { responseMimeType: 'application/json' }
     });
     const response: any = await Promise.race([
       call,
@@ -1079,7 +1085,6 @@ Keep response direct and formatted with clear bullet points.`;
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { temperature: 0.2 }
     });
 
     return res.json({ success: true, cues: capFreeText(response.text, 3000) });
@@ -1209,8 +1214,7 @@ Format strictly as JSON with this schema:
       model: 'gemini-3.8-flash',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
-        responseMimeType: 'application/json',
-        temperature: 0.2
+        responseMimeType: 'application/json'
       }
     });
 
@@ -1300,7 +1304,6 @@ Write a crisp, motivating 2-3 sentence visual description detailing this exact p
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { temperature: 0.3 }
     });
 
     const description = capFreeText(response.text, 1000, basePhysique.description);
@@ -1633,8 +1636,7 @@ Generate an exhaustive, scientifically rigorous transformation roadmap strictly 
       model: 'gemini-3.8-flash',
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
-        responseMimeType: 'application/json',
-        temperature: 0.2
+        responseMimeType: 'application/json'
       }
     });
 
