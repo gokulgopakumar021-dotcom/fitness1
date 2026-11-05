@@ -75,7 +75,7 @@ describe('API bundle (Stage 3.7, esbuild B2)', () => {
     expect(r.stderr).toBe('');
     expect(r.status).toBe(0); // the process ended by itself: nothing keeps the event loop alive
     expect(JSON.parse(r.stdout.trim())).toEqual({ exports: ['default'], type: 'function', same: true, handles: [] });
-  });
+  }, 30_000); // spawnSync blocks on a cold import of express/supabase/genai/redis; must outlast runNode's own 20s limit, not Vitest's 5s default
 
   it('the built bundle serves a controlled JSON 503 (no secrets, Retry-After set) when Redis is not configured, and never answers from memory', () => {
     const script = `

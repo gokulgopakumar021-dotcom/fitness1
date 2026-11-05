@@ -176,11 +176,12 @@ describe('verify:quota (core logic against a fake store; the live run is the own
 
 describe('verify:quota entry point', () => {
   const run = (env: Record<string, string>, args: string[] = []) =>
-    spawnSync(path.join(ROOT, 'node_modules/.bin/tsx'), ['scripts/verify-quota.ts', ...args], {
+    // process.execPath + tsx loader: `node_modules/.bin/tsx` is not directly executable on Windows (spawnSync -> status null).
+    spawnSync(process.execPath, ['--import', 'tsx', 'scripts/verify-quota.ts', ...args], {
       cwd: ROOT,
       encoding: 'utf8',
       timeout: 30_000,
-      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', ...env }
+      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}), ...env }
     });
 
   it('exits 2 and names the missing variables (never values) when unconfigured; contacts nothing', () => {
