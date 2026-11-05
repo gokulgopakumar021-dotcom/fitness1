@@ -9,6 +9,7 @@ import { DataControls } from './DataControls';
 import { LegacyDataClaim } from './LegacyDataClaim';
 import { getClaimState, readLegacyWorkoutData } from '../../storage/legacyData';
 import { SettingRow, SettingRows, SettingsCard } from './SettingsParts';
+import { SyncStatusCard } from '../sync/SyncStatusCard';
 
 interface DataPanelProps {
   isDemoMode: boolean;
@@ -226,6 +227,8 @@ export const DataPanel: React.FC<DataPanelProps> = ({ isDemoMode, onLoadDemoData
           </p>
         )}
       </SettingsCard>
+
+      <SyncStatusCard />
 
       <DataControls />
 

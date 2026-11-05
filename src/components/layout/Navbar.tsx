@@ -28,6 +28,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Modal } from '../ui/Modal';
 import { cn } from '../ui/cn';
 import { BrandEmblem } from '../ui/BrandLogo';
+import { SyncStatusBadge } from '../sync/SyncStatusBadge';
 
 export type NavTab =
   | 'home'
@@ -160,6 +161,7 @@ export const TopHeader: React.FC<HeaderProps> = ({
 
         {/* Right actions */}
         <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+          <SyncStatusBadge />
           {activeSession && currentTab !== 'workouts' && (
             <button
               type="button"
