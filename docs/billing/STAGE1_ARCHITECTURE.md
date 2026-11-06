@@ -1,6 +1,6 @@
 # Iron Log AI: Billing architecture (Stage 1 design)
 
-Status: **proposal for review**. Nothing here is applied to any database or deployed. Branch: `feature/razorpay-billing-trial`.
+Status: **final Stage 1 design, owner-approved 2026-11-06 (decisions in §1 and §11)**. Draft migration not yet applied anywhere. Nothing here is applied to any database or deployed. Branch: `feature/razorpay-billing-trial`.
 The matching draft migration is `supabase/migrations/20261106000000_billing_core.sql`, checked by `src/test/rls.billing.test.ts`.
 
 ## 1. Decisions (from the owner)
@@ -12,7 +12,11 @@ The matching draft migration is `supabase/migrations/20261106000000_billing_core
 | Gated | All 15 `ai: true` API routes need an active trial or paid subscription. |
 | Free | All local-first fitness features and every non-AI route. |
 | Server DB access | `SUPABASE_SERVICE_ROLE_KEY`, server only, used only by billing and webhook code. |
-| Mode | Razorpay Test Mode only. No live payments, no production env changes, no merge or deploy. |
+| Cycles and renewal | Monthly `total_count` 120, annual 10 (both 10 years). Failed-renewal grace 0 hours, configurable. Cancelling during the trial cancels future billing immediately and keeps access until the original trial end. |
+| ₹5 verification debit | Unavoidable with a future start (§2). Accepted on condition of clear pre-authorization disclosure, a confirmed automatic refund, no "charge-free" wording, exclusion from revenue, and a tested refund path. |
+| Account deletion | Not refused permanently. Blocked only until every subscription is confirmed stopped by Razorpay (§5a). |
+| Trial abuse | Residual risk accepted for v1: one trial per account and per confirmed email, persistent history, no device/IP restrictions. |
+| Mode | Razorpay Test Mode only. No live payments, no production env changes, no merge or deploy. Owner arranges the Razorpay account, Subscriptions activation, test keys and webhook configuration. |
 
 ## 2. Razorpay facts this design relies on
 
@@ -86,6 +90,19 @@ Trial timing: at creation the database sets `expire_by = now + 30 min` and `tria
 8. **Cancel.** `POST /api/billing/subscriptions/cancel`: if `active`, cancel with `cancel_at_cycle_end: true` and set `access_ends_at = current_period_end`; if `authenticated` (trial), cancel immediately and set `access_ends_at = trial_end_at` (no money has been taken; the trial the user was promised is honored). `subscription.cancelled` finalizes the row.
 9. **Reconcile.** A server routine (called on `status` reads when a row is stale, and by a scheduled job later) re-fetches subscriptions that are `created` past `expire_by`, `authenticated` past `trial_end_at`, or `pending`, so a lost webhook cannot leave wrong state.
 
+## 5a. Account deletion safeguards
+
+`delete_own_account()` (originally `delete from auth.users where id = uid`) would cascade-delete billing rows while a mandate could keep charging. This migration redefines it; grants are unchanged.
+
+- **Gate.** `billing_assert_account_deletable(uid)` raises `billing_cancellation_required` (SQLSTATE `BL001`) unless every subscription is stopped. A row blocks if it is `creating`, `created`, `authenticated`, `active`, `pending` or `halted`, or terminal but without `billing_stop_verified_at`. Only an `expired` row that never reached Razorpay (no Razorpay id) is ignored.
+- **Verified stop.** `billing_stop_verified_at` is set only by `billing_mark_stop_verified()`, called by the server after it read a terminal status (`cancelled`, `completed`, `expired`) from Razorpay itself: the cancel API response or a fresh fetch. A webhook body or client request alone never sets it, so webhook delays or loss cannot allow an unsafe deletion. A check constraint rejects the column on non-terminal rows.
+- **Trial.** Cancelled immediately, so it becomes `cancelled` at once; access continues to `trial_end_at`; deletion is then allowed.
+- **Paid, cancel at cycle end.** Stays `active` (billing stops after the period but Razorpay has not reported a terminal status), so it blocks. The user chooses "Cancel now and delete account": immediate cancel, access ends now, no refund, explicit confirmation. If Stage 2 verifies how Razorpay reports a scheduled cancellation, deletion could also be allowed once Razorpay confirms it.
+- **Unauthorized (`created`) subscriptions** block until Razorpay confirms them cancelled or expired, so a customer cannot finish Checkout after starting deletion.
+- **Race safety.** The function takes the same per-user advisory lock as `billing_begin_subscription` before checking.
+- **Orphans.** `billing_subscriptions.user_id` and `billing_payments.user_id` are `on delete set null`; rows and Razorpay ids survive. If a webhook arrives for a subscription with `user_id` null and no verified stop, the server cancels it at Razorpay immediately and records the event (Stage 5; the partial index `billing_subscriptions_orphan_idx` supports the lookup). Trial claims already survive deletion.
+- **Retention.** Retained rows hold ids, amounts and timestamps and no personal data. Whether to keep them for tax or audit purposes is an owner/legal decision; they can be purged later without affecting the gate.
+
 ## 6. Webhook endpoint
 
 `POST /api/billing/webhook` is the one route without a Supabase JWT, because Razorpay cannot send one. It is registered **before** `installSecurity` with `express.raw({ type: 'application/json', limit: '256kb' })`, so the body stays exact. It then:
@@ -103,12 +120,12 @@ The route is added to the route-policy tests as an explicit, documented exceptio
 |---|---|---|
 | `billing_subscriptions` | One row per subscription attempt: ids, plan, amount snapshot, status, payment status, trial start and end, current period, next billing, cancellation fields. Unique partial index: at most one live subscription per user. | `select` own rows, display columns only (no Razorpay ids). No writes. |
 | `billing_trial_claims` | One trial per person, forever. Keyed by `email_hash` (HMAC of the normalized email with a server pepper). `user_id` is `on delete set null`, so deleting an account and re-registering cannot restart a trial. Unique per consumed `user_id`. | None. |
-| `billing_payments` | Payment history; unique on `razorpay_payment_id`. No card or VPA data. | `select` own rows, display columns only. |
+| `billing_payments` | Payment history; unique on `razorpay_payment_id`; refund tracking for the ₹5 authorization. No card or VPA data. | `select` own rows, display columns only. |
 | `billing_webhook_events` | Idempotency ledger keyed by Razorpay event id: ids, digest, status, attempts. No raw payload. | None. |
 
-Functions (SECURITY DEFINER, `search_path = ''`, executable by `service_role` only): `billing_get_entitlement`, `billing_begin_subscription`, `billing_consume_trial_claim`, `billing_begin_webhook_event`.
+Functions (SECURITY DEFINER, `search_path = ''`, executable by `service_role` only): `billing_get_entitlement`, `billing_begin_subscription`, `billing_consume_trial_claim`, `billing_begin_webhook_event`, `billing_mark_stop_verified`, `billing_assert_account_deletable`, `billing_unrefunded_authorizations`. View `billing_revenue_payments` (captured charges only; service role only). `delete_own_account()` is redefined with the billing gate.
 
-Verified by 26 tests against the real SQL in an in-process Postgres: RLS on every table, own-rows-only reads, no client writes (including self-granting paid status), hidden Razorpay columns, no anon access, service-role-only functions, one-time trial per email hash and per user, trial claim surviving account deletion, duplicate-subscription prevention, every entitlement state, and webhook idempotency. Not covered: true concurrency (single connection), real Supabase/PostgREST.
+Verified by 41 tests against the real SQL in an in-process Postgres (the 26 above plus deletion gating in every live state, verified-stop flow, orphan retention, refund tracking and revenue exclusion; the existing delete-account test still passes): RLS on every table, own-rows-only reads, no client writes (including self-granting paid status), hidden Razorpay columns, no anon access, service-role-only functions, one-time trial per email hash and per user, trial claim surviving account deletion, duplicate-subscription prevention, every entitlement state, and webhook idempotency. Not covered: true concurrency (single connection), real Supabase/PostgREST.
 
 Safety: all statements are `if not exists` / `create or replace` (idempotent), touch no existing table, and a rollback block is included.
 
@@ -151,12 +168,12 @@ Server only. Never `VITE_`-prefixed, never in a client bundle.
 
 ## 11. Risks and open items
 
-1. **₹5 verification charge.** Razorpay's future-start authorization charges ₹5 and refunds it automatically. This conflicts with a strict reading of "do not charge during the trial". It must be disclosed in the UI. **Needs owner acceptance.**
-2. **Trial abuse with new email addresses.** Email hashing (with plus-tag and Gmail dot normalization) and per-user limits stop repeats on one account and re-signup with one address. A person with many addresses can still obtain multiple trials. A payment-method fingerprint would help, but no verified Razorpay field is confirmed for it. Residual risk, to be accepted or mitigated later.
-3. **Account deletion with a live subscription.** `delete_own_account()` cascades the database rows but cannot cancel Razorpay, so billing would continue. Proposal for Stage 5: refuse deletion while a live subscription exists and tell the user to cancel first (an additive migration), plus a server cancel step.
-4. **`total_count`.** Razorpay requires it. Proposed: 120 monthly cycles and 10 annual cycles (10 years).
-5. **Cancel during trial.** Proposed: immediate cancellation with access kept until `trial_end_at`, because no charge has occurred.
-6. **Failed-renewal grace.** Default none, per "prevent unauthorized paid access". `BILLING_PENDING_GRACE_HOURS` allows an opt-in grace.
+1. **₹5 verification charge. Accepted conditionally.** Per current docs a future start with no upfront amount makes the authentication payment ₹5, auto-refunded; the only alternative (an upfront amount) is a real, non-refunded charge. Conditions: (a) disclosure before Checkout: the ₹5 verification charge, that it is refunded automatically, first charge date and amount, and that renewal is automatic; never "free" or "no charge" wording; (b) `billing_payments.kind = 'authorization'` is excluded from revenue by the `billing_revenue_payments` view; (c) refund state is tracked (`amount_refunded_paise`, `refunded_at`) and `billing_unrefunded_authorizations()` lists unrefunded authorizations so the reconciler can re-fetch the payment and alert; no refund webhook event is assumed; (d) **still unverified:** refund timing to the customer's bank, and the authorization amount for UPI Autopay and eMandate with a future start. Stage 2 checks both in Test Mode; Test Mode shows a refund recorded against the payment but cannot show real bank settlement time.
+2. **Trial abuse with new email addresses (accepted for v1).** The trial claim must use a **confirmed** email; Stage 2 checks whether Supabase Auth here requires confirmation, since otherwise someone could use another person's address to burn their trial. Email hashing (with plus-tag and Gmail dot normalization) and per-user limits stop repeats on one account and re-signup with one address. A person with many addresses can still obtain multiple trials. A payment-method fingerprint would help, but no verified Razorpay field is confirmed for it. Residual risk, to be accepted or mitigated later.
+3. **Account deletion with a live subscription. Resolved (§5a).** The original `delete_own_account()` cascaded rows and could not stop Razorpay billing. The gate now lives in the database (this migration redefines the function) because clients can call it directly. The deletion UI and server cancel-and-delete flow are Stage 5.
+4. **`total_count`. Approved:** 120 monthly and 10 annual cycles (10 years each). Razorpay's own docs disagree on the maximum (30 years on the subscription-links page, 100 years in the FAQ); both exceed 10 years, so the limit is not binding; confirm the exact API limit in Test Mode. The subscription completes after 10 years and would need re-authorizing; this is disclosed with the renewal terms.
+5. **Cancel during trial. Approved:** immediate cancellation of future billing, access kept until the original `trial_end_at`.
+6. **Failed-renewal grace. Approved:** default 0, configurable via `BILLING_PENDING_GRACE_HOURS`. With 0, access stops at the first failed charge while Razorpay still retries daily for three days; access resumes if a retry succeeds. The UI says so.
 7. **Razorpay prerequisites.** A Razorpay account with Subscriptions enabled, Test Mode keys, a webhook URL reachable from Razorpay (a tunnel for local testing) with the subscription events subscribed, and the webhook secret. These are manual dashboard steps for the owner.
 8. **Existing 3 accounts and `BILLING_ENFORCEMENT`.** Safe while `off`; turning it `on` gates their AI use until they subscribe.
 

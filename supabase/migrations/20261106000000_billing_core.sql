@@ -9,6 +9,11 @@
 -- webhook events. The SECURITY DEFINER functions below are executable by service_role only. Because service_role bypasses
 -- RLS, the server must always pass the user id it verified from the Supabase JWT; it must never take it from a request body.
 --
+-- Account deletion: this migration also redefines public.delete_own_account() (originally 20261030000000) to refuse deletion while
+-- any Razorpay mandate could still charge the user (see billing_assert_account_deletable). Subscription and payment rows are
+-- kept after deletion with user_id set to null, so a late webhook for a deleted account can still be matched to its Razorpay
+-- subscription and cancelled by the server.
+--
 -- Idempotent: safe to run more than once. Reversible: see the rollback block at the end of this file.
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -16,7 +21,8 @@
 -- ---------------------------------------------------------------------------------------------------------------------
 create table if not exists public.billing_subscriptions (
   id                       uuid        primary key default gen_random_uuid(),
-  user_id                  uuid        not null references auth.users (id) on delete cascade,
+  -- Set to null (not cascaded) when the account is deleted: the row must outlive the user so orphaned Razorpay events can be handled.
+  user_id                  uuid        references auth.users (id) on delete set null,
   plan_key                 text        not null,
   razorpay_plan_id         text        not null,
   razorpay_subscription_id text        unique,
@@ -45,6 +51,8 @@ create table if not exists public.billing_subscriptions (
   ended_at                 timestamptz,
   -- Last instant this subscription grants access once cancelled. Set by the server when cancellation is requested.
   access_ends_at           timestamptz,
+  -- Set only by the server after Razorpay itself reported a terminal status (cancelled/completed/expired). Gate for account deletion.
+  billing_stop_verified_at timestamptz,
   razorpay_synced_at       timestamptz,
   created_at               timestamptz not null default now(),
   updated_at               timestamptz not null default now(),
@@ -62,7 +70,9 @@ create table if not exists public.billing_subscriptions (
   constraint billing_subscriptions_trial_order check (
     trial_end_at is null or trial_start_at is null or trial_end_at > trial_start_at),
   constraint billing_subscriptions_trial_start_needs_end check (trial_start_at is null or trial_end_at is not null),
-  constraint billing_subscriptions_paid_count check (paid_count >= 0)
+  constraint billing_subscriptions_paid_count check (paid_count >= 0),
+  constraint billing_subscriptions_stop_verified_terminal check (
+    billing_stop_verified_at is null or status in ('cancelled', 'completed', 'expired'))
 );
 comment on table public.billing_subscriptions is
   'Razorpay subscription attempts and their server-verified state. Written by the server only; users may read their own rows.';
@@ -74,6 +84,9 @@ create unique index if not exists billing_subscriptions_one_live_per_user
 create index if not exists billing_subscriptions_user_created_idx on public.billing_subscriptions (user_id, created_at desc);
 -- Reconciliation scans: unauthenticated rows past expire_by, trials past trial_end_at awaiting their first charge.
 create index if not exists billing_subscriptions_status_trial_end_idx on public.billing_subscriptions (status, trial_end_at);
+-- Orphan handling: subscriptions whose user was deleted (user_id null) but whose Razorpay mandate is not verified stopped.
+create index if not exists billing_subscriptions_orphan_idx on public.billing_subscriptions (razorpay_subscription_id)
+  where user_id is null and billing_stop_verified_at is null;
 create index if not exists billing_subscriptions_customer_idx on public.billing_subscriptions (razorpay_customer_id)
   where razorpay_customer_id is not null;
 
@@ -105,7 +118,7 @@ create index if not exists billing_trial_claims_user_idx on public.billing_trial
 -- ---------------------------------------------------------------------------------------------------------------------
 create table if not exists public.billing_payments (
   id                  uuid        primary key default gen_random_uuid(),
-  user_id             uuid        not null references auth.users (id) on delete cascade,
+  user_id             uuid        references auth.users (id) on delete set null,
   subscription_id     uuid        not null references public.billing_subscriptions (id) on delete cascade,
   razorpay_payment_id text        not null unique,
   razorpay_invoice_id text,
@@ -116,11 +129,16 @@ create table if not exists public.billing_payments (
   method              text,
   error_code          text,
   paid_at             timestamptz,
+  -- Refund tracking. The INR 5 authorization payment is refunded automatically by Razorpay; it is NOT revenue (see billing_revenue_payments).
+  amount_refunded_paise integer   not null default 0,
+  refunded_at         timestamptz,
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now(),
   constraint billing_payments_kind check (kind in ('authorization', 'charge')),
   constraint billing_payments_status check (status in ('authorized', 'captured', 'failed', 'refunded')),
   constraint billing_payments_amount check (amount_paise >= 0),
+  constraint billing_payments_refund_amount check (amount_refunded_paise >= 0 and amount_refunded_paise <= amount_paise),
+  constraint billing_payments_refunded_needs_time check (status <> 'refunded' or refunded_at is not null),
   constraint billing_payments_currency check (currency = 'INR'),
   constraint billing_payments_method_length check (method is null or char_length(method) <= 32),
   constraint billing_payments_error_code_length check (error_code is null or char_length(error_code) <= 64)
@@ -171,7 +189,7 @@ grant select (id, user_id, plan_key, billing_period, billing_interval, amount_pa
               trial_start_at, trial_end_at, current_period_start, current_period_end, next_billing_at, paid_count,
               cancel_requested_at, cancel_at_cycle_end, cancelled_at, ended_at, access_ends_at, created_at, updated_at)
   on public.billing_subscriptions to authenticated;
-grant select (id, user_id, subscription_id, kind, status, amount_paise, currency, method, paid_at, created_at)
+grant select (id, user_id, subscription_id, kind, status, amount_paise, currency, method, paid_at, amount_refunded_paise, refunded_at, created_at)
   on public.billing_payments to authenticated;
 
 drop policy if exists "billing_subscriptions_select_own" on public.billing_subscriptions;
@@ -421,6 +439,103 @@ begin
 end;
 $$;
 
+-- billing_mark_stop_verified: called by the server ONLY after it has read a terminal status (cancelled/completed/expired) for
+-- this subscription from Razorpay itself (the cancel API response or a fresh fetch), never from a webhook body or a client
+-- request alone. It records that recurring billing is confirmed stopped; account deletion depends on it.
+create or replace function public.billing_mark_stop_verified(p_subscription_id uuid, p_observed_status text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_rows integer;
+begin
+  if p_subscription_id is null or p_observed_status is null or p_observed_status not in ('cancelled', 'completed', 'expired') then
+    raise exception 'a terminal Razorpay status is required' using errcode = '22023';
+  end if;
+  update public.billing_subscriptions b
+     set status = p_observed_status,
+         billing_stop_verified_at = coalesce(b.billing_stop_verified_at, now()),
+         cancelled_at = case when p_observed_status = 'cancelled' then coalesce(b.cancelled_at, now()) else b.cancelled_at end,
+         ended_at = coalesce(b.ended_at, now())
+   where b.id = p_subscription_id and b.razorpay_subscription_id is not null;
+  get diagnostics v_rows = row_count;
+  return v_rows > 0;
+end;
+$$;
+
+-- billing_assert_account_deletable: raises billing_cancellation_required unless EVERY subscription of the user is confirmed
+-- stopped. Rows that never reached Razorpay (no razorpay_subscription_id, status expired) hold no mandate and do not block.
+-- A subscription still creating/created/authenticated/active/pending/halted blocks; so does a terminal row the server has not yet
+-- verified with Razorpay (covers delayed or lost webhooks). Cancel-at-cycle-end leaves the status 'active' and therefore blocks:
+-- the user must cancel immediately (access ends now, no refund) before deleting.
+create or replace function public.billing_assert_account_deletable(p_user_id uuid)
+returns void
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1 from public.billing_subscriptions b
+    where b.user_id = p_user_id
+      and not (b.status = 'expired' and b.razorpay_subscription_id is null)
+      and not (b.status in ('cancelled', 'completed', 'expired') and b.billing_stop_verified_at is not null)
+  ) then
+    raise exception 'billing_cancellation_required' using errcode = 'BL001',
+      hint = 'Cancel the subscription and wait for confirmation before deleting the account.';
+  end if;
+end;
+$$;
+
+-- delete_own_account: same behaviour as 20261030000000, plus the billing gate. It takes the SAME per-user advisory lock as
+-- billing_begin_subscription, so a new subscription cannot be created while deletion is being decided. Grants are unchanged
+-- (create or replace keeps them): executable by authenticated users only.
+create or replace function public.delete_own_account()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  uid uuid := (select auth.uid());
+begin
+  if uid is null then
+    raise exception 'Not authenticated' using errcode = '28000';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended('billing:' || uid::text, 0));
+  perform public.billing_assert_account_deletable(uid);
+  delete from auth.users where id = uid;
+end;
+$$;
+
+-- Revenue = captured subscription CHARGES only. The refundable INR 5 authorization payment (kind = 'authorization') is excluded
+-- by definition, whatever its status. Server/reporting use only.
+create or replace view public.billing_revenue_payments with (security_invoker = true) as
+  select id, user_id, subscription_id, razorpay_payment_id, amount_paise, currency, paid_at
+  from public.billing_payments
+  where kind = 'charge' and status = 'captured';
+
+-- billing_unrefunded_authorizations: authorization payments Razorpay has not refunded within p_older_than_minutes. The server's
+-- reconciler re-fetches these from Razorpay and raises an alert; nothing here assumes a refund webhook event exists.
+create or replace function public.billing_unrefunded_authorizations(p_older_than_minutes integer default 1440)
+returns table (payment_id uuid, razorpay_payment_id text, subscription_id uuid, amount_paise integer, created_at timestamptz)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p.id, p.razorpay_payment_id, p.subscription_id, p.amount_paise, p.created_at
+  from public.billing_payments p
+  where p.kind = 'authorization'
+    and p.status <> 'failed'
+    and p.status <> 'refunded'
+    and p.created_at < now() - make_interval(mins => greatest(coalesce(p_older_than_minutes, 1440), 1))
+  order by p.created_at;
+$$;
+
 -- Only the server (service_role) may call these. They are never reachable by anon or authenticated callers.
 revoke all on function public.billing_get_entitlement(uuid, integer) from public, anon, authenticated;
 revoke all on function public.billing_begin_subscription(uuid, text, text, text, text, integer, integer, integer) from public, anon, authenticated;
@@ -431,8 +546,22 @@ grant execute on function public.billing_begin_subscription(uuid, text, text, te
 grant execute on function public.billing_consume_trial_claim(uuid, uuid) to service_role;
 grant execute on function public.billing_begin_webhook_event(text, text, text, text, text, timestamptz) to service_role;
 
+revoke all on function public.billing_mark_stop_verified(uuid, text) from public, anon, authenticated;
+revoke all on function public.billing_assert_account_deletable(uuid) from public, anon, authenticated;
+revoke all on function public.billing_unrefunded_authorizations(integer) from public, anon, authenticated;
+grant execute on function public.billing_mark_stop_verified(uuid, text) to service_role;
+grant execute on function public.billing_assert_account_deletable(uuid) to service_role;
+grant execute on function public.billing_unrefunded_authorizations(integer) to service_role;
+revoke all on public.billing_revenue_payments from public, anon, authenticated;
+grant select on public.billing_revenue_payments to service_role;
+
 -- ---------------------------------------------------------------------------------------------------------------------
 -- ROLLBACK (not part of the migration; run manually to undo, only before real billing data exists):
+--   -- restore the original delete_own_account() by re-running supabase/migrations/20261030000000_delete_own_account.sql
+--   drop view if exists public.billing_revenue_payments;
+--   drop function if exists public.billing_unrefunded_authorizations(integer);
+--   drop function if exists public.billing_assert_account_deletable(uuid);
+--   drop function if exists public.billing_mark_stop_verified(uuid, text);
 --   drop function if exists public.billing_begin_webhook_event(text, text, text, text, text, timestamptz);
 --   drop function if exists public.billing_consume_trial_claim(uuid, uuid);
 --   drop function if exists public.billing_begin_subscription(uuid, text, text, text, text, integer, integer, integer);

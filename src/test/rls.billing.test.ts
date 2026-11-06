@@ -20,6 +20,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const dir = resolve(import.meta.dirname, '../../supabase/migrations');
 const read = (f: string) => readFileSync(resolve(dir, f), 'utf8');
 const PROFILES = read('20261027000000_auth_profiles.sql');
+const DELETE_FN = read('20261030000000_delete_own_account.sql');
 const BILLING = read('20261106000000_billing_core.sql');
 
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -65,7 +66,7 @@ const val = async <T>(q: string) => (await pg.query<T>(q)).rows;
 beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(`
-    create role anon nologin; create role authenticated nologin; create role service_role nologin;
+    create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls; -- Supabase's service_role bypasses RLS
     create schema auth;
     create table auth.users (id uuid primary key default gen_random_uuid(), email text, raw_user_meta_data jsonb);
     create function auth.uid() returns uuid language sql stable as
@@ -74,6 +75,7 @@ beforeAll(async () => {
     grant execute on function auth.uid() to anon, authenticated;
   `);
   await pg.exec(PROFILES);
+  await pg.exec(DELETE_FN); // original function; the billing migration then redefines it with the billing gate
   await pg.exec(BILLING);
   await pg.exec(BILLING); // idempotent: a second run changes nothing and does not fail
   await pg.exec(`insert into auth.users (id, email) values ('${A}','a@example.com'), ('${B}','b@example.com'), ('${C}','c@example.com')`);
@@ -141,7 +143,11 @@ describe('billing schema: RLS and privileges', () => {
       `select * from public.billing_get_entitlement('${A}', 0)`,
       `select * from public.billing_begin_subscription('${A}','h','monthly','plan_x','monthly',29900,3,30)`,
       `select public.billing_consume_trial_claim('${A}','${A}')`,
-      `select public.billing_begin_webhook_event('evt','subscription.charged',null,null,null,null)`
+      `select public.billing_begin_webhook_event('evt','subscription.charged',null,null,null,null)`,
+      `select public.billing_mark_stop_verified('${A}','cancelled')`,
+      `select public.billing_assert_account_deletable('${A}')`,
+      `select * from public.billing_unrefunded_authorizations(1)`,
+      `select * from public.billing_revenue_payments`
     ]) {
       await rejects(() => as('authenticated', A, () => pg.query(call)));
       await rejects(() => as('anon', null, () => pg.query(call)));
@@ -334,5 +340,165 @@ describe('billing_begin_webhook_event: idempotency', () => {
                 values ('${B}','${sub[0].id}','pay_dup','charge','captured',29900)`);
     await ins();
     await rejects(ins);
+  });
+});
+
+// --- Account deletion safeguards, refund tracking and revenue (final Stage 1 design) ---------------------------------
+const addUser = (id: string, email: string) => sql(`insert into auth.users (id, email) values ('${id}','${email}')`);
+const deleteOwn = (uid: string) => as('authenticated', uid, () => pg.query('select public.delete_own_account()'));
+const userExists = async (id: string) => (await val(`select 1 from auth.users where id='${id}'`)).length === 1;
+const stopVerified = (subId: string, status: string) =>
+  as('service_role', null, () => pg.query('select public.billing_mark_stop_verified($1::uuid,$2)', [subId, status]));
+async function subscribe(uid: string, hash: string, status: string, rzp: string | null = `sub_${uid.slice(0, 4)}`) {
+  const r = await begin(uid, hash);
+  await sql(`update public.billing_subscriptions set status='${status}', razorpay_subscription_id=${rzp ? `'${rzp}'` : 'null'},
+    trial_start_at=now(), current_period_end = now() + interval '30 days' where id='${r.subscription_id}'`);
+  return r.subscription_id;
+}
+
+describe('account deletion safeguards', () => {
+  it('still deletes an account that has no billing rows', async () => {
+    const U = '10000000-0000-4000-8000-000000000001';
+    await addUser(U, 'u1@example.com');
+    await deleteOwn(U);
+    expect(await userExists(U)).toBe(false);
+  });
+
+  it('refuses deletion while a subscription could still bill, in every live state', async () => {
+    const live = ['creating', 'created', 'authenticated', 'active', 'pending', 'halted'];
+    for (const [i, status] of live.entries()) {
+      const U = `20000000-0000-4000-8000-00000000000${i}`;
+      await addUser(U, `live${i}@example.com`);
+      await subscribe(U, `hash-live-${i}-0123456789abcdef`, status, status === 'creating' ? null : `sub_live_${i}`);
+      const msg = await rejects(() => deleteOwn(U));
+      expect(msg, status).toContain('billing_cancellation_required');
+      expect(await userExists(U), status).toBe(true);
+    }
+  });
+
+  it('refuses deletion for a cycle-end cancellation that is still active until the period ends', async () => {
+    const U = '30000000-0000-4000-8000-000000000001';
+    await addUser(U, 'u3@example.com');
+    const id = await subscribe(U, 'hash-cycle-end-0123456789abcdef', 'active', 'sub_cycle');
+    await sql(`update public.billing_subscriptions set cancel_requested_at=now(), cancel_at_cycle_end=true where id='${id}'`);
+    await rejects(() => deleteOwn(U));
+    expect(await userExists(U)).toBe(true);
+  });
+
+  it('refuses deletion when the cancel is recorded but Razorpay has not verified the stop (delayed webhook)', async () => {
+    const U = '40000000-0000-4000-8000-000000000001';
+    await addUser(U, 'u4@example.com');
+    await subscribe(U, 'hash-unverified-0123456789abcdef', 'cancelled', 'sub_unverified');
+    expect(await rejects(() => deleteOwn(U))).toContain('billing_cancellation_required');
+  });
+
+  it('allows deletion once the server has verified a terminal status with Razorpay, and keeps the audit rows', async () => {
+    const U = '50000000-0000-4000-8000-000000000001';
+    await addUser(U, 'u5@example.com');
+    const id = await subscribe(U, 'hash-verified-0123456789abcdef', 'authenticated', 'sub_verified');
+    await rejects(() => deleteOwn(U));
+    expect((await stopVerified(id, 'cancelled')).rows).toEqual([{ billing_mark_stop_verified: true }]);
+    await deleteOwn(U);
+    expect(await userExists(U)).toBe(false);
+    const kept = await val<{ user_id: string | null; status: string }>(`select user_id, status from public.billing_subscriptions where razorpay_subscription_id='sub_verified'`);
+    expect(kept).toEqual([{ user_id: null, status: 'cancelled' }]);
+  });
+
+  it('lets an expired row that never reached Razorpay be deleted (no mandate exists)', async () => {
+    const U = '60000000-0000-4000-8000-000000000001';
+    await addUser(U, 'u6@example.com');
+    await subscribe(U, 'hash-never-sent-0123456789abcdef', 'expired', null);
+    await deleteOwn(U);
+    expect(await userExists(U)).toBe(false);
+  });
+
+  it('keeps an unverified subscription matchable by its Razorpay id after the account is gone (orphan handling)', async () => {
+    const U = '70000000-0000-4000-8000-000000000001';
+    await addUser(U, 'u7@example.com');
+    await subscribe(U, 'hash-orphan-0123456789abcdef', 'expired', 'sub_orphan');
+    await sql(`delete from auth.users where id='${U}'`); // simulates deletion that bypassed the gate (e.g. admin)
+    const orphans = await val<{ razorpay_subscription_id: string }>(
+      `select razorpay_subscription_id from public.billing_subscriptions where user_id is null and billing_stop_verified_at is null and razorpay_subscription_id='sub_orphan'`
+    );
+    expect(orphans).toHaveLength(1);
+  });
+
+  it('only accepts terminal Razorpay statuses when verifying a stop', async () => {
+    const id = (await val<{ id: string }>(`select id from public.billing_subscriptions limit 1`))[0].id;
+    await rejects(() => stopVerified(id, 'active'));
+    await rejects(() => stopVerified(id, 'authenticated'));
+    // the table itself refuses a stop verification on a non-terminal row
+    const live = (await val<{ id: string }>(`select id from public.billing_subscriptions where status in ('active','authenticated','pending','halted') limit 1`))[0].id;
+    await rejects(() => sql(`update public.billing_subscriptions set billing_stop_verified_at=now() where id='${live}'`));
+  });
+
+  it('serialises with subscription creation (shared advisory lock) and the unauthenticated call is rejected', async () => {
+    expect(await rejects(() => as('anon', null, () => pg.query('select public.delete_own_account()')))).toBeTruthy();
+    expect(await rejects(() => as('authenticated', null, () => pg.query('select public.delete_own_account()')))).toContain('Not authenticated');
+  });
+
+  it('keeps delete_own_account executable by signed-in users only', async () => {
+    const acl = await val<{ grantee: string }>(
+      `select grantee::regrole::text as grantee from aclexplode((select proacl from pg_proc where proname='delete_own_account'))`
+    );
+    expect(acl.map((r) => r.grantee).sort()).toContain('authenticated');
+    expect(acl.map((r) => r.grantee)).not.toContain('anon');
+    expect(acl.map((r) => r.grantee)).not.toContain('-');
+  });
+});
+
+describe('INR 5 authorization payment: refund tracking and revenue', () => {
+  const U = '80000000-0000-4000-8000-000000000001';
+  let subId = '';
+  beforeAll(async () => {
+    await addUser(U, 'u8@example.com');
+    subId = await subscribe(U, 'hash-refund-0123456789abcdef', 'authenticated', 'sub_refund');
+  });
+
+  it('excludes authorization payments from revenue, whatever their status, and counts captured charges', async () => {
+    await sql(`insert into public.billing_payments (user_id, subscription_id, razorpay_payment_id, kind, status, amount_paise, amount_refunded_paise, refunded_at)
+      values ('${U}','${subId}','pay_auth_refunded','authorization','refunded',500,500,now()),
+             ('${U}','${subId}','pay_auth_captured','authorization','captured',500,0,null),
+             ('${U}','${subId}','pay_charge_ok','charge','captured',29900,0,null),
+             ('${U}','${subId}','pay_charge_failed','charge','failed',29900,0,null)`);
+    const rows = await as('service_role', null, () => val<{ razorpay_payment_id: string }>('select razorpay_payment_id from public.billing_revenue_payments order by 1'));
+    const ids = rows.map((r) => r.razorpay_payment_id);
+    expect(ids).toContain('pay_charge_ok');
+    expect(ids).not.toContain('pay_auth_refunded');
+    expect(ids).not.toContain('pay_auth_captured');
+    expect(ids).not.toContain('pay_charge_failed');
+  });
+
+  it('keeps the revenue view away from clients', async () => {
+    await rejects(() => as('authenticated', U, () => pg.query('select * from public.billing_revenue_payments')));
+  });
+
+  it('flags authorization payments that Razorpay has not refunded after the window, and clears them once refunded', async () => {
+    await sql(`insert into public.billing_payments (user_id, subscription_id, razorpay_payment_id, kind, status, amount_paise, created_at)
+      values ('${U}','${subId}','pay_auth_stuck','authorization','authorized',500, now() - interval '2 days'),
+             ('${U}','${subId}','pay_auth_recent','authorization','authorized',500, now())`);
+    const flagged = () =>
+      as('service_role', null, () => val<{ razorpay_payment_id: string }>('select razorpay_payment_id from public.billing_unrefunded_authorizations(1440)')).then((r) => r.map((x) => x.razorpay_payment_id));
+    await sql(`update public.billing_payments set created_at = now() - interval '2 days' where razorpay_payment_id='pay_auth_captured'`);
+    const before = await flagged();
+    expect(before).toContain('pay_auth_stuck');
+    expect(before).toContain('pay_auth_captured'); // captured but never marked refunded is also surfaced
+    expect(before).not.toContain('pay_auth_recent');
+    expect(before).not.toContain('pay_auth_refunded');
+    await sql(`update public.billing_payments set status='refunded', amount_refunded_paise=500, refunded_at=now() where razorpay_payment_id='pay_auth_stuck'`);
+    expect(await flagged()).not.toContain('pay_auth_stuck');
+  });
+
+  it('rejects inconsistent refund data', async () => {
+    const ins = (cols: string) =>
+      pg.query(`insert into public.billing_payments (user_id, subscription_id, razorpay_payment_id, kind, status, amount_paise, ${cols.split('|')[0]}) values ('${U}','${subId}','pay_bad_${Math.random()}','authorization','${cols.split('|')[2]}',500,${cols.split('|')[1]})`);
+    await rejects(() => ins('amount_refunded_paise|600|authorized')); // refunded more than paid
+    await rejects(() => ins('amount_refunded_paise|0|refunded')); // 'refunded' without refunded_at
+  });
+
+  it('shows users their own refund state but still no Razorpay payment id', async () => {
+    const mine = await as('authenticated', U, () => val<{ kind: string; refunded_at: string | null }>(`select kind, refunded_at from public.billing_payments where kind='authorization' and status='refunded'`));
+    expect(mine.length).toBeGreaterThan(0);
+    await rejects(() => as('authenticated', U, () => pg.query('select razorpay_payment_id from public.billing_payments')));
   });
 });
