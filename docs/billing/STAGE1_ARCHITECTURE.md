@@ -1,7 +1,7 @@
 # Iron Log AI: Billing architecture (Stage 1 design)
 
 Status: **final Stage 1 design, owner-approved 2026-11-06 (decisions in §1 and §11)**. Draft migration not yet applied anywhere. Nothing here is applied to any database or deployed. Branch: `feature/razorpay-billing-trial`.
-The matching draft migration is `supabase/migrations/20261106000000_billing_core.sql`, checked by `src/test/rls.billing.test.ts`.
+The matching migrations are `supabase/migrations/20261106000000_billing_core.sql` and the additive follow-up `20261106100000_billing_deletion_refund.sql`, checked by `src/test/rls.billing.test.ts`.
 
 ## 1. Decisions (from the owner)
 

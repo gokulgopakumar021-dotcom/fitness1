@@ -22,6 +22,7 @@ const read = (f: string) => readFileSync(resolve(dir, f), 'utf8');
 const PROFILES = read('20261027000000_auth_profiles.sql');
 const DELETE_FN = read('20261030000000_delete_own_account.sql');
 const BILLING = read('20261106000000_billing_core.sql');
+const BILLING_FINAL = read('20261106100000_billing_deletion_refund.sql');
 
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -78,6 +79,8 @@ beforeAll(async () => {
   await pg.exec(DELETE_FN); // original function; the billing migration then redefines it with the billing gate
   await pg.exec(BILLING);
   await pg.exec(BILLING); // idempotent: a second run changes nothing and does not fail
+  await pg.exec(BILLING_FINAL);
+  await pg.exec(BILLING_FINAL); // also idempotent
   await pg.exec(`insert into auth.users (id, email) values ('${A}','a@example.com'), ('${B}','b@example.com'), ('${C}','c@example.com')`);
 }, 60000);
 afterAll(async () => {
