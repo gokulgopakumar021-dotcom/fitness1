@@ -1,4 +1,5 @@
 import { schemas, type Schema } from './validation';
+import { billingSchemas } from '../billing/schemas';
 
 /**
  * Single source of truth for per-endpoint policy: rate limit, daily AI quota, body-size limit and request schema.
@@ -39,11 +40,20 @@ export const ENDPOINTS: Record<string, EndpointPolicy> = {
   'POST /ai-physique-analysis': { bucket: 'ai-physique-analysis', ai: true, dailyQuota: 10, perMinute: 3, bodyLimit: MEDIUM, schema: schemas.physiqueAnalysis }
 };
 
+/** Billing (Stage 2). Not AI routes: no AI quota. Tight per-minute limits because each write calls Razorpay. */
+export const BILLING_ENDPOINTS: Record<string, EndpointPolicy> = {
+  'GET /billing/status': { bucket: 'billing-status', ai: false, perMinute: 30, bodyLimit: SMALL },
+  'GET /billing/payments': { bucket: 'billing-payments', ai: false, perMinute: 20, bodyLimit: SMALL },
+  'POST /billing/subscriptions': { bucket: 'billing-create', ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.createSubscription },
+  'POST /billing/subscriptions/verify': { bucket: 'billing-verify', ai: false, perMinute: 10, bodyLimit: SMALL, schema: billingSchemas.verifySubscription },
+  'POST /billing/subscriptions/cancel': { bucket: 'billing-cancel', ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.empty }
+};
+
 export const BARCODE_POLICY: EndpointPolicy = { bucket: 'barcode', ai: false, perMinute: 30, bodyLimit: SMALL };
 
 export function resolvePolicy(method: string, path: string): EndpointPolicy | undefined {
   const clean = path.length > 1 ? path.replace(/\/+$/, '') : path;
-  const hit = ENDPOINTS[`${method.toUpperCase()} ${clean}`];
+  const hit = ENDPOINTS[`${method.toUpperCase()} ${clean}`] ?? BILLING_ENDPOINTS[`${method.toUpperCase()} ${clean}`];
   if (hit) return hit;
   if (method.toUpperCase() === 'GET' && /^\/nutrition\/barcode\/[^/]+$/.test(clean)) return BARCODE_POLICY;
   return undefined;

@@ -3,6 +3,8 @@ import type { ThinkingLevel } from '@google/genai';
 import { createGenAI } from './gemini';
 import { generateAdaptiveReview } from '../utils/adaptiveCoach/engine';
 import { parseAiExplanation, validateCoachingContext } from '../utils/adaptiveCoach/validate';
+import { installBillingWebhook, registerBillingRoutes, type BillingDeps } from './billing/routes';
+import { MemoryRateStore } from './security/rateLimit';
 import { installApiTail, installSecurity, handleRouteError, type SecurityDeps } from './security';
 import { logger, serializeError } from './security/logger';
 import { ui, UNTRUSTED_NOTICE } from './security/prompt';
@@ -22,9 +24,14 @@ export const COACH_TIMEOUT_MS = 45_000;
  * rate limits, authentication, route-specific body limits, validation, AI quotas) before any handler runs.
  * Body size limits live in src/server/security/endpoints.ts (the old global 25 MB parser was removed).
  */
-export function createApp(deps: SecurityDeps = {}) {
+export function createApp(deps: SecurityDeps & { billing?: BillingDeps } = {}) {
 const app = express();
+// Razorpay webhook: needs the raw body and cannot send a JWT, so it is mounted before the JSON/auth pipeline (see billing/routes.ts).
+// installSecurity keeps receiving `deps` untouched, so its guard (a Redis-configured app must be given the shared store) still fires.
+// The webhook's per-IP limiter uses the same shared store when one is provided; the in-memory fallback exists only for local dev and tests.
+installBillingWebhook(app, { ...deps.billing, rateStore: deps.rateStore ?? new MemoryRateStore(deps.now ?? Date.now), now: deps.now });
 installSecurity(app, deps);
+registerBillingRoutes(app, { ...deps.billing, now: deps.now });
 
 // Healthcheck endpoint
 app.get('/api/health', (req, res) => {

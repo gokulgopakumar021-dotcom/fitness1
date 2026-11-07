@@ -27,7 +27,7 @@ describe('API bundle (Stage 3.7, esbuild B2)', () => {
   it('passes inspection: no Vite, dotenv, local runner, UI code or test code; only runtime packages external', async () => {
     const built = await buildApiBundle();
     expect(inspectBundle(built)).toEqual([]);
-    expect(externalImports(built.code)).toEqual(['@google/genai', '@supabase/supabase-js', 'express', 'helmet', 'node:crypto', 'redis']);
+    expect(externalImports(built.code)).toEqual(['@google/genai', '@supabase/supabase-js', 'express', 'helmet', 'node:crypto', 'razorpay', 'redis']);
     expect(Object.keys(built.metafile.inputs).some((i) => /(^|\/)(vite|dotenv)(\/|$)/.test(i) || i === 'server.ts')).toBe(false);
   });
 

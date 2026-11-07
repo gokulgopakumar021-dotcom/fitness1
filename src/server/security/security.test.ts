@@ -58,7 +58,11 @@ describe('SEC-01 authentication', () => {
   it('registers every /api route in the endpoint policy table (no route can bypass limits/validation)', async () => {
     const app = createApp({ verifyToken: mockVerifier, config: testConfig() }) as any;
     const routes = (app._router.stack as any[]).filter((l) => l.route).flatMap((l) => Object.keys(l.route.methods).map((m) => ({ method: m.toUpperCase(), path: String(l.route.path) })));
-    const api = routes.filter((r) => r.path.startsWith('/api/') && r.path !== '/api/health');
+    // The Razorpay webhook is the ONE documented exception: it cannot carry a Supabase JWT, so it authenticates by HMAC over the raw
+    // body and is mounted before this pipeline (docs/billing/STAGE1_ARCHITECTURE.md section 6; behaviour covered in billing/routes.test.ts).
+    const WEBHOOK = 'POST /api/billing/webhook';
+    expect(routes.some((r) => `${r.method} ${r.path}` === WEBHOOK)).toBe(true);
+    const api = routes.filter((r) => r.path.startsWith('/api/') && r.path !== '/api/health' && `${r.method} ${r.path}` !== WEBHOOK);
     expect(api.length).toBeGreaterThanOrEqual(16);
     for (const r of api) {
       const p = r.path.replace(/^\/api/, '').replace(':barcode', '5449000000996');
