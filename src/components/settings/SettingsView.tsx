@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Bell, Database, KeyRound, Palette, Ruler, Dumbbell, User } from 'lucide-react';
+import { Bell, CreditCard, Database, KeyRound, Palette, Ruler, Dumbbell, User } from 'lucide-react';
 import { BrandLogo, Button, PageHeader, SectionNav, SectionNavItem } from '../ui';
 import { BRAND } from '../../brand';
 import type { UserProfile } from '../../types';
@@ -9,6 +9,7 @@ import { validateHeightCm } from '../../utils/heightUnits';
 import { isProfileDirty, ProfileErrors, ProfileField, validateProfileEdits } from '../../utils/profileValidation';
 import { AccountSecurity } from './AccountSecurity';
 import { AppearancePanel } from './AppearancePanel';
+import { BillingPanel } from '../billing/BillingPanel';
 import { DataPanel } from './DataPanel';
 import { NotificationSettings } from './NotificationSettings';
 import { ProfileOverview } from './ProfileOverview';
@@ -20,9 +21,11 @@ interface SettingsProps {
   isDemoMode: boolean;
   onLoadDemoData: () => void;
   onClearDemoData: () => void;
+  /** Opens a category (used by the app-wide "View plans" prompt). A new object each time re-selects it. */
+  openCategory?: { id: 'billing'; nonce: number };
 }
 
-type CategoryId = 'profile' | 'training' | 'units' | 'appearance' | 'notifications' | 'data' | 'account';
+type CategoryId = 'profile' | 'training' | 'units' | 'appearance' | 'notifications' | 'data' | 'billing' | 'account';
 
 const ICON = 'w-4 h-4';
 const CATEGORIES: SectionNavItem<CategoryId>[] = [
@@ -32,6 +35,7 @@ const CATEGORIES: SectionNavItem<CategoryId>[] = [
   { id: 'appearance', label: 'Appearance', icon: <Palette className={ICON} /> },
   { id: 'notifications', label: 'Notifications', icon: <Bell className={ICON} /> },
   { id: 'data', label: 'Privacy & data', icon: <Database className={ICON} /> },
+  { id: 'billing', label: 'Billing', icon: <CreditCard className={ICON} /> },
   { id: 'account', label: 'Account', icon: <KeyRound className={ICON} /> }
 ];
 
@@ -60,10 +64,14 @@ export const SettingsView: React.FC<SettingsProps> = ({
   onProfileUpdated,
   isDemoMode,
   onLoadDemoData,
-  onClearDemoData
+  onClearDemoData,
+  openCategory
 }) => {
   const { user, signOut } = useAuth();
-  const [category, setCategory] = useState<CategoryId>('profile');
+  const [category, setCategory] = useState<CategoryId>(openCategory?.id ?? 'profile');
+  useEffect(() => {
+    if (openCategory) setCategory(openCategory.id);
+  }, [openCategory]);
   const [form, setForm] = useState<UserProfile>({ ...profile });
   const [errors, setErrors] = useState<ProfileErrors>({});
   const [saved, setSaved] = useState(false);
@@ -149,7 +157,8 @@ export const SettingsView: React.FC<SettingsProps> = ({
     }
   };
 
-  const items = user ? CATEGORIES : CATEGORIES.filter((c) => c.id !== 'account');
+  // Billing and Account both need a signed-in user (billing is per account).
+  const items = user ? CATEGORIES : CATEGORIES.filter((c) => c.id !== 'account' && c.id !== 'billing');
   const formPanelProps = { form, errors, setField };
   const showBar = dirty || errorCount > 0 || saved;
 
@@ -174,6 +183,8 @@ export const SettingsView: React.FC<SettingsProps> = ({
             onProfileReplaced={handleProfileReplaced}
           />
         );
+      case 'billing':
+        return user ? <BillingPanel /> : null;
       case 'account':
         return user ? <AccountSecurity /> : null;
     }

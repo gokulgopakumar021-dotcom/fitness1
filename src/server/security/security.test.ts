@@ -541,6 +541,17 @@ describe('SEC-05 CORS and security headers', () => {
     expect(csp).not.toMatch(/(?:^|[ ;])\*(?:[ ;]|$)/);
   });
 
+  it('production CSP allows Razorpay Checkout only through script-src and frame-src, nothing broader', async () => {
+    await boot({ config: testConfig({ production: true, supabaseUrl: 'https://abc.supabase.co' }) });
+    const csp = (await get('/health', {})).headers.get('content-security-policy')!;
+    const directive = (name: string) => (csp.split(';').map((d) => d.trim()).find((d) => d.startsWith(`${name} `)) ?? '').split(' ').slice(1);
+    expect(directive('script-src')).toEqual(["'self'", "'wasm-unsafe-eval'", 'https://checkout.razorpay.com']);
+    expect(directive('frame-src')).toEqual(["'self'", 'https://api.razorpay.com', 'https://checkout.razorpay.com']);
+    // Everything else is unchanged: no Razorpay origin leaks into any other directive.
+    for (const d of ['default-src', 'connect-src', 'img-src', 'style-src', 'form-action', 'frame-ancestors']) expect(directive(d).join(' ')).not.toContain('razorpay');
+    expect(csp).toContain("frame-ancestors 'none'");
+  });
+
   it('does not apply the (production) CSP in development so Vite HMR keeps working', async () => {
     await boot({ config: testConfig({ production: false }) });
     expect((await get('/health', {})).headers.get('content-security-policy')).toBeNull();

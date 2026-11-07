@@ -18,13 +18,21 @@ function origins(url?: string): { https: string[]; wss: string[] } {
  *    'self' + 'wasm-unsafe-eval' (WASM compile only; no 'unsafe-eval').
  *  - style-src needs 'unsafe-inline' (React style attributes) and Google Fonts CSS until fonts are self-hosted.
  *  - connect/img/media allow the configured Supabase project (auth, REST, signed video URLs).
+ *  - Razorpay Standard Checkout (billing only): its script is loaded from checkout.razorpay.com and it renders in a frame from
+ *    api.razorpay.com / checkout.razorpay.com. Only script-src and frame-src were widened, and only for those origins. Any
+ *    further origins Checkout needs (connect-src, img-src for bank logos) are NOT documented by Razorpay and are unverified: they
+ *    must be confirmed in a browser with Test Mode keys on a preview deployment before billing is enabled.
  * NOT verified in a real browser from this environment: see report, "requires live verification".
  */
+export const RAZORPAY_SCRIPT_ORIGIN = 'https://checkout.razorpay.com';
+export const RAZORPAY_FRAME_ORIGINS = ['https://api.razorpay.com', 'https://checkout.razorpay.com'];
+
 export function buildCsp(config: Pick<SecurityConfig, 'supabaseUrl'>) {
   const sb = origins(config.supabaseUrl);
   return {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
+    scriptSrc: ["'self'", "'wasm-unsafe-eval'", RAZORPAY_SCRIPT_ORIGIN],
+    frameSrc: ["'self'", ...RAZORPAY_FRAME_ORIGINS],
     styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
     fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
     imgSrc: ["'self'", 'data:', 'blob:', ...sb.https],

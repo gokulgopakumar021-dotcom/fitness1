@@ -5,6 +5,7 @@ import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
 import { NavTab } from '../layout/Navbar';
 import { Badge, Button, Card } from '../ui';
 import { apiFetch } from '../../lib/apiFetch';
+import { BILLING_REQUIRED_MESSAGE, isSubscriptionRequired } from '../../lib/billingGate';
 
 interface FloatingTrainerWidgetProps {
   currentTab: NavTab;
@@ -46,6 +47,11 @@ export const FloatingTrainerWidget: React.FC<FloatingTrainerWidgetProps> = ({
         })
       });
 
+      // The server's entitlement gate answered 402: say so, instead of showing a canned line as if the coach had replied.
+      if (isSubscriptionRequired(response)) {
+        setQuickReply(BILLING_REQUIRED_MESSAGE);
+        return;
+      }
       const data = await response.json();
       setQuickReply(data.reply || 'Keep up solid intent and proper form!');
     } catch {

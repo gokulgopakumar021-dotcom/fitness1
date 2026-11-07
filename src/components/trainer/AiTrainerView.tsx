@@ -25,6 +25,7 @@ import { NavTab } from '../layout/Navbar';
 import { Badge, BrandEmblem, Button, Card } from '../ui';
 import { getFormInsights } from '../../services/workoutMirror/mirrorStorage';
 import { apiFetch } from '../../lib/apiFetch';
+import { BILLING_REQUIRED_MESSAGE, isSubscriptionRequired } from '../../lib/billingGate';
 
 interface ChatMessage {
   id: string;
@@ -133,6 +134,14 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
         })
       });
 
+      // The server's entitlement gate answered 402: say so, instead of showing a canned line as if the coach had replied.
+      if (isSubscriptionRequired(response)) {
+        setMessages((prev) => [
+          ...prev,
+          { id: `ai-${Date.now()}`, role: 'model', text: BILLING_REQUIRED_MESSAGE, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+        ]);
+        return;
+      }
       const data = await response.json();
       const aiReplyText = data.reply || 'Keep proper lifting cadence and drive through your heels!';
 
