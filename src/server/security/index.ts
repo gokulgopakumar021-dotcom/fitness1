@@ -1,4 +1,4 @@
-import type { Express, NextFunction, Request, Response } from 'express';
+import type { Express, NextFunction, Request, RequestHandler, Response } from 'express';
 import { createAuthMiddleware, createSupabaseVerifier, type TokenVerifier } from './auth';
 import { loadSecurityConfig, type SecurityConfig } from './config';
 import { createCors } from './cors';
@@ -18,6 +18,8 @@ export interface SecurityDeps {
   rateStore?: RateStore;
   quotaStore?: QuotaStore;
   now?: () => number;
+  /** Billing entitlement gate for ai:true routes; runs after validation and before the daily quota gate. */
+  entitlementGate?: RequestHandler;
 }
 
 const isHealth = (req: Request) => (req.method === 'GET' || req.method === 'HEAD') && req.path === '/health';
@@ -102,6 +104,7 @@ export function installSecurity(app: Express, deps: SecurityDeps = {}): Security
 
   app.use('/api', createJsonBody());
   app.use('/api', (req: Request, res: Response, next: NextFunction) => validateBody(res.locals.policy?.schema)(req, res, next));
+  if (deps.entitlementGate) app.use('/api', deps.entitlementGate);
   app.use('/api', createQuotaGate({ store: quotaStore, config, now, policyFor: (req) => resolvePolicy(req.method, req.path) }));
 
   return config;

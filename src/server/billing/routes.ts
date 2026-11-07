@@ -3,6 +3,7 @@ import { sendError } from '../security/errors';
 import { logger } from '../security/logger';
 import { createRateLimiter, MemoryRateStore, type RateStore } from '../security/rateLimit';
 import { requestContext } from '../security/requestContext';
+import { createEntitlementGate } from './entitlement';
 import { loadBillingConfig, type BillingConfig } from './config';
 import { createRazorpayGateway, type RazorpayGateway } from './gateway';
 import { createBillingService, type BillingService } from './service';
@@ -99,6 +100,13 @@ const handler = (fn: (svc: BillingService, req: Request, res: Response) => Promi
       next(err); // ApiError is rendered by the terminal error handler
     }
   };
+
+/** Builds the AI-route gate. The mode is read once; the service is built lazily, so `off` (the default) touches nothing. */
+export function createBillingEntitlementGate(deps: BillingDeps = {}) {
+  const lazy = createLazyBilling(deps);
+  const mode = (deps.config ?? loadBillingConfig()).enforcement;
+  return createEntitlementGate({ mode, check: async (userId) => lazy.get()?.checkEntitlement(userId) });
+}
 
 /** JWT-protected billing routes. Register AFTER installSecurity so auth, rate limits, body limits and validation have run. */
 export function registerBillingRoutes(app: Express, deps: BillingDeps = {}) {

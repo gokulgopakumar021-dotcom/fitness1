@@ -3,7 +3,7 @@ import type { ThinkingLevel } from '@google/genai';
 import { createGenAI } from './gemini';
 import { generateAdaptiveReview } from '../utils/adaptiveCoach/engine';
 import { parseAiExplanation, validateCoachingContext } from '../utils/adaptiveCoach/validate';
-import { installBillingWebhook, registerBillingRoutes, type BillingDeps } from './billing/routes';
+import { createBillingEntitlementGate, installBillingWebhook, registerBillingRoutes, type BillingDeps } from './billing/routes';
 import { MemoryRateStore } from './security/rateLimit';
 import { installApiTail, installSecurity, handleRouteError, type SecurityDeps } from './security';
 import { logger, serializeError } from './security/logger';
@@ -30,7 +30,7 @@ const app = express();
 // installSecurity keeps receiving `deps` untouched, so its guard (a Redis-configured app must be given the shared store) still fires.
 // The webhook's per-IP limiter uses the same shared store when one is provided; the in-memory fallback exists only for local dev and tests.
 installBillingWebhook(app, { ...deps.billing, rateStore: deps.rateStore ?? new MemoryRateStore(deps.now ?? Date.now), now: deps.now });
-installSecurity(app, deps);
+installSecurity(app, { ...deps, entitlementGate: deps.entitlementGate ?? createBillingEntitlementGate(deps.billing) });
 registerBillingRoutes(app, { ...deps.billing, now: deps.now });
 
 // Healthcheck endpoint

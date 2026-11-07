@@ -532,6 +532,11 @@ export function createBillingService(deps: BillingServiceDeps) {
     }
     return out;
   }
-  return { createSubscription, verifyAuthorization, cancel, getStatus, listPayments, handleWebhook, reconcileRow, reconcileBatch };
+  async function checkEntitlement(userId: string) {
+    const e = await store.getEntitlement(userId, config.pendingGraceHours);
+    return { state: e.state, hasAccess: e.has_access };
+  }
+
+  return { checkEntitlement, createSubscription, verifyAuthorization, cancel, getStatus, listPayments, handleWebhook, reconcileRow, reconcileBatch };
 }
 export type BillingService = ReturnType<typeof createBillingService>;
