@@ -19,6 +19,8 @@ interface RazorpayOptions {
   name: string;
   description: string;
   handler: (response: CheckoutCallback) => void;
+  /** Documented Checkout option: lets the customer change the CARD on an existing subscription (payment recovery). */
+  subscription_card_change?: boolean;
   prefill?: { email?: string };
   theme?: { color?: string };
   modal?: { ondismiss?: () => void };
@@ -63,6 +65,8 @@ export interface OpenCheckoutArgs {
   description: string;
   email?: string | null;
   brandName: string;
+  /** Payment recovery on a pending/halted subscription: allow changing the card. */
+  cardChange?: boolean;
 }
 
 /** Resolves once, with whichever happens first: Checkout hands back a result, or the person closes it. */
@@ -82,6 +86,7 @@ export async function openSubscriptionCheckout(args: OpenCheckoutArgs): Promise<
       subscription_id: args.subscriptionId,
       name: args.brandName,
       description: args.description,
+      ...(args.cardChange ? { subscription_card_change: true } : {}),
       handler: (response) => settle({ kind: 'callback', response }),
       ...(args.email ? { prefill: { email: args.email } } : {}),
       theme: { color: CHECKOUT_ACCENT },

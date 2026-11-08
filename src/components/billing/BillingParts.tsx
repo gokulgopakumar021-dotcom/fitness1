@@ -67,7 +67,10 @@ export const StatusSummary: React.FC<{ status: BillingStatus; state: PanelState;
 };
 
 /** ------------------------------------------------------------------------------------------------ payment failed */
-export const PaymentFailedNotice: React.FC<{ onCancel: () => void }> = ({ onCancel }) => (
+const RECOVERY_NOTE =
+  "Updating here changes the card on your subscription through Razorpay's secure checkout. If you pay with UPI or a bank mandate, use the link Razorpay emailed you about the failed payment, or cancel and subscribe again.";
+
+export const PaymentFailedNotice: React.FC<{ onRecover: () => void; recoverBusy: boolean; onCancel: () => void }> = ({ onRecover, recoverBusy, onCancel }) => (
   <Card tone="raised" className="border-danger/30 space-y-3" role="alert" aria-label="Payment failed">
     <div className="flex items-start gap-3">
       <CreditCard className="w-5 h-5 text-danger shrink-0 mt-0.5" aria-hidden />
@@ -79,17 +82,36 @@ export const PaymentFailedNotice: React.FC<{ onCancel: () => void }> = ({ onCanc
       </div>
     </div>
     <div className="flex flex-col sm:flex-row gap-2">
-      {/* Recovery (updating the payment method) is wired in Stage 5, once Razorpay's mechanism is verified. */}
-      <Button variant="secondary" disabled aria-describedby="recovery-note">
+      <Button variant="secondary" onClick={onRecover} loading={recoverBusy} disabled={recoverBusy} aria-describedby="recovery-note">
         Update payment method
       </Button>
-      <Button variant="ghost" onClick={onCancel}>
+      <Button variant="ghost" onClick={onCancel} disabled={recoverBusy}>
         Cancel subscription
       </Button>
     </div>
     <p id="recovery-note" className="text-label text-zinc-500">
-      Updating your payment method from here is not available yet. You can cancel and subscribe again at any time.
+      {RECOVERY_NOTE}
     </p>
+  </Card>
+);
+
+/** A renewal failed and Razorpay is still retrying (state `pending`): a card can be updated now so the next attempt can succeed. */
+export const PaymentPendingNotice: React.FC<{ recoverable: boolean; recoverBusy: boolean; onRecover: () => void }> = ({ recoverable, recoverBusy, onRecover }) => (
+  <Card tone="raised" className="border-warning/30 space-y-3" role="status">
+    <div>
+      <p className="text-sm font-semibold text-white">Waiting for your payment</p>
+      <p className="text-xs text-zinc-400 mt-1">Razorpay is retrying your latest payment. Paid features resume as soon as it succeeds.</p>
+    </div>
+    {recoverable && (
+      <>
+        <Button variant="secondary" onClick={onRecover} loading={recoverBusy} disabled={recoverBusy} aria-describedby="pending-recovery-note">
+          Update payment method
+        </Button>
+        <p id="pending-recovery-note" className="text-label text-zinc-500">
+          {RECOVERY_NOTE}
+        </p>
+      </>
+    )}
   </Card>
 );
 

@@ -44,6 +44,10 @@ export interface BillingStore {
   beginWebhookEvent(a: WebhookEventArgs): Promise<WebhookGate>;
   finishWebhookEvent(eventId: string, status: WebhookOutcome, errorCode: string | null): Promise<void>;
   listReconcilable(nowIso: string, limit: number): Promise<SubscriptionRow[]>;
+  /** Every subscription of this user that still blocks account deletion (same predicate as billing_assert_account_deletable). */
+  listBlockingForUser(userId: string): Promise<SubscriptionRow[]>;
+  /** Subscriptions authorized between `sinceIso` and `untilIso` whose INR 5 authorization payment was never recorded (lost browser callback). */
+  authorizedWithoutAuthorizationPayment(sinceIso: string, untilIso: string, limit: number): Promise<Array<{ id: string; auth_verified_at: string }>>;
   unrefundedAuthorizations(olderThanMinutes: number): Promise<Array<{ razorpay_payment_id: string; subscription_id: string }>>;
 }
 
@@ -169,15 +173,36 @@ export function createSupabaseBillingStore(config: Pick<BillingConfig, 'supabase
     },
 
     async listReconcilable(nowIso, limit) {
-      // created past expire_by; authenticated past trial end; pending/halted; created or authenticated rows older than 10 min
-      // (a lost callback). Bounded so one run cannot scan the table.
+      // created past expire_by; authenticated past trial end; pending; halted not checked for a day (a customer may have fixed it from
+      // Razorpay's emailed link); created rows older than 10 min (a lost callback). Bounded so one run cannot scan the table.
       const tenMin = new Date(Date.parse(nowIso) - 10 * 60_000).toISOString();
+      const oneDay = new Date(Date.parse(nowIso) - 86_400_000).toISOString();
       const { data, error } = await db.from('billing_subscriptions').select('*')
         .not('razorpay_subscription_id', 'is', null)
-        .or(`and(status.eq.created,created_at.lt.${tenMin}),and(status.eq.authenticated,trial_end_at.lt.${nowIso}),status.eq.pending,and(status.eq.active,cancel_at_cycle_end.eq.true,current_period_end.lt.${nowIso})`)
+        .or(`and(status.eq.created,created_at.lt.${tenMin}),and(status.eq.authenticated,trial_end_at.lt.${nowIso}),status.eq.pending,and(status.eq.halted,razorpay_synced_at.lt.${oneDay}),and(status.eq.active,cancel_at_cycle_end.eq.true,current_period_end.lt.${nowIso})`)
         .order('razorpay_synced_at', { ascending: true, nullsFirst: true }).limit(limit);
       if (error) fail('list_reconcilable', error);
       return (data ?? []) as SubscriptionRow[];
+    },
+    async listBlockingForUser(userId) {
+      const { data, error } = await db.from('billing_subscriptions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50);
+      if (error) fail('list_blocking', error);
+      const terminal = ['cancelled', 'completed', 'expired'];
+      return ((data ?? []) as SubscriptionRow[]).filter(
+        (r) => !(r.status === 'expired' && r.razorpay_subscription_id === null) && !(terminal.includes(r.status) && r.billing_stop_verified_at !== null)
+      );
+    },
+    async authorizedWithoutAuthorizationPayment(sinceIso, untilIso, limit) {
+      const subs = await db.from('billing_subscriptions').select('id,auth_verified_at')
+        .not('auth_verified_at', 'is', null).not('trial_end_at', 'is', null).gte('auth_verified_at', sinceIso).lt('auth_verified_at', untilIso)
+        .order('auth_verified_at', { ascending: false }).limit(limit);
+      if (subs.error) fail('auth_missing_subs', subs.error);
+      const rows = (subs.data ?? []) as Array<{ id: string; auth_verified_at: string }>;
+      if (rows.length === 0) return [];
+      const pays = await db.from('billing_payments').select('subscription_id').eq('kind', 'authorization').in('subscription_id', rows.map((r) => r.id));
+      if (pays.error) fail('auth_missing_pays', pays.error);
+      const have = new Set(((pays.data ?? []) as Array<{ subscription_id: string }>).map((p) => p.subscription_id));
+      return rows.filter((r) => !have.has(r.id));
     },
     async unrefundedAuthorizations(olderThanMinutes) {
       const r = await db.rpc('billing_unrefunded_authorizations', { p_older_than_minutes: olderThanMinutes });

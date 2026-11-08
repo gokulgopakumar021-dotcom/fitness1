@@ -4,12 +4,12 @@ import { SettingsCard } from '../settings/SettingsParts';
 import { useAuth } from '../../context/AuthContext';
 import { BRAND } from '../../brand';
 import {
-  BillingApiError, cancelSubscription, createSubscription, fetchBillingPayments, fetchBillingStatus, verifySubscription,
+  BillingApiError, cancelSubscription, createSubscription, fetchBillingPayments, fetchBillingStatus, startRecovery, verifySubscription,
   type BillingPayment, type BillingStatus, type CheckoutCallback, type PlanKey
 } from '../../lib/billingApi';
 import { openSubscriptionCheckout } from '../../lib/razorpayCheckout';
 import { formatDate, formatInr, intervalWord, panelState, planName, sameLocalDay } from '../../utils/billingPresentation';
-import { CancelDialog, Disclosure, PaymentFailedNotice, PaymentHistory, PlanPicker, StatusSummary } from './BillingParts';
+import { CancelDialog, Disclosure, PaymentFailedNotice, PaymentHistory, PaymentPendingNotice, PlanPicker, StatusSummary } from './BillingParts';
 
 /** Waits between verify attempts when Razorpay has not confirmed the authorisation yet (server answers 409 authorization_not_confirmed). */
 export const DEFAULT_VERIFY_DELAYS_MS = [1500, 3000, 5000];
@@ -22,6 +22,8 @@ type Flow =
   | { phase: 'verifying' }
   | { phase: 'success'; trialEndAt: string | null; trial: boolean }
   | { phase: 'dismissed' }
+  | { phase: 'recovered' }
+  | { phase: 'recovery_dismissed' }
   | { phase: 'unconfirmed' }
   | { phase: 'error'; message: string }
   | { phase: 'cancelled'; accessEndsAt: string | null };
@@ -111,7 +113,7 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
   const disclosedTrial = status.trial.eligible;
   const disclosedDate = correctedDate ?? status.trial.firstChargePreviewAt;
 
-  const verifyWithRetry = async (cb: CheckoutCallback) => {
+  const verifyWithRetry = async (cb: CheckoutCallback, mode: 'authorize' | 'recover' = 'authorize') => {
     setFlow({ phase: 'verifying' });
     for (let attempt = 0; attempt <= verifyDelaysMs.length; attempt++) {
       try {
@@ -119,7 +121,8 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
         if (!mounted.current) return;
         await reloadAll();
         if (!mounted.current) return;
-        setFlow({ phase: 'success', trialEndAt: r.subscription.trialEndAt, trial: !!r.subscription.trialEndAt });
+        if (mode === 'recover') setFlow({ phase: 'recovered' });
+        else setFlow({ phase: 'success', trialEndAt: r.subscription.trialEndAt, trial: !!r.subscription.trialEndAt });
         return;
       } catch (e) {
         const notYet = e instanceof BillingApiError && e.code === 'authorization_not_confirmed';
@@ -134,9 +137,46 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
           if (mounted.current) setFlow({ phase: 'unconfirmed' });
           return;
         }
-        setFlow({ phase: 'error', message: e instanceof BillingApiError ? e.message : 'We could not confirm your payment authorisation.' });
+        setFlow({ phase: 'error', message: e instanceof BillingApiError ? e.message : mode === 'recover' ? 'We could not confirm your payment update.' : 'We could not confirm your payment authorisation.' });
         return;
       }
+    }
+  };
+
+  /**
+   * Payment recovery (state pending or halted). The server re-reads Razorpay and only hands back Checkout parameters if the
+   * subscription really needs a payment update. Checkout then lets the customer change the card; as always, its callback is only
+   * a hint and the server checks it and asks Razorpay before the status changes.
+   */
+  const recoverPayment = async () => {
+    if (busy) return;
+    setFlow({ phase: 'creating' });
+    try {
+      const rec = await startRecovery();
+      if (!mounted.current) return;
+      setFlow({ phase: 'checkout' });
+      const outcome = await openSubscriptionCheckout({
+        keyId: rec.keyId,
+        subscriptionId: rec.subscriptionId,
+        description: `Update payment method, ${planName(rec.planKey)} plan`,
+        email: user?.email ?? null,
+        brandName: BRAND.proseName,
+        cardChange: true
+      });
+      if (!mounted.current) return;
+      if (outcome.kind === 'dismissed') {
+        setFlow({ phase: 'recovery_dismissed' });
+        await loadStatus();
+        return;
+      }
+      await verifyWithRetry(outcome.response, 'recover');
+    } catch (e) {
+      if (!mounted.current) return;
+      if (e instanceof BillingApiError && e.code === 'recovery_not_available') await reloadAll(); // it already healed (e.g. from Razorpay's emailed link)
+      setFlow({
+        phase: 'error',
+        message: e instanceof BillingApiError ? e.message : 'Secure checkout could not be opened. Check your connection and try again. Nothing was changed.'
+      });
     }
   };
 
@@ -223,6 +263,18 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
             </p>
           </Card>
         )}
+        {flow.phase === 'recovered' && (
+          <Card tone="accent" role="status">
+            <p className="text-sm font-semibold text-white">Payment method updated</p>
+            <p className="text-xs text-zinc-400 mt-1">Razorpay has confirmed your subscription is active again.</p>
+          </Card>
+        )}
+        {flow.phase === 'recovery_dismissed' && (
+          <Card tone="raised" role="status">
+            <p className="text-sm font-semibold text-white">Checkout closed</p>
+            <p className="text-xs text-zinc-400 mt-1">Nothing was changed. You can update your payment method whenever you are ready.</p>
+          </Card>
+        )}
         {flow.phase === 'dismissed' && (
           <Card tone="raised" role="status">
             <p className="text-sm font-semibold text-white">Checkout closed</p>
@@ -255,14 +307,9 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
 
       <StatusSummary status={status} state={state} nowMs={now()} />
 
-      {state === 'payment_failed' && <PaymentFailedNotice onCancel={() => setCancelOpen(true)} />}
+      {state === 'payment_failed' && <PaymentFailedNotice onRecover={() => void recoverPayment()} recoverBusy={busy} onCancel={() => setCancelOpen(true)} />}
 
-      {state === 'payment_pending' && (
-        <Card tone="raised" className="border-warning/30" role="status">
-          <p className="text-sm font-semibold text-white">Waiting for your payment</p>
-          <p className="text-xs text-zinc-400 mt-1">Razorpay is retrying your latest payment. Paid features resume as soon as it succeeds.</p>
-        </Card>
-      )}
+      {state === 'payment_pending' && <PaymentPendingNotice recoverable={sub?.status === 'pending'} recoverBusy={busy} onRecover={() => void recoverPayment()} />}
 
       {state === 'unfinished' && (
         <Card tone="raised" role="status">

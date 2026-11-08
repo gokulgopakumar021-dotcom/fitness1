@@ -1,0 +1,42 @@
+# Scheduled billing reconciliation. INERT BY DEFAULT: the job runs only when the repository variable BILLING_RECONCILE_ENABLED is the
+# string "true", and a scheduled workflow only ever runs from the default branch (so this file does nothing on a feature branch).
+# Needs repository secrets (Settings > Secrets and variables > Actions): RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET,
+# RAZORPAY_WEBHOOK_SECRET, BILLING_TRIAL_PEPPER, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RAZORPAY_PLAN_ID_MONTHLY, RAZORPAY_PLAN_ID_ANNUAL.
+# A non-zero exit (2 = alert for a human, 3 = some rows could not be checked) fails the run, and GitHub emails the failure.
+# See docs/billing/STAGE5_NOTES.md.
+name: Billing reconcile
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: billing-reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: ${{ vars.BILLING_RECONCILE_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx tsx scripts/billing-reconcile.ts
+        env:
+          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
+          RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
+          RAZORPAY_PLAN_ID_MONTHLY: ${{ secrets.RAZORPAY_PLAN_ID_MONTHLY }}
+          RAZORPAY_PLAN_ID_ANNUAL: ${{ secrets.RAZORPAY_PLAN_ID_ANNUAL }}
+          BILLING_TRIAL_PEPPER: ${{ secrets.BILLING_TRIAL_PEPPER }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

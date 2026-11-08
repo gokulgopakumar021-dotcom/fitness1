@@ -46,7 +46,11 @@ export const BILLING_ENDPOINTS: Record<string, EndpointPolicy> = {
   'GET /billing/payments': { bucket: 'billing-payments', ai: false, perMinute: 20, bodyLimit: SMALL },
   'POST /billing/subscriptions': { bucket: 'billing-create', ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.createSubscription },
   'POST /billing/subscriptions/verify': { bucket: 'billing-verify', ai: false, perMinute: 10, bodyLimit: SMALL, schema: billingSchemas.verifySubscription },
-  'POST /billing/subscriptions/cancel': { bucket: 'billing-cancel', ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.empty }
+  'POST /billing/subscriptions/cancel': { bucket: 'billing-cancel', ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.empty },
+  // Stage 5: payment recovery (pending/halted) and the cancel-then-delete flow. Each calls Razorpay, so the limits are tight.
+  'POST /billing/subscriptions/recover': { bucket: 'billing-recover', ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.empty },
+  'GET /billing/account/deletion-check': { bucket: 'billing-deletion-check', ai: false, perMinute: 10, bodyLimit: SMALL },
+  'POST /billing/account/prepare-deletion': { bucket: 'billing-prepare-deletion', ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.prepareDeletion }
 };
 
 export const BARCODE_POLICY: EndpointPolicy = { bucket: 'barcode', ai: false, perMinute: 30, bodyLimit: SMALL };

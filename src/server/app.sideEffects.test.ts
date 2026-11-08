@@ -156,7 +156,8 @@ describe('createApp route inventory (all 17 routes preserved)', () => {
     expect(original.sort()).toEqual([...EXPECTED].sort());
     expect(original).toHaveLength(17);
     expect(registered.filter((r) => r.includes('/api/billing/')).sort()).toEqual([
-      'GET /api/billing/payments', 'GET /api/billing/status', 'POST /api/billing/subscriptions', 'POST /api/billing/subscriptions/cancel',
+      'GET /api/billing/account/deletion-check', 'GET /api/billing/payments', 'GET /api/billing/status', 'POST /api/billing/account/prepare-deletion',
+      'POST /api/billing/subscriptions', 'POST /api/billing/subscriptions/cancel', 'POST /api/billing/subscriptions/recover',
       'POST /api/billing/subscriptions/verify', 'POST /api/billing/webhook'
     ]);
   });

@@ -125,7 +125,35 @@ export class FakeStore implements BillingStore {
     return 'in_progress';
   }
   async finishWebhookEvent(id: string, status: 'processed' | 'ignored' | 'failed', code: string | null) { this.hit('finishWebhookEvent'); Object.assign(this.events.get(id)!, { status, code }); }
-  async listReconcilable() { this.hit('listReconcilable'); return []; }
+  async listReconcilable(nowIso: string) {
+    this.hit('listReconcilable');
+    const t = Date.parse(nowIso);
+    return this.subs.filter((s) => s.razorpay_subscription_id && (
+      (s.status === 'created' && Date.parse(s.created_at) < t - 600_000) ||
+      (s.status === 'authenticated' && s.trial_end_at !== null && Date.parse(s.trial_end_at) < t) ||
+      s.status === 'pending' ||
+      (s.status === 'halted' && s.razorpay_synced_at !== null && Date.parse(s.razorpay_synced_at) < t - 86_400_000) ||
+      (s.status === 'active' && s.cancel_at_cycle_end && s.current_period_end !== null && Date.parse(s.current_period_end) < t)
+    )).map((s) => ({ ...s }));
+  }
+  /** Same predicate as billing_assert_account_deletable in the Stage 1 SQL. */
+  private blocks(s: SubscriptionRow) {
+    return !(s.status === 'expired' && s.razorpay_subscription_id === null) && !((TERMINAL as readonly string[]).includes(s.status) && s.billing_stop_verified_at !== null);
+  }
+  async listBlockingForUser(userId: string) { this.hit('listBlockingForUser'); return this.subs.filter((s) => s.user_id === userId && this.blocks(s)).map((s) => ({ ...s })); }
+  async authorizedWithoutAuthorizationPayment(sinceIso: string, untilIso: string) {
+    this.hit('authorizedWithoutAuthorizationPayment');
+    return this.subs
+      .filter((s) => s.auth_verified_at && s.trial_end_at && s.auth_verified_at >= sinceIso && s.auth_verified_at < untilIso && !this.payments.some((p) => p.subscriptionId === s.id && p.kind === 'authorization'))
+      .map((s) => ({ id: s.id, auth_verified_at: s.auth_verified_at as string }));
+  }
+  /** Mirrors delete_own_account(): refuses (BL001) while anything blocks, otherwise nulls user_id on kept rows (on delete set null). */
+  deleteAccount(userId: string): 'deleted' | 'billing_cancellation_required' {
+    if (this.subs.some((s) => s.user_id === userId && this.blocks(s))) return 'billing_cancellation_required';
+    for (const s of this.subs) if (s.user_id === userId) s.user_id = null;
+    for (const p of this.payments) if (p.userId === userId) p.userId = null;
+    return 'deleted';
+  }
   async unrefundedAuthorizations() { this.hit('unrefundedAuthorizations'); return this.payments.filter((p) => p.kind === 'authorization' && p.status !== 'refunded' && p.status !== 'failed').map((p) => ({ razorpay_payment_id: p.razorpayPaymentId, subscription_id: p.subscriptionId })); }
 }
 

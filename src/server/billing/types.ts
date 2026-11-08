@@ -51,7 +51,8 @@ export type SubscriptionPatch = Partial<
 >;
 
 export interface PaymentRecord {
-  userId: string;
+  /** Null once the account is deleted: the row is kept so the INR 5 refund and orphan handling can still be tracked. */
+  userId: string | null;
   subscriptionId: string;
   razorpayPaymentId: string;
   razorpayInvoiceId: string | null;

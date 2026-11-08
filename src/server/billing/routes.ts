@@ -116,6 +116,10 @@ export function registerBillingRoutes(app: Express, deps: BillingDeps = {}) {
   app.post('/api/billing/subscriptions', handler(async (s, req, res) => res.json({ success: true, ...(await s.createSubscription(req.user!, req.body.planKey)) }), lazy));
   app.post('/api/billing/subscriptions/verify', handler(async (s, req, res) => res.json({ success: true, ...(await s.verifyAuthorization(req.user!, req.body)) }), lazy));
   app.post('/api/billing/subscriptions/cancel', handler(async (s, req, res) => res.json({ success: true, ...(await s.cancel(req.user!)) }), lazy));
+  app.post('/api/billing/subscriptions/recover', handler(async (s, req, res) => res.json({ success: true, ...(await s.startRecovery(req.user!)) }), lazy));
+  app.get('/api/billing/account/deletion-check', handler(async (s, req, res) => res.json({ success: true, ...(await s.deletionCheck(req.user!)) }), lazy));
+  // Consent comes only from the validated body (strict boolean), never from a query string or header.
+  app.post('/api/billing/account/prepare-deletion', handler(async (s, req, res) => res.json({ success: true, ...(await s.prepareDeletion(req.user!, { confirmCancelPaidNow: req.body?.confirmCancelPaidNow === true })) }), lazy));
 }
 
 export { MemoryRateStore };

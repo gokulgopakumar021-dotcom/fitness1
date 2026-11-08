@@ -14,6 +14,12 @@ const pattern = (re: RegExp, label: string, max: number): Validator<string> => {
   };
 };
 
+/** Strict optional boolean: anything but true/false (or absent) is rejected, so a string "false" can never read as consent. */
+const optionalBool: Validator<boolean> = (v, path) => {
+  if (v === undefined || v === null) return { ok: true, value: undefined };
+  return typeof v === 'boolean' ? { ok: true, value: v } : { ok: false, issues: [`${path}: must be true or false`] };
+};
+
 /** The browser sends a plan KEY only. Amounts, plan ids and user ids are never accepted from the request. */
 export const billingSchemas = {
   createSubscription: object({ planKey: oneOf(PLAN_KEYS, { required: true }) }),
@@ -22,5 +28,6 @@ export const billingSchemas = {
     razorpay_subscription_id: pattern(RZP_SUB, 'subscription id', 64),
     razorpay_signature: pattern(SIG, 'signature', 64)
   }),
-  empty: object({})
+  empty: object({}),
+  prepareDeletion: object({ confirmCancelPaidNow: optionalBool })
 };

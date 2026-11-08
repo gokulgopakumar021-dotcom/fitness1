@@ -89,7 +89,35 @@ export interface CheckoutCallback {
 export interface VerifyResult {
   verified: boolean;
   alreadyVerified: boolean;
+  /** Present (true) only when the callback was a payment-method recovery and Razorpay now reports the subscription active again. */
+  recovered?: boolean;
   subscription: PublicSubscription;
+}
+
+/** Everything Checkout needs to let a customer update the card on a `pending` or `halted` subscription (Razorpay `subscription_card_change`). */
+export interface RecoveryCheckout {
+  subscriptionId: string;
+  keyId: string;
+  planKey: PlanKey;
+  amountPaise: number;
+  currency: 'INR';
+  billingPeriod: string;
+  status: 'pending' | 'halted';
+  /** Checkout changes a CARD only. UPI and bank-mandate customers use the link Razorpay emails them. */
+  cardChangeOnly: boolean;
+}
+
+export type DeletionRequires = 'none' | 'cancel_billing' | 'confirm_cancel_paid';
+export interface DeletionCheck {
+  requires: DeletionRequires;
+  subscription: PublicSubscription | null;
+  /** End of the period that is already paid, when `requires` is confirm_cancel_paid. */
+  accessEndsAt: string | null;
+}
+export interface PrepareDeletionResult extends DeletionCheck {
+  /** True only when Razorpay has confirmed that every subscription has stopped. */
+  ready: boolean;
+  cancelled: number;
 }
 
 export interface CancelResult {
@@ -142,3 +170,10 @@ export const verifySubscription = (cb: CheckoutCallback) =>
     razorpay_signature: cb.razorpay_signature
   });
 export const cancelSubscription = () => post<CancelResult & { success: true }>('/api/billing/subscriptions/cancel');
+
+/** Re-reads Razorpay on the server; only returns Checkout parameters when the subscription really is pending or halted. */
+export const startRecovery = () => post<RecoveryCheckout & { success: true }>('/api/billing/subscriptions/recover');
+export const fetchDeletionCheck = () => call<DeletionCheck & { success: true }>('/api/billing/account/deletion-check');
+/** `confirmCancelPaidNow` must be true for a paid subscription: it cancels immediately and the current period is not refunded. */
+export const prepareDeletion = (confirmCancelPaidNow: boolean) =>
+  post<PrepareDeletionResult & { success: true }>('/api/billing/account/prepare-deletion', { confirmCancelPaidNow });

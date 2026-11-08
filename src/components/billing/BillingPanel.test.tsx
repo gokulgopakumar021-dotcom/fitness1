@@ -9,7 +9,8 @@ const api = vi.hoisted(() => ({
   fetchBillingPayments: vi.fn(),
   createSubscription: vi.fn(),
   verifySubscription: vi.fn(),
-  cancelSubscription: vi.fn()
+  cancelSubscription: vi.fn(),
+  startRecovery: vi.fn()
 }));
 vi.mock('../../lib/billingApi', async (orig) => ({ ...(await orig<typeof import('../../lib/billingApi')>()), ...api }));
 const checkout = vi.hoisted(() => ({ openSubscriptionCheckout: vi.fn() }));
@@ -267,13 +268,13 @@ describe('BillingPanel: dashboard states', () => {
     expect(byText('button', 'Cancel subscription')).toBeUndefined();
   });
 
-  it('payment failed: alert, paid features paused, recovery not pretended, cancel still available, no plan picker', async () => {
+  it('payment failed: alert, paid features paused, recovery available, cancel still available, no plan picker', async () => {
     api.fetchBillingStatus.mockResolvedValue(baseStatus({ entitlement: { state: 'payment_failed', hasAccess: false, accessEndsAt: null }, subscription: sub({ status: 'halted', paymentStatus: 'failed' }) }));
     await mount();
     expect(container.querySelector('[role="alert"]')!.textContent).toContain('did not go through');
     const update = byText('button', 'Update payment method') as HTMLButtonElement;
-    expect(update.disabled).toBe(true);
-    expect(text()).toContain('not available yet');
+    expect(update.disabled).toBe(false); // wired in Stage 5
+    expect(text()).not.toContain('not available yet');
     expect(text()).toContain('Failed');
     expect(byText('button', 'Cancel subscription')).toBeTruthy();
     expect(container.querySelector('input[name="billing-plan"]')).toBeNull();
@@ -373,6 +374,106 @@ describe('BillingPanel: cancelling', () => {
     const body = document.querySelector('[role="dialog"]')!.textContent!;
     expect(body).toContain('will not renew');
     expect(body).toContain('13 Dec 2026');
+  });
+});
+
+const recovery = (over: Record<string, unknown> = {}) => ({
+  success: true, subscriptionId: 'sub_ABC123456', keyId: 'rzp_test_key', planKey: 'monthly', amountPaise: 29900, currency: 'INR', billingPeriod: 'monthly',
+  status: 'halted', cardChangeOnly: true, ...over
+});
+const haltedStatus = (status: 'halted' | 'pending' = 'halted') =>
+  baseStatus({
+    entitlement: { state: status === 'halted' ? 'payment_failed' : 'payment_pending', hasAccess: false, accessEndsAt: null },
+    subscription: sub({ status, paymentStatus: status === 'halted' ? 'failed' : 'retrying', paidCount: 1 })
+  });
+
+describe('BillingPanel: payment recovery (pending and halted)', () => {
+  it('asks the server first, opens Checkout for the same subscription in card-change mode, then has the server verify the callback', async () => {
+    api.fetchBillingStatus.mockResolvedValue(haltedStatus());
+    api.startRecovery.mockResolvedValue(recovery());
+    checkout.openSubscriptionCheckout.mockResolvedValue({ kind: 'callback', response: callback });
+    api.verifySubscription.mockResolvedValue({ success: true, verified: true, alreadyVerified: true, recovered: true, subscription: sub({ status: 'active' }) });
+    await mount();
+    api.fetchBillingStatus.mockResolvedValue(baseStatus({ entitlement: { state: 'active', hasAccess: true, accessEndsAt: '2026-12-13T12:00:00Z' }, subscription: sub({ status: 'active', paymentStatus: 'paid', paidCount: 2 }) }));
+    await click(byText('button', 'Update payment method'));
+    expect(api.startRecovery).toHaveBeenCalledTimes(1);
+    expect(api.createSubscription).not.toHaveBeenCalled(); // recovery never creates a second subscription
+    expect(checkout.openSubscriptionCheckout).toHaveBeenCalledWith(expect.objectContaining({ keyId: 'rzp_test_key', subscriptionId: 'sub_ABC123456', cardChange: true }));
+    expect(api.verifySubscription).toHaveBeenCalledWith(callback);
+    expect(text()).toContain('Payment method updated');
+    expect(text()).toContain('Active');
+    expect(byText('button', 'Update payment method')).toBeUndefined();
+  });
+  it('the callback alone changes nothing on screen: a server refusal shows the error and no success', async () => {
+    api.fetchBillingStatus.mockResolvedValue(haltedStatus());
+    api.startRecovery.mockResolvedValue(recovery());
+    checkout.openSubscriptionCheckout.mockResolvedValue({ kind: 'callback', response: callback });
+    api.verifySubscription.mockRejectedValue(new BillingApiError(400, 'invalid_signature', 'Payment verification failed.'));
+    await mount();
+    await click(byText('button', 'Update payment method'));
+    expect(text()).toContain('Payment verification failed.');
+    expect(text()).not.toContain('Payment method updated');
+    expect(text()).toContain('Payment failed');
+  });
+  it('closing Checkout changes nothing and verifies nothing', async () => {
+    api.fetchBillingStatus.mockResolvedValue(haltedStatus());
+    api.startRecovery.mockResolvedValue(recovery());
+    checkout.openSubscriptionCheckout.mockResolvedValue({ kind: 'dismissed' });
+    await mount();
+    await click(byText('button', 'Update payment method'));
+    expect(api.verifySubscription).not.toHaveBeenCalled();
+    expect(text()).toContain('Nothing was changed');
+  });
+  it('while Razorpay has not confirmed it says it is still confirming and not to pay again', async () => {
+    api.fetchBillingStatus.mockResolvedValue(haltedStatus('pending'));
+    api.startRecovery.mockResolvedValue(recovery({ status: 'pending' }));
+    checkout.openSubscriptionCheckout.mockResolvedValue({ kind: 'callback', response: callback });
+    api.verifySubscription.mockRejectedValue(new BillingApiError(409, 'authorization_not_confirmed', 'not yet'));
+    await mount();
+    await click(byText('button', 'Update payment method'));
+    await settle();
+    expect(api.verifySubscription).toHaveBeenCalledTimes(3);
+    expect(text()).toContain('Still confirming with Razorpay');
+    expect(text()).toContain('Do not pay again');
+    expect(text()).not.toContain('Payment method updated');
+  });
+  it('if the subscription already healed, the server says so, no Checkout opens, and the status is refreshed', async () => {
+    api.fetchBillingStatus.mockResolvedValue(haltedStatus());
+    api.startRecovery.mockRejectedValue(new BillingApiError(409, 'recovery_not_available', 'Your subscription does not need a payment update right now.'));
+    await mount();
+    const before = api.fetchBillingStatus.mock.calls.length;
+    await click(byText('button', 'Update payment method'));
+    expect(checkout.openSubscriptionCheckout).not.toHaveBeenCalled();
+    expect(text()).toContain('does not need a payment update');
+    expect(api.fetchBillingStatus.mock.calls.length).toBeGreaterThan(before);
+  });
+  it('a Checkout that cannot open is a plain, safe error', async () => {
+    api.fetchBillingStatus.mockResolvedValue(haltedStatus());
+    api.startRecovery.mockResolvedValue(recovery());
+    checkout.openSubscriptionCheckout.mockRejectedValue(new Error('script blocked'));
+    await mount();
+    await click(byText('button', 'Update payment method'));
+    expect(text()).toContain('could not be opened');
+    expect(text()).not.toContain('script blocked');
+  });
+  it('pending shows the update action; a trial that simply awaits its first charge does not', async () => {
+    api.fetchBillingStatus.mockResolvedValue(haltedStatus('pending'));
+    await mount();
+    expect(byText('button', 'Update payment method')).toBeTruthy();
+    act(() => root.unmount());
+    root = createRoot(container);
+    api.fetchBillingStatus.mockResolvedValue(baseStatus({ entitlement: { state: 'payment_pending', hasAccess: false, accessEndsAt: null }, subscription: sub({ status: 'authenticated' }) }));
+    await mount();
+    expect(text()).toContain('Waiting for your payment');
+    expect(byText('button', 'Update payment method')).toBeUndefined();
+  });
+  it('is honest about what Checkout can change (card only; UPI and mandates use Razorpay\'s emailed link) and never says free or no charge', async () => {
+    api.fetchBillingStatus.mockResolvedValue(haltedStatus());
+    await mount();
+    expect(text()).toMatch(/UPI or a bank mandate/);
+    expect(text()).toMatch(/emailed you/);
+    expect(text()).not.toMatch(/\bfree\b/i);
+    expect(text()).not.toMatch(/no charge/i);
   });
 });
 

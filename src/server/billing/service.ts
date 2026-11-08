@@ -82,7 +82,7 @@ function paymentRecord(row: SubscriptionRow, p: RzpPayment, kind: 'authorization
   else if (p.status === 'authorized') status = 'authorized';
   else if (p.status === 'failed') status = 'failed';
   else return null; // 'created' and anything unknown: never recorded as a payment
-  if (p.currency !== 'INR' || !Number.isInteger(p.amount) || p.amount < 0 || !row.user_id) return null;
+  if (p.currency !== 'INR' || !Number.isInteger(p.amount) || p.amount < 0) return null;
   return {
     userId: row.user_id, subscriptionId: row.id, razorpayPaymentId: p.id, razorpayInvoiceId: p.invoice_id ?? null, kind, status, amountPaise: p.amount,
     amountRefundedPaise: refunded ? Math.max(p.amount_refunded ?? 0, p.amount) : (p.amount_refunded ?? 0), method: p.method ?? null,
@@ -301,7 +301,17 @@ export function createBillingService(deps: BillingServiceDeps) {
         throw new ApiError(400, 'invalid_signature', 'Payment verification failed.');
       }
       if (!PAY_ID.test(body.razorpay_payment_id)) throw new ApiError(400, 'invalid_signature', 'Payment verification failed.');
-      if (row.auth_verified_at) return { verified: true, alreadyVerified: true, subscription: toPublicSubscription(row) };
+      if (row.auth_verified_at) {
+        if (row.status === 'pending' || row.status === 'halted') {
+          // Payment-method recovery. The callback only proves the customer paid something for THIS subscription; whether the
+          // subscription is healthy again is whatever Razorpay says now. Nothing is recorded from the callback itself: the
+          // charge that follows arrives as subscription.charged and is recorded there.
+          const fresh = await reconcileRow(row);
+          if (fresh.status === 'active') return { verified: true, alreadyVerified: true, recovered: true, subscription: toPublicSubscription(fresh) };
+          throw new ApiError(409, 'authorization_not_confirmed', 'Razorpay has not confirmed this payment yet. Please try again in a moment.');
+        }
+        return { verified: true, alreadyVerified: true, subscription: toPublicSubscription(row) };
+      }
 
       // A valid signature proves the customer paid something for THIS subscription. It does not grant access: Razorpay must say so too.
       const rzp = await gateway.fetchSubscription(row.razorpay_subscription_id);
@@ -363,6 +373,102 @@ export function createBillingService(deps: BillingServiceDeps) {
     return applyAndMaybeAuthorize(row, rzp);
   }
 
+  /**
+   * Payment recovery for a `pending` or `halted` subscription. Razorpay documents two mechanisms: its emailed hosted page (we pass
+   * customer_notify=1 at creation, so Razorpay sends it) and Checkout re-opened on the same subscription_id with
+   * `subscription_card_change` (cards only). This returns what the second needs. The state is re-read from Razorpay first, so a
+   * subscription that already healed is never sent to Checkout.
+   */
+  async function startRecovery(user: AuthUser) {
+    requireConfigured();
+    try {
+      const found = await store.getLiveForUser(user.id);
+      if (!found || !found.razorpay_subscription_id || !found.auth_verified_at) throw new ApiError(409, 'recovery_not_available', 'There is no payment to update.');
+      const row = await reconcileRow(found);
+      if ((row.status !== 'pending' && row.status !== 'halted') || !row.razorpay_subscription_id) {
+        throw new ApiError(409, 'recovery_not_available', 'Your subscription does not need a payment update right now.');
+      }
+      return {
+        subscriptionId: row.razorpay_subscription_id, keyId: config.keyId as string, planKey: row.plan_key, amountPaise: row.amount_paise,
+        currency: 'INR' as const, billingPeriod: row.billing_period, status: row.status as 'pending' | 'halted',
+        /** Checkout can only change a CARD this way (documented `subscription_card_change`). UPI and bank-mandate customers use Razorpay's emailed link. */
+        cardChangeOnly: true
+      };
+    } catch (err) {
+      throw toApiError(err, 'start_recovery');
+    }
+  }
+
+  // ------------------------------------------------------------------------------------------- account deletion
+
+  type DeletionRequires = 'none' | 'cancel_billing' | 'confirm_cancel_paid';
+
+  /** Blocking subscriptions, each refreshed from Razorpay first so the decision uses Razorpay's state, not a stale mirror. Re-read afterwards, so what is returned is what the database gate will see. */
+  async function blockingRefreshed(userId: string): Promise<SubscriptionRow[]> {
+    for (const r of await store.listBlockingForUser(userId)) if (r.razorpay_subscription_id) await reconcileRow(r);
+    return store.listBlockingForUser(userId);
+  }
+  const deletionRequires = (rows: SubscriptionRow[]): DeletionRequires => (rows.length === 0 ? 'none' : rows.some((r) => r.status === 'active') ? 'confirm_cancel_paid' : 'cancel_billing');
+  const paidRow = (rows: SubscriptionRow[]) => rows.find((r) => r.status === 'active');
+
+  /** Read-only preview of what deleting the account will require. The database gate (delete_own_account) is the real enforcement. */
+  async function deletionCheck(user: AuthUser) {
+    requireConfigured();
+    try {
+      const rows = await blockingRefreshed(user.id);
+      const requires = deletionRequires(rows);
+      const paid = paidRow(rows);
+      return { requires, subscription: paid ? toPublicSubscription(paid) : rows[0] ? toPublicSubscription(rows[0]) : null, accessEndsAt: paid?.current_period_end ?? null };
+    } catch (err) {
+      throw toApiError(err, 'deletion_check');
+    }
+  }
+
+  /**
+   * Stops all billing so the account can be deleted. Billing counts as stopped only when Razorpay itself reports a terminal status
+   * (cancel response or fresh fetch), which is what sets billing_stop_verified_at. A paid (active) subscription is cancelled immediately,
+   * with no refund and access ending now, and only with explicit confirmation. This does NOT delete the account: the browser then calls
+   * delete_own_account(), whose own billing gate re-checks everything.
+   */
+  async function prepareDeletion(user: AuthUser, opts: { confirmCancelPaidNow: boolean }) {
+    requireConfigured();
+    try {
+      let rows = await blockingRefreshed(user.id);
+      const paid = paidRow(rows);
+      if (paid && !opts.confirmCancelPaidNow) {
+        return { ready: false, requires: 'confirm_cancel_paid' as const, cancelled: 0, subscription: toPublicSubscription(paid), accessEndsAt: paid.current_period_end };
+      }
+      let cancelled = 0;
+      for (const row of rows) {
+        if (isTerminal(row.status)) continue; // Razorpay says it is stopped; reconcileRow already verified it
+        if (!row.razorpay_subscription_id) {
+          await store.markCreateFailed(row.id, user.id); // never reached Razorpay: nothing to stop there
+          continue;
+        }
+        const nowIso = new Date(clock()).toISOString();
+        const resp = await gateway.cancelSubscription(row.razorpay_subscription_id, false);
+        if (!RAZORPAY_STATUSES.includes(resp.status)) throw new ApiError(502, 'billing_upstream_error', 'The payment provider returned an unexpected state.');
+        const patch = buildSyncPatch(row, resp, clock());
+        patch.cancel_requested_at = row.cancel_requested_at ?? nowIso;
+        if (resp.status === 'cancelled') patch.access_ends_at = row.status === 'authenticated' && row.trial_end_at ? row.trial_end_at : nowIso;
+        await store.applyPatch(row.id, patch);
+        if (isTerminal(resp.status as SubStatus)) {
+          await store.markStopVerified(row.id, resp.status as 'cancelled' | 'completed' | 'expired');
+          cancelled++;
+        }
+      }
+      rows = await store.listBlockingForUser(user.id);
+      if (rows.length > 0) {
+        // Razorpay did not report a terminal status for something. Deleting now could leave a live mandate: do not allow it.
+        logger.error('billing_deletion_prepare_incomplete', { userId: user.id, remaining: rows.length });
+        throw new ApiError(409, 'cancellation_not_confirmed', 'We could not confirm that your subscription has stopped. Please try again in a moment.');
+      }
+      return { ready: true, requires: 'none' as const, cancelled, subscription: null, accessEndsAt: null };
+    } catch (err) {
+      throw toApiError(err, 'prepare_deletion');
+    }
+  }
+
   const needsReconcile = (r: SubscriptionRow): boolean => {
     const t = clock();
     if (!r.razorpay_subscription_id || isTerminal(r.status)) return false;
@@ -370,7 +476,7 @@ export function createBillingService(deps: BillingServiceDeps) {
     if (t - synced < 60_000) return false; // at most once a minute per row
     if (r.status === 'created') return !!r.expire_by && Date.parse(r.expire_by) < t;
     if (r.status === 'authenticated') return !!r.trial_end_at && Date.parse(r.trial_end_at) < t;
-    if (r.status === 'pending') return true;
+    if (r.status === 'pending' || r.status === 'halted') return true;
     if (r.status === 'active' && r.cancel_at_cycle_end) return !!r.current_period_end && Date.parse(r.current_period_end) < t;
     return false;
   };
@@ -503,7 +609,7 @@ export function createBillingService(deps: BillingServiceDeps) {
 
   /** Batch run (scripts/billing-reconcile.ts, later a scheduled job): heals lost webhooks and checks the INR 5 authorization refunds. */
   async function reconcileBatch(limit = 50) {
-    const out = { checked: 0, updated: 0, failed: 0, unrefunded: 0 };
+    const out = { checked: 0, updated: 0, failed: 0, unrefunded: 0, authPaymentMissing: 0, alerts: 0 };
     const rows = await store.listReconcilable(new Date(clock()).toISOString(), limit);
     for (const r of rows) {
       out.checked++;
@@ -530,6 +636,22 @@ export function createBillingService(deps: BillingServiceDeps) {
         logger.warn('billing_refund_check_failed', { kind: err instanceof RazorpayError ? err.kind : 'other' });
       }
     }
+    // The authorization payment id is only known to us from the browser callback (the documented subscription.authenticated payload carries
+    // no payment entity). If that callback was lost, the INR 5 payment has no row and the refund check above cannot see it: flag it for a
+    // manual Dashboard check. Only the last 7 days are examined, so an old, already-settled case does not alert forever.
+    const nowMs = clock();
+    try {
+      const missing = await store.authorizedWithoutAuthorizationPayment(new Date(nowMs - 7 * 86_400_000).toISOString(), new Date(nowMs - 3_600_000).toISOString(), 200);
+      for (const m of missing) {
+        out.authPaymentMissing++;
+        logger.error('billing_authorization_payment_missing', { subscriptionRow: m.id });
+      }
+    } catch (err) {
+      out.failed++;
+      logger.warn('billing_auth_missing_check_failed', { op: err instanceof BillingStoreError ? err.op : 'other' });
+    }
+    out.alerts = out.unrefunded + out.authPaymentMissing;
+    if (out.alerts > 0) logger.error('billing_reconcile_alerts', { unrefunded: out.unrefunded, authPaymentMissing: out.authPaymentMissing });
     return out;
   }
   async function checkEntitlement(userId: string) {
@@ -537,6 +659,6 @@ export function createBillingService(deps: BillingServiceDeps) {
     return { state: e.state, hasAccess: e.has_access };
   }
 
-  return { checkEntitlement, createSubscription, verifyAuthorization, cancel, getStatus, listPayments, handleWebhook, reconcileRow, reconcileBatch };
+  return { checkEntitlement, createSubscription, verifyAuthorization, cancel, getStatus, listPayments, handleWebhook, reconcileRow, reconcileBatch, startRecovery, deletionCheck, prepareDeletion };
 }
 export type BillingService = ReturnType<typeof createBillingService>;
