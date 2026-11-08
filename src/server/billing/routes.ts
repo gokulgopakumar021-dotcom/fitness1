@@ -104,7 +104,11 @@ const handler = (fn: (svc: BillingService, req: Request, res: Response) => Promi
 /** Builds the AI-route gate. The mode is read once; the service is built lazily, so `off` (the default) touches nothing. */
 export function createBillingEntitlementGate(deps: BillingDeps = {}) {
   const lazy = createLazyBilling(deps);
-  const mode = (deps.config ?? loadBillingConfig()).enforcement;
+  const config = deps.config ?? loadBillingConfig();
+  const mode = config.enforcement;
+  // An unrecognised BILLING_ENFORCEMENT value leaves the gate OFF (a typo must never lock every user out), so it has to be loud:
+  // otherwise an operator who meant "on" would believe AI routes are gated while nothing is.
+  if (config.problems.some((p) => p.startsWith('BILLING_ENFORCEMENT'))) logger.error('billing_enforcement_invalid', { effectiveMode: mode });
   return createEntitlementGate({ mode, check: async (userId) => lazy.get()?.checkEntitlement(userId) });
 }
 

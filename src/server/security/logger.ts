@@ -9,6 +9,9 @@ const MAX_STRING = 500;
 const JWT_LIKE = /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}/g;
 const BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const GOOGLE_KEY = /AIza[0-9A-Za-z_-]{20,}/g;
+// Razorpay authenticates with HTTP Basic (key_id:key_secret). Base64 of that pair is the secret, so a stray header echo must not survive.
+const BASIC = /Basic\s+[A-Za-z0-9+/]{16,}={0,2}/g;
+const RZP_KEY_ID = /rzp_(?:test|live)_[A-Za-z0-9]{6,}/g;
 const SB_KEY = /sb_(?:secret|publishable)_[A-Za-z0-9_-]+/g;
 const URL_QUERY_KEY = /([?&](?:key|api_key|apikey|token|access_token)=)[^&\s]+/gi;
 
@@ -16,6 +19,8 @@ export function scrubString(value: string): string {
   const cleaned = value
     .replace(JWT_LIKE, '[redacted-jwt]')
     .replace(BEARER, 'Bearer [redacted]')
+    .replace(BASIC, 'Basic [redacted]')
+    .replace(RZP_KEY_ID, '[redacted-key]')
     .replace(GOOGLE_KEY, '[redacted-key]')
     .replace(SB_KEY, '[redacted-key]')
     .replace(URL_QUERY_KEY, '$1[redacted]');

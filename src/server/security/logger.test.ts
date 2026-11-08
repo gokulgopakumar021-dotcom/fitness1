@@ -21,6 +21,15 @@ describe('SEC-09 structured logging redaction', () => {
     expect(scrubString('a'.repeat(5000)).length).toBeLessThan(600);
   });
 
+  it('scrubs an HTTP Basic credential and a Razorpay key id that appear inside free text', () => {
+    const basic = Buffer.from('rzp_test_abc123XYZ:some_key_secret_value').toString('base64');
+    const out = scrubString(`request failed, Authorization: Basic ${basic}, key rzp_test_abc123XYZ`);
+    expect(out).not.toContain(basic);
+    expect(out).not.toMatch(/rzp_test_abc123XYZ/);
+    expect(out).toContain('Basic [redacted]');
+    expect(scrubString('Basic is the word, not a credential')).toBe('Basic is the word, not a credential');
+  });
+
   it('emits one JSON line per event and respects LOG_LEVEL', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.stubEnv('LOG_LEVEL', 'warn');

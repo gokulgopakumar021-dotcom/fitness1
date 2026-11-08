@@ -166,6 +166,8 @@ export function createBillingService(deps: BillingServiceDeps) {
     };
   }
 
+  const IN_FLIGHT_MS = Math.max(60_000, config.requestTimeoutMs * 3);
+
   async function createSubscription(user: AuthUser, planKey: PlanKey): Promise<CreateResult> {
     requireConfigured();
     const email = requireVerifiedEmail(user);
@@ -187,6 +189,9 @@ export function createBillingService(deps: BillingServiceDeps) {
           if (!row) throw new BillingStoreError('existing_row');
           const stale = !row.expire_by || Date.parse(row.expire_by) < clock() + 60_000;
           if (row.status === 'creating' && !row.razorpay_subscription_id) {
+            // A young intent row means another request of this user is calling Razorpay right now (double click, two tabs): do not
+            // retire it, or both would create a Razorpay subscription. The window is well above the Razorpay call timeout.
+            if (clock() - Date.parse(row.created_at) < IN_FLIGHT_MS) throw new ApiError(409, 'subscription_in_progress', 'A subscription is already being set up. Please wait a moment and try again.', { 'Retry-After': '5' });
             // An earlier attempt died before Razorpay was called. Retire it and start clean (once).
             await store.markCreateFailed(row.id, user.id);
             continue;
