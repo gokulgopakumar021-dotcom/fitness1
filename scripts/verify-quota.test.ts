@@ -251,7 +251,7 @@ describe('verify:quota against the real migrations (PGlite; not the live project
     `);
     await pg.exec(readRoot('supabase/migrations/20261031000000_ai_usage_quota.sql'));
     await pg.exec(readRoot('supabase/migrations/20261103000000_ai_quota_bucket_allowlist.sql'));
-  });
+  }, 60_000); // PGlite boot + migrations: ~3-4 s alone, >10 s when the full suite saturates the CPU
   afterAll(() => pg.close());
 
   it('the bucket names the script used before this change really are refused by the migrated function, even at limit 0', async () => {

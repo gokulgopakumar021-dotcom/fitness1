@@ -16,10 +16,12 @@ var MAX_STRING = 500;
 var JWT_LIKE = /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}/g;
 var BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
 var GOOGLE_KEY = /AIza[0-9A-Za-z_-]{20,}/g;
+var BASIC = /Basic\s+[A-Za-z0-9+/]{16,}={0,2}/g;
+var RZP_KEY_ID = /rzp_(?:test|live)_[A-Za-z0-9]{6,}/g;
 var SB_KEY = /sb_(?:secret|publishable)_[A-Za-z0-9_-]+/g;
 var URL_QUERY_KEY = /([?&](?:key|api_key|apikey|token|access_token)=)[^&\s]+/gi;
 function scrubString(value) {
-  const cleaned = value.replace(JWT_LIKE, "[redacted-jwt]").replace(BEARER, "Bearer [redacted]").replace(GOOGLE_KEY, "[redacted-key]").replace(SB_KEY, "[redacted-key]").replace(URL_QUERY_KEY, "$1[redacted]");
+  const cleaned = value.replace(JWT_LIKE, "[redacted-jwt]").replace(BEARER, "Bearer [redacted]").replace(BASIC, "Basic [redacted]").replace(RZP_KEY_ID, "[redacted-key]").replace(GOOGLE_KEY, "[redacted-key]").replace(SB_KEY, "[redacted-key]").replace(URL_QUERY_KEY, "$1[redacted]");
   return cleaned.length > MAX_STRING ? `${cleaned.slice(0, MAX_STRING)}\u2026[truncated]` : cleaned;
 }
 function redact(value, depth = 0) {
@@ -759,6 +761,259 @@ function requestContext(req, res, next) {
   next();
 }
 
+// src/server/security/validation.ts
+var CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+var FENCE_TAG = /<\/?\s*user_input[^>]*>/gi;
+var ok = (value) => ({ ok: true, value });
+var bad = (path, msg) => ({ ok: false, issues: [`${path}: ${msg}`] });
+var absent = (v) => v === void 0 || v === null;
+function cleanText(s) {
+  return s.replace(CONTROL, "").replace(FENCE_TAG, "").trim();
+}
+function text(opts) {
+  return (v, path) => {
+    if (absent(v)) return opts.required ? bad(path, "is required") : ok(void 0);
+    let s;
+    if (typeof v === "string") s = v;
+    else if (opts.allowNumber && typeof v === "number" && Number.isFinite(v)) s = String(v);
+    else return bad(path, "must be a string");
+    s = cleanText(s);
+    if (opts.truncate && s.length > opts.max) s = s.slice(0, opts.max);
+    if (s.length > opts.max) return bad(path, `must be at most ${opts.max} characters`);
+    if (s.length < (opts.min ?? (opts.required ? 1 : 0))) return bad(path, opts.required ? "must not be empty" : `must be at least ${opts.min} characters`);
+    return ok(s);
+  };
+}
+function num(opts) {
+  return (v, path) => {
+    if (absent(v) || v === "") return opts.required ? bad(path, "is required") : ok(void 0);
+    const n2 = typeof v === "string" && v.trim() !== "" ? Number(v) : v;
+    if (typeof n2 !== "number" || !Number.isFinite(n2)) return bad(path, "must be a number");
+    if (opts.int && !Number.isInteger(n2)) return bad(path, "must be an integer");
+    if (n2 < opts.min || n2 > opts.max) return bad(path, `must be between ${opts.min} and ${opts.max}`);
+    return ok(n2);
+  };
+}
+function oneOf(allowed, opts = {}) {
+  return (v, path) => {
+    if (absent(v)) return opts.required ? bad(path, "is required") : ok(void 0);
+    if (typeof v !== "string" || !allowed.includes(v)) return bad(path, `must be one of: ${allowed.join(", ")}`);
+    return ok(v);
+  };
+}
+function list(item, opts) {
+  return (v, path) => {
+    if (absent(v)) return opts.required ? bad(path, "is required") : ok(void 0);
+    if (!Array.isArray(v)) return bad(path, "must be an array");
+    if (v.length > opts.max && !opts.keepLast) return bad(path, `must have at most ${opts.max} items`);
+    const items = v.length > opts.max ? v.slice(-opts.max) : v;
+    const out = [];
+    const issues = [];
+    items.forEach((el, i) => {
+      const r = item(el, `${path}[${i}]`);
+      if (!r.ok) issues.push(...r.issues);
+      else out.push(r.value);
+    });
+    return issues.length ? { ok: false, issues } : ok(out);
+  };
+}
+function loose(opts = {}) {
+  const { maxKeys = 80, maxDepth = 6, maxString = 2e3, maxArray = 500 } = opts;
+  const walk = (v, path, depth, issues) => {
+    if (v === null || typeof v === "boolean") return v;
+    if (typeof v === "number") {
+      if (!Number.isFinite(v)) issues.push(`${path}: must be finite`);
+      return v;
+    }
+    if (typeof v === "string") {
+      const s = v.replace(CONTROL, "").replace(FENCE_TAG, "");
+      if (s.length > maxString) issues.push(`${path}: must be at most ${maxString} characters`);
+      return s;
+    }
+    if (depth >= maxDepth) {
+      issues.push(`${path}: is nested too deeply`);
+      return void 0;
+    }
+    if (Array.isArray(v)) {
+      if (v.length > maxArray) {
+        issues.push(`${path}: must have at most ${maxArray} items`);
+        return void 0;
+      }
+      return v.map((el, i) => walk(el, `${path}[${i}]`, depth + 1, issues));
+    }
+    if (typeof v === "object") {
+      const entries = Object.entries(v);
+      if (entries.length > maxKeys) {
+        issues.push(`${path}: has too many fields`);
+        return void 0;
+      }
+      const out = {};
+      for (const [k, val] of entries) {
+        if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+        out[k] = walk(val, `${path}.${k}`, depth + 1, issues);
+      }
+      return out;
+    }
+    issues.push(`${path}: unsupported value`);
+    return void 0;
+  };
+  return (v, path) => {
+    if (absent(v)) return opts.required ? bad(path, "is required") : ok(void 0);
+    const kind = opts.kind ?? "any";
+    if (kind === "object" && (typeof v !== "object" || Array.isArray(v))) return bad(path, "must be an object");
+    if (kind === "array" && !Array.isArray(v)) return bad(path, "must be an array");
+    const issues = [];
+    const value = walk(v, path, 0, issues);
+    return issues.length ? { ok: false, issues } : ok(value);
+  };
+}
+function object(shape, refine) {
+  return (v, path) => {
+    const body = absent(v) ? {} : v;
+    if (typeof body !== "object" || Array.isArray(body)) return bad(path, "must be a JSON object");
+    const out = {};
+    const issues = [];
+    for (const [key, validator] of Object.entries(shape)) {
+      const r = validator(body[key], key);
+      if (!r.ok) issues.push(...r.issues);
+      else if (r.value !== void 0) out[key] = r.value;
+    }
+    if (!issues.length && refine) issues.push(...refine(out));
+    return issues.length ? { ok: false, issues } : ok(out);
+  };
+}
+var EXTRACT_MIME_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/webp", "text/plain", "text/csv"];
+var MAX_FILE_BYTES = 10 * 1024 * 1024;
+var BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+function base64DecodedLength(b64) {
+  const pad = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
+  return b64.length / 4 * 3 - pad;
+}
+function checkFileSignature(b64, mime) {
+  const head = Buffer.from(b64.slice(0, 64), "base64");
+  const startsWith = (...bytes) => bytes.every((b, i) => head[i] === b);
+  switch (mime) {
+    case "application/pdf":
+      return startsWith(37, 80, 68, 70, 45) ? null : "content does not look like a PDF";
+    case "image/png":
+      return startsWith(137, 80, 78, 71, 13, 10, 26, 10) ? null : "content does not look like a PNG image";
+    case "image/jpeg":
+      return startsWith(255, 216, 255) ? null : "content does not look like a JPEG image";
+    case "image/webp":
+      return head.subarray(0, 4).toString("latin1") === "RIFF" && head.subarray(8, 12).toString("latin1") === "WEBP" ? null : "content does not look like a WebP image";
+    default: {
+      const sample = Buffer.from(b64.slice(0, 1368), "base64");
+      return sample.includes(0) ? "content does not look like text" : null;
+    }
+  }
+}
+var fileData = (v, path) => {
+  if (absent(v)) return ok(void 0);
+  if (typeof v !== "string") return bad(path, "must be a base64 string");
+  if (v.length === 0) return bad(path, "must not be empty");
+  if (v.length % 4 !== 0 || !BASE64.test(v)) return bad(path, "is not valid base64 (send raw base64 without a data: prefix)");
+  if (base64DecodedLength(v) > MAX_FILE_BYTES) return bad(path, `must decode to at most ${MAX_FILE_BYTES / (1024 * 1024)} MB`);
+  return ok(v);
+};
+var t = (max, extra = {}) => text({ max, ...extra });
+var profile = loose({ kind: "object" });
+var schemas = {
+  extractPlan: object(
+    {
+      text: t(2e5),
+      fileData,
+      mimeType: oneOf(EXTRACT_MIME_TYPES),
+      fileName: t(255)
+    },
+    (b) => {
+      const issues = [];
+      if (b.fileData) {
+        if (!b.mimeType) issues.push("mimeType: is required when fileData is provided");
+        else {
+          const sig = checkFileSignature(b.fileData, b.mimeType);
+          if (sig) issues.push(`fileData: ${sig}`);
+        }
+      } else if (!b.text) {
+        issues.push("fileData: provide either fileData with mimeType, or text");
+      }
+      return issues;
+    }
+  ),
+  generatePlan: object({
+    goal: t(200),
+    split: t(100),
+    daysPerWeek: num({ min: 1, max: 7, int: true }),
+    equipment: t(500),
+    experience: t(100),
+    injuries: t(1e3),
+    specialRequests: t(1e3)
+  }),
+  exerciseCoach: object({
+    exerciseName: t(200, { required: true }),
+    equipment: t(100),
+    targetReps: t(30, { allowNumber: true }),
+    targetRir: t(20, { allowNumber: true }),
+    notes: t(1e3)
+  }),
+  generateAiRoutine: object({
+    muscleRecoveryData: loose({ kind: "array", maxArray: 60 }),
+    availableEquipment: loose({ kind: "array", maxArray: 40 }),
+    recentEquipmentUsed: loose({ kind: "array", maxArray: 40 }),
+    equipmentNotes: t(1e3),
+    trainingSplitFocus: t(100),
+    sessionDurationMinutes: num({ min: 5, max: 300 }),
+    targetExerciseCount: num({ min: 1, max: 30, int: true }),
+    experienceLevel: t(50),
+    primaryGoal: t(100),
+    injuriesOrDeload: t(1e3)
+  }),
+  foodParser: object({ query: t(500, { required: true }), mealCategory: t(40) }),
+  workoutInsights: object({ session: loose({ kind: "object", required: true }), profile }),
+  planOverloadTuning: object({ plan: loose({ kind: "object", required: true }), profile, historySummary: loose({ maxString: 5e3 }) }),
+  nutritionCoach: object({ profile: loose({ kind: "object", required: true }), recentWeightTrend: loose({ maxArray: 400 }) }),
+  recoveryInsights: object({ sessions: loose({ kind: "array", maxArray: 1e3 }), profile, activePlan: loose({ kind: "object" }) }),
+  personalTrainer: object(
+    {
+      messages: list(object({ role: t(20), text: t(8e3, { required: true, truncate: true }) }), { max: 40, keepLast: true }),
+      userMessage: t(2e3),
+      profile,
+      activeSession: loose({ kind: "object" }),
+      recovery: loose({ kind: "object" }),
+      bluetooth: loose({ kind: "object" })
+    },
+    (b) => !b.userMessage && !(Array.isArray(b.messages) && b.messages.length) ? ["userMessage: is required"] : []
+  ),
+  // The handler runs the existing validateCoachingContext(); this layer only bounds the envelope.
+  adaptiveCoachExplain: object({ context: loose({ kind: "object", required: true, maxKeys: 120, maxDepth: 8, maxArray: 1e3 }) }),
+  formAnalyzer: object({ exerciseName: t(200, { required: true }), userQuestion: t(1e3), experience: t(50), goal: t(100) }),
+  warmupGenerator: object({
+    muscleGroups: list(t(80), { max: 20 }),
+    exercises: list(t(120), { max: 40 }),
+    workoutName: t(120),
+    intensity: t(30)
+  }),
+  generatePhysique: object({
+    archetype: t(60),
+    customPrompt: t(1e3),
+    targetBodyFat: num({ min: 3, max: 60 }),
+    muscleEmphasis: list(t(40), { max: 12 }),
+    gender: t(20)
+  }),
+  physiqueAnalysis: object({ dreamPhysique: loose({ kind: "object", required: true }), currentProfile: loose({ kind: "object" }) })
+};
+function validateBody(schema) {
+  return (req, _res, next) => {
+    if (!schema) return next();
+    const r = schema(req.body, "body");
+    if (!r.ok) {
+      const err = new ApiError(400, "invalid_request", "The request was invalid. " + r.issues.slice(0, 5).join("; "));
+      return next(err);
+    }
+    req.body = r.value;
+    next();
+  };
+}
+
 // src/server/billing/config.ts
 var PLAN_KEYS = ["monthly", "annual"];
 var VERIFICATION_DEBIT_PAISE = 500;
@@ -804,7 +1059,7 @@ function loadBillingConfig(env = process.env) {
   if (!inRange(authWindowMinutes, 20, 1440)) problems.push("BILLING_AUTH_WINDOW_MINUTES must be an integer between 20 and 1440.");
   if (!inRange(pendingGraceHours, 0, 168)) problems.push("BILLING_PENDING_GRACE_HOURS must be an integer between 0 and 168.");
   if (!inRange(requestTimeoutMs, 1e3, 6e4)) problems.push("BILLING_RAZORPAY_TIMEOUT_MS must be between 1000 and 60000.");
-  const rawEnforcement = clean(env.BILLING_ENFORCEMENT) ?? "off";
+  const rawEnforcement = (clean(env.BILLING_ENFORCEMENT) ?? "off").toLowerCase();
   let enforcement = "off";
   if (rawEnforcement === "off" || rawEnforcement === "shadow" || rawEnforcement === "on") enforcement = rawEnforcement;
   else problems.push("BILLING_ENFORCEMENT must be off, shadow or on.");
@@ -823,6 +1078,112 @@ function loadBillingConfig(env = process.env) {
     pendingGraceHours,
     enforcement,
     requestTimeoutMs
+  };
+}
+
+// src/server/billing/schemas.ts
+var RZP_SUB = /^sub_[A-Za-z0-9]{6,40}$/;
+var RZP_PAY = /^pay_[A-Za-z0-9]{6,40}$/;
+var SIG = /^[A-Fa-f0-9]{64}$/;
+var pattern = (re, label, max) => {
+  const t3 = text({ max, required: true });
+  return (v, path) => {
+    const r = t3(v, path);
+    if (!r.ok) return r;
+    return re.test(r.value) ? r : { ok: false, issues: [`${path}: is not a valid ${label}`] };
+  };
+};
+var optionalBool = (v, path) => {
+  if (v === void 0 || v === null) return { ok: true, value: void 0 };
+  return typeof v === "boolean" ? { ok: true, value: v } : { ok: false, issues: [`${path}: must be true or false`] };
+};
+var billingSchemas = {
+  createSubscription: object({ planKey: oneOf(PLAN_KEYS, { required: true }) }),
+  verifySubscription: object({
+    razorpay_payment_id: pattern(RZP_PAY, "payment id", 64),
+    razorpay_subscription_id: pattern(RZP_SUB, "subscription id", 64),
+    razorpay_signature: pattern(SIG, "signature", 64)
+  }),
+  empty: object({}),
+  prepareDeletion: object({ confirmCancelPaidNow: optionalBool })
+};
+
+// src/server/security/endpoints.ts
+var SMALL = "64kb";
+var MEDIUM = "256kb";
+var LARGE = "1mb";
+var XLARGE = "4mb";
+var ENDPOINTS = {
+  "POST /extract-plan": { bucket: "extract-plan", ai: true, dailyQuota: 10, perMinute: 3, bodyLimit: "14mb", schema: schemas.extractPlan },
+  "POST /generate-plan": { bucket: "generate-plan", ai: true, dailyQuota: 20, perMinute: 5, bodyLimit: SMALL, schema: schemas.generatePlan },
+  "POST /exercise-coach": { bucket: "exercise-coach", ai: true, dailyQuota: 60, perMinute: 10, bodyLimit: SMALL, schema: schemas.exerciseCoach },
+  "POST /generate-ai-routine": { bucket: "generate-ai-routine", ai: true, dailyQuota: 20, perMinute: 5, bodyLimit: MEDIUM, schema: schemas.generateAiRoutine },
+  "POST /ai-food-parser": { bucket: "ai-food-parser", ai: true, dailyQuota: 100, perMinute: 15, bodyLimit: SMALL, schema: schemas.foodParser },
+  "POST /ai-workout-insights": { bucket: "ai-workout-insights", ai: true, dailyQuota: 40, perMinute: 8, bodyLimit: LARGE, schema: schemas.workoutInsights },
+  "POST /ai-plan-overload-tuning": { bucket: "ai-plan-overload-tuning", ai: true, dailyQuota: 30, perMinute: 5, bodyLimit: LARGE, schema: schemas.planOverloadTuning },
+  "POST /ai-nutrition-coach": { bucket: "ai-nutrition-coach", ai: true, dailyQuota: 40, perMinute: 8, bodyLimit: MEDIUM, schema: schemas.nutritionCoach },
+  "POST /ai-recovery-insights": { bucket: "ai-recovery-insights", ai: true, dailyQuota: 40, perMinute: 8, bodyLimit: XLARGE, schema: schemas.recoveryInsights },
+  "POST /ai-personal-trainer": { bucket: "ai-personal-trainer", ai: true, dailyQuota: 100, perMinute: 12, bodyLimit: LARGE, schema: schemas.personalTrainer },
+  "POST /adaptive-coach/explain": { bucket: "adaptive-coach-explain", ai: true, dailyQuota: 60, perMinute: 10, bodyLimit: MEDIUM, schema: schemas.adaptiveCoachExplain },
+  "POST /ai-form-analyzer": { bucket: "ai-form-analyzer", ai: true, dailyQuota: 40, perMinute: 8, bodyLimit: SMALL, schema: schemas.formAnalyzer },
+  "POST /ai-warmup-generator": { bucket: "ai-warmup-generator", ai: true, dailyQuota: 30, perMinute: 6, bodyLimit: SMALL, schema: schemas.warmupGenerator },
+  "POST /ai-generate-physique": { bucket: "ai-generate-physique", ai: true, dailyQuota: 10, perMinute: 3, bodyLimit: SMALL, schema: schemas.generatePhysique },
+  "POST /ai-physique-analysis": { bucket: "ai-physique-analysis", ai: true, dailyQuota: 10, perMinute: 3, bodyLimit: MEDIUM, schema: schemas.physiqueAnalysis }
+};
+var BILLING_ENDPOINTS = {
+  "GET /billing/status": { bucket: "billing-status", ai: false, perMinute: 30, bodyLimit: SMALL },
+  "GET /billing/payments": { bucket: "billing-payments", ai: false, perMinute: 20, bodyLimit: SMALL },
+  "POST /billing/subscriptions": { bucket: "billing-create", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.createSubscription },
+  "POST /billing/subscriptions/verify": { bucket: "billing-verify", ai: false, perMinute: 10, bodyLimit: SMALL, schema: billingSchemas.verifySubscription },
+  "POST /billing/subscriptions/cancel": { bucket: "billing-cancel", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.empty },
+  // Stage 5: payment recovery (pending/halted) and the cancel-then-delete flow. Each calls Razorpay, so the limits are tight.
+  "POST /billing/subscriptions/recover": { bucket: "billing-recover", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.empty },
+  "GET /billing/account/deletion-check": { bucket: "billing-deletion-check", ai: false, perMinute: 10, bodyLimit: SMALL },
+  "POST /billing/account/prepare-deletion": { bucket: "billing-prepare-deletion", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.prepareDeletion }
+};
+var BARCODE_POLICY = { bucket: "barcode", ai: false, perMinute: 30, bodyLimit: SMALL };
+function resolvePolicy(method, path) {
+  const clean = path.length > 1 ? path.replace(/\/+$/, "") : path;
+  const hit = ENDPOINTS[`${method.toUpperCase()} ${clean}`] ?? BILLING_ENDPOINTS[`${method.toUpperCase()} ${clean}`];
+  if (hit) return hit;
+  if (method.toUpperCase() === "GET" && /^\/nutrition\/barcode\/[^/]+$/.test(clean)) return BARCODE_POLICY;
+  return void 0;
+}
+var ALWAYS_CLOSED_BUCKETS = /* @__PURE__ */ new Set(["extract-plan", "ai-generate-physique", "ai-physique-analysis"]);
+function isAlwaysClosed(method, path) {
+  const p = resolvePolicy(method, path);
+  return !!p && ALWAYS_CLOSED_BUCKETS.has(p.bucket);
+}
+
+// src/server/billing/entitlement.ts
+function createEntitlementGate(opts) {
+  return async (req, res, next) => {
+    try {
+      if (opts.mode === "off") return next();
+      const policy = resolvePolicy(req.method, req.path);
+      if (!policy?.ai || !req.user) return next();
+      let decision;
+      try {
+        decision = await opts.check(req.user.id);
+      } catch {
+        decision = void 0;
+      }
+      if (opts.mode === "shadow") {
+        if (!decision) logger.warn("entitlement_shadow_unavailable", { requestId: req.requestId, bucket: policy.bucket });
+        else if (!decision.hasAccess) logger.warn("entitlement_shadow_would_deny", { requestId: req.requestId, userId: req.user.id, bucket: policy.bucket, state: decision.state });
+        return next();
+      }
+      if (!decision) {
+        logger.error("entitlement_unavailable", { requestId: req.requestId, bucket: policy.bucket });
+        return sendError(req, res, 503, "billing_unavailable", "Subscription status could not be checked. Please try again shortly.", { "Retry-After": "5" });
+      }
+      if (!decision.hasAccess) {
+        return sendError(req, res, 402, "subscription_required", "An active trial or subscription is required to use this feature.", {}, { entitlement: { state: decision.state } });
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
   };
 }
 
@@ -1059,9 +1420,28 @@ function createSupabaseBillingStore(config, client) {
     },
     async listReconcilable(nowIso, limit) {
       const tenMin = new Date(Date.parse(nowIso) - 10 * 6e4).toISOString();
-      const { data, error } = await db.from("billing_subscriptions").select("*").not("razorpay_subscription_id", "is", null).or(`and(status.eq.created,created_at.lt.${tenMin}),and(status.eq.authenticated,trial_end_at.lt.${nowIso}),status.eq.pending,and(status.eq.active,cancel_at_cycle_end.eq.true,current_period_end.lt.${nowIso})`).order("razorpay_synced_at", { ascending: true, nullsFirst: true }).limit(limit);
+      const oneDay = new Date(Date.parse(nowIso) - 864e5).toISOString();
+      const { data, error } = await db.from("billing_subscriptions").select("*").not("razorpay_subscription_id", "is", null).or(`and(status.eq.created,created_at.lt.${tenMin}),and(status.eq.authenticated,trial_end_at.lt.${nowIso}),status.eq.pending,and(status.eq.halted,razorpay_synced_at.lt.${oneDay}),and(status.eq.active,cancel_at_cycle_end.eq.true,current_period_end.lt.${nowIso})`).order("razorpay_synced_at", { ascending: true, nullsFirst: true }).limit(limit);
       if (error) fail("list_reconcilable", error);
       return data ?? [];
+    },
+    async listBlockingForUser(userId) {
+      const { data, error } = await db.from("billing_subscriptions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50);
+      if (error) fail("list_blocking", error);
+      const terminal = ["cancelled", "completed", "expired"];
+      return (data ?? []).filter(
+        (r) => !(r.status === "expired" && r.razorpay_subscription_id === null) && !(terminal.includes(r.status) && r.billing_stop_verified_at !== null)
+      );
+    },
+    async authorizedWithoutAuthorizationPayment(sinceIso, untilIso, limit) {
+      const subs = await db.from("billing_subscriptions").select("id,auth_verified_at").not("auth_verified_at", "is", null).not("trial_end_at", "is", null).gte("auth_verified_at", sinceIso).lt("auth_verified_at", untilIso).order("auth_verified_at", { ascending: false }).limit(limit);
+      if (subs.error) fail("auth_missing_subs", subs.error);
+      const rows = subs.data ?? [];
+      if (rows.length === 0) return [];
+      const pays = await db.from("billing_payments").select("subscription_id").eq("kind", "authorization").in("subscription_id", rows.map((r) => r.id));
+      if (pays.error) fail("auth_missing_pays", pays.error);
+      const have = new Set((pays.data ?? []).map((p) => p.subscription_id));
+      return rows.filter((r) => !have.has(r.id));
     },
     async unrefundedAuthorizations(olderThanMinutes) {
       const r = await db.rpc("billing_unrefunded_authorizations", { p_older_than_minutes: olderThanMinutes });
@@ -1164,7 +1544,7 @@ function paymentRecord(row, p, kind, nowMs) {
   else if (p.status === "authorized") status = "authorized";
   else if (p.status === "failed") status = "failed";
   else return null;
-  if (p.currency !== "INR" || !Number.isInteger(p.amount) || p.amount < 0 || !row.user_id) return null;
+  if (p.currency !== "INR" || !Number.isInteger(p.amount) || p.amount < 0) return null;
   return {
     userId: row.user_id,
     subscriptionId: row.id,
@@ -1239,6 +1619,7 @@ function createBillingService(deps) {
       reused
     };
   }
+  const IN_FLIGHT_MS = Math.max(6e4, config.requestTimeoutMs * 3);
   async function createSubscription(user, planKey) {
     requireConfigured();
     const email = requireVerifiedEmail(user);
@@ -1264,6 +1645,7 @@ function createBillingService(deps) {
           if (!row2) throw new BillingStoreError("existing_row");
           const stale = !row2.expire_by || Date.parse(row2.expire_by) < clock() + 6e4;
           if (row2.status === "creating" && !row2.razorpay_subscription_id) {
+            if (clock() - Date.parse(row2.created_at) < IN_FLIGHT_MS) throw new ApiError(409, "subscription_in_progress", "A subscription is already being set up. Please wait a moment and try again.", { "Retry-After": "5" });
             await store.markCreateFailed(row2.id, user.id);
             continue;
           }
@@ -1365,7 +1747,14 @@ function createBillingService(deps) {
         throw new ApiError(400, "invalid_signature", "Payment verification failed.");
       }
       if (!PAY_ID.test(body.razorpay_payment_id)) throw new ApiError(400, "invalid_signature", "Payment verification failed.");
-      if (row.auth_verified_at) return { verified: true, alreadyVerified: true, subscription: toPublicSubscription(row) };
+      if (row.auth_verified_at) {
+        if (row.status === "pending" || row.status === "halted") {
+          const fresh = await reconcileRow(row);
+          if (fresh.status === "active") return { verified: true, alreadyVerified: true, recovered: true, subscription: toPublicSubscription(fresh) };
+          throw new ApiError(409, "authorization_not_confirmed", "Razorpay has not confirmed this payment yet. Please try again in a moment.");
+        }
+        return { verified: true, alreadyVerified: true, subscription: toPublicSubscription(row) };
+      }
       const rzp = await gateway.fetchSubscription(row.razorpay_subscription_id);
       if (rzp.status !== "authenticated" && rzp.status !== "active") {
         throw new ApiError(409, "authorization_not_confirmed", "Razorpay has not confirmed this authorization yet. Please try again in a moment.");
@@ -1415,6 +1804,84 @@ function createBillingService(deps) {
     const rzp = await gateway.fetchSubscription(row.razorpay_subscription_id);
     return applyAndMaybeAuthorize(row, rzp);
   }
+  async function startRecovery(user) {
+    requireConfigured();
+    try {
+      const found = await store.getLiveForUser(user.id);
+      if (!found || !found.razorpay_subscription_id || !found.auth_verified_at) throw new ApiError(409, "recovery_not_available", "There is no payment to update.");
+      const row = await reconcileRow(found);
+      if (row.status !== "pending" && row.status !== "halted" || !row.razorpay_subscription_id) {
+        throw new ApiError(409, "recovery_not_available", "Your subscription does not need a payment update right now.");
+      }
+      return {
+        subscriptionId: row.razorpay_subscription_id,
+        keyId: config.keyId,
+        planKey: row.plan_key,
+        amountPaise: row.amount_paise,
+        currency: "INR",
+        billingPeriod: row.billing_period,
+        status: row.status,
+        /** Checkout can only change a CARD this way (documented `subscription_card_change`). UPI and bank-mandate customers use Razorpay's emailed link. */
+        cardChangeOnly: true
+      };
+    } catch (err) {
+      throw toApiError(err, "start_recovery");
+    }
+  }
+  async function blockingRefreshed(userId) {
+    for (const r of await store.listBlockingForUser(userId)) if (r.razorpay_subscription_id) await reconcileRow(r);
+    return store.listBlockingForUser(userId);
+  }
+  const deletionRequires = (rows) => rows.length === 0 ? "none" : rows.some((r) => r.status === "active") ? "confirm_cancel_paid" : "cancel_billing";
+  const paidRow = (rows) => rows.find((r) => r.status === "active");
+  async function deletionCheck(user) {
+    requireConfigured();
+    try {
+      const rows = await blockingRefreshed(user.id);
+      const requires = deletionRequires(rows);
+      const paid = paidRow(rows);
+      return { requires, subscription: paid ? toPublicSubscription(paid) : rows[0] ? toPublicSubscription(rows[0]) : null, accessEndsAt: paid?.current_period_end ?? null };
+    } catch (err) {
+      throw toApiError(err, "deletion_check");
+    }
+  }
+  async function prepareDeletion(user, opts) {
+    requireConfigured();
+    try {
+      let rows = await blockingRefreshed(user.id);
+      const paid = paidRow(rows);
+      if (paid && !opts.confirmCancelPaidNow) {
+        return { ready: false, requires: "confirm_cancel_paid", cancelled: 0, subscription: toPublicSubscription(paid), accessEndsAt: paid.current_period_end };
+      }
+      let cancelled = 0;
+      for (const row of rows) {
+        if (isTerminal(row.status)) continue;
+        if (!row.razorpay_subscription_id) {
+          await store.markCreateFailed(row.id, user.id);
+          continue;
+        }
+        const nowIso = new Date(clock()).toISOString();
+        const resp = await gateway.cancelSubscription(row.razorpay_subscription_id, false);
+        if (!RAZORPAY_STATUSES.includes(resp.status)) throw new ApiError(502, "billing_upstream_error", "The payment provider returned an unexpected state.");
+        const patch = buildSyncPatch(row, resp, clock());
+        patch.cancel_requested_at = row.cancel_requested_at ?? nowIso;
+        if (resp.status === "cancelled") patch.access_ends_at = row.status === "authenticated" && row.trial_end_at ? row.trial_end_at : nowIso;
+        await store.applyPatch(row.id, patch);
+        if (isTerminal(resp.status)) {
+          await store.markStopVerified(row.id, resp.status);
+          cancelled++;
+        }
+      }
+      rows = await store.listBlockingForUser(user.id);
+      if (rows.length > 0) {
+        logger.error("billing_deletion_prepare_incomplete", { userId: user.id, remaining: rows.length });
+        throw new ApiError(409, "cancellation_not_confirmed", "We could not confirm that your subscription has stopped. Please try again in a moment.");
+      }
+      return { ready: true, requires: "none", cancelled, subscription: null, accessEndsAt: null };
+    } catch (err) {
+      throw toApiError(err, "prepare_deletion");
+    }
+  }
   const needsReconcile = (r) => {
     const t3 = clock();
     if (!r.razorpay_subscription_id || isTerminal(r.status)) return false;
@@ -1422,7 +1889,7 @@ function createBillingService(deps) {
     if (t3 - synced < 6e4) return false;
     if (r.status === "created") return !!r.expire_by && Date.parse(r.expire_by) < t3;
     if (r.status === "authenticated") return !!r.trial_end_at && Date.parse(r.trial_end_at) < t3;
-    if (r.status === "pending") return true;
+    if (r.status === "pending" || r.status === "halted") return true;
     if (r.status === "active" && r.cancel_at_cycle_end) return !!r.current_period_end && Date.parse(r.current_period_end) < t3;
     return false;
   };
@@ -1532,7 +1999,7 @@ function createBillingService(deps) {
     }
   }
   async function reconcileBatch(limit = 50) {
-    const out = { checked: 0, updated: 0, failed: 0, unrefunded: 0 };
+    const out = { checked: 0, updated: 0, failed: 0, unrefunded: 0, authPaymentMissing: 0, alerts: 0 };
     const rows = await store.listReconcilable(new Date(clock()).toISOString(), limit);
     for (const r of rows) {
       out.checked++;
@@ -1559,9 +2026,26 @@ function createBillingService(deps) {
         logger.warn("billing_refund_check_failed", { kind: err instanceof RazorpayError ? err.kind : "other" });
       }
     }
+    const nowMs = clock();
+    try {
+      const missing = await store.authorizedWithoutAuthorizationPayment(new Date(nowMs - 7 * 864e5).toISOString(), new Date(nowMs - 36e5).toISOString(), 200);
+      for (const m of missing) {
+        out.authPaymentMissing++;
+        logger.error("billing_authorization_payment_missing", { subscriptionRow: m.id });
+      }
+    } catch (err) {
+      out.failed++;
+      logger.warn("billing_auth_missing_check_failed", { op: err instanceof BillingStoreError ? err.op : "other" });
+    }
+    out.alerts = out.unrefunded + out.authPaymentMissing;
+    if (out.alerts > 0) logger.error("billing_reconcile_alerts", { unrefunded: out.unrefunded, authPaymentMissing: out.authPaymentMissing });
     return out;
   }
-  return { createSubscription, verifyAuthorization, cancel, getStatus, listPayments, handleWebhook, reconcileRow, reconcileBatch };
+  async function checkEntitlement(userId) {
+    const e = await store.getEntitlement(userId, config.pendingGraceHours);
+    return { state: e.state, hasAccess: e.has_access };
+  }
+  return { checkEntitlement, createSubscription, verifyAuthorization, cancel, getStatus, listPayments, handleWebhook, reconcileRow, reconcileBatch, startRecovery, deletionCheck, prepareDeletion };
 }
 
 // src/server/billing/routes.ts
@@ -1630,6 +2114,13 @@ var handler = (fn, lazy) => async (req, res, next) => {
     next(err);
   }
 };
+function createBillingEntitlementGate(deps = {}) {
+  const lazy = createLazyBilling(deps);
+  const config = deps.config ?? loadBillingConfig();
+  const mode = config.enforcement;
+  if (config.problems.some((p) => p.startsWith("BILLING_ENFORCEMENT"))) logger.error("billing_enforcement_invalid", { effectiveMode: mode });
+  return createEntitlementGate({ mode, check: async (userId) => lazy.get()?.checkEntitlement(userId) });
+}
 function registerBillingRoutes(app, deps = {}) {
   const lazy = createLazyBilling(deps);
   app.get("/api/billing/status", handler(async (s, req, res) => res.json({ success: true, ...await s.getStatus(req.user) }), lazy));
@@ -1637,6 +2128,9 @@ function registerBillingRoutes(app, deps = {}) {
   app.post("/api/billing/subscriptions", handler(async (s, req, res) => res.json({ success: true, ...await s.createSubscription(req.user, req.body.planKey) }), lazy));
   app.post("/api/billing/subscriptions/verify", handler(async (s, req, res) => res.json({ success: true, ...await s.verifyAuthorization(req.user, req.body) }), lazy));
   app.post("/api/billing/subscriptions/cancel", handler(async (s, req, res) => res.json({ success: true, ...await s.cancel(req.user) }), lazy));
+  app.post("/api/billing/subscriptions/recover", handler(async (s, req, res) => res.json({ success: true, ...await s.startRecovery(req.user) }), lazy));
+  app.get("/api/billing/account/deletion-check", handler(async (s, req, res) => res.json({ success: true, ...await s.deletionCheck(req.user) }), lazy));
+  app.post("/api/billing/account/prepare-deletion", handler(async (s, req, res) => res.json({ success: true, ...await s.prepareDeletion(req.user, { confirmCancelPaidNow: req.body?.confirmCancelPaidNow === true }) }), lazy));
 }
 
 // src/server/security/auth.ts
@@ -1895,324 +2389,6 @@ function createCors(config) {
   };
 }
 
-// src/server/security/validation.ts
-var CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
-var FENCE_TAG = /<\/?\s*user_input[^>]*>/gi;
-var ok = (value) => ({ ok: true, value });
-var bad = (path, msg) => ({ ok: false, issues: [`${path}: ${msg}`] });
-var absent = (v) => v === void 0 || v === null;
-function cleanText(s) {
-  return s.replace(CONTROL, "").replace(FENCE_TAG, "").trim();
-}
-function text(opts) {
-  return (v, path) => {
-    if (absent(v)) return opts.required ? bad(path, "is required") : ok(void 0);
-    let s;
-    if (typeof v === "string") s = v;
-    else if (opts.allowNumber && typeof v === "number" && Number.isFinite(v)) s = String(v);
-    else return bad(path, "must be a string");
-    s = cleanText(s);
-    if (opts.truncate && s.length > opts.max) s = s.slice(0, opts.max);
-    if (s.length > opts.max) return bad(path, `must be at most ${opts.max} characters`);
-    if (s.length < (opts.min ?? (opts.required ? 1 : 0))) return bad(path, opts.required ? "must not be empty" : `must be at least ${opts.min} characters`);
-    return ok(s);
-  };
-}
-function num(opts) {
-  return (v, path) => {
-    if (absent(v) || v === "") return opts.required ? bad(path, "is required") : ok(void 0);
-    const n2 = typeof v === "string" && v.trim() !== "" ? Number(v) : v;
-    if (typeof n2 !== "number" || !Number.isFinite(n2)) return bad(path, "must be a number");
-    if (opts.int && !Number.isInteger(n2)) return bad(path, "must be an integer");
-    if (n2 < opts.min || n2 > opts.max) return bad(path, `must be between ${opts.min} and ${opts.max}`);
-    return ok(n2);
-  };
-}
-function oneOf(allowed, opts = {}) {
-  return (v, path) => {
-    if (absent(v)) return opts.required ? bad(path, "is required") : ok(void 0);
-    if (typeof v !== "string" || !allowed.includes(v)) return bad(path, `must be one of: ${allowed.join(", ")}`);
-    return ok(v);
-  };
-}
-function list(item, opts) {
-  return (v, path) => {
-    if (absent(v)) return opts.required ? bad(path, "is required") : ok(void 0);
-    if (!Array.isArray(v)) return bad(path, "must be an array");
-    if (v.length > opts.max && !opts.keepLast) return bad(path, `must have at most ${opts.max} items`);
-    const items = v.length > opts.max ? v.slice(-opts.max) : v;
-    const out = [];
-    const issues = [];
-    items.forEach((el, i) => {
-      const r = item(el, `${path}[${i}]`);
-      if (!r.ok) issues.push(...r.issues);
-      else out.push(r.value);
-    });
-    return issues.length ? { ok: false, issues } : ok(out);
-  };
-}
-function loose(opts = {}) {
-  const { maxKeys = 80, maxDepth = 6, maxString = 2e3, maxArray = 500 } = opts;
-  const walk = (v, path, depth, issues) => {
-    if (v === null || typeof v === "boolean") return v;
-    if (typeof v === "number") {
-      if (!Number.isFinite(v)) issues.push(`${path}: must be finite`);
-      return v;
-    }
-    if (typeof v === "string") {
-      const s = v.replace(CONTROL, "").replace(FENCE_TAG, "");
-      if (s.length > maxString) issues.push(`${path}: must be at most ${maxString} characters`);
-      return s;
-    }
-    if (depth >= maxDepth) {
-      issues.push(`${path}: is nested too deeply`);
-      return void 0;
-    }
-    if (Array.isArray(v)) {
-      if (v.length > maxArray) {
-        issues.push(`${path}: must have at most ${maxArray} items`);
-        return void 0;
-      }
-      return v.map((el, i) => walk(el, `${path}[${i}]`, depth + 1, issues));
-    }
-    if (typeof v === "object") {
-      const entries = Object.entries(v);
-      if (entries.length > maxKeys) {
-        issues.push(`${path}: has too many fields`);
-        return void 0;
-      }
-      const out = {};
-      for (const [k, val] of entries) {
-        if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-        out[k] = walk(val, `${path}.${k}`, depth + 1, issues);
-      }
-      return out;
-    }
-    issues.push(`${path}: unsupported value`);
-    return void 0;
-  };
-  return (v, path) => {
-    if (absent(v)) return opts.required ? bad(path, "is required") : ok(void 0);
-    const kind = opts.kind ?? "any";
-    if (kind === "object" && (typeof v !== "object" || Array.isArray(v))) return bad(path, "must be an object");
-    if (kind === "array" && !Array.isArray(v)) return bad(path, "must be an array");
-    const issues = [];
-    const value = walk(v, path, 0, issues);
-    return issues.length ? { ok: false, issues } : ok(value);
-  };
-}
-function object(shape, refine) {
-  return (v, path) => {
-    const body = absent(v) ? {} : v;
-    if (typeof body !== "object" || Array.isArray(body)) return bad(path, "must be a JSON object");
-    const out = {};
-    const issues = [];
-    for (const [key, validator] of Object.entries(shape)) {
-      const r = validator(body[key], key);
-      if (!r.ok) issues.push(...r.issues);
-      else if (r.value !== void 0) out[key] = r.value;
-    }
-    if (!issues.length && refine) issues.push(...refine(out));
-    return issues.length ? { ok: false, issues } : ok(out);
-  };
-}
-var EXTRACT_MIME_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/webp", "text/plain", "text/csv"];
-var MAX_FILE_BYTES = 10 * 1024 * 1024;
-var BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
-function base64DecodedLength(b64) {
-  const pad = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
-  return b64.length / 4 * 3 - pad;
-}
-function checkFileSignature(b64, mime) {
-  const head = Buffer.from(b64.slice(0, 64), "base64");
-  const startsWith = (...bytes) => bytes.every((b, i) => head[i] === b);
-  switch (mime) {
-    case "application/pdf":
-      return startsWith(37, 80, 68, 70, 45) ? null : "content does not look like a PDF";
-    case "image/png":
-      return startsWith(137, 80, 78, 71, 13, 10, 26, 10) ? null : "content does not look like a PNG image";
-    case "image/jpeg":
-      return startsWith(255, 216, 255) ? null : "content does not look like a JPEG image";
-    case "image/webp":
-      return head.subarray(0, 4).toString("latin1") === "RIFF" && head.subarray(8, 12).toString("latin1") === "WEBP" ? null : "content does not look like a WebP image";
-    default: {
-      const sample = Buffer.from(b64.slice(0, 1368), "base64");
-      return sample.includes(0) ? "content does not look like text" : null;
-    }
-  }
-}
-var fileData = (v, path) => {
-  if (absent(v)) return ok(void 0);
-  if (typeof v !== "string") return bad(path, "must be a base64 string");
-  if (v.length === 0) return bad(path, "must not be empty");
-  if (v.length % 4 !== 0 || !BASE64.test(v)) return bad(path, "is not valid base64 (send raw base64 without a data: prefix)");
-  if (base64DecodedLength(v) > MAX_FILE_BYTES) return bad(path, `must decode to at most ${MAX_FILE_BYTES / (1024 * 1024)} MB`);
-  return ok(v);
-};
-var t = (max, extra = {}) => text({ max, ...extra });
-var profile = loose({ kind: "object" });
-var schemas = {
-  extractPlan: object(
-    {
-      text: t(2e5),
-      fileData,
-      mimeType: oneOf(EXTRACT_MIME_TYPES),
-      fileName: t(255)
-    },
-    (b) => {
-      const issues = [];
-      if (b.fileData) {
-        if (!b.mimeType) issues.push("mimeType: is required when fileData is provided");
-        else {
-          const sig = checkFileSignature(b.fileData, b.mimeType);
-          if (sig) issues.push(`fileData: ${sig}`);
-        }
-      } else if (!b.text) {
-        issues.push("fileData: provide either fileData with mimeType, or text");
-      }
-      return issues;
-    }
-  ),
-  generatePlan: object({
-    goal: t(200),
-    split: t(100),
-    daysPerWeek: num({ min: 1, max: 7, int: true }),
-    equipment: t(500),
-    experience: t(100),
-    injuries: t(1e3),
-    specialRequests: t(1e3)
-  }),
-  exerciseCoach: object({
-    exerciseName: t(200, { required: true }),
-    equipment: t(100),
-    targetReps: t(30, { allowNumber: true }),
-    targetRir: t(20, { allowNumber: true }),
-    notes: t(1e3)
-  }),
-  generateAiRoutine: object({
-    muscleRecoveryData: loose({ kind: "array", maxArray: 60 }),
-    availableEquipment: loose({ kind: "array", maxArray: 40 }),
-    recentEquipmentUsed: loose({ kind: "array", maxArray: 40 }),
-    equipmentNotes: t(1e3),
-    trainingSplitFocus: t(100),
-    sessionDurationMinutes: num({ min: 5, max: 300 }),
-    targetExerciseCount: num({ min: 1, max: 30, int: true }),
-    experienceLevel: t(50),
-    primaryGoal: t(100),
-    injuriesOrDeload: t(1e3)
-  }),
-  foodParser: object({ query: t(500, { required: true }), mealCategory: t(40) }),
-  workoutInsights: object({ session: loose({ kind: "object", required: true }), profile }),
-  planOverloadTuning: object({ plan: loose({ kind: "object", required: true }), profile, historySummary: loose({ maxString: 5e3 }) }),
-  nutritionCoach: object({ profile: loose({ kind: "object", required: true }), recentWeightTrend: loose({ maxArray: 400 }) }),
-  recoveryInsights: object({ sessions: loose({ kind: "array", maxArray: 1e3 }), profile, activePlan: loose({ kind: "object" }) }),
-  personalTrainer: object(
-    {
-      messages: list(object({ role: t(20), text: t(8e3, { required: true, truncate: true }) }), { max: 40, keepLast: true }),
-      userMessage: t(2e3),
-      profile,
-      activeSession: loose({ kind: "object" }),
-      recovery: loose({ kind: "object" }),
-      bluetooth: loose({ kind: "object" })
-    },
-    (b) => !b.userMessage && !(Array.isArray(b.messages) && b.messages.length) ? ["userMessage: is required"] : []
-  ),
-  // The handler runs the existing validateCoachingContext(); this layer only bounds the envelope.
-  adaptiveCoachExplain: object({ context: loose({ kind: "object", required: true, maxKeys: 120, maxDepth: 8, maxArray: 1e3 }) }),
-  formAnalyzer: object({ exerciseName: t(200, { required: true }), userQuestion: t(1e3), experience: t(50), goal: t(100) }),
-  warmupGenerator: object({
-    muscleGroups: list(t(80), { max: 20 }),
-    exercises: list(t(120), { max: 40 }),
-    workoutName: t(120),
-    intensity: t(30)
-  }),
-  generatePhysique: object({
-    archetype: t(60),
-    customPrompt: t(1e3),
-    targetBodyFat: num({ min: 3, max: 60 }),
-    muscleEmphasis: list(t(40), { max: 12 }),
-    gender: t(20)
-  }),
-  physiqueAnalysis: object({ dreamPhysique: loose({ kind: "object", required: true }), currentProfile: loose({ kind: "object" }) })
-};
-function validateBody(schema) {
-  return (req, _res, next) => {
-    if (!schema) return next();
-    const r = schema(req.body, "body");
-    if (!r.ok) {
-      const err = new ApiError(400, "invalid_request", "The request was invalid. " + r.issues.slice(0, 5).join("; "));
-      return next(err);
-    }
-    req.body = r.value;
-    next();
-  };
-}
-
-// src/server/billing/schemas.ts
-var RZP_SUB = /^sub_[A-Za-z0-9]{6,40}$/;
-var RZP_PAY = /^pay_[A-Za-z0-9]{6,40}$/;
-var SIG = /^[A-Fa-f0-9]{64}$/;
-var pattern = (re, label, max) => {
-  const t3 = text({ max, required: true });
-  return (v, path) => {
-    const r = t3(v, path);
-    if (!r.ok) return r;
-    return re.test(r.value) ? r : { ok: false, issues: [`${path}: is not a valid ${label}`] };
-  };
-};
-var billingSchemas = {
-  createSubscription: object({ planKey: oneOf(PLAN_KEYS, { required: true }) }),
-  verifySubscription: object({
-    razorpay_payment_id: pattern(RZP_PAY, "payment id", 64),
-    razorpay_subscription_id: pattern(RZP_SUB, "subscription id", 64),
-    razorpay_signature: pattern(SIG, "signature", 64)
-  }),
-  empty: object({})
-};
-
-// src/server/security/endpoints.ts
-var SMALL = "64kb";
-var MEDIUM = "256kb";
-var LARGE = "1mb";
-var XLARGE = "4mb";
-var ENDPOINTS = {
-  "POST /extract-plan": { bucket: "extract-plan", ai: true, dailyQuota: 10, perMinute: 3, bodyLimit: "14mb", schema: schemas.extractPlan },
-  "POST /generate-plan": { bucket: "generate-plan", ai: true, dailyQuota: 20, perMinute: 5, bodyLimit: SMALL, schema: schemas.generatePlan },
-  "POST /exercise-coach": { bucket: "exercise-coach", ai: true, dailyQuota: 60, perMinute: 10, bodyLimit: SMALL, schema: schemas.exerciseCoach },
-  "POST /generate-ai-routine": { bucket: "generate-ai-routine", ai: true, dailyQuota: 20, perMinute: 5, bodyLimit: MEDIUM, schema: schemas.generateAiRoutine },
-  "POST /ai-food-parser": { bucket: "ai-food-parser", ai: true, dailyQuota: 100, perMinute: 15, bodyLimit: SMALL, schema: schemas.foodParser },
-  "POST /ai-workout-insights": { bucket: "ai-workout-insights", ai: true, dailyQuota: 40, perMinute: 8, bodyLimit: LARGE, schema: schemas.workoutInsights },
-  "POST /ai-plan-overload-tuning": { bucket: "ai-plan-overload-tuning", ai: true, dailyQuota: 30, perMinute: 5, bodyLimit: LARGE, schema: schemas.planOverloadTuning },
-  "POST /ai-nutrition-coach": { bucket: "ai-nutrition-coach", ai: true, dailyQuota: 40, perMinute: 8, bodyLimit: MEDIUM, schema: schemas.nutritionCoach },
-  "POST /ai-recovery-insights": { bucket: "ai-recovery-insights", ai: true, dailyQuota: 40, perMinute: 8, bodyLimit: XLARGE, schema: schemas.recoveryInsights },
-  "POST /ai-personal-trainer": { bucket: "ai-personal-trainer", ai: true, dailyQuota: 100, perMinute: 12, bodyLimit: LARGE, schema: schemas.personalTrainer },
-  "POST /adaptive-coach/explain": { bucket: "adaptive-coach-explain", ai: true, dailyQuota: 60, perMinute: 10, bodyLimit: MEDIUM, schema: schemas.adaptiveCoachExplain },
-  "POST /ai-form-analyzer": { bucket: "ai-form-analyzer", ai: true, dailyQuota: 40, perMinute: 8, bodyLimit: SMALL, schema: schemas.formAnalyzer },
-  "POST /ai-warmup-generator": { bucket: "ai-warmup-generator", ai: true, dailyQuota: 30, perMinute: 6, bodyLimit: SMALL, schema: schemas.warmupGenerator },
-  "POST /ai-generate-physique": { bucket: "ai-generate-physique", ai: true, dailyQuota: 10, perMinute: 3, bodyLimit: SMALL, schema: schemas.generatePhysique },
-  "POST /ai-physique-analysis": { bucket: "ai-physique-analysis", ai: true, dailyQuota: 10, perMinute: 3, bodyLimit: MEDIUM, schema: schemas.physiqueAnalysis }
-};
-var BILLING_ENDPOINTS = {
-  "GET /billing/status": { bucket: "billing-status", ai: false, perMinute: 30, bodyLimit: SMALL },
-  "GET /billing/payments": { bucket: "billing-payments", ai: false, perMinute: 20, bodyLimit: SMALL },
-  "POST /billing/subscriptions": { bucket: "billing-create", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.createSubscription },
-  "POST /billing/subscriptions/verify": { bucket: "billing-verify", ai: false, perMinute: 10, bodyLimit: SMALL, schema: billingSchemas.verifySubscription },
-  "POST /billing/subscriptions/cancel": { bucket: "billing-cancel", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.empty }
-};
-var BARCODE_POLICY = { bucket: "barcode", ai: false, perMinute: 30, bodyLimit: SMALL };
-function resolvePolicy(method, path) {
-  const clean = path.length > 1 ? path.replace(/\/+$/, "") : path;
-  const hit = ENDPOINTS[`${method.toUpperCase()} ${clean}`] ?? BILLING_ENDPOINTS[`${method.toUpperCase()} ${clean}`];
-  if (hit) return hit;
-  if (method.toUpperCase() === "GET" && /^\/nutrition\/barcode\/[^/]+$/.test(clean)) return BARCODE_POLICY;
-  return void 0;
-}
-var ALWAYS_CLOSED_BUCKETS = /* @__PURE__ */ new Set(["extract-plan", "ai-generate-physique", "ai-physique-analysis"]);
-function isAlwaysClosed(method, path) {
-  const p = resolvePolicy(method, path);
-  return !!p && ALWAYS_CLOSED_BUCKETS.has(p.bucket);
-}
-
 // src/server/security/headers.ts
 import helmet from "helmet";
 function origins(url) {
@@ -2224,11 +2400,14 @@ function origins(url) {
     return { https: [], wss: [] };
   }
 }
+var RAZORPAY_SCRIPT_ORIGIN = "https://checkout.razorpay.com";
+var RAZORPAY_FRAME_ORIGINS = ["https://api.razorpay.com", "https://checkout.razorpay.com"];
 function buildCsp(config) {
   const sb = origins(config.supabaseUrl);
   return {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
+    scriptSrc: ["'self'", "'wasm-unsafe-eval'", RAZORPAY_SCRIPT_ORIGIN],
+    frameSrc: ["'self'", ...RAZORPAY_FRAME_ORIGINS],
     styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
     fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
     imgSrc: ["'self'", "data:", "blob:", ...sb.https],
@@ -2468,6 +2647,7 @@ function installSecurity(app, deps = {}) {
   );
   app.use("/api", createJsonBody());
   app.use("/api", (req, res, next) => validateBody(res.locals.policy?.schema)(req, res, next));
+  if (deps.entitlementGate) app.use("/api", deps.entitlementGate);
   app.use("/api", createQuotaGate({ store: quotaStore, config, now, policyFor: (req) => resolvePolicy(req.method, req.path) }));
   return config;
 }
@@ -2742,7 +2922,7 @@ var COACH_TIMEOUT_MS = 45e3;
 function createApp(deps = {}) {
   const app = express3();
   installBillingWebhook(app, { ...deps.billing, rateStore: deps.rateStore ?? new MemoryRateStore(deps.now ?? Date.now), now: deps.now });
-  installSecurity(app, deps);
+  installSecurity(app, { ...deps, entitlementGate: deps.entitlementGate ?? createBillingEntitlementGate(deps.billing) });
   registerBillingRoutes(app, { ...deps.billing, now: deps.now });
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", time: (/* @__PURE__ */ new Date()).toISOString() });

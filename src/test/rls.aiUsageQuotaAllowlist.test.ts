@@ -44,7 +44,7 @@ beforeAll(async () => {
     insert into auth.users values ('${A}'), ('${B}');
   `);
   await pg.exec(BASE);
-});
+}, 60_000); // PGlite boot + migration: ~3-4 s alone, >10 s when the full suite saturates the CPU
 afterAll(() => pg.close());
 
 describe('IL-04 draft migration: bucket allow-list and cleanup', () => {
