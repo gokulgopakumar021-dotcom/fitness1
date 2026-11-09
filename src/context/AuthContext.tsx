@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import type { User } from '@supabase/supabase-js';
 import { getAuthRedirectUrl, getSupabase, getSupabaseConfigStatus } from '../lib/supabase';
 import { friendlyAuthError, normalizeEmail } from '../utils/authValidation';
+import { BILLING_ONBOARDING_PENDING_DATA } from '../lib/billingOnboarding';
 
 export type AuthStatus =
   | 'loading' // session check not finished: private UI must not render
@@ -155,7 +156,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data, error } = await supabase.auth.signUp({
         email: normalizeEmail(email),
         password,
-        options: { data: { full_name: fullName.trim() }, emailRedirectTo: getAuthRedirectUrl() }
+        // billing_onboarding marks this as a NEW account so it is routed to plan selection after sign-in (UI routing only, see billingOnboarding.ts).
+        options: { data: { full_name: fullName.trim(), ...BILLING_ONBOARDING_PENDING_DATA }, emailRedirectTo: getAuthRedirectUrl() }
       });
       if (error) return { ok: false, error: friendlyAuthError(error) };
       // With "Confirm email" enabled there is no session yet. An already-registered address also returns no session

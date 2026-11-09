@@ -29,6 +29,11 @@ export const StatusSummary: React.FC<{ status: BillingStatus; state: PanelState;
                 {days === 0 ? 'Ends today' : `${days} ${days === 1 ? 'day' : 'days'} left`}
               </span>
             </SettingRow>
+            {sub?.trialStartAt && (
+              <SettingRow label="Trial started">
+                <span className="text-sm text-white">{formatDate(sub.trialStartAt)}</span>
+              </SettingRow>
+            )}
             <SettingRow label="Trial ends" description="Your first charge is taken on this date unless you cancel first.">
               <span className="text-sm text-white">{formatDate(sub?.trialEndAt ?? end)}</span>
             </SettingRow>
@@ -268,3 +273,52 @@ export const PaymentHistory: React.FC<{ payments: BillingPayment[] | null; error
     )}
   </SettingsCard>
 );
+
+/** ------------------------------------------------------------------------------------------------ onboarding extras */
+/** The plan that Checkout will be opened for, restated next to the button. Display only: the server sets the real amount. */
+export const SelectedPlanSummary: React.FC<{ plan: BillingPlan; trialEligible: boolean; trialDays: number }> = ({ plan, trialEligible, trialDays }) => (
+  <div className="flex items-center justify-between gap-3 rounded-control border border-line bg-surface-2 px-3 py-2.5" data-testid="selected-plan">
+    <div className="min-w-0">
+      <p className="text-label text-zinc-500">Selected plan</p>
+      <p className="text-sm font-semibold text-white">
+        {planName(plan.key)}, {formatInr(plan.amountPaise)} per {intervalWord(plan)}
+      </p>
+    </div>
+    <span className="text-label text-zinc-400 text-right shrink-0">{trialEligible ? `${trialDays}-day trial first` : 'Charged on authorising'}</span>
+  </div>
+);
+
+/** Shown when the server says this account (or its email) has already had its one trial. */
+export const TrialUsedNotice: React.FC<{ trialDays: number }> = ({ trialDays }) => (
+  <Card tone="raised" className="border-warning/30" role="status" aria-label="Trial already used">
+    <p className="text-sm font-semibold text-white">Your {trialDays}-day trial has already been used</p>
+    <p className="text-xs text-zinc-400 mt-1">
+      Each account gets one trial, so a new one is not available. You can still subscribe below: you are charged the full plan price when you authorise, and
+      it is not refunded automatically. Or skip this step and keep using the basic app.
+    </p>
+  </Card>
+);
+
+/** What happens at the end of a running trial and how recurring billing works. Wording comes from the server's own subscription data. */
+export const TrialEndExplainer: React.FC<{ status: BillingStatus }> = ({ status }) => {
+  const sub = status.subscription;
+  if (!sub) return null;
+  const per = sub.billingPeriod === 'yearly' ? 'year' : 'month';
+  const price = formatInr(sub.amountPaise);
+  const ends = formatDate(sub.trialEndAt ?? accessEndDate(status));
+  return (
+    <Card tone="raised" className="space-y-3" aria-label="What happens next" data-testid="trial-end-explainer">
+      <div className="flex items-center gap-2">
+        <CalendarClock className="w-4 h-4 text-volt-adaptive" aria-hidden />
+        <h4 className="text-sm font-semibold text-white">What happens next</h4>
+      </div>
+      <ul className="space-y-2 text-sm text-zinc-300 list-disc pl-5">
+        <li>Your trial runs until {ends}. Everything you have access to now stays available until then.</li>
+        <li>
+          On {ends} your first payment of {price} is taken from the payment method you authorised, then it renews every {per} at {price} until you cancel.
+        </li>
+        <li>To avoid the first payment, cancel in Settings, then Billing, before {ends}. Future billing stops at once and you keep access until the trial ends.</li>
+      </ul>
+    </Card>
+  );
+};

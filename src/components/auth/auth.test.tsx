@@ -223,7 +223,8 @@ describe('sign up', () => {
     await type('Confirm password', 'goodpass1');
     await submit();
     const arg = h.client.auth.signUp.mock.calls[0][0];
-    expect(arg.options.data).toEqual({ full_name: 'Al Lifter' });
+    // New accounts are also tagged for post-signup plan selection (UI routing only; see lib/billingOnboarding.ts).
+    expect(arg.options.data).toEqual({ full_name: 'Al Lifter', billing_onboarding: 'pending' });
     expect(arg.options.emailRedirectTo).toMatch(/\/$/);
     expect(text()).toContain('Check your email');
     expect(q('[data-testid="private"]')).toBeNull();

@@ -31,6 +31,7 @@ import { LegacyDataClaim } from './components/settings/LegacyDataClaim';
 import { shouldPromptLegacyClaim } from './storage/legacyData';
 import { useReminders } from './hooks/useReminders';
 import { BillingRefusalNotice } from './components/billing/BillingRefusalNotice';
+import { BillingOnboardingGate } from './components/billing/BillingOnboardingGate';
 import { OPEN_BILLING_EVENT } from './lib/billingGate';
 
 /** The private application. Only ever mounted by AuthGate, after storage is scoped to the signed-in account. */
@@ -303,7 +304,9 @@ export default function App() {
       <AuthProvider>
         <AuthGate>
           <SyncProvider>
-            <AppShell />
+            <BillingOnboardingGate>
+              <AppShell />
+            </BillingOnboardingGate>
           </SyncProvider>
         </AuthGate>
       </AuthProvider>

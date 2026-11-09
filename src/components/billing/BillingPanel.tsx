@@ -9,7 +9,7 @@ import {
 } from '../../lib/billingApi';
 import { openSubscriptionCheckout } from '../../lib/razorpayCheckout';
 import { formatDate, formatInr, intervalWord, panelState, planName, sameLocalDay } from '../../utils/billingPresentation';
-import { CancelDialog, Disclosure, PaymentFailedNotice, PaymentHistory, PaymentPendingNotice, PlanPicker, StatusSummary } from './BillingParts';
+import { CancelDialog, Disclosure, PaymentFailedNotice, PaymentHistory, PaymentPendingNotice, PlanPicker, SelectedPlanSummary, StatusSummary, TrialUsedNotice } from './BillingParts';
 
 /** Waits between verify attempts when Razorpay has not confirmed the authorisation yet (server answers 409 authorization_not_confirmed). */
 export const DEFAULT_VERIFY_DELAYS_MS = [1500, 3000, 5000];
@@ -32,9 +32,18 @@ interface Props {
   /** Test seam: waits between verify retries. */
   verifyDelaysMs?: number[];
   now?: () => number;
+  /**
+   * `settings` (default) is the full billing screen. `onboarding` is the same flow shown right after sign-up: it adds a
+   * selected-plan summary and a trial-already-used notice, restores the plan of an unfinished attempt after a refresh, and leaves
+   * out billing history and cancellation (those stay in Settings). It reuses every endpoint and rule; nothing here decides access.
+   */
+  variant?: 'settings' | 'onboarding';
+  /** Called with every status the server returns, so a host screen can react to the server's decision (display only). */
+  onStatusChange?: (status: BillingStatus) => void;
 }
 
-export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_DELAYS_MS, now = Date.now }) => {
+export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_DELAYS_MS, now = Date.now, variant = 'settings', onStatusChange }) => {
+  const onboarding = variant === 'onboarding';
   const { user } = useAuth();
   const [status, setStatus] = useState<BillingStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -49,6 +58,11 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const mounted = useRef(true);
+  /** Synchronous in-flight lock: state updates are async, so two clicks in the same tick could both pass a `busy` check. */
+  const submitting = useRef(false);
+  const seededPlan = useRef(false);
+  const statusCallback = useRef(onStatusChange);
+  statusCallback.current = onStatusChange;
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -80,12 +94,24 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
   }, []);
 
   const reloadAll = useCallback(async () => {
-    await Promise.all([loadStatus(), loadPayments()]);
-  }, [loadStatus, loadPayments]);
+    // Onboarding does not show billing history, so it does not request it.
+    await Promise.all([loadStatus(), onboarding ? Promise.resolve() : loadPayments()]);
+  }, [loadStatus, loadPayments, onboarding]);
 
   useEffect(() => {
     void reloadAll();
   }, [reloadAll]);
+
+  useEffect(() => {
+    if (!status) return;
+    statusCallback.current?.(status);
+    // After a refresh in the middle of onboarding, the server still holds the plan of the unfinished attempt: show that one again.
+    if (onboarding && !seededPlan.current) {
+      seededPlan.current = true;
+      const s = status.subscription;
+      if (s && (s.status === 'created' || s.status === 'creating') && status.plans.some((p) => p.key === s.planKey)) setPlanKey(s.planKey);
+    }
+  }, [status, onboarding]);
 
   if (!status) {
     return loadError ? (
@@ -149,7 +175,8 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
    * a hint and the server checks it and asks Razorpay before the status changes.
    */
   const recoverPayment = async () => {
-    if (busy) return;
+    if (busy || submitting.current) return;
+    submitting.current = true;
     setFlow({ phase: 'creating' });
     try {
       const rec = await startRecovery();
@@ -177,11 +204,14 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
         phase: 'error',
         message: e instanceof BillingApiError ? e.message : 'Secure checkout could not be opened. Check your connection and try again. Nothing was changed.'
       });
+    } finally {
+      submitting.current = false;
     }
   };
 
   const startCheckout = async () => {
-    if (!plan || !agreed || busy) return;
+    if (!plan || !agreed || busy || submitting.current) return;
+    submitting.current = true;
     setFlow({ phase: 'creating' });
     try {
       const created = await createSubscription(plan.key);
@@ -222,6 +252,8 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
           ? e.message
           : 'Secure checkout could not be opened. Check your connection and try again. You have not been charged.';
       setFlow({ phase: 'error', message: msg });
+    } finally {
+      submitting.current = false;
     }
   };
 
@@ -307,6 +339,8 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
 
       <StatusSummary status={status} state={state} nowMs={now()} />
 
+      {onboarding && canSubscribe && status.emailVerified && status.trial.days > 0 && !status.trial.eligible && <TrialUsedNotice trialDays={status.trial.days} />}
+
       {state === 'payment_failed' && <PaymentFailedNotice onRecover={() => void recoverPayment()} recoverBusy={busy} onCancel={() => setCancelOpen(true)} />}
 
       {state === 'payment_pending' && <PaymentPendingNotice recoverable={sub?.status === 'pending'} recoverBusy={busy} onRecover={() => void recoverPayment()} />}
@@ -334,6 +368,7 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
             onAgree={setAgreed}
             correctedDate={correctedDate !== null}
           />
+          {onboarding && <SelectedPlanSummary plan={plan} trialEligible={status.trial.eligible} trialDays={status.trial.days} />}
           <Button
             fullWidth
             onClick={() => void startCheckout()}
@@ -346,7 +381,7 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
         </SettingsCard>
       )}
 
-      {canCancel && (
+      {canCancel && !onboarding && (
         <SettingsCard title="Manage subscription">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <p className="text-sm text-zinc-300">
@@ -359,7 +394,7 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
         </SettingsCard>
       )}
 
-      <PaymentHistory payments={payments} error={paymentsError} onRetry={() => void loadPayments()} />
+      {!onboarding && <PaymentHistory payments={payments} error={paymentsError} onRetry={() => void loadPayments()} />}
 
       <CancelDialog open={cancelOpen} state={state} status={status} busy={cancelBusy} error={cancelError} onClose={() => setCancelOpen(false)} onConfirm={() => void confirmCancel()} />
     </div>

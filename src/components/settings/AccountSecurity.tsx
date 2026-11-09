@@ -5,6 +5,7 @@ import { validateConfirm, validatePassword } from '../../utils/authValidation';
 import { eraseAccountLocalData } from '../../storage/resetAll';
 import { BillingApiError, fetchDeletionCheck, prepareDeletion, type DeletionCheck } from '../../lib/billingApi';
 import { formatDate, planName } from '../../utils/billingPresentation';
+import { OPEN_BILLING_EVENT } from '../../lib/billingGate';
 
 export const DELETE_CONFIRM_WORD = 'DELETE';
 
@@ -137,6 +138,16 @@ export const AccountSecurity: React.FC = () => {
       <span id="security-heading" className="sr-only">
         Password and security
       </span>
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3" data-testid="account-billing-link">
+        <div className="min-w-0">
+          <h4 className="text-sm font-medium text-zinc-100">Subscription</h4>
+          <p className="text-xs text-zinc-400">Your plan, trial, billing history and cancellation.</p>
+        </div>
+        <Button variant="secondary" onClick={() => window.dispatchEvent(new Event(OPEN_BILLING_EVENT))}>
+          Manage billing
+        </Button>
+      </div>
 
       <form onSubmit={submitPassword} className="space-y-3" noValidate>
         <h4 className="text-sm font-medium text-zinc-100">Change password</h4>
