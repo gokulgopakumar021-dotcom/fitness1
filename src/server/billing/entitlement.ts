@@ -2,13 +2,14 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { resolvePolicy } from '../security/endpoints';
 import { sendError } from '../security/errors';
 import { logger } from '../security/logger';
+import { describeBillingFailure } from './diagnostics';
 import type { EnforcementMode } from './config';
 
 export interface EntitlementDecision {
   state: string;
   hasAccess: boolean;
 }
-export type EntitlementCheck = (userId: string) => Promise<EntitlementDecision | undefined>;
+export type EntitlementCheck = (userId: string, req?: Request) => Promise<EntitlementDecision | undefined>;
 
 /**
  * Server-authoritative gate for every `ai: true` route. Runs after authentication and validation and BEFORE the daily AI quota
@@ -28,8 +29,10 @@ export function createEntitlementGate(opts: { mode: EnforcementMode; check: Enti
 
       let decision: EntitlementDecision | undefined;
       try {
-        decision = await opts.check(req.user.id);
-      } catch {
+        decision = await opts.check(req.user.id, req);
+      } catch (err) {
+        // Fail closed exactly as before, but say why (static labels only) under the same request id as the 503 body.
+        logger.error('entitlement_check_failed', { requestId: req.requestId, bucket: policy.bucket, ...describeBillingFailure(err) });
         decision = undefined;
       }
       if (opts.mode === 'shadow') {

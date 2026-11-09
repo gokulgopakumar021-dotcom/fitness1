@@ -761,6 +761,248 @@ function requestContext(req, res, next) {
   next();
 }
 
+// src/server/billing/gateway.ts
+import Razorpay from "razorpay";
+var RazorpayError = class extends Error {
+  constructor(kind, httpStatus, upstreamCode, retryable = false) {
+    super(`Razorpay request failed (${kind}).`);
+    this.kind = kind;
+    this.httpStatus = httpStatus;
+    this.upstreamCode = upstreamCode;
+    this.retryable = retryable;
+    this.name = "RazorpayError";
+  }
+};
+var SAFE_CODE = /^[A-Z_]{3,64}$/;
+function toRazorpayError(err) {
+  if (err instanceof RazorpayError) return err;
+  const e = err;
+  const status = typeof e?.statusCode === "number" ? e.statusCode : void 0;
+  const rawCode = typeof e?.error?.code === "string" ? e.error.code : void 0;
+  const upstreamCode = rawCode && SAFE_CODE.test(rawCode) ? rawCode : void 0;
+  if (status === 401 || status === 403) return new RazorpayError("auth", status, upstreamCode);
+  if (status === 429) return new RazorpayError("rate_limited", status, upstreamCode, true);
+  if (status !== void 0 && status >= 500) return new RazorpayError("upstream", status, upstreamCode, true);
+  if (status !== void 0 && status >= 400) return new RazorpayError("rejected", status, upstreamCode);
+  if (status === void 0) return new RazorpayError("network", void 0, void 0, true);
+  return new RazorpayError("upstream", status, upstreamCode, true);
+}
+async function withTimeout(work, ms) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new RazorpayError("timeout", void 0, void 0, true)), ms);
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+var isObj = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+function expectEntity(v, prefix) {
+  if (!isObj(v) || typeof v.id !== "string" || !v.id.startsWith(prefix)) throw new RazorpayError("invalid_response", void 0);
+  return v;
+}
+function createRazorpayGateway(config) {
+  if (!config.keyId || !config.keySecret) throw new Error("Razorpay credentials are not configured.");
+  const sdk = new Razorpay({ key_id: config.keyId, key_secret: config.keySecret });
+  const call = async (work, check) => {
+    try {
+      return check(await withTimeout(work(), config.requestTimeoutMs));
+    } catch (err) {
+      throw toRazorpayError(err);
+    }
+  };
+  return {
+    fetchPlan: (id) => call(() => sdk.plans.fetch(id), (v) => expectEntity(v, "plan_")),
+    createSubscription: (p) => call(() => sdk.subscriptions.create({ ...p }), (v) => expectEntity(v, "sub_")),
+    fetchSubscription: (id) => call(() => sdk.subscriptions.fetch(id), (v) => expectEntity(v, "sub_")),
+    // The SDK maps its second argument to `cancel_at_cycle_end` (1 = at the end of the billing cycle, 0 = now).
+    cancelSubscription: (id, cycleEnd) => call(() => sdk.subscriptions.cancel(id, cycleEnd), (v) => expectEntity(v, "sub_")),
+    fetchPayment: (id) => call(() => sdk.payments.fetch(id), (v) => expectEntity(v, "pay_"))
+  };
+}
+
+// src/server/billing/store.ts
+import { createClient } from "@supabase/supabase-js";
+var BillingStoreError = class extends Error {
+  constructor(op, sqlstate) {
+    super(`Billing database operation failed (${op}).`);
+    this.op = op;
+    this.sqlstate = sqlstate;
+    this.name = "BillingStoreError";
+  }
+};
+function createSupabaseBillingStore(config, client) {
+  if (!client && (!config.supabaseUrl || !config.serviceRoleKey)) throw new Error("Billing database is not configured.");
+  const db = client ?? createClient(config.supabaseUrl, config.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  });
+  const fail = (op, error) => {
+    throw new BillingStoreError(op, typeof error?.code === "string" ? error.code : void 0);
+  };
+  const one = async (op, q) => {
+    const { data, error } = await q;
+    if (error) fail(op, error);
+    return (Array.isArray(data) ? data[0] : data) ?? null;
+  };
+  const rpcOne = async (op, fn, args) => {
+    const { data, error } = await db.rpc(fn, args);
+    if (error) fail(op, error);
+    return (Array.isArray(data) ? data[0] : data) ?? null;
+  };
+  const LIVE_LIST = "(creating,created,authenticated,active,pending,halted)";
+  return {
+    async getEntitlement(userId, graceHours) {
+      const r = await rpcOne("entitlement", "billing_get_entitlement", { p_user_id: userId, p_pending_grace_hours: graceHours });
+      if (!r) throw new BillingStoreError("entitlement");
+      return r;
+    },
+    async trialClaimAvailable(userId, emailHash) {
+      const byHash = await one("claim_by_hash", db.from("billing_trial_claims").select("state,user_id").eq("email_hash", emailHash).limit(1));
+      if (byHash && !(byHash.state === "reserved" && (byHash.user_id === null || byHash.user_id === userId))) return false;
+      const consumed = await one("claim_by_user", db.from("billing_trial_claims").select("email_hash").eq("user_id", userId).eq("state", "consumed").limit(1));
+      return consumed === null;
+    },
+    async beginSubscription(a) {
+      const r = await rpcOne("begin_subscription", "billing_begin_subscription", {
+        p_user_id: a.userId,
+        p_email_hash: a.emailHash,
+        p_plan_key: a.planKey,
+        p_razorpay_plan_id: a.razorpayPlanId,
+        p_billing_period: a.billingPeriod,
+        p_amount_paise: a.amountPaise,
+        p_trial_days: a.trialDays,
+        p_authorization_window_minutes: a.authWindowMinutes
+      });
+      if (!r) throw new BillingStoreError("begin_subscription");
+      return r;
+    },
+    async getForUser(userId, id) {
+      return await one("get_for_user", db.from("billing_subscriptions").select("*").eq("id", id).eq("user_id", userId).limit(1));
+    },
+    async getLiveForUser(userId) {
+      return await one("get_live", db.from("billing_subscriptions").select("*").eq("user_id", userId).filter("status", "in", LIVE_LIST).limit(1));
+    },
+    async getLatestForUser(userId) {
+      return await one("get_latest", db.from("billing_subscriptions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(1));
+    },
+    async getByRazorpayIdForUser(userId, razorpayId) {
+      return await one("get_by_rzp_user", db.from("billing_subscriptions").select("*").eq("razorpay_subscription_id", razorpayId).eq("user_id", userId).limit(1));
+    },
+    async getByRazorpayId(razorpayId) {
+      return await one("get_by_rzp", db.from("billing_subscriptions").select("*").eq("razorpay_subscription_id", razorpayId).limit(1));
+    },
+    async getById(id) {
+      return await one("get_by_id", db.from("billing_subscriptions").select("*").eq("id", id).limit(1));
+    },
+    async attachRazorpayId(id, userId, razorpayId, status) {
+      const r = await one("attach", db.from("billing_subscriptions").update({ razorpay_subscription_id: razorpayId, status, razorpay_synced_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("user_id", userId).eq("status", "creating").select("id"));
+      if (!r) throw new BillingStoreError("attach");
+    },
+    async markCreateFailed(id, userId) {
+      await one("create_failed", db.from("billing_subscriptions").update({ status: "expired", ended_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("user_id", userId).eq("status", "creating").select("id"));
+    },
+    async applyPatch(id, patch) {
+      await one("patch", db.from("billing_subscriptions").update(patch).eq("id", id).select("id"));
+    },
+    async consumeTrialClaim(userId, subscriptionId) {
+      return await rpcOne("consume_claim", "billing_consume_trial_claim", { p_user_id: userId, p_subscription_id: subscriptionId }) === true;
+    },
+    async markStopVerified(subscriptionId, observedStatus) {
+      return await rpcOne("stop_verified", "billing_mark_stop_verified", { p_subscription_id: subscriptionId, p_observed_status: observedStatus }) === true;
+    },
+    async recordPayment(p) {
+      const row = {
+        user_id: p.userId,
+        subscription_id: p.subscriptionId,
+        razorpay_payment_id: p.razorpayPaymentId,
+        razorpay_invoice_id: p.razorpayInvoiceId,
+        kind: p.kind,
+        status: p.status,
+        amount_paise: p.amountPaise,
+        amount_refunded_paise: p.amountRefundedPaise,
+        currency: "INR",
+        method: p.method?.slice(0, 32) ?? null,
+        error_code: p.errorCode?.slice(0, 64) ?? null,
+        paid_at: p.paidAt,
+        refunded_at: p.refundedAt
+      };
+      const ins = await db.from("billing_payments").upsert(row, { onConflict: "razorpay_payment_id", ignoreDuplicates: true });
+      if (ins.error) fail("payment_insert", ins.error);
+      const upd = await db.from("billing_payments").update({ status: p.status, amount_refunded_paise: p.amountRefundedPaise, error_code: row.error_code, paid_at: p.paidAt, refunded_at: p.refundedAt, updated_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("razorpay_payment_id", p.razorpayPaymentId).eq("subscription_id", p.subscriptionId);
+      if (upd.error) fail("payment_update", upd.error);
+    },
+    async listPayments(userId, limit) {
+      const { data, error } = await db.from("billing_payments").select("id,subscription_id,kind,status,amount_paise,amount_refunded_paise,currency,method,paid_at,refunded_at,created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(limit);
+      if (error) fail("list_payments", error);
+      return data ?? [];
+    },
+    async beginWebhookEvent(a) {
+      const r = await rpcOne("webhook_begin", "billing_begin_webhook_event", {
+        p_event_id: a.eventId,
+        p_event_type: a.eventType,
+        p_razorpay_subscription_id: a.razorpaySubscriptionId,
+        p_razorpay_payment_id: a.razorpayPaymentId,
+        p_payload_sha256: a.payloadSha256,
+        p_event_created_at: a.eventCreatedAt
+      });
+      if (r !== "process" && r !== "duplicate" && r !== "in_progress") throw new BillingStoreError("webhook_begin");
+      return r;
+    },
+    async finishWebhookEvent(eventId, status, errorCode) {
+      const { error } = await db.from("billing_webhook_events").update({ status, error_code: errorCode?.slice(0, 64) ?? null, processed_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("razorpay_event_id", eventId);
+      if (error) fail("webhook_finish", error);
+    },
+    async listReconcilable(nowIso, limit) {
+      const tenMin = new Date(Date.parse(nowIso) - 10 * 6e4).toISOString();
+      const oneDay = new Date(Date.parse(nowIso) - 864e5).toISOString();
+      const { data, error } = await db.from("billing_subscriptions").select("*").not("razorpay_subscription_id", "is", null).or(`and(status.eq.created,created_at.lt.${tenMin}),and(status.eq.authenticated,trial_end_at.lt.${nowIso}),status.eq.pending,and(status.eq.halted,razorpay_synced_at.lt.${oneDay}),and(status.eq.active,cancel_at_cycle_end.eq.true,current_period_end.lt.${nowIso})`).order("razorpay_synced_at", { ascending: true, nullsFirst: true }).limit(limit);
+      if (error) fail("list_reconcilable", error);
+      return data ?? [];
+    },
+    async listBlockingForUser(userId) {
+      const { data, error } = await db.from("billing_subscriptions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50);
+      if (error) fail("list_blocking", error);
+      const terminal = ["cancelled", "completed", "expired"];
+      return (data ?? []).filter(
+        (r) => !(r.status === "expired" && r.razorpay_subscription_id === null) && !(terminal.includes(r.status) && r.billing_stop_verified_at !== null)
+      );
+    },
+    async authorizedWithoutAuthorizationPayment(sinceIso, untilIso, limit) {
+      const subs = await db.from("billing_subscriptions").select("id,auth_verified_at").not("auth_verified_at", "is", null).not("trial_end_at", "is", null).gte("auth_verified_at", sinceIso).lt("auth_verified_at", untilIso).order("auth_verified_at", { ascending: false }).limit(limit);
+      if (subs.error) fail("auth_missing_subs", subs.error);
+      const rows = subs.data ?? [];
+      if (rows.length === 0) return [];
+      const pays = await db.from("billing_payments").select("subscription_id").eq("kind", "authorization").in("subscription_id", rows.map((r) => r.id));
+      if (pays.error) fail("auth_missing_pays", pays.error);
+      const have = new Set((pays.data ?? []).map((p) => p.subscription_id));
+      return rows.filter((r) => !have.has(r.id));
+    },
+    async unrefundedAuthorizations(olderThanMinutes) {
+      const r = await db.rpc("billing_unrefunded_authorizations", { p_older_than_minutes: olderThanMinutes });
+      if (r.error) fail("unrefunded", r.error);
+      return r.data ?? [];
+    }
+  };
+}
+
+// src/server/billing/diagnostics.ts
+var BillingUnavailableError = class extends ApiError {
+  constructor(reason, detail = {}) {
+    super(503, "billing_unavailable", "Billing is temporarily unavailable. Please try again shortly.", { "Retry-After": "10" });
+    this.reason = reason;
+    this.detail = detail;
+    this.name = "BillingUnavailableError";
+  }
+};
+function describeBillingFailure(err) {
+  if (err instanceof BillingUnavailableError) return { reason: err.reason, ...err.detail };
+  if (err instanceof RazorpayError) return { reason: `razorpay_${err.kind}`, httpStatus: err.httpStatus, upstreamCode: err.upstreamCode };
+  if (err instanceof BillingStoreError) return { reason: "database", op: err.op, sqlstate: err.sqlstate };
+  return { reason: "unexpected", errName: err instanceof Error ? err.name : typeof err };
+}
+
 // src/server/security/validation.ts
 var CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 var FENCE_TAG = /<\/?\s*user_input[^>]*>/gi;
@@ -1164,8 +1406,9 @@ function createEntitlementGate(opts) {
       if (!policy?.ai || !req.user) return next();
       let decision;
       try {
-        decision = await opts.check(req.user.id);
-      } catch {
+        decision = await opts.check(req.user.id, req);
+      } catch (err) {
+        logger.error("entitlement_check_failed", { requestId: req.requestId, bucket: policy.bucket, ...describeBillingFailure(err) });
         decision = void 0;
       }
       if (opts.mode === "shadow") {
@@ -1184,68 +1427,6 @@ function createEntitlementGate(opts) {
     } catch (err) {
       next(err);
     }
-  };
-}
-
-// src/server/billing/gateway.ts
-import Razorpay from "razorpay";
-var RazorpayError = class extends Error {
-  constructor(kind, httpStatus, upstreamCode, retryable = false) {
-    super(`Razorpay request failed (${kind}).`);
-    this.kind = kind;
-    this.httpStatus = httpStatus;
-    this.upstreamCode = upstreamCode;
-    this.retryable = retryable;
-    this.name = "RazorpayError";
-  }
-};
-var SAFE_CODE = /^[A-Z_]{3,64}$/;
-function toRazorpayError(err) {
-  if (err instanceof RazorpayError) return err;
-  const e = err;
-  const status = typeof e?.statusCode === "number" ? e.statusCode : void 0;
-  const rawCode = typeof e?.error?.code === "string" ? e.error.code : void 0;
-  const upstreamCode = rawCode && SAFE_CODE.test(rawCode) ? rawCode : void 0;
-  if (status === 401 || status === 403) return new RazorpayError("auth", status, upstreamCode);
-  if (status === 429) return new RazorpayError("rate_limited", status, upstreamCode, true);
-  if (status !== void 0 && status >= 500) return new RazorpayError("upstream", status, upstreamCode, true);
-  if (status !== void 0 && status >= 400) return new RazorpayError("rejected", status, upstreamCode);
-  if (status === void 0) return new RazorpayError("network", void 0, void 0, true);
-  return new RazorpayError("upstream", status, upstreamCode, true);
-}
-async function withTimeout(work, ms) {
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new RazorpayError("timeout", void 0, void 0, true)), ms);
-  });
-  try {
-    return await Promise.race([work, timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-var isObj = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-function expectEntity(v, prefix) {
-  if (!isObj(v) || typeof v.id !== "string" || !v.id.startsWith(prefix)) throw new RazorpayError("invalid_response", void 0);
-  return v;
-}
-function createRazorpayGateway(config) {
-  if (!config.keyId || !config.keySecret) throw new Error("Razorpay credentials are not configured.");
-  const sdk = new Razorpay({ key_id: config.keyId, key_secret: config.keySecret });
-  const call = async (work, check) => {
-    try {
-      return check(await withTimeout(work(), config.requestTimeoutMs));
-    } catch (err) {
-      throw toRazorpayError(err);
-    }
-  };
-  return {
-    fetchPlan: (id) => call(() => sdk.plans.fetch(id), (v) => expectEntity(v, "plan_")),
-    createSubscription: (p) => call(() => sdk.subscriptions.create({ ...p }), (v) => expectEntity(v, "sub_")),
-    fetchSubscription: (id) => call(() => sdk.subscriptions.fetch(id), (v) => expectEntity(v, "sub_")),
-    // The SDK maps its second argument to `cancel_at_cycle_end` (1 = at the end of the billing cycle, 0 = now).
-    cancelSubscription: (id, cycleEnd) => call(() => sdk.subscriptions.cancel(id, cycleEnd), (v) => expectEntity(v, "sub_")),
-    fetchPayment: (id) => call(() => sdk.payments.fetch(id), (v) => expectEntity(v, "pay_"))
   };
 }
 
@@ -1285,170 +1466,6 @@ function normalizeEmail(email) {
 function hashEmail(email, pepper) {
   const n2 = normalizeEmail(email);
   return n2 ? hmacSha256Hex(pepper, `trial-claim:v1:${n2}`) : void 0;
-}
-
-// src/server/billing/store.ts
-import { createClient } from "@supabase/supabase-js";
-var BillingStoreError = class extends Error {
-  constructor(op, sqlstate) {
-    super(`Billing database operation failed (${op}).`);
-    this.op = op;
-    this.sqlstate = sqlstate;
-    this.name = "BillingStoreError";
-  }
-};
-function createSupabaseBillingStore(config, client) {
-  if (!client && (!config.supabaseUrl || !config.serviceRoleKey)) throw new Error("Billing database is not configured.");
-  const db = client ?? createClient(config.supabaseUrl, config.serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
-  });
-  const fail = (op, error) => {
-    throw new BillingStoreError(op, typeof error?.code === "string" ? error.code : void 0);
-  };
-  const one = async (op, q) => {
-    const { data, error } = await q;
-    if (error) fail(op, error);
-    return (Array.isArray(data) ? data[0] : data) ?? null;
-  };
-  const rpcOne = async (op, fn, args) => {
-    const { data, error } = await db.rpc(fn, args);
-    if (error) fail(op, error);
-    return (Array.isArray(data) ? data[0] : data) ?? null;
-  };
-  const LIVE_LIST = "(creating,created,authenticated,active,pending,halted)";
-  return {
-    async getEntitlement(userId, graceHours) {
-      const r = await rpcOne("entitlement", "billing_get_entitlement", { p_user_id: userId, p_pending_grace_hours: graceHours });
-      if (!r) throw new BillingStoreError("entitlement");
-      return r;
-    },
-    async trialClaimAvailable(userId, emailHash) {
-      const byHash = await one("claim_by_hash", db.from("billing_trial_claims").select("state,user_id").eq("email_hash", emailHash).limit(1));
-      if (byHash && !(byHash.state === "reserved" && (byHash.user_id === null || byHash.user_id === userId))) return false;
-      const consumed = await one("claim_by_user", db.from("billing_trial_claims").select("email_hash").eq("user_id", userId).eq("state", "consumed").limit(1));
-      return consumed === null;
-    },
-    async beginSubscription(a) {
-      const r = await rpcOne("begin_subscription", "billing_begin_subscription", {
-        p_user_id: a.userId,
-        p_email_hash: a.emailHash,
-        p_plan_key: a.planKey,
-        p_razorpay_plan_id: a.razorpayPlanId,
-        p_billing_period: a.billingPeriod,
-        p_amount_paise: a.amountPaise,
-        p_trial_days: a.trialDays,
-        p_authorization_window_minutes: a.authWindowMinutes
-      });
-      if (!r) throw new BillingStoreError("begin_subscription");
-      return r;
-    },
-    async getForUser(userId, id) {
-      return await one("get_for_user", db.from("billing_subscriptions").select("*").eq("id", id).eq("user_id", userId).limit(1));
-    },
-    async getLiveForUser(userId) {
-      return await one("get_live", db.from("billing_subscriptions").select("*").eq("user_id", userId).filter("status", "in", LIVE_LIST).limit(1));
-    },
-    async getLatestForUser(userId) {
-      return await one("get_latest", db.from("billing_subscriptions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(1));
-    },
-    async getByRazorpayIdForUser(userId, razorpayId) {
-      return await one("get_by_rzp_user", db.from("billing_subscriptions").select("*").eq("razorpay_subscription_id", razorpayId).eq("user_id", userId).limit(1));
-    },
-    async getByRazorpayId(razorpayId) {
-      return await one("get_by_rzp", db.from("billing_subscriptions").select("*").eq("razorpay_subscription_id", razorpayId).limit(1));
-    },
-    async getById(id) {
-      return await one("get_by_id", db.from("billing_subscriptions").select("*").eq("id", id).limit(1));
-    },
-    async attachRazorpayId(id, userId, razorpayId, status) {
-      const r = await one("attach", db.from("billing_subscriptions").update({ razorpay_subscription_id: razorpayId, status, razorpay_synced_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("user_id", userId).eq("status", "creating").select("id"));
-      if (!r) throw new BillingStoreError("attach");
-    },
-    async markCreateFailed(id, userId) {
-      await one("create_failed", db.from("billing_subscriptions").update({ status: "expired", ended_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("user_id", userId).eq("status", "creating").select("id"));
-    },
-    async applyPatch(id, patch) {
-      await one("patch", db.from("billing_subscriptions").update(patch).eq("id", id).select("id"));
-    },
-    async consumeTrialClaim(userId, subscriptionId) {
-      return await rpcOne("consume_claim", "billing_consume_trial_claim", { p_user_id: userId, p_subscription_id: subscriptionId }) === true;
-    },
-    async markStopVerified(subscriptionId, observedStatus) {
-      return await rpcOne("stop_verified", "billing_mark_stop_verified", { p_subscription_id: subscriptionId, p_observed_status: observedStatus }) === true;
-    },
-    async recordPayment(p) {
-      const row = {
-        user_id: p.userId,
-        subscription_id: p.subscriptionId,
-        razorpay_payment_id: p.razorpayPaymentId,
-        razorpay_invoice_id: p.razorpayInvoiceId,
-        kind: p.kind,
-        status: p.status,
-        amount_paise: p.amountPaise,
-        amount_refunded_paise: p.amountRefundedPaise,
-        currency: "INR",
-        method: p.method?.slice(0, 32) ?? null,
-        error_code: p.errorCode?.slice(0, 64) ?? null,
-        paid_at: p.paidAt,
-        refunded_at: p.refundedAt
-      };
-      const ins = await db.from("billing_payments").upsert(row, { onConflict: "razorpay_payment_id", ignoreDuplicates: true });
-      if (ins.error) fail("payment_insert", ins.error);
-      const upd = await db.from("billing_payments").update({ status: p.status, amount_refunded_paise: p.amountRefundedPaise, error_code: row.error_code, paid_at: p.paidAt, refunded_at: p.refundedAt, updated_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("razorpay_payment_id", p.razorpayPaymentId).eq("subscription_id", p.subscriptionId);
-      if (upd.error) fail("payment_update", upd.error);
-    },
-    async listPayments(userId, limit) {
-      const { data, error } = await db.from("billing_payments").select("id,subscription_id,kind,status,amount_paise,amount_refunded_paise,currency,method,paid_at,refunded_at,created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(limit);
-      if (error) fail("list_payments", error);
-      return data ?? [];
-    },
-    async beginWebhookEvent(a) {
-      const r = await rpcOne("webhook_begin", "billing_begin_webhook_event", {
-        p_event_id: a.eventId,
-        p_event_type: a.eventType,
-        p_razorpay_subscription_id: a.razorpaySubscriptionId,
-        p_razorpay_payment_id: a.razorpayPaymentId,
-        p_payload_sha256: a.payloadSha256,
-        p_event_created_at: a.eventCreatedAt
-      });
-      if (r !== "process" && r !== "duplicate" && r !== "in_progress") throw new BillingStoreError("webhook_begin");
-      return r;
-    },
-    async finishWebhookEvent(eventId, status, errorCode) {
-      const { error } = await db.from("billing_webhook_events").update({ status, error_code: errorCode?.slice(0, 64) ?? null, processed_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("razorpay_event_id", eventId);
-      if (error) fail("webhook_finish", error);
-    },
-    async listReconcilable(nowIso, limit) {
-      const tenMin = new Date(Date.parse(nowIso) - 10 * 6e4).toISOString();
-      const oneDay = new Date(Date.parse(nowIso) - 864e5).toISOString();
-      const { data, error } = await db.from("billing_subscriptions").select("*").not("razorpay_subscription_id", "is", null).or(`and(status.eq.created,created_at.lt.${tenMin}),and(status.eq.authenticated,trial_end_at.lt.${nowIso}),status.eq.pending,and(status.eq.halted,razorpay_synced_at.lt.${oneDay}),and(status.eq.active,cancel_at_cycle_end.eq.true,current_period_end.lt.${nowIso})`).order("razorpay_synced_at", { ascending: true, nullsFirst: true }).limit(limit);
-      if (error) fail("list_reconcilable", error);
-      return data ?? [];
-    },
-    async listBlockingForUser(userId) {
-      const { data, error } = await db.from("billing_subscriptions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50);
-      if (error) fail("list_blocking", error);
-      const terminal = ["cancelled", "completed", "expired"];
-      return (data ?? []).filter(
-        (r) => !(r.status === "expired" && r.razorpay_subscription_id === null) && !(terminal.includes(r.status) && r.billing_stop_verified_at !== null)
-      );
-    },
-    async authorizedWithoutAuthorizationPayment(sinceIso, untilIso, limit) {
-      const subs = await db.from("billing_subscriptions").select("id,auth_verified_at").not("auth_verified_at", "is", null).not("trial_end_at", "is", null).gte("auth_verified_at", sinceIso).lt("auth_verified_at", untilIso).order("auth_verified_at", { ascending: false }).limit(limit);
-      if (subs.error) fail("auth_missing_subs", subs.error);
-      const rows = subs.data ?? [];
-      if (rows.length === 0) return [];
-      const pays = await db.from("billing_payments").select("subscription_id").eq("kind", "authorization").in("subscription_id", rows.map((r) => r.id));
-      if (pays.error) fail("auth_missing_pays", pays.error);
-      const have = new Set((pays.data ?? []).map((p) => p.subscription_id));
-      return rows.filter((r) => !have.has(r.id));
-    },
-    async unrefundedAuthorizations(olderThanMinutes) {
-      const r = await db.rpc("billing_unrefunded_authorizations", { p_older_than_minutes: olderThanMinutes });
-      if (r.error) fail("unrefunded", r.error);
-      return r.data ?? [];
-    }
-  };
 }
 
 // src/server/billing/types.ts
@@ -1560,19 +1577,19 @@ function paymentRecord(row, p, kind, nowMs) {
     refundedAt: refunded ? new Date(nowMs).toISOString() : null
   };
 }
-var unavailable = () => new ApiError(503, "billing_unavailable", "Billing is temporarily unavailable. Please try again shortly.", { "Retry-After": "10" });
+var unavailable = (reason, detail = {}) => new BillingUnavailableError(reason, detail);
 function toApiError(err, context) {
   if (err instanceof ApiError) return err;
   if (err instanceof RazorpayError) {
     logger.error("billing_razorpay_error", { context, kind: err.kind, httpStatus: err.httpStatus, upstreamCode: err.upstreamCode });
-    if (err.kind === "auth") return unavailable();
+    if (err.kind === "auth") return unavailable("razorpay_auth", { httpStatus: err.httpStatus, upstreamCode: err.upstreamCode });
     if (err.kind === "timeout") return new ApiError(504, "billing_timeout", "The payment provider took too long to respond. Please try again.", { "Retry-After": "5" });
     if (err.kind === "rejected") return new ApiError(409, "billing_rejected", "The payment provider could not complete this request.");
     return new ApiError(502, "billing_upstream_error", "The payment provider is temporarily unavailable. Please try again shortly.", { "Retry-After": "10" });
   }
   if (err instanceof BillingStoreError) {
     logger.error("billing_store_error", { context, op: err.op, sqlstate: err.sqlstate });
-    return new ApiError(503, "billing_unavailable", "Billing is temporarily unavailable. Please try again shortly.", { "Retry-After": "10" });
+    return unavailable("database", { op: err.op, sqlstate: err.sqlstate });
   }
   logger.error("billing_unexpected_error", { context, errName: err instanceof Error ? err.name : typeof err });
   return new ApiError(500, "internal_error", "Something went wrong. Please try again.");
@@ -1584,7 +1601,7 @@ function createBillingService(deps) {
   const requireConfigured = () => {
     if (!config.configured || !config.keyId || !config.keySecret || !config.trialPepper) {
       logger.error("billing_not_configured", { problems: config.problems });
-      throw unavailable();
+      throw unavailable("config", { problems: config.problems });
     }
   };
   const requireVerifiedEmail = (user) => {
@@ -2052,12 +2069,12 @@ function createBillingService(deps) {
 function createLazyBilling(deps = {}) {
   let cached;
   return {
-    get() {
+    get(req) {
       if (deps.service) return deps.service;
       if (cached) return cached;
       const config = deps.config ?? loadBillingConfig();
       if (!config.configured) {
-        logger.error("billing_not_configured", { problems: config.problems });
+        logger.error("billing_not_configured", { requestId: req?.requestId, reason: "config", problems: config.problems });
         return void 0;
       }
       cached = createBillingService({
@@ -2091,7 +2108,7 @@ function installBillingWebhook(app, deps) {
           logger.warn("billing_webhook_no_raw_body", { requestId: req.requestId, contentType: String(req.headers["content-type"] ?? "").slice(0, 40) });
           return sendError(req, res, 400, "raw_body_unavailable", "Webhook body could not be read.");
         }
-        const svc = lazy.get();
+        const svc = lazy.get(req);
         if (!svc) return NOT_CONFIGURED(req, res);
         const sig = req.get("x-razorpay-signature");
         const eventId = req.get("x-razorpay-event-id");
@@ -2105,12 +2122,13 @@ function installBillingWebhook(app, deps) {
 }
 var handler = (fn, lazy) => async (req, res, next) => {
   try {
-    const svc = lazy.get();
+    const svc = lazy.get(req);
     if (!svc) return NOT_CONFIGURED(req, res);
     if (!req.user) return sendError(req, res, 401, "auth_required", "Authentication required.");
     res.setHeader("Cache-Control", "no-store");
     await fn(svc, req, res);
   } catch (err) {
+    if (err instanceof BillingUnavailableError) logger.error("billing_unavailable", { requestId: req.requestId, method: req.method, path: req.path, userId: req.user?.id, ...describeBillingFailure(err) });
     next(err);
   }
 };
@@ -2119,7 +2137,7 @@ function createBillingEntitlementGate(deps = {}) {
   const config = deps.config ?? loadBillingConfig();
   const mode = config.enforcement;
   if (config.problems.some((p) => p.startsWith("BILLING_ENFORCEMENT"))) logger.error("billing_enforcement_invalid", { effectiveMode: mode });
-  return createEntitlementGate({ mode, check: async (userId) => lazy.get()?.checkEntitlement(userId) });
+  return createEntitlementGate({ mode, check: async (userId, req) => lazy.get(req)?.checkEntitlement(userId) });
 }
 function registerBillingRoutes(app, deps = {}) {
   const lazy = createLazyBilling(deps);

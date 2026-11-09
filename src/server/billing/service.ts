@@ -2,6 +2,7 @@ import { ApiError } from '../security/errors';
 import { logger } from '../security/logger';
 import type { AuthUser } from '../security/types';
 import { VERIFICATION_DEBIT_PAISE, type BillingConfig, type PlanKey } from './config';
+import { BillingUnavailableError } from './diagnostics';
 import { hashEmail } from './emailHash';
 import { RazorpayError, type RazorpayGateway, type RzpPayment, type RzpSubscription } from './gateway';
 import { sha256Hex, verifyPaymentSignature, verifyWebhookSignature } from './signature';
@@ -92,21 +93,21 @@ function paymentRecord(row: SubscriptionRow, p: RzpPayment, kind: 'authorization
   };
 }
 
-const unavailable = () => new ApiError(503, 'billing_unavailable', 'Billing is temporarily unavailable. Please try again shortly.', { 'Retry-After': '10' });
+const unavailable = (reason: BillingUnavailableError['reason'], detail: BillingUnavailableError['detail'] = {}) => new BillingUnavailableError(reason, detail);
 
 /** Converts gateway and database failures into safe ApiErrors; everything else passes through. */
 export function toApiError(err: unknown, context: string): ApiError {
   if (err instanceof ApiError) return err;
   if (err instanceof RazorpayError) {
     logger.error('billing_razorpay_error', { context, kind: err.kind, httpStatus: err.httpStatus, upstreamCode: err.upstreamCode });
-    if (err.kind === 'auth') return unavailable(); // our credentials are wrong: not the user's problem and not for the user to see
+    if (err.kind === 'auth') return unavailable('razorpay_auth', { httpStatus: err.httpStatus, upstreamCode: err.upstreamCode }); // our credentials are wrong: not the user's problem and not for the user to see
     if (err.kind === 'timeout') return new ApiError(504, 'billing_timeout', 'The payment provider took too long to respond. Please try again.', { 'Retry-After': '5' });
     if (err.kind === 'rejected') return new ApiError(409, 'billing_rejected', 'The payment provider could not complete this request.');
     return new ApiError(502, 'billing_upstream_error', 'The payment provider is temporarily unavailable. Please try again shortly.', { 'Retry-After': '10' });
   }
   if (err instanceof BillingStoreError) {
     logger.error('billing_store_error', { context, op: err.op, sqlstate: err.sqlstate });
-    return new ApiError(503, 'billing_unavailable', 'Billing is temporarily unavailable. Please try again shortly.', { 'Retry-After': '10' });
+    return unavailable('database', { op: err.op, sqlstate: err.sqlstate });
   }
   logger.error('billing_unexpected_error', { context, errName: err instanceof Error ? err.name : typeof err });
   return new ApiError(500, 'internal_error', 'Something went wrong. Please try again.');
@@ -136,7 +137,7 @@ export function createBillingService(deps: BillingServiceDeps) {
   const requireConfigured = () => {
     if (!config.configured || !config.keyId || !config.keySecret || !config.trialPepper) {
       logger.error('billing_not_configured', { problems: config.problems });
-      throw unavailable();
+      throw unavailable('config', { problems: config.problems });
     }
   };
   const requireVerifiedEmail = (user: AuthUser): string => {
