@@ -19,7 +19,7 @@ export const ENTRY = 'src/server/serverless/entry.ts';
 export const OUTFILE = 'api/index.js';
 
 // Runtime packages the function may import. Anything else (vite, dotenv, tsx, test tooling) is a build failure.
-export const ALLOWED_EXTERNALS = ['express', 'helmet', 'redis', '@supabase/supabase-js', '@google/genai'];
+export const ALLOWED_EXTERNALS = ['express', 'helmet', 'redis', '@supabase/supabase-js', '@google/genai', 'razorpay'];
 export const FORBIDDEN_INPUTS = [/^server\.ts$/, /node_modules\/vite\//, /node_modules\/dotenv\//, /\.test\.tsx?$/, /^src\/components\//, /^src\/views\//];
 
 const BANNER = '// GENERATED FILE. Do not edit. Source: src/server/serverless/entry.ts. Rebuild: npm run build:api\n';

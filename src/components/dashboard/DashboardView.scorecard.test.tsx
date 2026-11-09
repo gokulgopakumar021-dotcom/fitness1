@@ -338,7 +338,7 @@ describe('local midnight rollover (picked up when the page becomes visible; the 
     expect(shownDay()).toBe('2026-10-26');
     expect(dateLabel()).toContain('Yesterday');
     expect(cardText('sleep')).toContain('8 h');
-  });
+  }, 30_000); // ~0.5 s alone; mounts the real dashboard + provider and re-renders twice, so it exceeds 5 s under full-suite CPU contention
 
   it('a day the person navigated to stays put across midnight and keeps showing its own data', async () => {
     vi.setSystemTime(new Date(2026, 9, 26, 23, 59, 0));

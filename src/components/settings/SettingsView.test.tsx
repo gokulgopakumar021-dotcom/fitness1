@@ -112,7 +112,7 @@ describe('Settings layout and navigation', () => {
     expect(text()).toContain('Fat loss');
     expect(text()).toContain('5 days/week');
     const labels = Array.from(document.querySelectorAll('nav[aria-label="Settings categories"] button')).map((b) => b.textContent?.trim());
-    expect(labels).toEqual(['Profile', 'Training', 'Units', 'Appearance', 'Notifications', 'Privacy & data', 'Account']);
+    expect(labels).toEqual(['Profile', 'Training', 'Units', 'Appearance', 'Notifications', 'Privacy & data', 'Billing', 'Account']);
     expect(document.querySelector('nav[aria-label="Settings categories"] [aria-current="true"]')?.textContent).toContain('Profile');
     expect(text()).toContain('Personal information');
   });

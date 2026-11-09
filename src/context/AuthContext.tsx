@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import type { User } from '@supabase/supabase-js';
 import { getAuthRedirectUrl, getSupabase, getSupabaseConfigStatus } from '../lib/supabase';
 import { friendlyAuthError, normalizeEmail } from '../utils/authValidation';
+import { BILLING_ONBOARDING_PENDING_DATA } from '../lib/billingOnboarding';
 
 export type AuthStatus =
   | 'loading' // session check not finished: private UI must not render
@@ -11,7 +12,7 @@ export type AuthStatus =
   | 'recovery' // arrived via a password-reset link: only the new-password form is allowed
   | 'authenticated';
 
-export interface AuthResult { ok: boolean; error?: string }
+export interface AuthResult { ok: boolean; error?: string; /** Machine-readable reason when the caller can act on it (e.g. billing_cancellation_required). */ code?: string }
 export interface SignUpResult extends AuthResult { needsVerification?: boolean }
 
 export interface AuthContextValue {
@@ -32,8 +33,11 @@ export interface AuthContextValue {
   changePassword: (currentPassword: string, newPassword: string) => Promise<AuthResult>;
   /** Ends every OTHER session of this account (this browser stays signed in). */
   signOutOtherDevices: () => Promise<AuthResult>;
-  /** Re-checks the password, then deletes the cloud account via the delete_own_account() function. Does NOT touch local data. */
-  deleteAccount: (password: string) => Promise<AuthResult>;
+  /**
+   * Re-checks the password, then deletes the cloud account via the delete_own_account() function. Does NOT touch local data.
+   * `beforeDelete` runs after the password check and before deletion (used to stop billing first); if it fails, nothing is deleted.
+   */
+  deleteAccount: (password: string, beforeDelete?: () => Promise<AuthResult>) => Promise<AuthResult>;
   retry: () => void;
 }
 
@@ -152,7 +156,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data, error } = await supabase.auth.signUp({
         email: normalizeEmail(email),
         password,
-        options: { data: { full_name: fullName.trim() }, emailRedirectTo: getAuthRedirectUrl() }
+        // billing_onboarding marks this as a NEW account so it is routed to plan selection after sign-in (UI routing only, see billingOnboarding.ts).
+        options: { data: { full_name: fullName.trim(), ...BILLING_ONBOARDING_PENDING_DATA }, emailRedirectTo: getAuthRedirectUrl() }
       });
       if (error) return { ok: false, error: friendlyAuthError(error) };
       // With "Confirm email" enabled there is no session yet. An already-registered address also returns no session
@@ -259,14 +264,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const deleteAccount = useCallback<AuthContextValue['deleteAccount']>(
-    async (password) => {
+    async (password, beforeDelete) => {
       const supabase = getSupabase();
       if (!supabase) return { ok: false, error: 'Authentication is not configured.' };
       const verified = await verifyPassword(password);
       if (!verified.ok) return verified;
+      if (beforeDelete) {
+        const prepared = await beforeDelete();
+        if (!prepared.ok) return prepared;
+      }
       try {
         const { error } = await supabase.rpc('delete_own_account');
         if (error) {
+          // The database refuses while a subscription is not confirmed stopped (SQLSTATE BL001). Nothing was removed.
+          if ((error as { code?: string }).code === 'BL001' || /billing_cancellation_required/.test(error.message ?? '')) {
+            return {
+              ok: false,
+              code: 'billing_cancellation_required',
+              error: 'Your subscription has to be stopped before your account can be deleted. Nothing was removed. Please try again.'
+            };
+          }
           return {
             ok: false,
             error: 'Your account could not be deleted. Nothing was removed. Check your connection and try again.'

@@ -38,7 +38,7 @@ beforeAll(async () => {
     insert into auth.users values ('${A}'), ('${B}');
   `);
   await pg.exec(MIGRATION);
-});
+}, 60_000); // PGlite boot + migration: ~3-4 s alone, >10 s when the full suite saturates the CPU
 afterAll(() => pg.close());
 
 describe('consume_ai_quota (SEC-02 persistent quota)', () => {

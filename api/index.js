@@ -4,7 +4,7 @@
 import { randomUUID as randomUUID3 } from "node:crypto";
 
 // src/server/app.ts
-import express2 from "express";
+import express3 from "express";
 
 // src/server/gemini.ts
 import { randomUUID } from "node:crypto";
@@ -16,10 +16,12 @@ var MAX_STRING = 500;
 var JWT_LIKE = /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}/g;
 var BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
 var GOOGLE_KEY = /AIza[0-9A-Za-z_-]{20,}/g;
+var BASIC = /Basic\s+[A-Za-z0-9+/]{16,}={0,2}/g;
+var RZP_KEY_ID = /rzp_(?:test|live)_[A-Za-z0-9]{6,}/g;
 var SB_KEY = /sb_(?:secret|publishable)_[A-Za-z0-9_-]+/g;
 var URL_QUERY_KEY = /([?&](?:key|api_key|apikey|token|access_token)=)[^&\s]+/gi;
 function scrubString(value) {
-  const cleaned = value.replace(JWT_LIKE, "[redacted-jwt]").replace(BEARER, "Bearer [redacted]").replace(GOOGLE_KEY, "[redacted-key]").replace(SB_KEY, "[redacted-key]").replace(URL_QUERY_KEY, "$1[redacted]");
+  const cleaned = value.replace(JWT_LIKE, "[redacted-jwt]").replace(BEARER, "Bearer [redacted]").replace(BASIC, "Basic [redacted]").replace(RZP_KEY_ID, "[redacted-key]").replace(GOOGLE_KEY, "[redacted-key]").replace(SB_KEY, "[redacted-key]").replace(URL_QUERY_KEY, "$1[redacted]");
   return cleaned.length > MAX_STRING ? `${cleaned.slice(0, MAX_STRING)}\u2026[truncated]` : cleaned;
 }
 function redact(value, depth = 0) {
@@ -583,8 +585,8 @@ function parseAiExplanation(raw, review) {
   return { summary: summary ?? "", byAdjustmentId };
 }
 
-// src/server/security/auth.ts
-import { createClient } from "@supabase/supabase-js";
+// src/server/billing/routes.ts
+import express from "express";
 
 // src/server/security/errors.ts
 var ApiError = class extends Error {
@@ -635,100 +637,113 @@ function errorHandler(err, req, res, _next) {
   return sendError(req, res, 500, "internal_error", "Something went wrong. Please try again.");
 }
 
-// src/server/security/auth.ts
-var accessTokens = /* @__PURE__ */ new WeakMap();
-var getAccessToken = (req) => accessTokens.get(req);
-function createSupabaseVerifier(cfg) {
-  let client = null;
-  return async (token) => {
-    if (!cfg.supabaseUrl || !cfg.supabaseKey) return { ok: false, reason: "not_configured" };
-    client ??= createClient(cfg.supabaseUrl, cfg.supabaseKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
-    });
-    try {
-      const { data, error } = await client.auth.getUser(token);
-      if (error) {
-        const status = error.status;
-        const retryable = error.name === "AuthRetryableFetchError" || status === 0 || typeof status === "number" && status >= 500;
-        if (retryable) {
-          logger.warn("auth_upstream_unavailable", { err: serializeError(error) });
-          return { ok: false, reason: "unavailable" };
-        }
-        return { ok: false, reason: "invalid" };
-      }
-      if (!data.user?.id) return { ok: false, reason: "invalid" };
-      return {
-        ok: true,
-        user: { id: data.user.id, email: data.user.email ?? void 0, emailVerified: Boolean(data.user.email_confirmed_at) }
-      };
-    } catch (err) {
-      logger.warn("auth_upstream_unavailable", { err: serializeError(err) });
-      return { ok: false, reason: "unavailable" };
-    }
-  };
-}
-var BEARER2 = /^Bearer ([A-Za-z0-9\-._~+/]+=*)$/;
-var MAX_TOKEN_LENGTH = 4096;
-var PUBLIC = /* @__PURE__ */ new Set(["GET /health", "HEAD /health"]);
-function isExpired(token, nowMs) {
-  try {
-    const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
-    return typeof payload.exp === "number" && payload.exp * 1e3 <= nowMs;
-  } catch {
-    return false;
+// src/server/security/rateLimit.ts
+var RateStoreUnavailableError = class extends ApiError {
+  constructor() {
+    super(503, "rate_limit_unavailable", "Request protection is temporarily unavailable. Please try again shortly.", { "Retry-After": "5" });
+    this.name = "RateStoreUnavailableError";
   }
-}
-function createAuthMiddleware({ config, verify, failureStore, now = Date.now }) {
-  const failKey = (req) => `authfail:${req.ip ?? "unknown"}`;
-  const recordFailure = async (req) => {
-    await failureStore.hit(failKey(req), config.authFailWindowMs);
-  };
-  return async function authenticate(req, res, next) {
-    if (req.method === "OPTIONS" || PUBLIC.has(`${req.method} ${req.path}`)) return next();
+};
+var MemoryRateStore = class {
+  constructor(now = Date.now, maxKeys = 5e4) {
+    this.now = now;
+    this.maxKeys = maxKeys;
+    this.entries = /* @__PURE__ */ new Map();
+  }
+  purge() {
+    const t3 = this.now();
+    for (const [k, v] of this.entries) if (v.resetAt <= t3) this.entries.delete(k);
+    while (this.entries.size > this.maxKeys) {
+      const first = this.entries.keys().next().value;
+      if (first === void 0) break;
+      this.entries.delete(first);
+    }
+  }
+  async hit(key, windowMs) {
+    const t3 = this.now();
+    if (this.entries.size >= this.maxKeys) this.purge();
+    const cur = this.entries.get(key);
+    if (!cur || cur.resetAt <= t3) {
+      const fresh = { count: 1, resetAt: t3 + windowMs };
+      this.entries.set(key, fresh);
+      return { ...fresh };
+    }
+    cur.count += 1;
+    return { ...cur };
+  }
+  async peek(key) {
+    const cur = this.entries.get(key);
+    return cur && cur.resetAt > this.now() ? { ...cur } : void 0;
+  }
+};
+var DegradingRateStore = class {
+  constructor(primary, fallback, now = Date.now, logEveryMs = 1e4) {
+    this.primary = primary;
+    this.fallback = fallback;
+    this.now = now;
+    this.logEveryMs = logEveryMs;
+    this.lastLogAt = 0;
+    this.degradedCalls = 0;
+  }
+  note() {
+    this.degradedCalls += 1;
+    const t3 = this.now();
+    if (t3 - this.lastLogAt >= this.logEveryMs) {
+      logger.error("rate_limit_degraded", {
+        mode: "degraded",
+        distributed: false,
+        callsSinceLastLog: this.degradedCalls,
+        note: "shared rate-limit store unavailable; counting per-instance only"
+      });
+      this.lastLogAt = t3;
+      this.degradedCalls = 0;
+    }
+  }
+  async hit(key, windowMs) {
     try {
-      const prior = await failureStore.peek(failKey(req));
-      if (prior && prior.count >= config.authFailMax) {
-        const retry = Math.max(1, Math.ceil((prior.resetAt - now()) / 1e3));
-        return sendError(req, res, 429, "too_many_auth_failures", "Too many failed authentication attempts. Try again later.", { "Retry-After": String(retry) });
-      }
-      const header = req.get("authorization");
-      if (!header) {
-        await recordFailure(req);
-        return sendError(req, res, 401, "auth_required", "Authentication required.", { "WWW-Authenticate": "Bearer" });
-      }
-      const match = BEARER2.exec(header);
-      const token = match?.[1];
-      if (!token || token.length > MAX_TOKEN_LENGTH || token.split(".").length !== 3) {
-        await recordFailure(req);
-        return sendError(req, res, 401, "invalid_token", "Invalid authentication token.", { "WWW-Authenticate": 'Bearer error="invalid_token"' });
-      }
-      if (isExpired(token, now())) {
-        await recordFailure(req);
-        return sendError(req, res, 401, "token_expired", "Your session has expired. Please sign in again.", { "WWW-Authenticate": 'Bearer error="invalid_token"' });
-      }
-      let result;
+      return await this.primary.hit(key, windowMs);
+    } catch (err) {
+      if (!(err instanceof RateStoreUnavailableError)) throw err;
+      this.note();
+      return { ...await this.fallback.hit(key, windowMs), degraded: true };
+    }
+  }
+  async peek(key) {
+    try {
+      return await this.primary.peek(key);
+    } catch (err) {
+      if (!(err instanceof RateStoreUnavailableError)) throw err;
+      this.note();
+      const r = await this.fallback.peek(key);
+      return r ? { ...r, degraded: true } : void 0;
+    }
+  }
+};
+function createRateLimiter(opts) {
+  const now = opts.now ?? Date.now;
+  return async function limiter(req, res, next) {
+    try {
+      const id = opts.key(req);
+      if (!id) return next();
+      const max = typeof opts.max === "function" ? opts.max(req) : opts.max;
+      let hit;
       try {
-        result = await verify(token);
+        hit = await opts.store.hit(`${opts.name}:${id}`, opts.windowMs);
       } catch (err) {
-        logger.warn("auth_verifier_threw", { requestId: req.requestId, err: serializeError(err) });
-        result = { ok: false, reason: "unavailable" };
+        if (err instanceof RateStoreUnavailableError && opts.failOpen?.(req)) return next();
+        throw err;
       }
-      if (!result.ok) {
-        if (result.reason === "not_configured") {
-          logger.error("auth_not_configured", { requestId: req.requestId });
-          return sendError(req, res, 503, "auth_unavailable", "Authentication is temporarily unavailable.");
-        }
-        if (result.reason === "unavailable") {
-          return sendError(req, res, 503, "auth_unavailable", "Authentication is temporarily unavailable. Please try again.", { "Retry-After": "5" });
-        }
-        await recordFailure(req);
-        return sendError(req, res, 401, "invalid_token", "Invalid authentication token.", { "WWW-Authenticate": 'Bearer error="invalid_token"' });
+      if (hit.degraded) {
+        if (!opts.failOpen?.(req)) res.setHeader("X-RateLimit-Mode", "degraded");
+        if (opts.alwaysClosed?.(req)) throw new RateStoreUnavailableError();
       }
-      if (config.requireVerifiedEmail && !result.user.emailVerified) {
-        return sendError(req, res, 403, "email_not_verified", "Please verify your email address to use this feature.");
+      const retryAfter = Math.max(1, Math.ceil((hit.resetAt - now()) / 1e3));
+      res.setHeader("RateLimit-Limit", String(max));
+      res.setHeader("RateLimit-Remaining", String(Math.max(0, max - hit.count)));
+      res.setHeader("RateLimit-Reset", String(retryAfter));
+      if (hit.count > max) {
+        return sendError(req, res, 429, "rate_limited", "Too many requests. Please slow down and try again shortly.", { "Retry-After": String(retryAfter) });
       }
-      req.user = result.user;
-      accessTokens.set(req, token);
       next();
     } catch (err) {
       next(err);
@@ -736,158 +751,14 @@ function createAuthMiddleware({ config, verify, failureStore, now = Date.now }) 
   };
 }
 
-// src/server/security/config.ts
-function int(raw, fallback, min = 1) {
-  const n2 = raw === void 0 || raw.trim() === "" ? NaN : Number(raw);
-  return Number.isInteger(n2) && n2 >= min ? n2 : fallback;
-}
-function bool(raw) {
-  return ["1", "true", "yes", "on"].includes((raw ?? "").trim().toLowerCase());
-}
-function normaliseOrigin(raw) {
-  try {
-    const u = new URL(raw.trim());
-    if (!["http:", "https:", "capacitor:", "ionic:"].includes(u.protocol)) return null;
-    return u.origin === "null" ? `${u.protocol}//${u.host}` : u.origin;
-  } catch {
-    return null;
-  }
-}
-var CAPACITOR_ORIGINS = ["capacitor://localhost", "https://localhost", "http://localhost"];
-var DEV_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://localhost:8080"];
-function loadSecurityConfig(env = process.env) {
-  const production = env.NODE_ENV === "production";
-  const origins2 = /* @__PURE__ */ new Set();
-  const add = (raw) => {
-    const o = raw ? normaliseOrigin(raw) : null;
-    if (o) origins2.add(o);
-  };
-  (env.CORS_ALLOWED_ORIGINS ?? "").split(",").forEach(add);
-  add(env.APP_URL);
-  add(env.VITE_SITE_URL);
-  if (bool(env.CORS_ALLOW_CAPACITOR)) CAPACITOR_ORIGINS.forEach(add);
-  if (!production) DEV_ORIGINS.forEach(add);
-  let quotaOverrides = {};
-  if (env.AI_QUOTA_OVERRIDES) {
-    try {
-      const parsed = JSON.parse(env.AI_QUOTA_OVERRIDES);
-      for (const [k, v] of Object.entries(parsed)) {
-        if (typeof v === "number" && Number.isInteger(v) && v >= 0) quotaOverrides[k] = v;
-      }
-    } catch {
-      quotaOverrides = {};
-    }
-  }
-  const proxy = (env.TRUST_PROXY ?? "").trim().toLowerCase();
-  const trustProxy = proxy === "" || proxy === "false" ? false : /^\d+$/.test(proxy) ? Number(proxy) : false;
-  const problems = [];
-  const warnings = [];
-  const rawStore = (env.RATE_LIMIT_STORE ?? "").trim().toLowerCase();
-  let rateStore;
-  if (rawStore === "") {
-    rateStore = production ? "redis" : "memory";
-  } else if (rawStore === "memory" || rawStore === "redis") {
-    rateStore = rawStore;
-  } else {
-    problems.push('RATE_LIMIT_STORE must be "memory" or "redis".');
-    rateStore = production ? "redis" : "memory";
-  }
-  const rawPolicy = (env.RATE_LIMIT_FAILURE_POLICY ?? "").trim().toLowerCase();
-  let rateFailurePolicy = "closed";
-  if (rawPolicy === "degraded") rateFailurePolicy = "degraded";
-  else if (rawPolicy !== "" && rawPolicy !== "closed") problems.push('RATE_LIMIT_FAILURE_POLICY must be "closed" or "degraded".');
-  const redisUrl = (env.REDIS_URL ?? "").trim() || void 0;
-  if (rateStore === "redis") {
-    if (!redisUrl) problems.push("REDIS_URL is required when RATE_LIMIT_STORE=redis (the production default).");
-    else if (!/^rediss?:\/\//i.test(redisUrl)) problems.push("REDIS_URL must start with redis:// or rediss://.");
-    else if (production && /^redis:\/\//i.test(redisUrl) && !/^redis:\/\/([^@/]*@)?(localhost|127\.0\.0\.1|\[::1\])([:/]|$)/i.test(redisUrl)) {
-      warnings.push("REDIS_URL uses unencrypted redis:// to a non-local host; prefer rediss:// (TLS).");
-    }
-  } else {
-    if (redisUrl) warnings.push("REDIS_URL is set but RATE_LIMIT_STORE=memory; Redis will not be used.");
-    if (rateFailurePolicy === "degraded") warnings.push("RATE_LIMIT_FAILURE_POLICY=degraded has no effect with RATE_LIMIT_STORE=memory.");
-    if (production) warnings.push("Production is using the per-process memory rate store: limits are not shared between instances and reset on restart.");
-  }
-  const supabaseUrl = (env.SUPABASE_URL || env.VITE_SUPABASE_URL || "").trim() || void 0;
-  const supabaseKey = (env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY || "").trim() || void 0;
-  const rawQuota = (env.QUOTA_STORE ?? "").trim().toLowerCase();
-  let quotaStore;
-  if (rawQuota === "") {
-    quotaStore = production ? "supabase" : "memory";
-  } else if (rawQuota === "memory" || rawQuota === "supabase") {
-    quotaStore = rawQuota;
-  } else {
-    problems.push('QUOTA_STORE must be "memory" or "supabase".');
-    quotaStore = production ? "supabase" : "memory";
-  }
-  const rawQuotaPolicy = (env.QUOTA_FAILURE_POLICY ?? "").trim().toLowerCase();
-  let quotaFailurePolicy = "closed";
-  if (rawQuotaPolicy === "degraded") quotaFailurePolicy = "degraded";
-  else if (rawQuotaPolicy !== "" && rawQuotaPolicy !== "closed") problems.push('QUOTA_FAILURE_POLICY must be "closed" or "degraded".');
-  if (quotaStore === "supabase") {
-    if (!supabaseUrl || !supabaseKey) problems.push("QUOTA_STORE=supabase (the production default) requires SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or the VITE_ equivalents).");
-    if (quotaFailurePolicy === "degraded") {
-      warnings.push("QUOTA_FAILURE_POLICY=degraded: if the quota store fails, daily limits count per instance (not shared); extract-plan and physique routes still fail closed.");
-    }
-  } else {
-    if (quotaFailurePolicy === "degraded") warnings.push("QUOTA_FAILURE_POLICY=degraded has no effect with QUOTA_STORE=memory.");
-    if (production) warnings.push("Production is using the per-process memory quota store: daily limits are not shared between instances and reset on restart.");
-  }
-  return {
-    production,
-    rateStore,
-    redisUrl,
-    rateFailurePolicy,
-    problems,
-    warnings,
-    supabaseUrl,
-    supabaseKey,
-    requireVerifiedEmail: bool(env.AUTH_REQUIRE_VERIFIED_EMAIL),
-    trustProxy,
-    corsOrigins: [...origins2],
-    rateIpPerMin: int(env.RATE_LIMIT_IP_PER_MIN, 300),
-    rateUserPerMin: int(env.RATE_LIMIT_USER_PER_MIN, 120),
-    authFailMax: int(env.AUTH_FAIL_MAX, 30),
-    authFailWindowMs: int(env.AUTH_FAIL_WINDOW_SEC, 900) * 1e3,
-    quotaOverrides,
-    quotaStore,
-    quotaFailurePolicy
-  };
-}
-
-// src/server/security/cors.ts
-var METHODS = "GET, POST, OPTIONS";
-var ALLOWED_HEADERS = "Authorization, Content-Type, Accept, X-Request-Id";
-var EXPOSED_HEADERS = "X-Request-Id, Retry-After, RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, X-Quota-Limit, X-Quota-Remaining";
-function sameHost(origin, req) {
-  try {
-    return new URL(origin).host === req.get("host");
-  } catch {
-    return false;
-  }
-}
-function createCors(config) {
-  const allowed = new Set(config.corsOrigins);
-  return function cors(req, res, next) {
-    res.vary("Origin");
-    const origin = req.get("origin");
-    if (!origin) {
-      if (req.method === "OPTIONS") return res.status(204).end();
-      return next();
-    }
-    if (!allowed.has(origin) && !sameHost(origin, req)) {
-      return sendError(req, res, 403, "origin_not_allowed", "Origin not allowed.");
-    }
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Expose-Headers", EXPOSED_HEADERS);
-    if (req.method === "OPTIONS") {
-      res.setHeader("Access-Control-Allow-Methods", METHODS);
-      res.setHeader("Access-Control-Allow-Headers", ALLOWED_HEADERS);
-      res.setHeader("Access-Control-Max-Age", "600");
-      return res.status(204).end();
-    }
-    next();
-  };
+// src/server/security/requestContext.ts
+import { randomUUID as randomUUID2 } from "node:crypto";
+var SAFE_ID = /^[A-Za-z0-9._-]{8,64}$/;
+function requestContext(req, res, next) {
+  const inbound = req.header("x-request-id");
+  req.requestId = inbound && SAFE_ID.test(inbound) ? inbound : randomUUID2();
+  res.setHeader("X-Request-Id", req.requestId);
+  next();
 }
 
 // src/server/security/validation.ts
@@ -1143,6 +1014,100 @@ function validateBody(schema) {
   };
 }
 
+// src/server/billing/config.ts
+var PLAN_KEYS = ["monthly", "annual"];
+var VERIFICATION_DEBIT_PAISE = 500;
+var MAX_RECURRING_PAISE = 15e5;
+var PLAN_ID = /^plan_[A-Za-z0-9]{6,40}$/;
+var int = (v, d) => v === void 0 || v.trim() === "" ? d : Number(v.trim());
+var inRange = (n2, lo, hi) => Number.isInteger(n2) && n2 >= lo && n2 <= hi;
+function loadBillingConfig(env = process.env) {
+  const problems = [];
+  const clean = (v) => (v ?? "").trim() || void 0;
+  const keyId = clean(env.RAZORPAY_KEY_ID);
+  const keySecret = clean(env.RAZORPAY_KEY_SECRET);
+  const webhookSecret = clean(env.RAZORPAY_WEBHOOK_SECRET);
+  const trialPepper = clean(env.BILLING_TRIAL_PEPPER);
+  const supabaseUrl = clean(env.SUPABASE_URL) ?? clean(env.VITE_SUPABASE_URL);
+  const serviceRoleKey = clean(env.SUPABASE_SERVICE_ROLE_KEY);
+  if (!keyId) problems.push("RAZORPAY_KEY_ID is not set.");
+  else if (!/^rzp_(test|live)_[A-Za-z0-9]+$/.test(keyId)) problems.push("RAZORPAY_KEY_ID has an unexpected format.");
+  else if (keyId.startsWith("rzp_live_") && env.BILLING_ALLOW_LIVE_KEYS !== "true") problems.push('A live Razorpay key was supplied but BILLING_ALLOW_LIVE_KEYS is not "true".');
+  if (!keySecret) problems.push("RAZORPAY_KEY_SECRET is not set.");
+  if (!webhookSecret) problems.push("RAZORPAY_WEBHOOK_SECRET is not set.");
+  if (!trialPepper || trialPepper.length < 16) problems.push("BILLING_TRIAL_PEPPER must be set to a secret of at least 16 characters.");
+  if (!supabaseUrl) problems.push("SUPABASE_URL (or VITE_SUPABASE_URL) is not set.");
+  if (!serviceRoleKey) problems.push("SUPABASE_SERVICE_ROLE_KEY is not set.");
+  const mk = (key, idVar, priceVar, defPrice, countVar, defCount, period) => {
+    const razorpayPlanId = clean(env[idVar]) ?? "";
+    const amountPaise = int(env[priceVar], defPrice);
+    const totalCount = int(env[countVar], defCount);
+    if (!PLAN_ID.test(razorpayPlanId)) problems.push(`${idVar} must be a Razorpay plan id (plan_...).`);
+    if (!inRange(amountPaise, 100, MAX_RECURRING_PAISE)) problems.push(`${priceVar} must be an integer number of paise between 100 and ${MAX_RECURRING_PAISE}.`);
+    if (!inRange(totalCount, 1, 1200)) problems.push(`${countVar} must be an integer between 1 and 1200.`);
+    return { key, razorpayPlanId, amountPaise, period, interval: 1, totalCount };
+  };
+  const plans = {
+    monthly: mk("monthly", "RAZORPAY_PLAN_ID_MONTHLY", "BILLING_PRICE_MONTHLY_PAISE", 29900, "BILLING_TOTAL_COUNT_MONTHLY", 120, "monthly"),
+    annual: mk("annual", "RAZORPAY_PLAN_ID_ANNUAL", "BILLING_PRICE_ANNUAL_PAISE", 149900, "BILLING_TOTAL_COUNT_ANNUAL", 10, "yearly")
+  };
+  const trialDays = int(env.BILLING_TRIAL_DAYS, 3);
+  const authWindowMinutes = int(env.BILLING_AUTH_WINDOW_MINUTES, 30);
+  const pendingGraceHours = int(env.BILLING_PENDING_GRACE_HOURS, 0);
+  const requestTimeoutMs = int(env.BILLING_RAZORPAY_TIMEOUT_MS, 15e3);
+  if (!inRange(trialDays, 0, 30)) problems.push("BILLING_TRIAL_DAYS must be an integer between 0 and 30.");
+  if (!inRange(authWindowMinutes, 20, 1440)) problems.push("BILLING_AUTH_WINDOW_MINUTES must be an integer between 20 and 1440.");
+  if (!inRange(pendingGraceHours, 0, 168)) problems.push("BILLING_PENDING_GRACE_HOURS must be an integer between 0 and 168.");
+  if (!inRange(requestTimeoutMs, 1e3, 6e4)) problems.push("BILLING_RAZORPAY_TIMEOUT_MS must be between 1000 and 60000.");
+  const rawEnforcement = (clean(env.BILLING_ENFORCEMENT) ?? "off").toLowerCase();
+  let enforcement = "off";
+  if (rawEnforcement === "off" || rawEnforcement === "shadow" || rawEnforcement === "on") enforcement = rawEnforcement;
+  else problems.push("BILLING_ENFORCEMENT must be off, shadow or on.");
+  return {
+    configured: problems.length === 0,
+    problems,
+    keyId,
+    keySecret,
+    webhookSecret,
+    trialPepper,
+    supabaseUrl,
+    serviceRoleKey,
+    plans,
+    trialDays,
+    authWindowMinutes,
+    pendingGraceHours,
+    enforcement,
+    requestTimeoutMs
+  };
+}
+
+// src/server/billing/schemas.ts
+var RZP_SUB = /^sub_[A-Za-z0-9]{6,40}$/;
+var RZP_PAY = /^pay_[A-Za-z0-9]{6,40}$/;
+var SIG = /^[A-Fa-f0-9]{64}$/;
+var pattern = (re, label, max) => {
+  const t3 = text({ max, required: true });
+  return (v, path) => {
+    const r = t3(v, path);
+    if (!r.ok) return r;
+    return re.test(r.value) ? r : { ok: false, issues: [`${path}: is not a valid ${label}`] };
+  };
+};
+var optionalBool = (v, path) => {
+  if (v === void 0 || v === null) return { ok: true, value: void 0 };
+  return typeof v === "boolean" ? { ok: true, value: v } : { ok: false, issues: [`${path}: must be true or false`] };
+};
+var billingSchemas = {
+  createSubscription: object({ planKey: oneOf(PLAN_KEYS, { required: true }) }),
+  verifySubscription: object({
+    razorpay_payment_id: pattern(RZP_PAY, "payment id", 64),
+    razorpay_subscription_id: pattern(RZP_SUB, "subscription id", 64),
+    razorpay_signature: pattern(SIG, "signature", 64)
+  }),
+  empty: object({}),
+  prepareDeletion: object({ confirmCancelPaidNow: optionalBool })
+};
+
 // src/server/security/endpoints.ts
 var SMALL = "64kb";
 var MEDIUM = "256kb";
@@ -1165,10 +1130,21 @@ var ENDPOINTS = {
   "POST /ai-generate-physique": { bucket: "ai-generate-physique", ai: true, dailyQuota: 10, perMinute: 3, bodyLimit: SMALL, schema: schemas.generatePhysique },
   "POST /ai-physique-analysis": { bucket: "ai-physique-analysis", ai: true, dailyQuota: 10, perMinute: 3, bodyLimit: MEDIUM, schema: schemas.physiqueAnalysis }
 };
+var BILLING_ENDPOINTS = {
+  "GET /billing/status": { bucket: "billing-status", ai: false, perMinute: 30, bodyLimit: SMALL },
+  "GET /billing/payments": { bucket: "billing-payments", ai: false, perMinute: 20, bodyLimit: SMALL },
+  "POST /billing/subscriptions": { bucket: "billing-create", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.createSubscription },
+  "POST /billing/subscriptions/verify": { bucket: "billing-verify", ai: false, perMinute: 10, bodyLimit: SMALL, schema: billingSchemas.verifySubscription },
+  "POST /billing/subscriptions/cancel": { bucket: "billing-cancel", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.empty },
+  // Stage 5: payment recovery (pending/halted) and the cancel-then-delete flow. Each calls Razorpay, so the limits are tight.
+  "POST /billing/subscriptions/recover": { bucket: "billing-recover", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.empty },
+  "GET /billing/account/deletion-check": { bucket: "billing-deletion-check", ai: false, perMinute: 10, bodyLimit: SMALL },
+  "POST /billing/account/prepare-deletion": { bucket: "billing-prepare-deletion", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.prepareDeletion }
+};
 var BARCODE_POLICY = { bucket: "barcode", ai: false, perMinute: 30, bodyLimit: SMALL };
 function resolvePolicy(method, path) {
   const clean = path.length > 1 ? path.replace(/\/+$/, "") : path;
-  const hit = ENDPOINTS[`${method.toUpperCase()} ${clean}`];
+  const hit = ENDPOINTS[`${method.toUpperCase()} ${clean}`] ?? BILLING_ENDPOINTS[`${method.toUpperCase()} ${clean}`];
   if (hit) return hit;
   if (method.toUpperCase() === "GET" && /^\/nutrition\/barcode\/[^/]+$/.test(clean)) return BARCODE_POLICY;
   return void 0;
@@ -1177,6 +1153,1240 @@ var ALWAYS_CLOSED_BUCKETS = /* @__PURE__ */ new Set(["extract-plan", "ai-generat
 function isAlwaysClosed(method, path) {
   const p = resolvePolicy(method, path);
   return !!p && ALWAYS_CLOSED_BUCKETS.has(p.bucket);
+}
+
+// src/server/billing/entitlement.ts
+function createEntitlementGate(opts) {
+  return async (req, res, next) => {
+    try {
+      if (opts.mode === "off") return next();
+      const policy = resolvePolicy(req.method, req.path);
+      if (!policy?.ai || !req.user) return next();
+      let decision;
+      try {
+        decision = await opts.check(req.user.id);
+      } catch {
+        decision = void 0;
+      }
+      if (opts.mode === "shadow") {
+        if (!decision) logger.warn("entitlement_shadow_unavailable", { requestId: req.requestId, bucket: policy.bucket });
+        else if (!decision.hasAccess) logger.warn("entitlement_shadow_would_deny", { requestId: req.requestId, userId: req.user.id, bucket: policy.bucket, state: decision.state });
+        return next();
+      }
+      if (!decision) {
+        logger.error("entitlement_unavailable", { requestId: req.requestId, bucket: policy.bucket });
+        return sendError(req, res, 503, "billing_unavailable", "Subscription status could not be checked. Please try again shortly.", { "Retry-After": "5" });
+      }
+      if (!decision.hasAccess) {
+        return sendError(req, res, 402, "subscription_required", "An active trial or subscription is required to use this feature.", {}, { entitlement: { state: decision.state } });
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
+// src/server/billing/gateway.ts
+import Razorpay from "razorpay";
+var RazorpayError = class extends Error {
+  constructor(kind, httpStatus, upstreamCode, retryable = false) {
+    super(`Razorpay request failed (${kind}).`);
+    this.kind = kind;
+    this.httpStatus = httpStatus;
+    this.upstreamCode = upstreamCode;
+    this.retryable = retryable;
+    this.name = "RazorpayError";
+  }
+};
+var SAFE_CODE = /^[A-Z_]{3,64}$/;
+function toRazorpayError(err) {
+  if (err instanceof RazorpayError) return err;
+  const e = err;
+  const status = typeof e?.statusCode === "number" ? e.statusCode : void 0;
+  const rawCode = typeof e?.error?.code === "string" ? e.error.code : void 0;
+  const upstreamCode = rawCode && SAFE_CODE.test(rawCode) ? rawCode : void 0;
+  if (status === 401 || status === 403) return new RazorpayError("auth", status, upstreamCode);
+  if (status === 429) return new RazorpayError("rate_limited", status, upstreamCode, true);
+  if (status !== void 0 && status >= 500) return new RazorpayError("upstream", status, upstreamCode, true);
+  if (status !== void 0 && status >= 400) return new RazorpayError("rejected", status, upstreamCode);
+  if (status === void 0) return new RazorpayError("network", void 0, void 0, true);
+  return new RazorpayError("upstream", status, upstreamCode, true);
+}
+async function withTimeout(work, ms) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new RazorpayError("timeout", void 0, void 0, true)), ms);
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+var isObj = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+function expectEntity(v, prefix) {
+  if (!isObj(v) || typeof v.id !== "string" || !v.id.startsWith(prefix)) throw new RazorpayError("invalid_response", void 0);
+  return v;
+}
+function createRazorpayGateway(config) {
+  if (!config.keyId || !config.keySecret) throw new Error("Razorpay credentials are not configured.");
+  const sdk = new Razorpay({ key_id: config.keyId, key_secret: config.keySecret });
+  const call = async (work, check) => {
+    try {
+      return check(await withTimeout(work(), config.requestTimeoutMs));
+    } catch (err) {
+      throw toRazorpayError(err);
+    }
+  };
+  return {
+    fetchPlan: (id) => call(() => sdk.plans.fetch(id), (v) => expectEntity(v, "plan_")),
+    createSubscription: (p) => call(() => sdk.subscriptions.create({ ...p }), (v) => expectEntity(v, "sub_")),
+    fetchSubscription: (id) => call(() => sdk.subscriptions.fetch(id), (v) => expectEntity(v, "sub_")),
+    // The SDK maps its second argument to `cancel_at_cycle_end` (1 = at the end of the billing cycle, 0 = now).
+    cancelSubscription: (id, cycleEnd) => call(() => sdk.subscriptions.cancel(id, cycleEnd), (v) => expectEntity(v, "sub_")),
+    fetchPayment: (id) => call(() => sdk.payments.fetch(id), (v) => expectEntity(v, "pay_"))
+  };
+}
+
+// src/server/billing/signature.ts
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+var HEX = /^[0-9a-f]{64}$/i;
+var hmacSha256Hex = (secret, data) => createHmac("sha256", secret).update(data).digest("hex");
+var sha256Hex = (data) => createHash("sha256").update(data).digest("hex");
+function safeEqualHex(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || !HEX.test(a) || !HEX.test(b)) return false;
+  return timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
+}
+function verifyPaymentSignature(args) {
+  const { paymentId, subscriptionId, signature, keySecret } = args;
+  if (!paymentId || !subscriptionId || !keySecret || typeof signature !== "string") return false;
+  return safeEqualHex(hmacSha256Hex(keySecret, `${paymentId}|${subscriptionId}`), signature);
+}
+function verifyWebhookSignature(rawBody, signature, secret) {
+  if (!Buffer.isBuffer(rawBody) || rawBody.length === 0 || !secret || typeof signature !== "string") return false;
+  return safeEqualHex(hmacSha256Hex(secret, rawBody), signature.trim());
+}
+
+// src/server/billing/emailHash.ts
+function normalizeEmail(email) {
+  const e = email.trim().toLowerCase();
+  const at = e.lastIndexOf("@");
+  if (at < 1 || at === e.length - 1 || e.length > 254) return void 0;
+  let local = e.slice(0, at);
+  let domain = e.slice(at + 1);
+  const plus = local.indexOf("+");
+  if (plus > 0) local = local.slice(0, plus);
+  if (domain === "googlemail.com") domain = "gmail.com";
+  if (domain === "gmail.com") local = local.replace(/\./g, "");
+  if (!local) return void 0;
+  return `${local}@${domain}`;
+}
+function hashEmail(email, pepper) {
+  const n2 = normalizeEmail(email);
+  return n2 ? hmacSha256Hex(pepper, `trial-claim:v1:${n2}`) : void 0;
+}
+
+// src/server/billing/store.ts
+import { createClient } from "@supabase/supabase-js";
+var BillingStoreError = class extends Error {
+  constructor(op, sqlstate) {
+    super(`Billing database operation failed (${op}).`);
+    this.op = op;
+    this.sqlstate = sqlstate;
+    this.name = "BillingStoreError";
+  }
+};
+function createSupabaseBillingStore(config, client) {
+  if (!client && (!config.supabaseUrl || !config.serviceRoleKey)) throw new Error("Billing database is not configured.");
+  const db = client ?? createClient(config.supabaseUrl, config.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+  });
+  const fail = (op, error) => {
+    throw new BillingStoreError(op, typeof error?.code === "string" ? error.code : void 0);
+  };
+  const one = async (op, q) => {
+    const { data, error } = await q;
+    if (error) fail(op, error);
+    return (Array.isArray(data) ? data[0] : data) ?? null;
+  };
+  const rpcOne = async (op, fn, args) => {
+    const { data, error } = await db.rpc(fn, args);
+    if (error) fail(op, error);
+    return (Array.isArray(data) ? data[0] : data) ?? null;
+  };
+  const LIVE_LIST = "(creating,created,authenticated,active,pending,halted)";
+  return {
+    async getEntitlement(userId, graceHours) {
+      const r = await rpcOne("entitlement", "billing_get_entitlement", { p_user_id: userId, p_pending_grace_hours: graceHours });
+      if (!r) throw new BillingStoreError("entitlement");
+      return r;
+    },
+    async trialClaimAvailable(userId, emailHash) {
+      const byHash = await one("claim_by_hash", db.from("billing_trial_claims").select("state,user_id").eq("email_hash", emailHash).limit(1));
+      if (byHash && !(byHash.state === "reserved" && (byHash.user_id === null || byHash.user_id === userId))) return false;
+      const consumed = await one("claim_by_user", db.from("billing_trial_claims").select("email_hash").eq("user_id", userId).eq("state", "consumed").limit(1));
+      return consumed === null;
+    },
+    async beginSubscription(a) {
+      const r = await rpcOne("begin_subscription", "billing_begin_subscription", {
+        p_user_id: a.userId,
+        p_email_hash: a.emailHash,
+        p_plan_key: a.planKey,
+        p_razorpay_plan_id: a.razorpayPlanId,
+        p_billing_period: a.billingPeriod,
+        p_amount_paise: a.amountPaise,
+        p_trial_days: a.trialDays,
+        p_authorization_window_minutes: a.authWindowMinutes
+      });
+      if (!r) throw new BillingStoreError("begin_subscription");
+      return r;
+    },
+    async getForUser(userId, id) {
+      return await one("get_for_user", db.from("billing_subscriptions").select("*").eq("id", id).eq("user_id", userId).limit(1));
+    },
+    async getLiveForUser(userId) {
+      return await one("get_live", db.from("billing_subscriptions").select("*").eq("user_id", userId).filter("status", "in", LIVE_LIST).limit(1));
+    },
+    async getLatestForUser(userId) {
+      return await one("get_latest", db.from("billing_subscriptions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(1));
+    },
+    async getByRazorpayIdForUser(userId, razorpayId) {
+      return await one("get_by_rzp_user", db.from("billing_subscriptions").select("*").eq("razorpay_subscription_id", razorpayId).eq("user_id", userId).limit(1));
+    },
+    async getByRazorpayId(razorpayId) {
+      return await one("get_by_rzp", db.from("billing_subscriptions").select("*").eq("razorpay_subscription_id", razorpayId).limit(1));
+    },
+    async getById(id) {
+      return await one("get_by_id", db.from("billing_subscriptions").select("*").eq("id", id).limit(1));
+    },
+    async attachRazorpayId(id, userId, razorpayId, status) {
+      const r = await one("attach", db.from("billing_subscriptions").update({ razorpay_subscription_id: razorpayId, status, razorpay_synced_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("user_id", userId).eq("status", "creating").select("id"));
+      if (!r) throw new BillingStoreError("attach");
+    },
+    async markCreateFailed(id, userId) {
+      await one("create_failed", db.from("billing_subscriptions").update({ status: "expired", ended_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("user_id", userId).eq("status", "creating").select("id"));
+    },
+    async applyPatch(id, patch) {
+      await one("patch", db.from("billing_subscriptions").update(patch).eq("id", id).select("id"));
+    },
+    async consumeTrialClaim(userId, subscriptionId) {
+      return await rpcOne("consume_claim", "billing_consume_trial_claim", { p_user_id: userId, p_subscription_id: subscriptionId }) === true;
+    },
+    async markStopVerified(subscriptionId, observedStatus) {
+      return await rpcOne("stop_verified", "billing_mark_stop_verified", { p_subscription_id: subscriptionId, p_observed_status: observedStatus }) === true;
+    },
+    async recordPayment(p) {
+      const row = {
+        user_id: p.userId,
+        subscription_id: p.subscriptionId,
+        razorpay_payment_id: p.razorpayPaymentId,
+        razorpay_invoice_id: p.razorpayInvoiceId,
+        kind: p.kind,
+        status: p.status,
+        amount_paise: p.amountPaise,
+        amount_refunded_paise: p.amountRefundedPaise,
+        currency: "INR",
+        method: p.method?.slice(0, 32) ?? null,
+        error_code: p.errorCode?.slice(0, 64) ?? null,
+        paid_at: p.paidAt,
+        refunded_at: p.refundedAt
+      };
+      const ins = await db.from("billing_payments").upsert(row, { onConflict: "razorpay_payment_id", ignoreDuplicates: true });
+      if (ins.error) fail("payment_insert", ins.error);
+      const upd = await db.from("billing_payments").update({ status: p.status, amount_refunded_paise: p.amountRefundedPaise, error_code: row.error_code, paid_at: p.paidAt, refunded_at: p.refundedAt, updated_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("razorpay_payment_id", p.razorpayPaymentId).eq("subscription_id", p.subscriptionId);
+      if (upd.error) fail("payment_update", upd.error);
+    },
+    async listPayments(userId, limit) {
+      const { data, error } = await db.from("billing_payments").select("id,subscription_id,kind,status,amount_paise,amount_refunded_paise,currency,method,paid_at,refunded_at,created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(limit);
+      if (error) fail("list_payments", error);
+      return data ?? [];
+    },
+    async beginWebhookEvent(a) {
+      const r = await rpcOne("webhook_begin", "billing_begin_webhook_event", {
+        p_event_id: a.eventId,
+        p_event_type: a.eventType,
+        p_razorpay_subscription_id: a.razorpaySubscriptionId,
+        p_razorpay_payment_id: a.razorpayPaymentId,
+        p_payload_sha256: a.payloadSha256,
+        p_event_created_at: a.eventCreatedAt
+      });
+      if (r !== "process" && r !== "duplicate" && r !== "in_progress") throw new BillingStoreError("webhook_begin");
+      return r;
+    },
+    async finishWebhookEvent(eventId, status, errorCode) {
+      const { error } = await db.from("billing_webhook_events").update({ status, error_code: errorCode?.slice(0, 64) ?? null, processed_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("razorpay_event_id", eventId);
+      if (error) fail("webhook_finish", error);
+    },
+    async listReconcilable(nowIso, limit) {
+      const tenMin = new Date(Date.parse(nowIso) - 10 * 6e4).toISOString();
+      const oneDay = new Date(Date.parse(nowIso) - 864e5).toISOString();
+      const { data, error } = await db.from("billing_subscriptions").select("*").not("razorpay_subscription_id", "is", null).or(`and(status.eq.created,created_at.lt.${tenMin}),and(status.eq.authenticated,trial_end_at.lt.${nowIso}),status.eq.pending,and(status.eq.halted,razorpay_synced_at.lt.${oneDay}),and(status.eq.active,cancel_at_cycle_end.eq.true,current_period_end.lt.${nowIso})`).order("razorpay_synced_at", { ascending: true, nullsFirst: true }).limit(limit);
+      if (error) fail("list_reconcilable", error);
+      return data ?? [];
+    },
+    async listBlockingForUser(userId) {
+      const { data, error } = await db.from("billing_subscriptions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50);
+      if (error) fail("list_blocking", error);
+      const terminal = ["cancelled", "completed", "expired"];
+      return (data ?? []).filter(
+        (r) => !(r.status === "expired" && r.razorpay_subscription_id === null) && !(terminal.includes(r.status) && r.billing_stop_verified_at !== null)
+      );
+    },
+    async authorizedWithoutAuthorizationPayment(sinceIso, untilIso, limit) {
+      const subs = await db.from("billing_subscriptions").select("id,auth_verified_at").not("auth_verified_at", "is", null).not("trial_end_at", "is", null).gte("auth_verified_at", sinceIso).lt("auth_verified_at", untilIso).order("auth_verified_at", { ascending: false }).limit(limit);
+      if (subs.error) fail("auth_missing_subs", subs.error);
+      const rows = subs.data ?? [];
+      if (rows.length === 0) return [];
+      const pays = await db.from("billing_payments").select("subscription_id").eq("kind", "authorization").in("subscription_id", rows.map((r) => r.id));
+      if (pays.error) fail("auth_missing_pays", pays.error);
+      const have = new Set((pays.data ?? []).map((p) => p.subscription_id));
+      return rows.filter((r) => !have.has(r.id));
+    },
+    async unrefundedAuthorizations(olderThanMinutes) {
+      const r = await db.rpc("billing_unrefunded_authorizations", { p_older_than_minutes: olderThanMinutes });
+      if (r.error) fail("unrefunded", r.error);
+      return r.data ?? [];
+    }
+  };
+}
+
+// src/server/billing/types.ts
+var TERMINAL = ["cancelled", "completed", "expired"];
+var RAZORPAY_STATUSES = ["created", "authenticated", "active", "pending", "halted", "cancelled", "completed", "expired"];
+var LIVE = ["creating", "created", "authenticated", "active", "pending", "halted"];
+
+// src/server/billing/service.ts
+var HANDLED_EVENTS = /* @__PURE__ */ new Set([
+  "subscription.authenticated",
+  "subscription.activated",
+  "subscription.charged",
+  "subscription.completed",
+  "subscription.updated",
+  "subscription.pending",
+  "subscription.halted",
+  "subscription.cancelled",
+  "subscription.paused",
+  "subscription.resumed"
+]);
+var SUB_ID = /^sub_[A-Za-z0-9]{6,40}$/;
+var PAY_ID = /^pay_[A-Za-z0-9]{6,40}$/;
+var iso = (unix) => typeof unix === "number" && Number.isFinite(unix) && unix > 0 ? new Date(unix * 1e3).toISOString() : null;
+var isTerminal = (s) => TERMINAL.includes(s);
+function toPublicSubscription(r) {
+  return {
+    id: r.id,
+    planKey: r.plan_key,
+    status: r.status,
+    paymentStatus: r.payment_status,
+    amountPaise: r.amount_paise,
+    currency: r.currency,
+    billingPeriod: r.billing_period,
+    trialStartAt: r.trial_start_at,
+    trialEndAt: r.trial_end_at,
+    currentPeriodStart: r.current_period_start,
+    currentPeriodEnd: r.current_period_end,
+    nextBillingAt: r.next_billing_at,
+    paidCount: r.paid_count,
+    cancelRequestedAt: r.cancel_requested_at,
+    cancelAtCycleEnd: r.cancel_at_cycle_end,
+    cancelledAt: r.cancelled_at,
+    accessEndsAt: r.access_ends_at,
+    createdAt: r.created_at
+  };
+}
+function derivePaymentStatus(prev, rzp) {
+  switch (rzp.status) {
+    case "created":
+      return prev.payment_status === "none" ? "none" : prev.payment_status;
+    case "authenticated":
+      return (rzp.paid_count ?? 0) > 0 ? "paid" : "authorized";
+    case "active":
+      return (rzp.paid_count ?? 0) > 0 ? "paid" : "authorized";
+    case "pending":
+      return "retrying";
+    case "halted":
+      return "failed";
+    case "completed":
+      return "paid";
+    default:
+      return prev.payment_status;
+  }
+}
+function buildSyncPatch(row, rzp, nowMs) {
+  const status = rzp.status;
+  const patch = {
+    status,
+    payment_status: derivePaymentStatus(row, rzp),
+    razorpay_customer_id: rzp.customer_id ?? row.razorpay_customer_id,
+    current_period_start: iso(rzp.current_start) ?? row.current_period_start,
+    current_period_end: iso(rzp.current_end) ?? row.current_period_end,
+    next_billing_at: ["authenticated", "active", "pending"].includes(status) ? iso(rzp.charge_at) : null,
+    paid_count: Math.max(row.paid_count, typeof rzp.paid_count === "number" ? rzp.paid_count : 0),
+    razorpay_synced_at: new Date(nowMs).toISOString()
+  };
+  if (rzp.ended_at) patch.ended_at = iso(rzp.ended_at);
+  if (status === "cancelled") {
+    patch.cancelled_at = row.cancelled_at ?? new Date(nowMs).toISOString();
+    patch.cancel_requested_at = row.cancel_requested_at ?? patch.cancelled_at;
+    if (!row.access_ends_at) {
+      const periodEnd = patch.current_period_end ?? row.current_period_end;
+      patch.access_ends_at = (patch.paid_count ?? 0) > 0 ? periodEnd : row.trial_end_at && row.auth_verified_at ? row.trial_end_at : null;
+    }
+  }
+  return patch;
+}
+function paymentRecord(row, p, kind, nowMs) {
+  const refunded = p.refund_status === "full" || p.status === "refunded" || typeof p.amount_refunded === "number" && p.amount_refunded >= p.amount && p.amount > 0;
+  let status;
+  if (refunded) status = "refunded";
+  else if (p.status === "captured") status = "captured";
+  else if (p.status === "authorized") status = "authorized";
+  else if (p.status === "failed") status = "failed";
+  else return null;
+  if (p.currency !== "INR" || !Number.isInteger(p.amount) || p.amount < 0) return null;
+  return {
+    userId: row.user_id,
+    subscriptionId: row.id,
+    razorpayPaymentId: p.id,
+    razorpayInvoiceId: p.invoice_id ?? null,
+    kind,
+    status,
+    amountPaise: p.amount,
+    amountRefundedPaise: refunded ? Math.max(p.amount_refunded ?? 0, p.amount) : p.amount_refunded ?? 0,
+    method: p.method ?? null,
+    errorCode: p.status === "failed" ? p.error_code ?? "failed" : null,
+    paidAt: status === "captured" || status === "refunded" ? iso(p.created_at) ?? new Date(nowMs).toISOString() : null,
+    refundedAt: refunded ? new Date(nowMs).toISOString() : null
+  };
+}
+var unavailable = () => new ApiError(503, "billing_unavailable", "Billing is temporarily unavailable. Please try again shortly.", { "Retry-After": "10" });
+function toApiError(err, context) {
+  if (err instanceof ApiError) return err;
+  if (err instanceof RazorpayError) {
+    logger.error("billing_razorpay_error", { context, kind: err.kind, httpStatus: err.httpStatus, upstreamCode: err.upstreamCode });
+    if (err.kind === "auth") return unavailable();
+    if (err.kind === "timeout") return new ApiError(504, "billing_timeout", "The payment provider took too long to respond. Please try again.", { "Retry-After": "5" });
+    if (err.kind === "rejected") return new ApiError(409, "billing_rejected", "The payment provider could not complete this request.");
+    return new ApiError(502, "billing_upstream_error", "The payment provider is temporarily unavailable. Please try again shortly.", { "Retry-After": "10" });
+  }
+  if (err instanceof BillingStoreError) {
+    logger.error("billing_store_error", { context, op: err.op, sqlstate: err.sqlstate });
+    return new ApiError(503, "billing_unavailable", "Billing is temporarily unavailable. Please try again shortly.", { "Retry-After": "10" });
+  }
+  logger.error("billing_unexpected_error", { context, errName: err instanceof Error ? err.name : typeof err });
+  return new ApiError(500, "internal_error", "Something went wrong. Please try again.");
+}
+function createBillingService(deps) {
+  const { config, store, gateway } = deps;
+  const clock = deps.now ?? Date.now;
+  const planChecked = /* @__PURE__ */ new Map();
+  const requireConfigured = () => {
+    if (!config.configured || !config.keyId || !config.keySecret || !config.trialPepper) {
+      logger.error("billing_not_configured", { problems: config.problems });
+      throw unavailable();
+    }
+  };
+  const requireVerifiedEmail = (user) => {
+    if (!user.emailVerified || !user.email) throw new ApiError(403, "email_not_verified", "Please verify your email address before starting a subscription.");
+    return user.email;
+  };
+  async function assertPlanMatches(planKey) {
+    const plan = config.plans[planKey];
+    const cachedAt = planChecked.get(plan.razorpayPlanId);
+    if (cachedAt && clock() - cachedAt < 6e5) return;
+    const rp = await gateway.fetchPlan(plan.razorpayPlanId);
+    if (rp.item.amount !== plan.amountPaise || rp.item.currency !== "INR" || rp.period !== plan.period || rp.interval !== plan.interval) {
+      logger.error("billing_plan_mismatch", { planKey });
+      throw new ApiError(503, "plan_mismatch", "This plan is temporarily unavailable.");
+    }
+    planChecked.set(plan.razorpayPlanId, clock());
+  }
+  function checkoutResult(row, rzpId, planKey, trialEligible, trialEndAt, expireBy, reused) {
+    const plan = config.plans[planKey];
+    return {
+      subscriptionId: rzpId,
+      keyId: config.keyId,
+      planKey,
+      amountPaise: plan.amountPaise,
+      currency: "INR",
+      billingPeriod: plan.period,
+      trialEligible,
+      trialDays: trialEligible ? config.trialDays : 0,
+      firstChargeAt: trialEndAt,
+      authorizationExpiresAt: expireBy,
+      authorization: trialEligible ? { amountPaise: VERIFICATION_DEBIT_PAISE, refundable: true } : { amountPaise: plan.amountPaise, refundable: false },
+      reused
+    };
+  }
+  const IN_FLIGHT_MS = Math.max(6e4, config.requestTimeoutMs * 3);
+  async function createSubscription(user, planKey) {
+    requireConfigured();
+    const email = requireVerifiedEmail(user);
+    const plan = config.plans[planKey];
+    if (!plan) throw new ApiError(400, "invalid_plan", "Unknown plan.");
+    const emailHash = hashEmail(email, config.trialPepper);
+    if (!emailHash) throw new ApiError(400, "invalid_email", "Your account email cannot be used for billing.");
+    try {
+      await assertPlanMatches(planKey);
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const begin = await store.beginSubscription({
+          userId: user.id,
+          emailHash,
+          planKey,
+          razorpayPlanId: plan.razorpayPlanId,
+          billingPeriod: plan.period,
+          amountPaise: plan.amountPaise,
+          trialDays: config.trialDays,
+          authWindowMinutes: config.authWindowMinutes
+        });
+        if (begin.outcome === "existing") {
+          const row2 = await store.getForUser(user.id, begin.subscription_id);
+          if (!row2) throw new BillingStoreError("existing_row");
+          const stale = !row2.expire_by || Date.parse(row2.expire_by) < clock() + 6e4;
+          if (row2.status === "creating" && !row2.razorpay_subscription_id) {
+            if (clock() - Date.parse(row2.created_at) < IN_FLIGHT_MS) throw new ApiError(409, "subscription_in_progress", "A subscription is already being set up. Please wait a moment and try again.", { "Retry-After": "5" });
+            await store.markCreateFailed(row2.id, user.id);
+            continue;
+          }
+          if (row2.status === "created" && row2.razorpay_subscription_id) {
+            const live = await gateway.fetchSubscription(row2.razorpay_subscription_id);
+            if (live.status === "created" && !stale && row2.plan_key === planKey) {
+              return checkoutResult(row2, row2.razorpay_subscription_id, planKey, row2.trial_end_at !== null, row2.trial_end_at, row2.expire_by, true);
+            }
+            if (live.status === "created") {
+              const cancelled = await gateway.cancelSubscription(row2.razorpay_subscription_id, false);
+              if (cancelled.status !== "cancelled" && cancelled.status !== "expired") throw new ApiError(409, "subscription_exists", "You already have a subscription in progress.");
+              await store.applyPatch(row2.id, buildSyncPatch(row2, cancelled, clock()));
+              await store.markStopVerified(row2.id, cancelled.status);
+              continue;
+            }
+            await applyAndMaybeAuthorize(row2, live);
+            continue;
+          }
+          throw new ApiError(409, "subscription_exists", "You already have a subscription.");
+        }
+        const row = await store.getForUser(user.id, begin.subscription_id);
+        if (!row) throw new BillingStoreError("new_row");
+        const trial = begin.trial_eligible && !!begin.trial_end_at;
+        let rzp;
+        try {
+          rzp = await gateway.createSubscription({
+            plan_id: plan.razorpayPlanId,
+            total_count: plan.totalCount,
+            ...trial ? { start_at: Math.floor(Date.parse(begin.trial_end_at) / 1e3) } : {},
+            expire_by: Math.floor(Date.parse(begin.expire_by) / 1e3),
+            customer_notify: 1,
+            notes: { user_id: user.id, plan_key: planKey, billing_row: row.id }
+          });
+        } catch (err) {
+          await store.markCreateFailed(row.id, user.id).catch(() => void 0);
+          throw err;
+        }
+        if (rzp.status !== "created") {
+          await tryCancelOrphan(rzp.id);
+          await store.markCreateFailed(row.id, user.id).catch(() => void 0);
+          throw new ApiError(502, "billing_upstream_error", "The payment provider returned an unexpected response. Please try again.");
+        }
+        try {
+          await store.attachRazorpayId(row.id, user.id, rzp.id, "created");
+        } catch (err) {
+          await tryCancelOrphan(rzp.id);
+          await store.markCreateFailed(row.id, user.id).catch(() => void 0);
+          throw err;
+        }
+        return checkoutResult(row, rzp.id, planKey, trial, begin.trial_end_at, begin.expire_by, false);
+      }
+      throw new ApiError(409, "subscription_in_progress", "Another subscription attempt is in progress. Please try again in a moment.");
+    } catch (err) {
+      throw toApiError(err, "create_subscription");
+    }
+  }
+  async function tryCancelOrphan(rzpId) {
+    try {
+      await gateway.cancelSubscription(rzpId, false);
+    } catch (err) {
+      logger.error("billing_orphan_cancel_failed", { kind: err instanceof RazorpayError ? err.kind : "unknown" });
+    }
+  }
+  async function applyAndMaybeAuthorize(row, rzp, paymentId) {
+    if (!RAZORPAY_STATUSES.includes(rzp.status)) {
+      logger.error("billing_unknown_status", { status: String(rzp.status).slice(0, 32) });
+      throw new ApiError(502, "billing_upstream_error", "The payment provider returned an unexpected state.");
+    }
+    if (isTerminal(row.status) && rzp.status !== row.status) {
+      logger.error("billing_terminal_regression_refused", { from: row.status, to: String(rzp.status).slice(0, 32) });
+      return row;
+    }
+    const nowMs = clock();
+    const patch = buildSyncPatch(row, rzp, nowMs);
+    const authorizedNow = !row.auth_verified_at && (rzp.status === "authenticated" || rzp.status === "active");
+    if (authorizedNow) {
+      const trialEnd = row.trial_end_at ? Date.parse(row.trial_end_at) : void 0;
+      patch.auth_verified_at = new Date(nowMs).toISOString();
+      if (trialEnd !== void 0 && nowMs < trialEnd) patch.trial_start_at = new Date(nowMs).toISOString();
+    }
+    if (paymentId && row.user_id) {
+      const pay = await gateway.fetchPayment(paymentId);
+      const rec = paymentRecord(row, pay, row.trial_end_at ? "authorization" : "charge", nowMs);
+      if (rec) await store.recordPayment(rec);
+    }
+    await store.applyPatch(row.id, patch);
+    if (authorizedNow && row.user_id && row.trial_end_at) await store.consumeTrialClaim(row.user_id, row.id);
+    if (isTerminal(rzp.status)) await store.markStopVerified(row.id, rzp.status);
+    return { ...row, ...patch };
+  }
+  async function verifyAuthorization(user, body) {
+    requireConfigured();
+    try {
+      const row = await store.getByRazorpayIdForUser(user.id, body.razorpay_subscription_id);
+      if (!row || !row.razorpay_subscription_id) throw new ApiError(404, "subscription_not_found", "Subscription not found.");
+      const okSig = verifyPaymentSignature({ paymentId: body.razorpay_payment_id, subscriptionId: row.razorpay_subscription_id, signature: body.razorpay_signature, keySecret: config.keySecret });
+      if (!okSig) {
+        logger.warn("billing_invalid_payment_signature", { userId: user.id, subscriptionRow: row.id });
+        throw new ApiError(400, "invalid_signature", "Payment verification failed.");
+      }
+      if (!PAY_ID.test(body.razorpay_payment_id)) throw new ApiError(400, "invalid_signature", "Payment verification failed.");
+      if (row.auth_verified_at) {
+        if (row.status === "pending" || row.status === "halted") {
+          const fresh = await reconcileRow(row);
+          if (fresh.status === "active") return { verified: true, alreadyVerified: true, recovered: true, subscription: toPublicSubscription(fresh) };
+          throw new ApiError(409, "authorization_not_confirmed", "Razorpay has not confirmed this payment yet. Please try again in a moment.");
+        }
+        return { verified: true, alreadyVerified: true, subscription: toPublicSubscription(row) };
+      }
+      const rzp = await gateway.fetchSubscription(row.razorpay_subscription_id);
+      if (rzp.status !== "authenticated" && rzp.status !== "active") {
+        throw new ApiError(409, "authorization_not_confirmed", "Razorpay has not confirmed this authorization yet. Please try again in a moment.");
+      }
+      const updated = await applyAndMaybeAuthorize(row, rzp, body.razorpay_payment_id);
+      return { verified: true, alreadyVerified: false, subscription: toPublicSubscription(updated) };
+    } catch (err) {
+      throw toApiError(err, "verify_authorization");
+    }
+  }
+  async function cancel(user) {
+    requireConfigured();
+    try {
+      let row = await store.getLiveForUser(user.id);
+      if (!row) throw new ApiError(404, "no_active_subscription", "You have no subscription to cancel.");
+      if (row.razorpay_subscription_id) row = await reconcileRow(row);
+      if (!LIVE.includes(row.status)) {
+        return { cancelled: true, alreadyRequested: true, subscription: toPublicSubscription(row), accessEndsAt: row.access_ends_at };
+      }
+      if (row.status === "active" && row.cancel_at_cycle_end) return { cancelled: true, alreadyRequested: true, subscription: toPublicSubscription(row), accessEndsAt: row.access_ends_at };
+      if (!row.razorpay_subscription_id) {
+        await store.markCreateFailed(row.id, user.id);
+        return { cancelled: true, alreadyRequested: false, subscription: toPublicSubscription({ ...row, status: "expired" }), accessEndsAt: null };
+      }
+      const cycleEnd = row.status === "active";
+      const nowIso = new Date(clock()).toISOString();
+      const resp = await gateway.cancelSubscription(row.razorpay_subscription_id, cycleEnd);
+      if (!RAZORPAY_STATUSES.includes(resp.status)) throw new ApiError(502, "billing_upstream_error", "The payment provider returned an unexpected state.");
+      const patch = buildSyncPatch(row, resp, clock());
+      patch.cancel_requested_at = row.cancel_requested_at ?? nowIso;
+      if (resp.status === "cancelled") {
+        patch.access_ends_at = row.status === "authenticated" && row.trial_end_at ? row.trial_end_at : row.status === "active" ? patch.current_period_end ?? null : nowIso;
+      } else if (cycleEnd) {
+        patch.cancel_at_cycle_end = true;
+        patch.access_ends_at = patch.current_period_end ?? row.current_period_end;
+      }
+      await store.applyPatch(row.id, patch);
+      if (isTerminal(resp.status)) await store.markStopVerified(row.id, resp.status);
+      const merged = { ...row, ...patch };
+      return { cancelled: true, alreadyRequested: false, subscription: toPublicSubscription(merged), accessEndsAt: merged.access_ends_at };
+    } catch (err) {
+      throw toApiError(err, "cancel");
+    }
+  }
+  async function reconcileRow(row) {
+    if (!row.razorpay_subscription_id) return row;
+    const rzp = await gateway.fetchSubscription(row.razorpay_subscription_id);
+    return applyAndMaybeAuthorize(row, rzp);
+  }
+  async function startRecovery(user) {
+    requireConfigured();
+    try {
+      const found = await store.getLiveForUser(user.id);
+      if (!found || !found.razorpay_subscription_id || !found.auth_verified_at) throw new ApiError(409, "recovery_not_available", "There is no payment to update.");
+      const row = await reconcileRow(found);
+      if (row.status !== "pending" && row.status !== "halted" || !row.razorpay_subscription_id) {
+        throw new ApiError(409, "recovery_not_available", "Your subscription does not need a payment update right now.");
+      }
+      return {
+        subscriptionId: row.razorpay_subscription_id,
+        keyId: config.keyId,
+        planKey: row.plan_key,
+        amountPaise: row.amount_paise,
+        currency: "INR",
+        billingPeriod: row.billing_period,
+        status: row.status,
+        /** Checkout can only change a CARD this way (documented `subscription_card_change`). UPI and bank-mandate customers use Razorpay's emailed link. */
+        cardChangeOnly: true
+      };
+    } catch (err) {
+      throw toApiError(err, "start_recovery");
+    }
+  }
+  async function blockingRefreshed(userId) {
+    for (const r of await store.listBlockingForUser(userId)) if (r.razorpay_subscription_id) await reconcileRow(r);
+    return store.listBlockingForUser(userId);
+  }
+  const deletionRequires = (rows) => rows.length === 0 ? "none" : rows.some((r) => r.status === "active") ? "confirm_cancel_paid" : "cancel_billing";
+  const paidRow = (rows) => rows.find((r) => r.status === "active");
+  async function deletionCheck(user) {
+    requireConfigured();
+    try {
+      const rows = await blockingRefreshed(user.id);
+      const requires = deletionRequires(rows);
+      const paid = paidRow(rows);
+      return { requires, subscription: paid ? toPublicSubscription(paid) : rows[0] ? toPublicSubscription(rows[0]) : null, accessEndsAt: paid?.current_period_end ?? null };
+    } catch (err) {
+      throw toApiError(err, "deletion_check");
+    }
+  }
+  async function prepareDeletion(user, opts) {
+    requireConfigured();
+    try {
+      let rows = await blockingRefreshed(user.id);
+      const paid = paidRow(rows);
+      if (paid && !opts.confirmCancelPaidNow) {
+        return { ready: false, requires: "confirm_cancel_paid", cancelled: 0, subscription: toPublicSubscription(paid), accessEndsAt: paid.current_period_end };
+      }
+      let cancelled = 0;
+      for (const row of rows) {
+        if (isTerminal(row.status)) continue;
+        if (!row.razorpay_subscription_id) {
+          await store.markCreateFailed(row.id, user.id);
+          continue;
+        }
+        const nowIso = new Date(clock()).toISOString();
+        const resp = await gateway.cancelSubscription(row.razorpay_subscription_id, false);
+        if (!RAZORPAY_STATUSES.includes(resp.status)) throw new ApiError(502, "billing_upstream_error", "The payment provider returned an unexpected state.");
+        const patch = buildSyncPatch(row, resp, clock());
+        patch.cancel_requested_at = row.cancel_requested_at ?? nowIso;
+        if (resp.status === "cancelled") patch.access_ends_at = row.status === "authenticated" && row.trial_end_at ? row.trial_end_at : nowIso;
+        await store.applyPatch(row.id, patch);
+        if (isTerminal(resp.status)) {
+          await store.markStopVerified(row.id, resp.status);
+          cancelled++;
+        }
+      }
+      rows = await store.listBlockingForUser(user.id);
+      if (rows.length > 0) {
+        logger.error("billing_deletion_prepare_incomplete", { userId: user.id, remaining: rows.length });
+        throw new ApiError(409, "cancellation_not_confirmed", "We could not confirm that your subscription has stopped. Please try again in a moment.");
+      }
+      return { ready: true, requires: "none", cancelled, subscription: null, accessEndsAt: null };
+    } catch (err) {
+      throw toApiError(err, "prepare_deletion");
+    }
+  }
+  const needsReconcile = (r) => {
+    const t3 = clock();
+    if (!r.razorpay_subscription_id || isTerminal(r.status)) return false;
+    const synced = r.razorpay_synced_at ? Date.parse(r.razorpay_synced_at) : 0;
+    if (t3 - synced < 6e4) return false;
+    if (r.status === "created") return !!r.expire_by && Date.parse(r.expire_by) < t3;
+    if (r.status === "authenticated") return !!r.trial_end_at && Date.parse(r.trial_end_at) < t3;
+    if (r.status === "pending" || r.status === "halted") return true;
+    if (r.status === "active" && r.cancel_at_cycle_end) return !!r.current_period_end && Date.parse(r.current_period_end) < t3;
+    return false;
+  };
+  async function getStatus(user) {
+    requireConfigured();
+    try {
+      let latest = await store.getLatestForUser(user.id);
+      if (latest && needsReconcile(latest)) {
+        try {
+          latest = await reconcileRow(latest);
+        } catch (err) {
+          logger.warn("billing_status_reconcile_failed", { userId: user.id, kind: err instanceof RazorpayError ? err.kind : "other" });
+        }
+      }
+      const entitlement = await store.getEntitlement(user.id, config.pendingGraceHours);
+      let trialEligible = false;
+      const hash = user.emailVerified && user.email && config.trialDays > 0 ? hashEmail(user.email, config.trialPepper) : void 0;
+      if (hash) trialEligible = await store.trialClaimAvailable(user.id, hash);
+      const t3 = clock();
+      const firstChargePreview = new Date(t3 + (config.authWindowMinutes + config.trialDays * 1440) * 6e4).toISOString();
+      return {
+        enforcement: config.enforcement,
+        emailVerified: user.emailVerified,
+        trial: { eligible: trialEligible, days: config.trialDays, firstChargePreviewAt: trialEligible ? firstChargePreview : null, verificationDebit: { amountPaise: VERIFICATION_DEBIT_PAISE, refundedAutomatically: true } },
+        plans: ["monthly", "annual"].map((k) => ({ key: k, amountPaise: config.plans[k].amountPaise, currency: "INR", billingPeriod: config.plans[k].period, interval: config.plans[k].interval })),
+        entitlement: { state: entitlement.state, hasAccess: entitlement.has_access, accessEndsAt: entitlement.access_ends_at },
+        subscription: latest ? toPublicSubscription(latest) : null
+      };
+    } catch (err) {
+      throw toApiError(err, "status");
+    }
+  }
+  async function listPayments(user) {
+    try {
+      const rows = await store.listPayments(user.id, 50);
+      return rows.map((p) => ({ id: p.id, kind: p.kind, status: p.status, amountPaise: p.amount_paise, amountRefundedPaise: p.amount_refunded_paise ?? 0, currency: p.currency, method: p.method, paidAt: p.paid_at, createdAt: p.created_at }));
+    } catch (err) {
+      throw toApiError(err, "payments");
+    }
+  }
+  async function handleWebhook(rawBody, signature, eventId) {
+    if (!config.webhookSecret) {
+      logger.error("billing_webhook_not_configured", {});
+      return { status: 503, body: { received: false, result: "not_configured" } };
+    }
+    if (!verifyWebhookSignature(rawBody, signature, config.webhookSecret)) return { status: 400, body: { received: false, result: "invalid_signature" } };
+    if (!eventId || eventId.length > 128 || !/^[A-Za-z0-9_.:-]+$/.test(eventId)) return { status: 400, body: { received: false, result: "missing_event_id" } };
+    let evt;
+    try {
+      evt = JSON.parse(rawBody.toString("utf8"));
+    } catch {
+      return { status: 400, body: { received: false, result: "invalid_json" } };
+    }
+    const type = typeof evt?.event === "string" ? evt.event.slice(0, 64) : "";
+    if (!type) return { status: 400, body: { received: false, result: "invalid_event" } };
+    const subId = typeof evt.payload?.subscription?.entity?.id === "string" && SUB_ID.test(evt.payload.subscription.entity.id) ? evt.payload.subscription.entity.id : null;
+    const payId = typeof evt.payload?.payment?.entity?.id === "string" && PAY_ID.test(evt.payload.payment.entity.id) ? evt.payload.payment.entity.id : null;
+    let gate;
+    try {
+      gate = await store.beginWebhookEvent({ eventId, eventType: type, razorpaySubscriptionId: subId, razorpayPaymentId: payId, payloadSha256: sha256Hex(rawBody), eventCreatedAt: iso(typeof evt.created_at === "number" ? evt.created_at : null) });
+    } catch (err) {
+      toApiError(err, "webhook_begin");
+      return { status: 500, body: { received: false, result: "store_unavailable" } };
+    }
+    if (gate === "duplicate") return { status: 200, body: { received: true, result: "duplicate" } };
+    if (gate === "in_progress") return { status: 409, body: { received: false, result: "in_progress" } };
+    const finish = async (outcome, code) => {
+      try {
+        await store.finishWebhookEvent(eventId, outcome, code);
+      } catch (err) {
+        logger.error("billing_webhook_finish_failed", { op: err instanceof BillingStoreError ? err.op : "unknown" });
+      }
+    };
+    if (!HANDLED_EVENTS.has(type) || !subId) {
+      await finish("ignored", !subId ? "no_subscription" : "unhandled_event");
+      return { status: 200, body: { received: true, result: "ignored" } };
+    }
+    try {
+      const row = await store.getByRazorpayId(subId);
+      if (!row) {
+        await finish("ignored", "unknown_subscription");
+        return { status: 200, body: { received: true, result: "ignored" } };
+      }
+      if (row.user_id === null && !row.billing_stop_verified_at) {
+        const stopped = await gateway.cancelSubscription(subId, false);
+        if (RAZORPAY_STATUSES.includes(stopped.status) && isTerminal(stopped.status)) {
+          await store.applyPatch(row.id, buildSyncPatch(row, stopped, clock()));
+          await store.markStopVerified(row.id, stopped.status);
+        }
+        logger.warn("billing_orphan_subscription_cancelled", { subscriptionRow: row.id, status: String(stopped.status).slice(0, 32) });
+        await finish("processed", "orphan_cancelled");
+        return { status: 200, body: { received: true, result: "orphan_cancelled" } };
+      }
+      const rzp = await gateway.fetchSubscription(subId);
+      const synced = await applyAndMaybeAuthorize(row, rzp);
+      if (payId && type === "subscription.charged" && synced.user_id) {
+        const pay = await gateway.fetchPayment(payId);
+        const rec = paymentRecord(synced, pay, "charge", clock());
+        if (rec) await store.recordPayment(rec);
+      }
+      await finish("processed", null);
+      return { status: 200, body: { received: true, result: "processed" } };
+    } catch (err) {
+      const e = toApiError(err, "webhook_process");
+      await finish("failed", e.code);
+      return { status: 500, body: { received: false, result: "failed" } };
+    }
+  }
+  async function reconcileBatch(limit = 50) {
+    const out = { checked: 0, updated: 0, failed: 0, unrefunded: 0, authPaymentMissing: 0, alerts: 0 };
+    const rows = await store.listReconcilable(new Date(clock()).toISOString(), limit);
+    for (const r of rows) {
+      out.checked++;
+      try {
+        await reconcileRow(r);
+        out.updated++;
+      } catch (err) {
+        out.failed++;
+        logger.warn("billing_reconcile_failed", { subscriptionRow: r.id, kind: err instanceof RazorpayError ? err.kind : "other" });
+      }
+    }
+    for (const a of await store.unrefundedAuthorizations(1440)) {
+      try {
+        const pay = await gateway.fetchPayment(a.razorpay_payment_id);
+        const row = await store.getById(a.subscription_id);
+        const rec = row ? paymentRecord(row, pay, "authorization", clock()) : null;
+        if (rec) await store.recordPayment(rec);
+        if (!rec || rec.status !== "refunded") {
+          out.unrefunded++;
+          logger.error("billing_authorization_not_refunded", { paymentRow: a.subscription_id, razorpayStatus: pay.status, refundStatus: pay.refund_status ?? null });
+        }
+      } catch (err) {
+        out.failed++;
+        logger.warn("billing_refund_check_failed", { kind: err instanceof RazorpayError ? err.kind : "other" });
+      }
+    }
+    const nowMs = clock();
+    try {
+      const missing = await store.authorizedWithoutAuthorizationPayment(new Date(nowMs - 7 * 864e5).toISOString(), new Date(nowMs - 36e5).toISOString(), 200);
+      for (const m of missing) {
+        out.authPaymentMissing++;
+        logger.error("billing_authorization_payment_missing", { subscriptionRow: m.id });
+      }
+    } catch (err) {
+      out.failed++;
+      logger.warn("billing_auth_missing_check_failed", { op: err instanceof BillingStoreError ? err.op : "other" });
+    }
+    out.alerts = out.unrefunded + out.authPaymentMissing;
+    if (out.alerts > 0) logger.error("billing_reconcile_alerts", { unrefunded: out.unrefunded, authPaymentMissing: out.authPaymentMissing });
+    return out;
+  }
+  async function checkEntitlement(userId) {
+    const e = await store.getEntitlement(userId, config.pendingGraceHours);
+    return { state: e.state, hasAccess: e.has_access };
+  }
+  return { checkEntitlement, createSubscription, verifyAuthorization, cancel, getStatus, listPayments, handleWebhook, reconcileRow, reconcileBatch, startRecovery, deletionCheck, prepareDeletion };
+}
+
+// src/server/billing/routes.ts
+function createLazyBilling(deps = {}) {
+  let cached;
+  return {
+    get() {
+      if (deps.service) return deps.service;
+      if (cached) return cached;
+      const config = deps.config ?? loadBillingConfig();
+      if (!config.configured) {
+        logger.error("billing_not_configured", { problems: config.problems });
+        return void 0;
+      }
+      cached = createBillingService({
+        config,
+        store: deps.store ?? createSupabaseBillingStore(config),
+        gateway: deps.gateway ?? createRazorpayGateway(config),
+        now: deps.now
+      });
+      return cached;
+    }
+  };
+}
+var NOT_CONFIGURED = (req, res) => sendError(req, res, 503, "billing_unavailable", "Billing is temporarily unavailable. Please try again shortly.", { "Retry-After": "10" });
+function installBillingWebhook(app, deps) {
+  const lazy = createLazyBilling(deps);
+  const now = deps.now ?? Date.now;
+  const path = "/api/billing/webhook";
+  app.post(
+    path,
+    requestContext,
+    (_req, res, next) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      next();
+    },
+    createRateLimiter({ name: "billing-webhook-ip", windowMs: 6e4, max: deps.ipPerMin ?? 120, key: (req) => req.ip ?? "unknown", store: deps.rateStore, now, alwaysClosed: () => true }),
+    express.raw({ type: "application/json", limit: "256kb" }),
+    async (req, res, next) => {
+      try {
+        if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+          logger.warn("billing_webhook_no_raw_body", { requestId: req.requestId, contentType: String(req.headers["content-type"] ?? "").slice(0, 40) });
+          return sendError(req, res, 400, "raw_body_unavailable", "Webhook body could not be read.");
+        }
+        const svc = lazy.get();
+        if (!svc) return NOT_CONFIGURED(req, res);
+        const sig = req.get("x-razorpay-signature");
+        const eventId = req.get("x-razorpay-event-id");
+        const r = await svc.handleWebhook(req.body, sig, eventId);
+        res.status(r.status).json({ success: r.body.received, result: r.body.result, requestId: req.requestId });
+      } catch (err) {
+        next(err);
+      }
+    }
+  );
+}
+var handler = (fn, lazy) => async (req, res, next) => {
+  try {
+    const svc = lazy.get();
+    if (!svc) return NOT_CONFIGURED(req, res);
+    if (!req.user) return sendError(req, res, 401, "auth_required", "Authentication required.");
+    res.setHeader("Cache-Control", "no-store");
+    await fn(svc, req, res);
+  } catch (err) {
+    next(err);
+  }
+};
+function createBillingEntitlementGate(deps = {}) {
+  const lazy = createLazyBilling(deps);
+  const config = deps.config ?? loadBillingConfig();
+  const mode = config.enforcement;
+  if (config.problems.some((p) => p.startsWith("BILLING_ENFORCEMENT"))) logger.error("billing_enforcement_invalid", { effectiveMode: mode });
+  return createEntitlementGate({ mode, check: async (userId) => lazy.get()?.checkEntitlement(userId) });
+}
+function registerBillingRoutes(app, deps = {}) {
+  const lazy = createLazyBilling(deps);
+  app.get("/api/billing/status", handler(async (s, req, res) => res.json({ success: true, ...await s.getStatus(req.user) }), lazy));
+  app.get("/api/billing/payments", handler(async (s, req, res) => res.json({ success: true, payments: await s.listPayments(req.user) }), lazy));
+  app.post("/api/billing/subscriptions", handler(async (s, req, res) => res.json({ success: true, ...await s.createSubscription(req.user, req.body.planKey) }), lazy));
+  app.post("/api/billing/subscriptions/verify", handler(async (s, req, res) => res.json({ success: true, ...await s.verifyAuthorization(req.user, req.body) }), lazy));
+  app.post("/api/billing/subscriptions/cancel", handler(async (s, req, res) => res.json({ success: true, ...await s.cancel(req.user) }), lazy));
+  app.post("/api/billing/subscriptions/recover", handler(async (s, req, res) => res.json({ success: true, ...await s.startRecovery(req.user) }), lazy));
+  app.get("/api/billing/account/deletion-check", handler(async (s, req, res) => res.json({ success: true, ...await s.deletionCheck(req.user) }), lazy));
+  app.post("/api/billing/account/prepare-deletion", handler(async (s, req, res) => res.json({ success: true, ...await s.prepareDeletion(req.user, { confirmCancelPaidNow: req.body?.confirmCancelPaidNow === true }) }), lazy));
+}
+
+// src/server/security/auth.ts
+import { createClient as createClient2 } from "@supabase/supabase-js";
+var accessTokens = /* @__PURE__ */ new WeakMap();
+var getAccessToken = (req) => accessTokens.get(req);
+function createSupabaseVerifier(cfg) {
+  let client = null;
+  return async (token) => {
+    if (!cfg.supabaseUrl || !cfg.supabaseKey) return { ok: false, reason: "not_configured" };
+    client ??= createClient2(cfg.supabaseUrl, cfg.supabaseKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    });
+    try {
+      const { data, error } = await client.auth.getUser(token);
+      if (error) {
+        const status = error.status;
+        const retryable = error.name === "AuthRetryableFetchError" || status === 0 || typeof status === "number" && status >= 500;
+        if (retryable) {
+          logger.warn("auth_upstream_unavailable", { err: serializeError(error) });
+          return { ok: false, reason: "unavailable" };
+        }
+        return { ok: false, reason: "invalid" };
+      }
+      if (!data.user?.id) return { ok: false, reason: "invalid" };
+      return {
+        ok: true,
+        user: { id: data.user.id, email: data.user.email ?? void 0, emailVerified: Boolean(data.user.email_confirmed_at) }
+      };
+    } catch (err) {
+      logger.warn("auth_upstream_unavailable", { err: serializeError(err) });
+      return { ok: false, reason: "unavailable" };
+    }
+  };
+}
+var BEARER2 = /^Bearer ([A-Za-z0-9\-._~+/]+=*)$/;
+var MAX_TOKEN_LENGTH = 4096;
+var PUBLIC = /* @__PURE__ */ new Set(["GET /health", "HEAD /health"]);
+function isExpired(token, nowMs) {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
+    return typeof payload.exp === "number" && payload.exp * 1e3 <= nowMs;
+  } catch {
+    return false;
+  }
+}
+function createAuthMiddleware({ config, verify, failureStore, now = Date.now }) {
+  const failKey = (req) => `authfail:${req.ip ?? "unknown"}`;
+  const recordFailure = async (req) => {
+    await failureStore.hit(failKey(req), config.authFailWindowMs);
+  };
+  return async function authenticate(req, res, next) {
+    if (req.method === "OPTIONS" || PUBLIC.has(`${req.method} ${req.path}`)) return next();
+    try {
+      const prior = await failureStore.peek(failKey(req));
+      if (prior && prior.count >= config.authFailMax) {
+        const retry = Math.max(1, Math.ceil((prior.resetAt - now()) / 1e3));
+        return sendError(req, res, 429, "too_many_auth_failures", "Too many failed authentication attempts. Try again later.", { "Retry-After": String(retry) });
+      }
+      const header = req.get("authorization");
+      if (!header) {
+        await recordFailure(req);
+        return sendError(req, res, 401, "auth_required", "Authentication required.", { "WWW-Authenticate": "Bearer" });
+      }
+      const match = BEARER2.exec(header);
+      const token = match?.[1];
+      if (!token || token.length > MAX_TOKEN_LENGTH || token.split(".").length !== 3) {
+        await recordFailure(req);
+        return sendError(req, res, 401, "invalid_token", "Invalid authentication token.", { "WWW-Authenticate": 'Bearer error="invalid_token"' });
+      }
+      if (isExpired(token, now())) {
+        await recordFailure(req);
+        return sendError(req, res, 401, "token_expired", "Your session has expired. Please sign in again.", { "WWW-Authenticate": 'Bearer error="invalid_token"' });
+      }
+      let result;
+      try {
+        result = await verify(token);
+      } catch (err) {
+        logger.warn("auth_verifier_threw", { requestId: req.requestId, err: serializeError(err) });
+        result = { ok: false, reason: "unavailable" };
+      }
+      if (!result.ok) {
+        if (result.reason === "not_configured") {
+          logger.error("auth_not_configured", { requestId: req.requestId });
+          return sendError(req, res, 503, "auth_unavailable", "Authentication is temporarily unavailable.");
+        }
+        if (result.reason === "unavailable") {
+          return sendError(req, res, 503, "auth_unavailable", "Authentication is temporarily unavailable. Please try again.", { "Retry-After": "5" });
+        }
+        await recordFailure(req);
+        return sendError(req, res, 401, "invalid_token", "Invalid authentication token.", { "WWW-Authenticate": 'Bearer error="invalid_token"' });
+      }
+      if (config.requireVerifiedEmail && !result.user.emailVerified) {
+        return sendError(req, res, 403, "email_not_verified", "Please verify your email address to use this feature.");
+      }
+      req.user = result.user;
+      accessTokens.set(req, token);
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
+// src/server/security/config.ts
+function int2(raw, fallback, min = 1) {
+  const n2 = raw === void 0 || raw.trim() === "" ? NaN : Number(raw);
+  return Number.isInteger(n2) && n2 >= min ? n2 : fallback;
+}
+function bool(raw) {
+  return ["1", "true", "yes", "on"].includes((raw ?? "").trim().toLowerCase());
+}
+function normaliseOrigin(raw) {
+  try {
+    const u = new URL(raw.trim());
+    if (!["http:", "https:", "capacitor:", "ionic:"].includes(u.protocol)) return null;
+    return u.origin === "null" ? `${u.protocol}//${u.host}` : u.origin;
+  } catch {
+    return null;
+  }
+}
+var CAPACITOR_ORIGINS = ["capacitor://localhost", "https://localhost", "http://localhost"];
+var DEV_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://localhost:8080"];
+function loadSecurityConfig(env = process.env) {
+  const production = env.NODE_ENV === "production";
+  const origins2 = /* @__PURE__ */ new Set();
+  const add = (raw) => {
+    const o = raw ? normaliseOrigin(raw) : null;
+    if (o) origins2.add(o);
+  };
+  (env.CORS_ALLOWED_ORIGINS ?? "").split(",").forEach(add);
+  add(env.APP_URL);
+  add(env.VITE_SITE_URL);
+  if (bool(env.CORS_ALLOW_CAPACITOR)) CAPACITOR_ORIGINS.forEach(add);
+  if (!production) DEV_ORIGINS.forEach(add);
+  let quotaOverrides = {};
+  if (env.AI_QUOTA_OVERRIDES) {
+    try {
+      const parsed = JSON.parse(env.AI_QUOTA_OVERRIDES);
+      for (const [k, v] of Object.entries(parsed)) {
+        if (typeof v === "number" && Number.isInteger(v) && v >= 0) quotaOverrides[k] = v;
+      }
+    } catch {
+      quotaOverrides = {};
+    }
+  }
+  const proxy = (env.TRUST_PROXY ?? "").trim().toLowerCase();
+  const trustProxy = proxy === "" || proxy === "false" ? false : /^\d+$/.test(proxy) ? Number(proxy) : false;
+  const problems = [];
+  const warnings = [];
+  const rawStore = (env.RATE_LIMIT_STORE ?? "").trim().toLowerCase();
+  let rateStore;
+  if (rawStore === "") {
+    rateStore = production ? "redis" : "memory";
+  } else if (rawStore === "memory" || rawStore === "redis") {
+    rateStore = rawStore;
+  } else {
+    problems.push('RATE_LIMIT_STORE must be "memory" or "redis".');
+    rateStore = production ? "redis" : "memory";
+  }
+  const rawPolicy = (env.RATE_LIMIT_FAILURE_POLICY ?? "").trim().toLowerCase();
+  let rateFailurePolicy = "closed";
+  if (rawPolicy === "degraded") rateFailurePolicy = "degraded";
+  else if (rawPolicy !== "" && rawPolicy !== "closed") problems.push('RATE_LIMIT_FAILURE_POLICY must be "closed" or "degraded".');
+  const redisUrl = (env.REDIS_URL ?? "").trim() || void 0;
+  if (rateStore === "redis") {
+    if (!redisUrl) problems.push("REDIS_URL is required when RATE_LIMIT_STORE=redis (the production default).");
+    else if (!/^rediss?:\/\//i.test(redisUrl)) problems.push("REDIS_URL must start with redis:// or rediss://.");
+    else if (production && /^redis:\/\//i.test(redisUrl) && !/^redis:\/\/([^@/]*@)?(localhost|127\.0\.0\.1|\[::1\])([:/]|$)/i.test(redisUrl)) {
+      warnings.push("REDIS_URL uses unencrypted redis:// to a non-local host; prefer rediss:// (TLS).");
+    }
+  } else {
+    if (redisUrl) warnings.push("REDIS_URL is set but RATE_LIMIT_STORE=memory; Redis will not be used.");
+    if (rateFailurePolicy === "degraded") warnings.push("RATE_LIMIT_FAILURE_POLICY=degraded has no effect with RATE_LIMIT_STORE=memory.");
+    if (production) warnings.push("Production is using the per-process memory rate store: limits are not shared between instances and reset on restart.");
+  }
+  const supabaseUrl = (env.SUPABASE_URL || env.VITE_SUPABASE_URL || "").trim() || void 0;
+  const supabaseKey = (env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY || "").trim() || void 0;
+  const rawQuota = (env.QUOTA_STORE ?? "").trim().toLowerCase();
+  let quotaStore;
+  if (rawQuota === "") {
+    quotaStore = production ? "supabase" : "memory";
+  } else if (rawQuota === "memory" || rawQuota === "supabase") {
+    quotaStore = rawQuota;
+  } else {
+    problems.push('QUOTA_STORE must be "memory" or "supabase".');
+    quotaStore = production ? "supabase" : "memory";
+  }
+  const rawQuotaPolicy = (env.QUOTA_FAILURE_POLICY ?? "").trim().toLowerCase();
+  let quotaFailurePolicy = "closed";
+  if (rawQuotaPolicy === "degraded") quotaFailurePolicy = "degraded";
+  else if (rawQuotaPolicy !== "" && rawQuotaPolicy !== "closed") problems.push('QUOTA_FAILURE_POLICY must be "closed" or "degraded".');
+  if (quotaStore === "supabase") {
+    if (!supabaseUrl || !supabaseKey) problems.push("QUOTA_STORE=supabase (the production default) requires SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or the VITE_ equivalents).");
+    if (quotaFailurePolicy === "degraded") {
+      warnings.push("QUOTA_FAILURE_POLICY=degraded: if the quota store fails, daily limits count per instance (not shared); extract-plan and physique routes still fail closed.");
+    }
+  } else {
+    if (quotaFailurePolicy === "degraded") warnings.push("QUOTA_FAILURE_POLICY=degraded has no effect with QUOTA_STORE=memory.");
+    if (production) warnings.push("Production is using the per-process memory quota store: daily limits are not shared between instances and reset on restart.");
+  }
+  return {
+    production,
+    rateStore,
+    redisUrl,
+    rateFailurePolicy,
+    problems,
+    warnings,
+    supabaseUrl,
+    supabaseKey,
+    requireVerifiedEmail: bool(env.AUTH_REQUIRE_VERIFIED_EMAIL),
+    trustProxy,
+    corsOrigins: [...origins2],
+    rateIpPerMin: int2(env.RATE_LIMIT_IP_PER_MIN, 300),
+    rateUserPerMin: int2(env.RATE_LIMIT_USER_PER_MIN, 120),
+    authFailMax: int2(env.AUTH_FAIL_MAX, 30),
+    authFailWindowMs: int2(env.AUTH_FAIL_WINDOW_SEC, 900) * 1e3,
+    quotaOverrides,
+    quotaStore,
+    quotaFailurePolicy
+  };
+}
+
+// src/server/security/cors.ts
+var METHODS = "GET, POST, OPTIONS";
+var ALLOWED_HEADERS = "Authorization, Content-Type, Accept, X-Request-Id";
+var EXPOSED_HEADERS = "X-Request-Id, Retry-After, RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, X-Quota-Limit, X-Quota-Remaining";
+function sameHost(origin, req) {
+  try {
+    return new URL(origin).host === req.get("host");
+  } catch {
+    return false;
+  }
+}
+function createCors(config) {
+  const allowed = new Set(config.corsOrigins);
+  return function cors(req, res, next) {
+    res.vary("Origin");
+    const origin = req.get("origin");
+    if (!origin) {
+      if (req.method === "OPTIONS") return res.status(204).end();
+      return next();
+    }
+    if (!allowed.has(origin) && !sameHost(origin, req)) {
+      return sendError(req, res, 403, "origin_not_allowed", "Origin not allowed.");
+    }
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Expose-Headers", EXPOSED_HEADERS);
+    if (req.method === "OPTIONS") {
+      res.setHeader("Access-Control-Allow-Methods", METHODS);
+      res.setHeader("Access-Control-Allow-Headers", ALLOWED_HEADERS);
+      res.setHeader("Access-Control-Max-Age", "600");
+      return res.status(204).end();
+    }
+    next();
+  };
 }
 
 // src/server/security/headers.ts
@@ -1190,11 +2400,14 @@ function origins(url) {
     return { https: [], wss: [] };
   }
 }
+var RAZORPAY_SCRIPT_ORIGIN = "https://checkout.razorpay.com";
+var RAZORPAY_FRAME_ORIGINS = ["https://api.razorpay.com", "https://checkout.razorpay.com"];
 function buildCsp(config) {
   const sb = origins(config.supabaseUrl);
   return {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
+    scriptSrc: ["'self'", "'wasm-unsafe-eval'", RAZORPAY_SCRIPT_ORIGIN],
+    frameSrc: ["'self'", ...RAZORPAY_FRAME_ORIGINS],
     styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
     fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
     imgSrc: ["'self'", "data:", "blob:", ...sb.https],
@@ -1230,7 +2443,7 @@ function createSecurityHeaders(config) {
 }
 
 // src/server/security/jsonBody.ts
-import express from "express";
+import express2 from "express";
 function createJsonBody() {
   const parsers = /* @__PURE__ */ new Map();
   return (req, res, next) => {
@@ -1238,7 +2451,7 @@ function createJsonBody() {
     const limit = policy?.bodyLimit ?? "16kb";
     let parser = parsers.get(limit);
     if (!parser) {
-      parser = express.json({ limit, strict: true, type: "application/json" });
+      parser = express2.json({ limit, strict: true, type: "application/json" });
       parsers.set(limit, parser);
     }
     parser(req, res, next);
@@ -1246,7 +2459,7 @@ function createJsonBody() {
 }
 
 // src/server/security/quota.ts
-import { createClient as createClient2 } from "@supabase/supabase-js";
+import { createClient as createClient3 } from "@supabase/supabase-js";
 var MemoryQuotaStore = class {
   constructor() {
     this.counts = /* @__PURE__ */ new Map();
@@ -1277,7 +2490,7 @@ var SupabaseQuotaStore = class {
     if (!accessToken) throw new QuotaStoreUnavailableError("no_token");
     let data;
     try {
-      const client = createClient2(this.cfg.supabaseUrl, this.cfg.supabaseKey, {
+      const client = createClient3(this.cfg.supabaseUrl, this.cfg.supabaseKey, {
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
         global: { headers: { Authorization: `Bearer ${accessToken}` } }
       });
@@ -1369,130 +2582,6 @@ function createQuotaGate(opts) {
   };
 }
 
-// src/server/security/rateLimit.ts
-var RateStoreUnavailableError = class extends ApiError {
-  constructor() {
-    super(503, "rate_limit_unavailable", "Request protection is temporarily unavailable. Please try again shortly.", { "Retry-After": "5" });
-    this.name = "RateStoreUnavailableError";
-  }
-};
-var MemoryRateStore = class {
-  constructor(now = Date.now, maxKeys = 5e4) {
-    this.now = now;
-    this.maxKeys = maxKeys;
-    this.entries = /* @__PURE__ */ new Map();
-  }
-  purge() {
-    const t3 = this.now();
-    for (const [k, v] of this.entries) if (v.resetAt <= t3) this.entries.delete(k);
-    while (this.entries.size > this.maxKeys) {
-      const first = this.entries.keys().next().value;
-      if (first === void 0) break;
-      this.entries.delete(first);
-    }
-  }
-  async hit(key, windowMs) {
-    const t3 = this.now();
-    if (this.entries.size >= this.maxKeys) this.purge();
-    const cur = this.entries.get(key);
-    if (!cur || cur.resetAt <= t3) {
-      const fresh = { count: 1, resetAt: t3 + windowMs };
-      this.entries.set(key, fresh);
-      return { ...fresh };
-    }
-    cur.count += 1;
-    return { ...cur };
-  }
-  async peek(key) {
-    const cur = this.entries.get(key);
-    return cur && cur.resetAt > this.now() ? { ...cur } : void 0;
-  }
-};
-var DegradingRateStore = class {
-  constructor(primary, fallback, now = Date.now, logEveryMs = 1e4) {
-    this.primary = primary;
-    this.fallback = fallback;
-    this.now = now;
-    this.logEveryMs = logEveryMs;
-    this.lastLogAt = 0;
-    this.degradedCalls = 0;
-  }
-  note() {
-    this.degradedCalls += 1;
-    const t3 = this.now();
-    if (t3 - this.lastLogAt >= this.logEveryMs) {
-      logger.error("rate_limit_degraded", {
-        mode: "degraded",
-        distributed: false,
-        callsSinceLastLog: this.degradedCalls,
-        note: "shared rate-limit store unavailable; counting per-instance only"
-      });
-      this.lastLogAt = t3;
-      this.degradedCalls = 0;
-    }
-  }
-  async hit(key, windowMs) {
-    try {
-      return await this.primary.hit(key, windowMs);
-    } catch (err) {
-      if (!(err instanceof RateStoreUnavailableError)) throw err;
-      this.note();
-      return { ...await this.fallback.hit(key, windowMs), degraded: true };
-    }
-  }
-  async peek(key) {
-    try {
-      return await this.primary.peek(key);
-    } catch (err) {
-      if (!(err instanceof RateStoreUnavailableError)) throw err;
-      this.note();
-      const r = await this.fallback.peek(key);
-      return r ? { ...r, degraded: true } : void 0;
-    }
-  }
-};
-function createRateLimiter(opts) {
-  const now = opts.now ?? Date.now;
-  return async function limiter(req, res, next) {
-    try {
-      const id = opts.key(req);
-      if (!id) return next();
-      const max = typeof opts.max === "function" ? opts.max(req) : opts.max;
-      let hit;
-      try {
-        hit = await opts.store.hit(`${opts.name}:${id}`, opts.windowMs);
-      } catch (err) {
-        if (err instanceof RateStoreUnavailableError && opts.failOpen?.(req)) return next();
-        throw err;
-      }
-      if (hit.degraded) {
-        if (!opts.failOpen?.(req)) res.setHeader("X-RateLimit-Mode", "degraded");
-        if (opts.alwaysClosed?.(req)) throw new RateStoreUnavailableError();
-      }
-      const retryAfter = Math.max(1, Math.ceil((hit.resetAt - now()) / 1e3));
-      res.setHeader("RateLimit-Limit", String(max));
-      res.setHeader("RateLimit-Remaining", String(Math.max(0, max - hit.count)));
-      res.setHeader("RateLimit-Reset", String(retryAfter));
-      if (hit.count > max) {
-        return sendError(req, res, 429, "rate_limited", "Too many requests. Please slow down and try again shortly.", { "Retry-After": String(retryAfter) });
-      }
-      next();
-    } catch (err) {
-      next(err);
-    }
-  };
-}
-
-// src/server/security/requestContext.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
-var SAFE_ID = /^[A-Za-z0-9._-]{8,64}$/;
-function requestContext(req, res, next) {
-  const inbound = req.header("x-request-id");
-  req.requestId = inbound && SAFE_ID.test(inbound) ? inbound : randomUUID2();
-  res.setHeader("X-Request-Id", req.requestId);
-  next();
-}
-
 // src/server/security/index.ts
 var isHealth = (req) => (req.method === "GET" || req.method === "HEAD") && req.path === "/health";
 function installSecurity(app, deps = {}) {
@@ -1558,6 +2647,7 @@ function installSecurity(app, deps = {}) {
   );
   app.use("/api", createJsonBody());
   app.use("/api", (req, res, next) => validateBody(res.locals.policy?.schema)(req, res, next));
+  if (deps.entitlementGate) app.use("/api", deps.entitlementGate);
   app.use("/api", createQuotaGate({ store: quotaStore, config, now, policyFor: (req) => resolvePolicy(req.method, req.path) }));
   return config;
 }
@@ -1830,8 +2920,10 @@ function capFreeText(value, max, fallback = "") {
 var COACH_MAX_OUTPUT_TOKENS = 4096;
 var COACH_TIMEOUT_MS = 45e3;
 function createApp(deps = {}) {
-  const app = express2();
-  installSecurity(app, deps);
+  const app = express3();
+  installBillingWebhook(app, { ...deps.billing, rateStore: deps.rateStore ?? new MemoryRateStore(deps.now ?? Date.now), now: deps.now });
+  installSecurity(app, { ...deps, entitlementGate: deps.entitlementGate ?? createBillingEntitlementGate(deps.billing) });
+  registerBillingRoutes(app, { ...deps.billing, now: deps.now });
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", time: (/* @__PURE__ */ new Date()).toISOString() });
   });
@@ -3310,8 +4402,8 @@ Generate an exhaustive, scientifically rigorous transformation roadmap strictly 
 }
 
 // src/server/security/redisRateStore.ts
-import { createHash } from "node:crypto";
-import { createClient as createClient3, defineScript } from "redis";
+import { createHash as createHash2 } from "node:crypto";
+import { createClient as createClient4, defineScript } from "redis";
 var HIT_SCRIPT = `
 local c = redis.call('INCR', KEYS[1])
 local ttl = redis.call('PTTL', KEYS[1])
@@ -3353,7 +4445,7 @@ function isValidKeyPrefix(prefix) {
 function buildRedisKey(prefix, rawKey) {
   const sep = rawKey.indexOf(":");
   const label = (sep > 0 ? rawKey.slice(0, sep) : "k").toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 24) || "k";
-  const digest = createHash("sha256").update(rawKey, "utf8").digest("base64url").slice(0, 32);
+  const digest = createHash2("sha256").update(rawKey, "utf8").digest("base64url").slice(0, 32);
   return `${prefix}:rl:${label}:${digest}`;
 }
 function redactRedisUrl(raw) {
@@ -3388,7 +4480,7 @@ var RedisRateStore = class {
   /** Builds a client and starts connecting in the background; requests are refused (not queued) until it is ready. */
   openClient() {
     const opts = this.options;
-    const client = createClient3({
+    const client = createClient4({
       url: opts.url,
       // Commands fail immediately while disconnected instead of queueing until reconnect: a request must get its
       // 503 (or its degraded decision) now, not after an unbounded wait.
@@ -3699,7 +4791,7 @@ function normalizeRewrittenUrl(url) {
 
 // src/server/serverless/handler.ts
 function createHandler(getApp2) {
-  return async function handler(req, res) {
+  return async function handler2(req, res) {
     req.url = normalizeRewrittenUrl(req.url ?? "/");
     let app;
     try {

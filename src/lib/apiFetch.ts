@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase';
+import { announceBillingRefusal } from './billingGate';
 
 /**
  * Authenticated fetch for IRONLOG's own backend (`/api/*`). Every internal API call goes through this wrapper so the
@@ -11,6 +12,7 @@ import { getSupabase } from './supabase';
  *   still sent, without a token, and the server answers 401 authoritatively; the signed-out UI cannot reach these calls.
  * - On a 401 it refreshes the session once and retries once (only when the body is replayable).
  * - Request bodies, other headers, signals and the Response are passed through unchanged.
+ * - A 402 `subscription_required` / 503 `billing_unavailable` from the entitlement gate is announced app-wide (see billingGate.ts).
  */
 export interface ApiFetchOptions {
   /** Defaults to the global fetch, read at call time so tests can stub it. */
@@ -65,8 +67,13 @@ export async function apiFetch(input: string, init: RequestInit = {}, options: A
   };
 
   const first = await send(await currentAccessToken());
-  if (first.status !== 401 || !replayable(init.body) || init.signal?.aborted) return first;
-
-  const refreshed = await currentAccessToken(true);
-  return refreshed ? send(refreshed) : first;
+  let result = first;
+  if (first.status === 401 && replayable(init.body) && !init.signal?.aborted) {
+    const refreshed = await currentAccessToken(true);
+    if (refreshed) result = await send(refreshed);
+  }
+  // 402 subscription_required / 503 billing_unavailable from the server's entitlement gate: announce once for the whole app.
+  // The Response is returned unchanged, so every caller keeps its own handling and offline fallback.
+  announceBillingRefusal(url, result);
+  return result;
 }

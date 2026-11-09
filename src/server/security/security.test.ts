@@ -58,7 +58,11 @@ describe('SEC-01 authentication', () => {
   it('registers every /api route in the endpoint policy table (no route can bypass limits/validation)', async () => {
     const app = createApp({ verifyToken: mockVerifier, config: testConfig() }) as any;
     const routes = (app._router.stack as any[]).filter((l) => l.route).flatMap((l) => Object.keys(l.route.methods).map((m) => ({ method: m.toUpperCase(), path: String(l.route.path) })));
-    const api = routes.filter((r) => r.path.startsWith('/api/') && r.path !== '/api/health');
+    // The Razorpay webhook is the ONE documented exception: it cannot carry a Supabase JWT, so it authenticates by HMAC over the raw
+    // body and is mounted before this pipeline (docs/billing/STAGE1_ARCHITECTURE.md section 6; behaviour covered in billing/routes.test.ts).
+    const WEBHOOK = 'POST /api/billing/webhook';
+    expect(routes.some((r) => `${r.method} ${r.path}` === WEBHOOK)).toBe(true);
+    const api = routes.filter((r) => r.path.startsWith('/api/') && r.path !== '/api/health' && `${r.method} ${r.path}` !== WEBHOOK);
     expect(api.length).toBeGreaterThanOrEqual(16);
     for (const r of api) {
       const p = r.path.replace(/^\/api/, '').replace(':barcode', '5449000000996');
@@ -535,6 +539,17 @@ describe('SEC-05 CORS and security headers', () => {
     expect(csp).not.toMatch(/(?<!wasm-)'unsafe-eval'/);
     expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/);
     expect(csp).not.toMatch(/(?:^|[ ;])\*(?:[ ;]|$)/);
+  });
+
+  it('production CSP allows Razorpay Checkout only through script-src and frame-src, nothing broader', async () => {
+    await boot({ config: testConfig({ production: true, supabaseUrl: 'https://abc.supabase.co' }) });
+    const csp = (await get('/health', {})).headers.get('content-security-policy')!;
+    const directive = (name: string) => (csp.split(';').map((d) => d.trim()).find((d) => d.startsWith(`${name} `)) ?? '').split(' ').slice(1);
+    expect(directive('script-src')).toEqual(["'self'", "'wasm-unsafe-eval'", 'https://checkout.razorpay.com']);
+    expect(directive('frame-src')).toEqual(["'self'", 'https://api.razorpay.com', 'https://checkout.razorpay.com']);
+    // Everything else is unchanged: no Razorpay origin leaks into any other directive.
+    for (const d of ['default-src', 'connect-src', 'img-src', 'style-src', 'form-action', 'frame-ancestors']) expect(directive(d).join(' ')).not.toContain('razorpay');
+    expect(csp).toContain("frame-ancestors 'none'");
   });
 
   it('does not apply the (production) CSP in development so Vite HMR keeps working', async () => {

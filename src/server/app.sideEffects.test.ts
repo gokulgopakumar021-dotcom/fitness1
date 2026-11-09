@@ -151,7 +151,14 @@ describe('createApp route inventory (all 17 routes preserved)', () => {
     const registered = stack
       .filter((layer) => layer.route)
       .flatMap((layer) => Object.keys(layer.route.methods).map((m) => `${m.toUpperCase()} ${layer.route.path}`));
-    expect(registered.sort()).toEqual([...EXPECTED].sort());
-    expect(registered).toHaveLength(17);
+    // The original 17 routes are unchanged. Billing routes (Stage 2) are added and pinned separately below.
+    const original = registered.filter((r) => !r.includes('/api/billing/'));
+    expect(original.sort()).toEqual([...EXPECTED].sort());
+    expect(original).toHaveLength(17);
+    expect(registered.filter((r) => r.includes('/api/billing/')).sort()).toEqual([
+      'GET /api/billing/account/deletion-check', 'GET /api/billing/payments', 'GET /api/billing/status', 'POST /api/billing/account/prepare-deletion',
+      'POST /api/billing/subscriptions', 'POST /api/billing/subscriptions/cancel', 'POST /api/billing/subscriptions/recover',
+      'POST /api/billing/subscriptions/verify', 'POST /api/billing/webhook'
+    ]);
   });
 });
