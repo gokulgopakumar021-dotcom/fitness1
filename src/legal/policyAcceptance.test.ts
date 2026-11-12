@@ -9,11 +9,12 @@ import {
 import { LEGAL, POLICY_VERSION_PATTERN } from './legalConfig';
 
 describe('policy acceptance helpers', () => {
-  it('sign-up metadata carries both current versions and a timestamp, and nothing else personal', () => {
-    const meta = buildSignupAcceptanceMetadata(new Date('2026-11-11T10:00:00.000Z'));
+  it('sign-up metadata carries both current versions and NO client timestamp or anything else personal', () => {
+    const meta = buildSignupAcceptanceMetadata();
     expect(meta).toEqual({
-      legal_acceptance: { terms_version: LEGAL.termsVersion, privacy_version: LEGAL.privacyVersion, accepted_at_client: '2026-11-11T10:00:00.000Z' }
+      legal_acceptance: { terms_version: LEGAL.termsVersion, privacy_version: LEGAL.privacyVersion }
     });
+    expect(JSON.stringify(meta)).not.toContain('accepted_at');
     const v = currentPolicyVersions();
     expect(v.termsVersion).toMatch(POLICY_VERSION_PATTERN);
     expect(v.privacyVersion).toMatch(POLICY_VERSION_PATTERN);

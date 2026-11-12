@@ -4,8 +4,9 @@ import { LEGAL } from './legalConfig';
 /**
  * Terms / Privacy acceptance helpers (Stage 2B).
  *
- * - Sign-up: the browser adds `legal_acceptance` to the sign-up metadata. A database trigger (migration
- *   20261111000000_legal_acceptances.sql) copies the versions into public.legal_acceptances with the DATABASE clock.
+ * - Sign-up: the browser adds `legal_acceptance` to the sign-up metadata. A strict database trigger (migrations
+ *   20261111000000 + 20261112000000) rejects sign-ups without the CURRENT versions and copies them into
+ *   public.legal_acceptances with the DATABASE clock. The checkbox is only the UI; the database is the enforcement.
  * - Existing users: a one-time notice calls the acknowledge_legal_update() function. Showing the notice records nothing.
  * - Checking "do I need to show the notice" fails SAFE: any error (table not migrated yet, offline, ...) means "unknown",
  *   and unknown never shows the notice and never blocks the app.
@@ -23,16 +24,15 @@ export const currentPolicyVersions = (): PolicyVersions => ({
 });
 
 /**
- * Metadata sent with sign-up. `accepted_at_client` is only a secondary, browser-clock reference; the authoritative
- * timestamp is the database clock on the legal_acceptances row.
+ * Metadata sent with sign-up: the versions shown to the user. The server validates them against its own allowlist
+ * (public.legal_policy_versions) and stamps the time with the database clock; no client timestamp is sent or trusted.
  */
-export function buildSignupAcceptanceMetadata(now: Date = new Date()): Record<string, unknown> {
+export function buildSignupAcceptanceMetadata(): Record<string, unknown> {
   const v = currentPolicyVersions();
   return {
     [LEGAL_ACCEPTANCE_METADATA_KEY]: {
       terms_version: v.termsVersion,
-      privacy_version: v.privacyVersion,
-      accepted_at_client: now.toISOString()
+      privacy_version: v.privacyVersion
     }
   };
 }

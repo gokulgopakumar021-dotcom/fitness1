@@ -256,11 +256,11 @@ describe('sign up', () => {
     await submit();
     const arg = h.client.auth.signUp.mock.calls[0][0];
     // New accounts are also tagged for post-signup plan selection (UI routing only; see lib/billingOnboarding.ts).
-    // The accepted policy versions ride along; the database trigger records them with the database clock.
+    // The accepted policy versions ride along; the database validates them and records them with the database clock (no client timestamp is sent).
     expect(arg.options.data).toEqual({
       full_name: 'Al Lifter',
       billing_onboarding: 'pending',
-      legal_acceptance: { terms_version: LEGAL.termsVersion, privacy_version: LEGAL.privacyVersion, accepted_at_client: expect.stringMatching(/^\d{4}-\d\d-\d\dT/) }
+      legal_acceptance: { terms_version: LEGAL.termsVersion, privacy_version: LEGAL.privacyVersion }
     });
     expect(arg.options.emailRedirectTo).toMatch(/\/$/);
     expect(text()).toContain('Check your email');
