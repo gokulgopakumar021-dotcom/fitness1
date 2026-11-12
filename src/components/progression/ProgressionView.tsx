@@ -62,6 +62,7 @@ import {
   weightPrHistory
 } from '../../utils/progressionPresentation';
 import { apiFetch } from '../../lib/apiFetch';
+import { AiNotice } from '../legal/AiNotice';
 
 /** Signed change with an arrow icon and screen-reader text, so direction never relies on colour alone. */
 const DeltaChip: React.FC<{ value: number; suffix?: string }> = ({ value, suffix = '' }) => {
@@ -657,6 +658,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
             {isAdjustingPlanRules ? 'Close rules' : 'Adjust rules'}
           </Button>
         </div>
+        <AiNotice kind="overload" className="mt-3" />
       </Card>
 
       {/* ADJUST OVERLOAD RULES */}

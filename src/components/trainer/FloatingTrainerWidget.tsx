@@ -6,6 +6,7 @@ import { NavTab } from '../layout/Navbar';
 import { Badge, Button, Card } from '../ui';
 import { apiFetch } from '../../lib/apiFetch';
 import { BILLING_REQUIRED_MESSAGE, isSubscriptionRequired } from '../../lib/billingGate';
+import { AiNotice } from '../legal/AiNotice';
 
 interface FloatingTrainerWidgetProps {
   currentTab: NavTab;
@@ -191,6 +192,7 @@ export const FloatingTrainerWidget: React.FC<FloatingTrainerWidgetProps> = ({
               Ask
             </Button>
           </div>
+          <AiNotice kind="trainer" />
         </Card>
       )}
     </div>

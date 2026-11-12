@@ -39,6 +39,7 @@ import {
   Textarea
 } from '../ui';
 import { apiFetch } from '../../lib/apiFetch';
+import { AiNotice } from '../legal/AiNotice';
 
 interface NutritionViewProps {
   profile: UserProfile;
@@ -813,6 +814,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile, onProfile
                     {aiMealLoading ? 'Analyzing macros…' : 'Extract Macros'}
                   </Button>
                 </div>
+                <AiNotice kind="nutrition" />
               </div>
 
               {aiMealError && (

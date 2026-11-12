@@ -19,6 +19,7 @@ import { ErrorState } from '../ui/ErrorState';
 import { LoadingState } from '../ui/LoadingState';
 import { apiFetch } from '../../lib/apiFetch';
 import { logClientError } from '../../lib/clientLog';
+import { AiNotice } from '../legal/AiNotice';
 
 interface WarmupPhase {
   phase: 'Raise' | 'Activate' | 'Mobilize' | 'Potentiate';
@@ -225,6 +226,7 @@ export const DynamicWarmupModal: React.FC<DynamicWarmupModalProps> = ({
       size="lg"
     >
       <div className="space-y-5">
+        <AiNotice kind="warmup" />
         <div className="flex items-center justify-between gap-2">
           <span className="text-label font-mono font-bold tracking-wide px-2 py-1 rounded-control bg-accent/10 text-accent border border-accent/30">
             RAMP Protocol · 5-Min

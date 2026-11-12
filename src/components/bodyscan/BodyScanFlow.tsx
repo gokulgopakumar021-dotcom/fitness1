@@ -9,6 +9,7 @@ import { CaptureSession } from './CaptureSession';
 import { ConsentStep } from './ConsentStep';
 import { PrivacyControls } from './PrivacyControls';
 import { Button, Card, PageHeader } from '../ui';
+import { AiNotice } from '../legal/AiNotice';
 
 interface BodyScanFlowProps {
   profile: UserProfile;
@@ -53,6 +54,7 @@ export const BodyScanFlow: React.FC<BodyScanFlowProps> = ({ profile, onClose, cr
 
       {gate.status === 'ready' && (
         <>
+          <AiNotice kind="bodyscan" />
           <CaptureSession key={photoSessionId} createEngine={createEngine} />
           <PrivacyControls
             consent={gate.consent}

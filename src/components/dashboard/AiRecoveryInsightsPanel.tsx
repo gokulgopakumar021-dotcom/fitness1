@@ -32,6 +32,7 @@ import { calculateLocalRecoveryInsights } from '../../utils/recoveryAnalytics';
 import { NavTab } from '../layout/Navbar';
 import { apiFetch } from '../../lib/apiFetch';
 import { logClientWarn } from '../../lib/clientLog';
+import { AiNotice } from '../legal/AiNotice';
 
 interface AiRecoveryInsightsPanelProps {
   profile: UserProfile;
@@ -190,6 +191,8 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
           <span>{isLoadingAi ? 'Analyzing Recovery...' : 'Run AI Recovery Analysis'}</span>
         </button>
       </div>
+
+      <AiNotice kind="recovery" />
 
       {aiError && (
         <div className="p-3 bg-canvas/90 border border-amber-500/30 rounded-2xl flex items-center gap-2 text-xs text-amber-300">

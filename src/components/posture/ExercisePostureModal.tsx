@@ -13,6 +13,7 @@ import { Badge } from '../ui/Badge';
 import { Input } from '../ui/Input';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { apiFetch } from '../../lib/apiFetch';
+import { AiNotice } from '../legal/AiNotice';
 
 interface ExercisePostureModalProps {
   exerciseName: string;
@@ -416,6 +417,7 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
         <p className="text-sm text-zinc-400">
           Target: <strong className="text-accent">{data.primaryMuscles.join(', ')}</strong>
         </p>
+        <AiNotice kind="form" />
 
         {/* Exercise video (approved catalog videos only; keyed by the workout's own exercise name) */}
         <ExerciseVideoSection exerciseName={exerciseName} defaultOpen={openVideoFirst} />

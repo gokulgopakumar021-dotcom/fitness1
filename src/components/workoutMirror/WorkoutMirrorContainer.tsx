@@ -14,6 +14,7 @@ import { ExerciseSelector } from './ExerciseSelector';
 import { PreWorkoutCalibration } from './PreWorkoutCalibration';
 import { LiveMirrorView } from './LiveMirrorView';
 import { PostWorkoutMirrorReport } from './PostWorkoutMirrorReport';
+import { AiNotice } from '../legal/AiNotice';
 
 type MirrorStage = 'select' | 'calibrate' | 'setup' | 'live' | 'report';
 
@@ -187,6 +188,7 @@ export const WorkoutMirrorContainer: React.FC<WorkoutMirrorContainerProps> = ({
 
   return (
     <div className="w-full">
+      <AiNotice kind="mirror" className="mb-3" />
       {stage === 'select' && (
         <ExerciseSelector onSelectExercise={handleSelectExercise} />
       )}

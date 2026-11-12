@@ -26,6 +26,7 @@ import { Badge, BrandEmblem, Button, Card } from '../ui';
 import { getFormInsights } from '../../services/workoutMirror/mirrorStorage';
 import { apiFetch } from '../../lib/apiFetch';
 import { BILLING_REQUIRED_MESSAGE, isSubscriptionRequired } from '../../lib/billingGate';
+import { AiNotice } from '../legal/AiNotice';
 
 interface ChatMessage {
   id: string;
@@ -501,6 +502,7 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
           Send
         </Button>
       </div>
+      <AiNotice kind="trainer" className="shrink-0 px-1" />
 
       {/* POSTURE PREVIEW MODAL */}
       {postureModalExercise && (

@@ -34,6 +34,7 @@ import {
 } from '../../utils/aiRoutineEngine';
 import { apiFetch } from '../../lib/apiFetch';
 import { logClientWarn } from '../../lib/clientLog';
+import { AiNotice } from '../legal/AiNotice';
 
 export interface AiRoutineBuilderModalProps {
   isOpen: boolean;
@@ -321,6 +322,7 @@ export const AiRoutineBuilderModal: React.FC<AiRoutineBuilderModalProps> = ({
       description="Generates evidence-based exercise routines based on logged muscle fatigue and equipment availability."
     >
       <div className="space-y-4 sm:space-y-5">
+        <AiNotice kind="routine" />
         {/* SECTION 1: MUSCLE FATIGUE HEATMAP SNAPSHOT */}
         <Card as="section" aria-label="Muscle fatigue heatmap" pad="sm" className="space-y-3 sm:p-4">
           <SectionHeading

@@ -21,6 +21,7 @@ import { SegmentedControl } from '../ui/SegmentedControl';
 import { MACRO_META } from '../nutrition/MacroBar';
 import { apiFetch } from '../../lib/apiFetch';
 import { logClientError } from '../../lib/clientLog';
+import { AiNotice } from '../legal/AiNotice';
 
 interface DreamPhysique {
   archetype: string;
@@ -295,6 +296,7 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
       size="xl"
     >
       <div className="space-y-6">
+        <AiNotice kind="physique" />
         {/* TOAST: anchored to the dialog panel, announced politely */}
         {notification && (
           <div
