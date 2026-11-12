@@ -3,6 +3,7 @@ import type { User } from '@supabase/supabase-js';
 import { getAuthRedirectUrl, getSupabase, getSupabaseConfigStatus } from '../lib/supabase';
 import { friendlyAuthError, normalizeEmail } from '../utils/authValidation';
 import { BILLING_ONBOARDING_PENDING_DATA } from '../lib/billingOnboarding';
+import { buildSignupAcceptanceMetadata, SIGNUP_ACCEPTANCE_REQUIRED_MESSAGE } from '../legal/policyAcceptance';
 
 export type AuthStatus =
   | 'loading' // session check not finished: private UI must not render
@@ -24,7 +25,11 @@ export interface AuthContextValue {
   callbackError: string | null; // e.g. expired email link
   clearCallbackError: () => void;
   signIn: (email: string, password: string) => Promise<AuthResult>;
-  signUp: (fullName: string, email: string, password: string) => Promise<SignUpResult>;
+  /**
+   * `acceptedLegal` must be true (the Terms / Privacy checkbox). Without it nothing is sent. With it, the current policy versions
+   * ride along in the sign-up metadata and are recorded server-side (see src/legal/policyAcceptance.ts).
+   */
+  signUp: (fullName: string, email: string, password: string, acceptedLegal: boolean) => Promise<SignUpResult>;
   resendVerification: (email: string) => Promise<AuthResult>;
   requestPasswordReset: (email: string) => Promise<AuthResult>;
   updatePassword: (password: string) => Promise<AuthResult>;
@@ -149,15 +154,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const signUp = useCallback<AuthContextValue['signUp']>(async (fullName, email, password) => {
+  const signUp = useCallback<AuthContextValue['signUp']>(async (fullName, email, password, acceptedLegal) => {
     const supabase = getSupabase();
     if (!supabase) return { ok: false, error: 'Authentication is not configured.' };
+    // Defence in depth: the form already blocks submit, but the context never creates an account without the acceptance.
+    if (acceptedLegal !== true) return { ok: false, error: SIGNUP_ACCEPTANCE_REQUIRED_MESSAGE };
     try {
       const { data, error } = await supabase.auth.signUp({
         email: normalizeEmail(email),
         password,
         // billing_onboarding marks this as a NEW account so it is routed to plan selection after sign-in (UI routing only, see billingOnboarding.ts).
-        options: { data: { full_name: fullName.trim(), ...BILLING_ONBOARDING_PENDING_DATA }, emailRedirectTo: getAuthRedirectUrl() }
+        options: { data: { full_name: fullName.trim(), ...BILLING_ONBOARDING_PENDING_DATA, ...buildSignupAcceptanceMetadata() }, emailRedirectTo: getAuthRedirectUrl() }
       });
       if (error) return { ok: false, error: friendlyAuthError(error) };
       // With "Confirm email" enabled there is no session yet. An already-registered address also returns no session

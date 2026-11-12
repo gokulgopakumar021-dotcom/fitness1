@@ -23,6 +23,7 @@ import { AuthGate } from './AuthGate';
 import { SettingsView } from '../settings/SettingsView';
 import { db, DEFAULT_PROFILE } from '../../storage/db';
 import { SIGNED_OUT_SCOPE, getStorageScope, scopedKey, setStorageScope } from '../../storage/storageScope';
+import { LEGAL } from '../../legal/legalConfig';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -66,6 +67,8 @@ const type = async (label: string, value: string) => {
     el.dispatchEvent(new Event('input', { bubbles: true }));
   });
 };
+const legalBox = () => q<HTMLInputElement>('input[type="checkbox"]')!;
+const acceptLegal = async () => { await act(async () => { legalBox().click(); }); };
 const submit = async () => {
   await act(async () => { q('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
 };
@@ -216,15 +219,49 @@ describe('sign up', () => {
     expect(h.client.auth.signUp).not.toHaveBeenCalled();
   });
 
-  it('sends the name as signup metadata and shows the verification screen when no session exists', async () => {
+  it('shows the Terms / Privacy checkbox UNCHECKED by default, with both documents as links', () => {
+    expect(legalBox().checked).toBe(false);
+    expect(legalBox().getAttribute('aria-required')).toBe('true');
+    const label = q<HTMLLabelElement>(`label[for="${legalBox().id}"]`)!;
+    expect(label.textContent).toBe('I agree to the Terms of Service and acknowledge that I have read the Privacy Policy.');
+    const hrefs = Array.from(label.querySelectorAll('a')).map((a) => [a.textContent, a.getAttribute('href'), a.getAttribute('target'), a.getAttribute('rel')]);
+    expect(hrefs).toEqual([
+      ['Terms of Service', '/terms', '_blank', 'noopener noreferrer'],
+      ['Privacy Policy', '/privacy', '_blank', 'noopener noreferrer']
+    ]);
+  });
+
+  it('blocks sign-up without the checkbox even when every other field is valid, and explains why', async () => {
     await type('Full name', 'Al Lifter');
     await type('Email', 'al@example.com');
     await type('Password', 'goodpass1');
     await type('Confirm password', 'goodpass1');
     await submit();
+    expect(h.client.auth.signUp).not.toHaveBeenCalled();
+    expect(text()).toContain('Please agree to the Terms of Service and acknowledge the Privacy Policy');
+    expect(legalBox().getAttribute('aria-invalid')).toBe('true');
+    await acceptLegal(); // ticking clears the message
+    expect(text()).not.toContain('Please agree to the Terms of Service');
+    await acceptLegal(); // unticking again is allowed and blocks again
+    await submit();
+    expect(h.client.auth.signUp).not.toHaveBeenCalled();
+  });
+
+  it('sends the name as signup metadata and shows the verification screen when no session exists', async () => {
+    await type('Full name', 'Al Lifter');
+    await type('Email', 'al@example.com');
+    await type('Password', 'goodpass1');
+    await type('Confirm password', 'goodpass1');
+    await acceptLegal();
+    await submit();
     const arg = h.client.auth.signUp.mock.calls[0][0];
     // New accounts are also tagged for post-signup plan selection (UI routing only; see lib/billingOnboarding.ts).
-    expect(arg.options.data).toEqual({ full_name: 'Al Lifter', billing_onboarding: 'pending' });
+    // The accepted policy versions ride along; the database trigger records them with the database clock.
+    expect(arg.options.data).toEqual({
+      full_name: 'Al Lifter',
+      billing_onboarding: 'pending',
+      legal_acceptance: { terms_version: LEGAL.termsVersion, privacy_version: LEGAL.privacyVersion, accepted_at_client: expect.stringMatching(/^\d{4}-\d\d-\d\dT/) }
+    });
     expect(arg.options.emailRedirectTo).toMatch(/\/$/);
     expect(text()).toContain('Check your email');
     expect(q('[data-testid="private"]')).toBeNull();
@@ -237,6 +274,7 @@ describe('sign up', () => {
     await type('Email', 'al@example.com');
     await type('Password', 'goodpass1');
     await type('Confirm password', 'goodpass1');
+    await acceptLegal();
     await submit();
     await submit();
     expect(h.client.auth.signUp).toHaveBeenCalledTimes(1);

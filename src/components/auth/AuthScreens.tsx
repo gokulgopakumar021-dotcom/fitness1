@@ -11,6 +11,8 @@ import {
   validateSignUp,
   type SignUpErrors
 } from '../../utils/authValidation';
+import { validateLegalAcceptance } from '../../legal/policyAcceptance';
+import { LEGAL_ROUTES } from '../../legal/routes';
 
 /* ---------- layout ---------- */
 
@@ -141,6 +143,39 @@ const FormError: React.FC<{ message: string | null }> = ({ message }) =>
 const LinkButton: React.FC<{ onClick: () => void; children: React.ReactNode }> = ({ onClick, children }) => (
   <button type="button" onClick={onClick} className="text-accent hover:underline font-medium">{children}</button>
 );
+
+/**
+ * Required Terms + Privacy checkbox for sign-up. Both documents are links (new tab, so typed form data is not lost).
+ * Wording is the owner-approved text.
+ */
+const LegalAcceptance: React.FC<{ checked: boolean; onChange: (v: boolean) => void; error: string | null; disabled?: boolean }> = ({ checked, onChange, error, disabled }) => {
+  const id = useId();
+  const linkCls = 'text-accent underline underline-offset-2 hover:opacity-80';
+  return (
+    <div>
+      <div className="flex items-start gap-3 min-h-[44px]">
+        <input
+          id={id}
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          disabled={disabled}
+          aria-required="true"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-err` : undefined}
+          className="mt-1 h-5 w-5 shrink-0 accent-[var(--chart-1)]"
+        />
+        <label htmlFor={id} className="text-sm text-zinc-300 leading-snug">
+          I agree to the{' '}
+          <a href={LEGAL_ROUTES.terms.path} target="_blank" rel="noopener noreferrer" className={linkCls}>Terms of Service</a>{' '}
+          and acknowledge that I have read the{' '}
+          <a href={LEGAL_ROUTES.privacy.path} target="_blank" rel="noopener noreferrer" className={linkCls}>Privacy Policy</a>.
+        </label>
+      </div>
+      {error && <p id={`${id}-err`} role="alert" className="text-xs text-danger mt-1">{error}</p>}
+    </div>
+  );
+};
 
 /** Blocks a second submit while one is in flight (state alone can lag a fast double-click). */
 function useSubmitGuard() {
@@ -300,6 +335,9 @@ const SignUpForm: React.FC<FormProps> = ({ email, setEmail, go, onBackToHome }) 
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  // Unchecked by default. Signup cannot proceed until the person ticks it (see also AuthContext.signUp).
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
+  const [legalError, setLegalError] = useState<string | null>(null);
   const [errors, setErrors] = useState<SignUpErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const { busy, run } = useSubmitGuard();
@@ -307,11 +345,13 @@ const SignUpForm: React.FC<FormProps> = ({ email, setEmail, go, onBackToHome }) 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const found = validateSignUp({ fullName, email, password, confirm });
+    const legalProblem = validateLegalAcceptance(acceptedLegal);
     setErrors(found);
+    setLegalError(legalProblem);
     setFormError(null);
-    if (Object.keys(found).length) return;
+    if (Object.keys(found).length || legalProblem) return;
     void run(async () => {
-      const r = await signUp(fullName, email, password);
+      const r = await signUp(fullName, email, password, acceptedLegal);
       if (!r.ok) { setFormError(r.error ?? 'Could not create account.'); return; }
       // needsVerification: show the check-your-email screen. Otherwise a session exists and AuthGate takes over.
       if (r.needsVerification) go('verify');
@@ -327,6 +367,7 @@ const SignUpForm: React.FC<FormProps> = ({ email, setEmail, go, onBackToHome }) 
         <Field label="Password" type="password" value={password} onChange={setPassword} error={errors.password} autoComplete="new-password" disabled={busy}
           hint={`At least ${PASSWORD_MIN} characters, with a letter and a number.`} />
         <Field label="Confirm password" type="password" value={confirm} onChange={setConfirm} error={errors.confirm} autoComplete="new-password" disabled={busy} />
+        <LegalAcceptance checked={acceptedLegal} onChange={(v) => { setAcceptedLegal(v); if (v) setLegalError(null); }} error={legalError} disabled={busy} />
         <Button type="submit" fullWidth loading={busy}>Create account</Button>
       </form>
       <p className="mt-5 text-sm text-zinc-400 text-center">Already have an account? <LinkButton onClick={() => go('signin')}>Sign in</LinkButton></p>

@@ -33,6 +33,7 @@ import { useReminders } from './hooks/useReminders';
 import { BillingRefusalNotice } from './components/billing/BillingRefusalNotice';
 import { BillingOnboardingGate } from './components/billing/BillingOnboardingGate';
 import { OPEN_BILLING_EVENT } from './lib/billingGate';
+import { PolicyUpdateNotice } from './components/legal/PolicyUpdateNotice';
 
 /** The private application. Only ever mounted by AuthGate, after storage is scoped to the signed-in account. */
 function AppShell() {
@@ -127,6 +128,8 @@ function AppShell() {
           >
             Skip to content
           </a>
+          {/* One-time, non-blocking notice when the Terms / Privacy Policy have been updated for this account */}
+          <PolicyUpdateNotice />
           {/* Top Application Header */}
         <TopHeader
           currentTab={currentTab}
