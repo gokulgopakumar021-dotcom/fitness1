@@ -10,6 +10,7 @@ import { LegacyDataClaim } from './LegacyDataClaim';
 import { getClaimState, readLegacyWorkoutData } from '../../storage/legacyData';
 import { SettingRow, SettingRows, SettingsCard } from './SettingsParts';
 import { SyncStatusCard } from '../sync/SyncStatusCard';
+import { LegalLinks } from '../legal/LegalLinks';
 
 interface DataPanelProps {
   isDemoMode: boolean;
@@ -300,6 +301,10 @@ export const DataPanel: React.FC<DataPanelProps> = ({ isDemoMode, onLoadDemoData
         ) : (
           <p className="text-xs text-zinc-500">No results yet.</p>
         )}
+      </SettingsCard>
+
+      <SettingsCard title="Policies & support" description="How your data is handled, what you agree to, and how to reach us.">
+        <LegalLinks aria-label="Policies and support" />
       </SettingsCard>
 
       <Modal

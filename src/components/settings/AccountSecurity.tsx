@@ -187,6 +187,15 @@ export const AccountSecurity: React.FC = () => {
           Permanently deletes your IronLog AI account and removes this account's data from this device. Data saved on other
           devices stays there until you sign in on them and erase it. This cannot be undone.
         </p>
+        <p className="text-label text-zinc-500" data-testid="deletion-retention-note">
+          Not everything is erased: billing records are kept, no longer linked to your account, and a one-way hash of your email is kept to
+          stop repeat free trials. Razorpay and our other providers keep their own records under their own policies, and backups held by
+          them age out on their own schedule. If Razorpay cannot be reached, deletion can be blocked until it can. See the{' '}
+          <a href="/privacy#deleting-account" target="_blank" rel="noopener noreferrer" className="text-volt-adaptive underline underline-offset-2">
+            Privacy Policy
+          </a>
+          .
+        </p>
         <Button type="button" variant="danger" onClick={() => setDeleteOpen(true)}>
           Delete account…
         </Button>
@@ -210,6 +219,15 @@ export const AccountSecurity: React.FC = () => {
         }
       >
         <div className="space-y-3">
+          <section aria-label="What deleting your account does not remove" className="text-xs text-zinc-400 rounded-lg border border-line bg-zinc-900/40 p-3 space-y-1" data-testid="deletion-modal-disclosure">
+            <p>Before you delete:</p>
+            <ul className="list-disc pl-4 space-y-0.5">
+              <li>Billing records are kept, no longer linked to your account, and a one-way hash of your email is kept to stop repeat free trials.</li>
+              <li>Razorpay and other providers keep their own copies; deleting here does not delete those.</li>
+              <li>Other devices keep their local data until you erase it there.</li>
+              <li>If Razorpay is unavailable, deletion may be blocked until your subscription is confirmed stopped. Nothing is removed in that case.</li>
+            </ul>
+          </section>
           {requires === 'cancel_billing' && (
             <p role="note" className="text-xs text-zinc-300 rounded-lg border border-line bg-zinc-900/40 p-3">
               You have a subscription set up. Deleting your account cancels it first, so you will not be billed again.

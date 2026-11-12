@@ -7,6 +7,7 @@ import {
   PAYMENT_STATUS_LABEL, STATE_LABEL, accessEndDate, buildDisclosure, daysRemaining, formatDate, formatInr, intervalWord,
   paymentLabel, planName, type PanelState
 } from '../../utils/billingPresentation';
+import { LegalLinks } from '../legal/LegalLinks';
 
 /** ------------------------------------------------------------------------------------------------ status summary */
 export const StatusSummary: React.FC<{ status: BillingStatus; state: PanelState; nowMs: number }> = ({ status, state, nowMs }) => {
@@ -180,6 +181,10 @@ export const Disclosure: React.FC<{
           <li key={l}>{l}</li>
         ))}
       </ul>
+      <div className="text-xs text-zinc-400 space-y-1" data-testid="disclosure-legal-links">
+        <p>Before you continue, please read:</p>
+        <LegalLinks keys={['terms', 'refund-policy', 'cancellation-policy']} aria-label="Terms and billing policies" />
+      </div>
       <label className="flex items-start gap-3 text-sm text-zinc-200 cursor-pointer min-h-[44px]">
         <input type="checkbox" checked={agreed} onChange={(e) => onAgree(e.target.checked)} className="mt-1 accent-[var(--chart-1)]" />
         <span>I have read the above and I agree to these recurring billing terms.</span>

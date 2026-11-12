@@ -10,6 +10,7 @@ import {
 import { openSubscriptionCheckout } from '../../lib/razorpayCheckout';
 import { formatDate, formatInr, intervalWord, panelState, planName, sameLocalDay } from '../../utils/billingPresentation';
 import { CancelDialog, Disclosure, PaymentFailedNotice, PaymentHistory, PaymentPendingNotice, PlanPicker, SelectedPlanSummary, StatusSummary, TrialUsedNotice } from './BillingParts';
+import { LegalLinks } from '../legal/LegalLinks';
 
 /** Waits between verify attempts when Razorpay has not confirmed the authorisation yet (server answers 409 authorization_not_confirmed). */
 export const DEFAULT_VERIFY_DELAYS_MS = [1500, 3000, 5000];
@@ -395,6 +396,13 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
       )}
 
       {!onboarding && <PaymentHistory payments={payments} error={paymentsError} onRetry={() => void loadPayments()} />}
+
+      {!onboarding && (
+        <div className="text-label text-zinc-500 space-y-1" data-testid="billing-legal-links">
+          <p>A charge that looks wrong, or cancelling did not work? See our policies or contact support:</p>
+          <LegalLinks keys={['refund-policy', 'cancellation-policy', 'terms', 'contact']} aria-label="Billing policies and support" />
+        </div>
+      )}
 
       <CancelDialog open={cancelOpen} state={state} status={status} busy={cancelBusy} error={cancelError} onClose={() => setCancelOpen(false)} onConfirm={() => void confirmCancel()} />
     </div>

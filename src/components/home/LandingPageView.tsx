@@ -68,7 +68,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
         <nav className="hidden md:flex items-center gap-6 text-xs font-mono text-zinc-400">
           <a href="#engines" className="hover:text-accent transition-colors">FEATURES</a>
           <a href="#interactive-preview" className="hover:text-accent transition-colors">PREVIEW</a>
-          <a href="#security" className="hover:text-accent transition-colors">PRIVACY</a>
+          <a href="/privacy" className="hover:text-accent transition-colors">PRIVACY</a>
           <a href="#faq" className="hover:text-accent transition-colors">FAQ</a>
         </nav>
 
@@ -121,7 +121,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
               className="w-full sm:w-auto px-7 py-3.5 text-sm font-mono font-bold text-zinc-950 bg-accent hover:brightness-110 active:scale-95 transition-all rounded-xl shadow-[0_0_30px_rgba(139,249,9,0.3)] flex items-center justify-center gap-2"
             >
               <Sparkles className="w-4 h-4 text-zinc-950" />
-              <span>Get Started — Free</span>
+              <span>Get Started</span>
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
@@ -531,7 +531,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
                 Your Training Data Belongs to You.
               </h3>
               <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
-                Your workouts, nutrition and body metrics are tied to your private account. We do not sell your data or run ad trackers, and we never fill your history with made-up numbers.
+                Your workout plans and sessions sync to your private account. Nutrition, body metrics, sleep, your profile and Body Scan data stay on your device and are not backed up by us, so export them from time to time. We do not sell your data, and we never fill your history with made-up numbers. Read the <a href="/privacy" className="text-accent underline underline-offset-2">Privacy Policy</a> for details.
               </p>
               <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono text-zinc-300">
                 <li className="flex items-center gap-2">
@@ -559,7 +559,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
                 onClick={onGoToSignUp}
                 className="w-full sm:w-auto px-6 py-3.5 text-xs font-mono font-bold text-zinc-950 bg-accent hover:brightness-110 active:scale-95 transition-all rounded-xl shadow-[0_0_20px_rgba(139,249,9,0.25)] flex items-center justify-center gap-2"
               >
-                <span>Create Free Account</span>
+                <span>Create Account</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
               <button
@@ -569,6 +569,39 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
               >
                 Sign in to existing account
               </button>
+            </div>
+          </div>
+        </section>
+
+        {/* What is free and what may need a plan */}
+        <section id="plans" aria-labelledby="plans-heading" className="scroll-mt-20">
+          <div className="text-center max-w-xl mx-auto mb-8">
+            <span className="text-xs font-mono text-accent uppercase tracking-wider block">PLANS</span>
+            <h2 id="plans-heading" className="text-2xl font-black text-zinc-100 tracking-tight mt-1">
+              WHAT YOU CAN USE, AND WHAT NEEDS A PLAN
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-5 bg-surface border border-line rounded-xl">
+              <h3 className="text-sm font-bold text-zinc-100">Without a paid plan</h3>
+              <ul className="mt-2 space-y-1.5 text-xs text-zinc-400 leading-relaxed list-disc pl-4">
+                <li>Workout logging, plans and the progressive-overload engine</li>
+                <li>Nutrition, body-metric and progress tracking, and data export</li>
+                <li>Workout Mirror and Body Scan (processed on your device)</li>
+              </ul>
+            </div>
+            <div className="p-5 bg-surface border border-line rounded-xl">
+              <h3 className="text-sm font-bold text-zinc-100">AI features: may need a trial or a paid plan</h3>
+              <ul className="mt-2 space-y-1.5 text-xs text-zinc-400 leading-relaxed list-disc pl-4">
+                <li>AI Personal Trainer, warm-ups, routine builder and form coach</li>
+                <li>AI food analysis, recovery insights, overload optimiser, physique analysis and plan import</li>
+              </ul>
+              <p className="mt-3 text-xs text-zinc-300">
+                Paid plans: ₹299 per month or ₹1,499 per year. A trial may be offered when you start a plan; the first charge date and the full
+                terms are shown before you pay. See the <a href="/terms" className="text-accent underline underline-offset-2">Terms</a>,{' '}
+                <a href="/refund-policy" className="text-accent underline underline-offset-2">Refund Policy</a> and{' '}
+                <a href="/cancellation-policy" className="text-accent underline underline-offset-2">Cancellation Policy</a>.
+              </p>
             </div>
           </div>
         </section>
@@ -634,7 +667,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
               TRAIN SMARTER. BUILD STRONGER.
             </h2>
             <p className="text-sm text-zinc-400 mt-3 max-w-lg leading-relaxed">
-              Start free and let IronLog AI guide your progression, nutrition and recovery.
+              Create an account and let IronLog AI guide your progression, nutrition and recovery.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
               <button
@@ -642,7 +675,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
                 onClick={handleSignUp}
                 className="w-full sm:w-auto px-8 py-3.5 text-sm font-mono font-bold text-zinc-950 bg-accent hover:brightness-110 active:scale-95 transition-all rounded-xl shadow-[0_0_30px_rgba(139,249,9,0.35)] flex items-center justify-center gap-2"
               >
-                <span>Create Free Account</span>
+                <span>Create Account</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
               <button
@@ -688,6 +721,15 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
             </span>
           </div>
         </div>
+        <nav aria-label="Legal documents" className="max-w-6xl mx-auto mt-5 pt-4 border-t border-line/60">
+          <ul className="flex flex-wrap items-center justify-center sm:justify-start gap-x-5 gap-y-2">
+            <li><a href="/privacy" className="hover:text-accent transition-colors">Privacy Policy</a></li>
+            <li><a href="/terms" className="hover:text-accent transition-colors">Terms of Service</a></li>
+            <li><a href="/refund-policy" className="hover:text-accent transition-colors">Refund Policy</a></li>
+            <li><a href="/cancellation-policy" className="hover:text-accent transition-colors">Cancellation Policy</a></li>
+            <li><a href="/contact" className="hover:text-accent transition-colors">Contact</a></li>
+          </ul>
+        </nav>
       </footer>
     </div>
   );

@@ -14,6 +14,7 @@ import { DataPanel } from './DataPanel';
 import { NotificationSettings } from './NotificationSettings';
 import { ProfileOverview } from './ProfileOverview';
 import { ProfilePanel, TrainingPanel, UnitsPanel } from './ProfilePanels';
+import { LegalLinks } from '../legal/LegalLinks';
 
 interface SettingsProps {
   profile: UserProfile;
@@ -251,6 +252,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
       <footer className="mt-10 flex flex-col items-center gap-2 text-center">
         <BrandLogo variant="lockup" className="h-16 opacity-90" />
         <p className="text-xs text-[var(--text-muted)]">{BRAND.description}</p>
+        <LegalLinks className="text-xs" aria-label="Legal documents (settings footer)" />
       </footer>
     </div>
   );
