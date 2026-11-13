@@ -5,7 +5,7 @@ Legend: PASS (command executed), FAIL, BLOCKED, NOT RUN (deliberately not execut
 
 ## 1. Executive summary
 
-- **Verdict: NOT READY TO LAUNCH. Repository: READY WITH LIMITATIONS, test evidence missing.** Stage 10 is **not complete**: the test suite, type-check, build and API-bundle check were **not run** in this session (the owner chose to run them locally). Nothing below claims they pass.
+- **Verdict: NOT READY TO LAUNCH. Repository: READY WITH LIMITATIONS.** Local results (run by the owner on Windows, branch commit `b3f3366`): `npm ci`, `check:api` and `build` passed; `tsc --noEmit` printed no errors; the full test suite finished with **3,716 passed, 2 failed, 47 skipped**. Both failures are 5-second timeouts on two tests that create a fresh PGlite database; both pass (50/50 in their two files) when run with `--testTimeout=60000`. The repository checks were not run by the auditor; they are owner-reported.
 - Verified read-only on the hosted Supabase project: the 16-row migration history matches the repository exactly; all expected tables have RLS; the three signup triggers are enabled.
 - Verified gaps: leaked-password protection is **disabled**; the three referral guard functions still have a mutable `search_path` (the proposal is unapplied, as intended); `AGE_ENFORCEMENT` and `BILLING_ENFORCEMENT` are **not set** in Vercel Production, so both gates are effectively **off**.
 - Still open: Before User Created hook (UNKNOWN), Razorpay dashboard and end-to-end checks, owner legal information, Indian legal review, `LEGAL.isDraft = true`.
@@ -31,26 +31,33 @@ Confirmed by diff: 13 migration files renamed to the remote versions; `202611020
 |---|---|
 | `git clone` of the branch, `git status`, `git log`, `git diff --stat` | PASS |
 | `node -v` / `npm -v` | v22.23.4 / 10.9.9 |
-| `npm ci` | **NOT RUN** |
-| `npm run lint` (`tsc --noEmit`) | **NOT RUN** |
-| `npm test` (`vitest run`) | **NOT RUN** |
-| `npm run check:api` | **NOT RUN** |
-| `npm run build` | **NOT RUN** |
+| `npm ci` (owner, local) | PASS: 430 packages added, 0 vulnerabilities, ~5 min; informational `allow-scripts` warnings |
+| `npm run lint` (`tsc --noEmit`, owner, local) | PASS (no errors printed; exit code not captured) |
+| `npm test` (`vitest run`, owner, local) | **FAIL**: 2 failed, 3,716 passed, 47 skipped (see section 6); duration ~1,906 s |
+| Re-run of the two failing files, default timeout (owner, local) | **FAIL** again, same two tests (5 s limit; tests took 12.7 s and 16.9 s) |
+| Re-run of the same two files with `--testTimeout=60000` (owner, local) | PASS: 50/50 tests (the two tests took 5.3 s and 5.0 s) |
+| `npm run check:api` (owner, local) | PASS: `api/index.js` 226,123 bytes, 40 source files |
+| `npm run build` (owner, local) | PASS: vite built in 23.5 s; only a chunk-size warning (largest JS chunk 2.4 MB) |
 | Static `grep` check that no live doc contains prohibited migration commands (mirrors the guard test) | PASS (not a substitute for running the test) |
 
 ## 6. Test totals
 
-Passed: **NOT RUN**. Failed: **NOT RUN**. Skipped: **NOT RUN**. The Stage 8 figures (3,687 passed, 0 failed, 47 skipped) are historical and are not evidence for this HEAD. The owner will supply real totals.
+Full run (owner, local): **3,716 passed, 2 failed, 47 skipped** (3,765 tests); 202 test files passed, 2 failed, 2 skipped (206). Failures, both `Test timed out in 5000ms`, not assertion failures:
+1. `src/test/migrationReconstruction.test.ts` > "remote-only revoke migration when the function exists (isolated database)" > revokes EXECUTE from public, anon and authenticated, and is idempotent.
+2. `src/test/rls.legalEnforcement.test.ts` > "release sequence" > both migrations applied in ONE transaction leave no window in which the old, swallowing trigger is live.
+
+Cause (likely, not proven): each test creates a fresh `new PGlite()` inside an `it` with Vitest's default 5 s limit; a fresh PGlite took about 5.0 to 5.3 s on the owner's machine even when it ran alone. Other PGlite tests in the repo already allow 60 s in their setup. With `--testTimeout=60000` all 50 tests in the two files pass. The tests are therefore sound but fragile at the default limit; the proposed fix (explicit per-test 60 s timeouts) is a test-code change and has **not** been made. The Stage 8 baseline (3,687 passed, 0 failed, 47 skipped) is historical; the skipped count is unchanged at 47, but which tests make up the 47 was not captured.
+Whether the incremental docs patch was applied before the full run was not confirmed; the migration guard test was not among the failures.
 
 ## 7. Migration history verification
 
 - **Remote vs repository (read-only, 2026-11-13): PASS.** 16 remote rows; versions and names identical to the 16 files in `supabase/migrations/`, same order, none missing, unexpected or duplicated. Includes the remote-only revoke migration and the legal_acceptances → referral_core order.
 - Limits: only versions and names were compared; statement text was not re-diffed (the Stage 9 doc claims a normalised hash match, not re-verified).
-- `migrationHistory.guard.test.ts` execution: **NOT RUN**. Test code was read: it encodes the 16 rows, order, duplicates, stale versions, prohibited commands and proposed-migration separation.
+- `migrationHistory.guard.test.ts`: not among the 2 failures in the full run (**PASS**, owner-reported; not run separately, and the docs-patch state at that time is unconfirmed). Test code was read: it encodes the 16 rows, order, duplicates, stale versions, prohibited commands and proposed-migration separation.
 
 ## 8. PGlite reconstruction
 
-`migrationReconstruction.test.ts` execution: **NOT RUN**. The test replays all 16 files into PGlite and checks tables, RLS, workout-sync permissions, signup triggers, the hook function, ordering and both branches of the revoke migration. PGlite is not GoTrue, hosted Storage, `pg_cron`, event triggers or the hosted hook runtime, and is not a substitute for a Supabase preview-branch test.
+`migrationReconstruction.test.ts`: 7 of 8 tests pass at the default timeout; the 8th (isolated revoke-migration check) times out at 5 s and passes at 60 s (**READY WITH LIMITATIONS**). The test replays all 16 files into PGlite and checks tables, RLS, workout-sync permissions, signup triggers, the hook function, ordering and both branches of the revoke migration. PGlite is not GoTrue, hosted Storage, `pg_cron`, event triggers or the hosted hook runtime, and is not a substitute for a Supabase preview-branch test.
 
 ## 9. Documentation corrections made
 
@@ -109,8 +116,8 @@ Outstanding: operator legal name, address, effective date, governing law/courts,
 
 ## 15. Remaining launch blockers
 
-1. Test suite, type-check, build and API-bundle check have not been run on this HEAD.
-2. Skipped-test classification is incomplete (section 16 lists what the code skips; counts unknown).
+1. Two PGlite tests fail at the default 5 s timeout (pass at 60 s). Needs an approved test-code fix, or the owner must accept the limitation. Re-run the full suite afterwards.
+2. Skipped-test classification is incomplete: 47 skipped is confirmed, but which tests they are was not captured (the table below lists what the code can skip).
 3. Before User Created hook status unknown; live signup rejection never exercised on a preview branch.
 4. Leaked-password protection disabled.
 5. `AGE_ENFORCEMENT` unset (off); needs a shadow-then-on rollout once existing users can declare.
@@ -136,4 +143,4 @@ Stage 11 (verification and preview-branch testing, no production changes): owner
 
 ## 17. Actions NOT performed
 
-Not run: `npm ci`, lint, tests, build, `check:api`. Not done: commit, push, merge, branch switch, Vercel deployment or env change, Supabase migration/repair/reset/push, any DDL or data write, any auth setting change, enabling the hook or leaked-password protection, enabling or changing either enforcement gate, applying the `search_path` migration, any Razorpay payment, refund or dashboard check, any live signup. Secrets were not read or printed.
+Not run by the auditor: `npm ci`, lint, tests, build, `check:api` (the owner ran them locally; results above are owner-reported and lint's exit code was not captured). Not done: commit, push, merge, branch switch, Vercel deployment or env change, Supabase migration/repair/reset/push, any DDL or data write, any auth setting change, enabling the hook or leaked-password protection, enabling or changing either enforcement gate, applying the `search_path` migration, any Razorpay payment, refund or dashboard check, any live signup. Secrets were not read or printed.
