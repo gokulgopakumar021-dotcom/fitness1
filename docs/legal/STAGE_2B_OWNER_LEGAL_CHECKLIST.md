@@ -1,5 +1,7 @@
 # Iron Log AI: Stage 2B owner and legal-review checklist
 
+> **Current consolidated list: `STAGE_6_OWNER_INFORMATION_AND_RELEASE.md` (Stage 2D).** It supersedes the release-gate description below: the gate now also blocks draft-era wording and draft version labels. This file is kept for its item-by-item history.
+
 **All legal pages are DRAFTS. They are not legally approved.** `LEGAL.isDraft = true` in `src/legal/legalConfig.ts` keeps a visible
 draft banner, highlighted `[OWNER TO PROVIDE: ...]` placeholders and reviewer notes on every page. Do not set it to `false` until every
 item marked **BLOCKS RELEASE** is done. A test (`RELEASE GATE` in `src/legal/legalPages.test.tsx`) fails the moment drafts are switched off

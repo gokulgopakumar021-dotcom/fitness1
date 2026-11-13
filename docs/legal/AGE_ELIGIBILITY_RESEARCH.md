@@ -1,3 +1,5 @@
+> **SUPERSEDED (Stage 2D).** The owner has decided the entire platform is **18+**, so the 14+ options discussed below (B and C) are no longer in play. This file is kept only as the research record that led to that decision. The current design is `AGE_ELIGIBILITY_DESIGN.md`; the open legal questions are listed in `STAGE_6_OWNER_INFORMATION_AND_RELEASE.md`.
+
 # Iron Log AI: age eligibility research (Stage 2B)
 
 **Status: research notes for the owner and Indian counsel. NOT legal advice, NOT a compliance claim.**
