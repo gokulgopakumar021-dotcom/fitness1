@@ -118,5 +118,5 @@ describe('remote-only revoke migration when the function exists (isolated databa
     } finally {
       await db.close();
     }
-  });
+  }, 60_000); // a fresh PGlite takes ~5 s on slower machines; the default 5 s limit is too tight
 });

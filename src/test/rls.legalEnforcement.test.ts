@@ -322,7 +322,7 @@ describe('release sequence', () => {
     } finally {
       await fresh.close();
     }
-  });
+  }, 60_000); // a fresh PGlite takes ~5 s on slower machines; the default 5 s limit is too tight
 
   it('the first migration alone is still the old behaviour (so it must never be released on its own)', () => {
     expect(MIG_11).toMatch(/exception when others then/);

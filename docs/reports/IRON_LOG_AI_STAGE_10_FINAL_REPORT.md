@@ -5,7 +5,7 @@ Legend: PASS (command executed), FAIL, BLOCKED, NOT RUN (deliberately not execut
 
 ## 1. Executive summary
 
-- **Verdict: NOT READY TO LAUNCH. Repository: READY WITH LIMITATIONS.** Local results (run by the owner on Windows, branch commit `b3f3366`): `npm ci`, `check:api` and `build` passed; `tsc --noEmit` printed no errors; the full test suite finished with **3,716 passed, 2 failed, 47 skipped**. Both failures are 5-second timeouts on two tests that create a fresh PGlite database; both pass (50/50 in their two files) when run with `--testTimeout=60000`. The repository checks were not run by the auditor; they are owner-reported.
+- **Verdict: NOT READY TO LAUNCH. Repository: READY WITH LIMITATIONS.** Local results (run by the owner on Windows, branch commit `b3f3366`): `npm ci`, `check:api` and `build` passed; `tsc --noEmit` printed no errors; the full test suite finished with **3,716 passed, 2 failed, 47 skipped**. Both failures are 5-second timeouts on two tests that create a fresh PGlite database; both pass (50/50 in their two files) when run with `--testTimeout=60000`. The repository checks were not run by the auditor; they are owner-reported. After the owner-approved timeout patch (explicit 60 s on those two tests), the two files plus `migrationHistory.guard.test.ts` pass at default settings: **3 files, 70/70 tests** (owner, local). A full `npm test` re-run showing 0 failures has not been done.
 - Verified read-only on the hosted Supabase project: the 16-row migration history matches the repository exactly; all expected tables have RLS; the three signup triggers are enabled.
 - Verified gaps: leaked-password protection is **disabled**; the three referral guard functions still have a mutable `search_path` (the proposal is unapplied, as intended); `AGE_ENFORCEMENT` and `BILLING_ENFORCEMENT` are **not set** in Vercel Production, so both gates are effectively **off**.
 - Still open: Before User Created hook (UNKNOWN), Razorpay dashboard and end-to-end checks, owner legal information, Indian legal review, `LEGAL.isDraft = true`.
@@ -23,7 +23,7 @@ Confirmed by diff: 13 migration files renamed to the remote versions; `202611020
 ## 4. Worktree baseline and Stage 10 changes
 
 - Baseline: clean tree, no untracked files, no stashes, on the expected branch.
-- Stage 10 changes (uncommitted, delivered as a patch): 7 documentation files edited plus these two reports. No source, test, migration or configuration file was modified.
+- Stage 10 changes (uncommitted, delivered as a patch): 7 documentation files edited plus these two reports. Separately, by owner approval, a further patch (`ironlog-stage10-test-timeouts.patch`) adds an explicit 60 s timeout to two tests (`src/test/migrationReconstruction.test.ts`, `src/test/rls.legalEnforcement.test.ts`); no other source, test, migration or configuration file was modified.
 
 ## 5. Commands executed and results
 
@@ -36,6 +36,7 @@ Confirmed by diff: 13 migration files renamed to the remote versions; `202611020
 | `npm test` (`vitest run`, owner, local) | **FAIL**: 2 failed, 3,716 passed, 47 skipped (see section 6); duration ~1,906 s |
 | Re-run of the two failing files, default timeout (owner, local) | **FAIL** again, same two tests (5 s limit; tests took 12.7 s and 16.9 s) |
 | Re-run of the same two files with `--testTimeout=60000` (owner, local) | PASS: 50/50 tests (the two tests took 5.3 s and 5.0 s) |
+| After the timeout patch: `migrationReconstruction`, `rls.legalEnforcement` and `migrationHistory.guard` with no timeout flag (owner, local) | PASS: 3 files, 70/70 tests (the two PGlite tests took 22.6 s and 17.4 s; the guard file also passed alone, 20/20) |
 | `npm run check:api` (owner, local) | PASS: `api/index.js` 226,123 bytes, 40 source files |
 | `npm run build` (owner, local) | PASS: vite built in 23.5 s; only a chunk-size warning (largest JS chunk 2.4 MB) |
 | Static `grep` check that no live doc contains prohibited migration commands (mirrors the guard test) | PASS (not a substitute for running the test) |
@@ -46,7 +47,7 @@ Full run (owner, local): **3,716 passed, 2 failed, 47 skipped** (3,765 tests); 2
 1. `src/test/migrationReconstruction.test.ts` > "remote-only revoke migration when the function exists (isolated database)" > revokes EXECUTE from public, anon and authenticated, and is idempotent.
 2. `src/test/rls.legalEnforcement.test.ts` > "release sequence" > both migrations applied in ONE transaction leave no window in which the old, swallowing trigger is live.
 
-Cause (likely, not proven): each test creates a fresh `new PGlite()` inside an `it` with Vitest's default 5 s limit; a fresh PGlite took about 5.0 to 5.3 s on the owner's machine even when it ran alone. Other PGlite tests in the repo already allow 60 s in their setup. With `--testTimeout=60000` all 50 tests in the two files pass. The tests are therefore sound but fragile at the default limit; the proposed fix (explicit per-test 60 s timeouts) is a test-code change and has **not** been made. The Stage 8 baseline (3,687 passed, 0 failed, 47 skipped) is historical; the skipped count is unchanged at 47, but which tests make up the 47 was not captured.
+Cause (likely, not proven): each test creates a fresh `new PGlite()` inside an `it` with Vitest's default 5 s limit; a fresh PGlite took about 5.0 to 5.3 s on the owner's machine even when it ran alone. Other PGlite tests in the repo already allow 60 s in their setup. With `--testTimeout=60000` all 50 tests in the two files pass. The tests are therefore sound but fragile at the default limit; the fix (explicit per-test 60 s timeouts, owner-approved) is in `ironlog-stage10-test-timeouts.patch`; after applying it, both tests pass at default settings (table in section 5). A fresh PGlite took 17 to 23 s in the last run, so the machine is slow; 60 s leaves headroom but not a lot. The Stage 8 baseline (3,687 passed, 0 failed, 47 skipped) is historical; the skipped count is unchanged at 47, but which tests make up the 47 was not captured.
 Whether the incremental docs patch was applied before the full run was not confirmed; the migration guard test was not among the failures.
 
 ## 7. Migration history verification
@@ -57,7 +58,7 @@ Whether the incremental docs patch was applied before the full run was not confi
 
 ## 8. PGlite reconstruction
 
-`migrationReconstruction.test.ts`: 7 of 8 tests pass at the default timeout; the 8th (isolated revoke-migration check) times out at 5 s and passes at 60 s (**READY WITH LIMITATIONS**). The test replays all 16 files into PGlite and checks tables, RLS, workout-sync permissions, signup triggers, the hook function, ordering and both branches of the revoke migration. PGlite is not GoTrue, hosted Storage, `pg_cron`, event triggers or the hosted hook runtime, and is not a substitute for a Supabase preview-branch test.
+`migrationReconstruction.test.ts`: **PASS**, 8 of 8 (owner, local, after the timeout patch; before it, the isolated revoke-migration check timed out at the 5 s default). The test replays all 16 files into PGlite and checks tables, RLS, workout-sync permissions, signup triggers, the hook function, ordering and both branches of the revoke migration. PGlite is not GoTrue, hosted Storage, `pg_cron`, event triggers or the hosted hook runtime, and is not a substitute for a Supabase preview-branch test.
 
 ## 9. Documentation corrections made
 
@@ -116,7 +117,7 @@ Outstanding: operator legal name, address, effective date, governing law/courts,
 
 ## 15. Remaining launch blockers
 
-1. Two PGlite tests fail at the default 5 s timeout (pass at 60 s). Needs an approved test-code fix, or the owner must accept the limitation. Re-run the full suite afterwards.
+1. A full `npm test` re-run with 0 failures has not been done since the timeout patch (the earlier full run had 2 timeout failures, now fixed in the individual files). Optional but recommended before a release stage.
 2. Skipped-test classification is incomplete: 47 skipped is confirmed, but which tests they are was not captured (the table below lists what the code can skip).
 3. Before User Created hook status unknown; live signup rejection never exercised on a preview branch.
 4. Leaked-password protection disabled.

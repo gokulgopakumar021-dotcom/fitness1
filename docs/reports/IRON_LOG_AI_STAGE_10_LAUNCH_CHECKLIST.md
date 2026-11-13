@@ -8,11 +8,11 @@ Date: 2026-11-13. HEAD audited: `7d4dede`. A task is DONE only with the evidence
 |---|---|---|---|
 | R1 | `npm ci` succeeds using the existing lockfile | DONE (owner-reported 2026-11-13) | Output: 430 packages, 0 vulnerabilities |
 | R2 | `npm run lint` (`tsc --noEmit`) | DONE (no errors printed; exit code not captured) | Re-run once and record `echo %ERRORLEVEL%` = 0 |
-| R3 | `npm test` full suite | OPEN: 3,716 passed, 2 failed, 47 skipped | Re-run showing 0 failures (see R5) |
-| R4 | `migrationHistory.guard.test.ts` passes (incl. the docs patch) | OPEN (not among the full-run failures; patch state unconfirmed) | Run this file alone after applying the incremental patch |
-| R5 | `migrationReconstruction.test.ts` and `rls.legalEnforcement.test.ts` pass at the default timeout | OPEN (pass at 60 s, fail at 5 s; fix needs approval) | Both files pass with no `--testTimeout` flag |
+| R3 | `npm test` full suite | OPEN: last full run was 3,716 passed, 2 failed, 47 skipped (the 2 failures are fixed in R5) | One full re-run showing 0 failures |
+| R4 | `migrationHistory.guard.test.ts` passes (incl. the docs patch) | DONE (owner-reported 2026-11-13) | 20/20 tests passed (alone, and again in the 3-file run) |
+| R5 | `migrationReconstruction.test.ts` and `rls.legalEnforcement.test.ts` pass at the default timeout | DONE (owner-reported, after the owner-approved timeout patch) | 8/8 and 42/42 tests passed with no timeout flag |
 | R6 | `npm run check:api` and `npm run build` | DONE (owner-reported 2026-11-13) | Bundle OK 226,123 bytes; vite build 23.5 s |
-| R7 | Apply `ironlog-stage10-docs.patch` (docs + both reports), then re-run R4 | OPEN | Patch applied, R4 passes |
+| R7 | Apply the three Stage 10 patches (docs + reports, results update, test timeouts) | OPEN (owner to confirm with `git status`) | Files present in the working tree |
 | R8 | Skipped tests classified against the table in the final report | OPEN (47 skipped confirmed; composition unknown) | Per-test skip list with reasons |
 | R9 | Redis and Postgres integration tests run with `REQUIRE_*=1` | OPEN | Passing output |
 
