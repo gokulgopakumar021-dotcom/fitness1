@@ -11,8 +11,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * live project. Verify on the real project before relying on it.
  */
 const read = (f: string) => readFileSync(resolve(import.meta.dirname, '../../supabase/migrations', f), 'utf8');
-const PROFILES = read('20261027000000_auth_profiles.sql');
-const DELETE_FN = read('20261030000000_delete_own_account.sql');
+const PROFILES = read('20261027051824_auth_profiles.sql');
+const DELETE_FN = read('20261030053401_delete_own_account.sql');
 
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';

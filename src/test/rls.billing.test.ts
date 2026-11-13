@@ -5,7 +5,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
- * Stage 1 (DRAFT migration, not applied to any live database). Runs the REAL `20261106000000_billing_core.sql` in an
+ * Stage 1 (DRAFT migration, not applied to any live database). Runs the REAL `20261106052859_billing_core.sql` in an
  * in-process Postgres with a simulated auth schema and Supabase roles, and checks the access model and the server-side
  * decision functions:
  *  - clients can read only their own subscription/payment rows (and only display columns), can write nothing, and cannot
@@ -19,10 +19,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  */
 const dir = resolve(import.meta.dirname, '../../supabase/migrations');
 const read = (f: string) => readFileSync(resolve(dir, f), 'utf8');
-const PROFILES = read('20261027000000_auth_profiles.sql');
-const DELETE_FN = read('20261030000000_delete_own_account.sql');
-const BILLING = read('20261106000000_billing_core.sql');
-const BILLING_FINAL = read('20261106100000_billing_deletion_refund.sql');
+const PROFILES = read('20261027051824_auth_profiles.sql');
+const DELETE_FN = read('20261030053401_delete_own_account.sql');
+const BILLING = read('20261106052859_billing_core.sql');
+const BILLING_FINAL = read('20261106071858_billing_deletion_refund.sql');
 
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';

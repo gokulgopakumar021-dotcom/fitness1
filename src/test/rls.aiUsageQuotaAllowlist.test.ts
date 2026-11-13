@@ -15,8 +15,8 @@ import { ENDPOINTS } from '../server/security/endpoints';
  * PGlite is a single connection: concurrency is not exercised here (see quota.pg.integration.test.ts for that).
  */
 const dir = resolve(import.meta.dirname, '../../supabase/migrations');
-const BASE = readFileSync(resolve(dir, '20261031000000_ai_usage_quota.sql'), 'utf8');
-const HARDEN = readFileSync(resolve(dir, '20261103000000_ai_quota_bucket_allowlist.sql'), 'utf8');
+const BASE = readFileSync(resolve(dir, '20261102045148_ai_usage_quota.sql'), 'utf8');
+const HARDEN = readFileSync(resolve(dir, '20261103061647_ai_quota_bucket_allowlist.sql'), 'utf8');
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 let pg: PGlite;

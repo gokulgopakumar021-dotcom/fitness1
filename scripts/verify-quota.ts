@@ -15,7 +15,7 @@
  *   VERIFY_QUOTA_EMAIL + VERIFY_QUOTA_PASSWORD  a dedicated test account; the script signs in itself and keeps the
  *                                             token in memory (this creates an auth session for that account).
  *
- * Since the IL-04 migration (20261103000000_ai_quota_bucket_allowlist.sql) the live function accepts ONLY the buckets
+ * Since the IL-04 migration (20261103061647_ai_quota_bucket_allowlist.sql) the live function accepts ONLY the buckets
  * of the `ai: true` endpoints in src/server/security/endpoints.ts and raises 22023 `unknown bucket` for anything else,
  * so this script takes its buckets from that same list and invents none.
  *

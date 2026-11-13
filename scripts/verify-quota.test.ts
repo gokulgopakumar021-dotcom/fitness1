@@ -19,7 +19,7 @@ const AI_ENDPOINT_BUCKETS = new Set(Object.values(ENDPOINTS).filter((p) => p.ai)
 const readRoot = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
 /** The list actually baked into the applied migration (a second source, so the script cannot drift from the database). */
 const MIGRATION_BUCKETS = new Set(
-  [...(readRoot('supabase/migrations/20261103000000_ai_quota_bucket_allowlist.sql').match(/v_allowed constant text\[\] := array\[([^\]]*)\]/)?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1])
+  [...(readRoot('supabase/migrations/20261103061647_ai_quota_bucket_allowlist.sql').match(/v_allowed constant text\[\] := array\[([^\]]*)\]/)?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1])
 );
 
 /** Behaves like the SQL function: refuses unknown buckets (22023, even at limit 0), atomic per bucket, limit 0 never stores. */
@@ -249,8 +249,8 @@ describe('verify:quota against the real migrations (PGlite; not the live project
       grant usage on schema auth to anon, authenticated; grant usage on schema public to anon, authenticated;
       insert into auth.users values ('${U}');
     `);
-    await pg.exec(readRoot('supabase/migrations/20261031000000_ai_usage_quota.sql'));
-    await pg.exec(readRoot('supabase/migrations/20261103000000_ai_quota_bucket_allowlist.sql'));
+    await pg.exec(readRoot('supabase/migrations/20261102045148_ai_usage_quota.sql'));
+    await pg.exec(readRoot('supabase/migrations/20261103061647_ai_quota_bucket_allowlist.sql'));
   }, 60_000); // PGlite boot + migrations: ~3-4 s alone, >10 s when the full suite saturates the CPU
   afterAll(() => pg.close());
 

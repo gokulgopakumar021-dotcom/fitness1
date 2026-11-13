@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * schema, auth.uid() and the Supabase roles. NOT covered: the live Supabase project, PostgREST or Supabase Auth itself.
  * The migration has not been applied to any Supabase project.
  */
-const MIGRATION = readFileSync(resolve(import.meta.dirname, '../../supabase/migrations/20261111000000_legal_acceptances.sql'), 'utf8');
+const MIGRATION = readFileSync(resolve(import.meta.dirname, '../../supabase/migrations/20261112060134_legal_acceptances.sql'), 'utf8');
 const ROLLBACK = readFileSync(resolve(import.meta.dirname, '../../supabase/manual/rollback_legal_acceptances.sql'), 'utf8');
 
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';

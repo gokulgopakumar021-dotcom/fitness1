@@ -5,7 +5,7 @@
 --   public.referral_attribution_guard()
 --   public.referral_partner_guard()
 --
--- Findings from reading 20261110000000_referral_core.sql:
+-- Findings from reading 20261112060254_referral_core.sql:
 --   * All three are ordinary INVOKER trigger functions (LANGUAGE plpgsql, no SECURITY DEFINER). Nothing here adds privilege.
 --   * They reference no table, function, type or schema by name. They only use NEW/OLD fields, the trigger variables
 --     tg_op / tg_table_name, RAISE, and the built-in operators IS DISTINCT FROM and <>. Operators and built-in types resolve

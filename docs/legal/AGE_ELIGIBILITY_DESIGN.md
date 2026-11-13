@@ -35,7 +35,7 @@ Payment-instrument-based adult check; third-party age-assurance or ID verificati
 4. Is blocking existing accounts until they confirm acceptable, or is notice sufficient?
 
 ## Production checklist (manual; nothing here has been done)
-1. Apply migrations `20261111000000`, `20261112000000`, `20261112100000` together, in order, ideally on a Supabase preview branch first.
+1. Apply migrations `20261112060134`, `20261113043228`, `20261113043241` together, in order, ideally on a Supabase preview branch first.
 2. Authentication > Hooks: select `public.hook_before_user_created` for Before User Created (optional second layer; the trigger already enforces).
 3. Set `AGE_ENFORCEMENT=shadow` on Vercel, watch logs for `age_shadow_would_deny`, then set `AGE_ENFORCEMENT=on`. Default is `off` so deploying before the migration cannot lock users out.
 4. Test on the preview branch: direct signup without the declaration is rejected; an existing account sees the screen; an unconfirmed token gets 403 from an AI route.

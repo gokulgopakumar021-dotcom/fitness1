@@ -15,7 +15,7 @@ Startup refuses to run (exit 1, names the setting, never a value) when: `QUOTA_S
 unrecognised value, or the store is `supabase` without the Supabase URL and key. Production with `QUOTA_STORE=memory`
 starts with a warning (daily limits are per instance and reset on restart).
 
-The migration `supabase/migrations/20261031000000_ai_usage_quota.sql` must be applied before `supabase` is used. The
+The migration `supabase/migrations/20261102045148_ai_usage_quota.sql` must be applied before `supabase` is used. The
 server calls `consume_ai_quota` with the **caller's own JWT**; no service-role key is needed or used.
 
 ## Failure behaviour
@@ -90,7 +90,7 @@ npm run verify:quota -- --consume    # also: limit 3 sequence (3 allowed, 4th re
 SUPABASE_URL=... SUPABASE_PUBLISHABLE_KEY=... VERIFY_QUOTA_JWT=... npm run verify:quota
 ```
 
-- Since the IL-04 migration (`20261103000000_ai_quota_bucket_allowlist.sql`) the live function accepts only the buckets of
+- Since the IL-04 migration (`20261103061647_ai_quota_bucket_allowlist.sql`) the live function accepts only the buckets of
   the `ai: true` endpoints in `src/server/security/endpoints.ts` and raises `22023 unknown bucket` for any other name, even
   with limit 0. The script therefore uses real bucket names taken from that list and invents none. If it reports
   `rpc_22023`, the script and the applied allow-list disagree. `scripts/verify-quota.test.ts` fails if the script uses a

@@ -1,4 +1,4 @@
--- Iron Log AI, Stage 2D / Stage 1: ROLLBACK of 20261112000000_legal_acceptance_enforcement.sql. YOU run this by hand.
+-- Iron Log AI, Stage 2D / Stage 1: ROLLBACK of 20261113043228_legal_acceptance_enforcement.sql. YOU run this by hand.
 -- NOT a migration; never applied automatically.
 --
 -- ORDER MATTERS:
@@ -12,7 +12,7 @@
 
 begin;
 
--- Restore the previous (non-blocking) trigger function exactly as in 20261111000000_legal_acceptances.sql.
+-- Restore the previous (non-blocking) trigger function exactly as in 20261112060134_legal_acceptances.sql.
 create or replace function public.handle_new_user_legal_acceptance()
 returns trigger
 language plpgsql

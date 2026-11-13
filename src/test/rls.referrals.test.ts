@@ -5,7 +5,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
- * Referral Stage 1 (DRAFT migration, not applied to any live database). Runs the REAL `20261110000000_referral_core.sql`
+ * Referral Stage 1 (DRAFT migration, not applied to any live database). Runs the REAL `20261112060254_referral_core.sql`
  * (on top of the real profiles, delete-account and billing migrations) in an in-process Postgres with a simulated auth
  * schema and Supabase roles, and checks:
  *  - RLS/privileges: partners read only their own display columns, customers and anon see nothing, no client can write,
@@ -21,11 +21,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  */
 const dir = resolve(import.meta.dirname, '../../supabase/migrations');
 const read = (f: string) => readFileSync(resolve(dir, f), 'utf8');
-const PROFILES = read('20261027000000_auth_profiles.sql');
-const DELETE_FN = read('20261030000000_delete_own_account.sql');
-const BILLING = read('20261106000000_billing_core.sql');
-const BILLING_FINAL = read('20261106100000_billing_deletion_refund.sql');
-const REFERRAL = read('20261110000000_referral_core.sql');
+const PROFILES = read('20261027051824_auth_profiles.sql');
+const DELETE_FN = read('20261030053401_delete_own_account.sql');
+const BILLING = read('20261106052859_billing_core.sql');
+const BILLING_FINAL = read('20261106071858_billing_deletion_refund.sql');
+const REFERRAL = read('20261112060254_referral_core.sql');
 
 const ADMIN = '11111111-1111-4111-8111-111111111111';
 const P1U = '22222222-2222-4222-8222-222222222222'; // partner 1's login

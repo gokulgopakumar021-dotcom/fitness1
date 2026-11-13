@@ -31,7 +31,7 @@ Iron Log AI requires sign-in. Authentication uses Supabase Auth (email + passwor
 4. Restart `npm run dev`. If configuration is missing, the app shows a setup screen instead of the sign-in form.
 
 ### 2. Apply the database migration
-Run `supabase/migrations/20261027000000_auth_profiles.sql` once (Supabase dashboard → SQL Editor, or `supabase db push`). It creates `public.profiles`, Row Level Security policies and the trigger that creates a profile for each new user.
+Run `supabase/migrations/20261027051824_auth_profiles.sql` once (Supabase dashboard → SQL Editor). It creates `public.profiles`, Row Level Security policies and the trigger that creates a profile for each new user. Before using the Supabase CLI (`supabase db push`) read `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md`.
 
 ### 3. Supabase dashboard → Authentication → URL Configuration
 - **Site URL:** your deployed URL (e.g. `https://your-app.example.com`).

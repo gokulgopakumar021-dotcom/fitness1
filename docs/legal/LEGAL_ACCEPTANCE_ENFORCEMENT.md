@@ -12,7 +12,7 @@ Covers Stage 2D, Stage 1 (Stage 2C findings F1, F2, F3).
 | Versions must be the CURRENT published ones | `public.legal_policy_versions` (server-controlled; no client access) |
 | Timestamp from the database clock | `legal_acceptances.accepted_at default now()`; the browser no longer sends `accepted_at_client` |
 | Same allowlist for existing users | `acknowledge_legal_update()` now rejects unknown versions |
-| User isolation, unique `(user_id, terms_version, privacy_version)`, own-row SELECT only, no client writes | Unchanged from `20261111000000` |
+| User isolation, unique `(user_id, terms_version, privacy_version)`, own-row SELECT only, no client writes | Unchanged from `20261112060134` |
 
 Both layers call one function, `public.legal_signup_violation(jsonb)`, so they cannot disagree.
 
@@ -45,17 +45,17 @@ All three are checked in section 5 on a Supabase preview branch before anything 
 
 ## 4. Release sequence (no window where sign-up is unchecked)
 
-`20261111000000_legal_acceptances.sql` on its own still has the swallowing trigger. If the two files were pushed one after the other, there would be a short interval in which sign-up is still bypassable. Close it by applying them in ONE transaction:
+`20261112060134_legal_acceptances.sql` on its own still has the swallowing trigger. If the two files were pushed one after the other, there would be a short interval in which sign-up is still bypassable. Close it by applying them in ONE transaction:
 
 1. Apply to a Supabase **preview branch first**, then production only with the owner's explicit approval.
 2. In the SQL editor (or `psql`), run:
    ```sql
    begin;
-   -- paste 20261111000000_legal_acceptances.sql
-   -- paste 20261112000000_legal_acceptance_enforcement.sql
+   -- paste 20261112060134_legal_acceptances.sql
+   -- paste 20261113043228_legal_acceptance_enforcement.sql
    commit;
    ```
-   (The local test `release sequence` proves this shape leaves no unchecked window.) Then mark both migrations as applied in the migration history (`supabase migration repair --status applied 20261111000000 20261112000000`) so a later `db push` does not re-run them.
+   (The local test `release sequence` proves this shape leaves no unchecked window.) **Historical note:** these two migrations are already applied to the hosted project (history rows `20261112060134` and `20261113043228`) and are recorded under exactly those versions in `supabase/migrations/`. There is nothing to mark as applied: do NOT run any `migration repair`. See `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md` before any future migration push.
 3. Dashboard > Authentication > Hooks > Before User Created > Postgres function > `public.hook_before_user_created`. Save.
 4. Deploy the web app (it only stops sending `accepted_at_client`; it is compatible before and after step 2).
 

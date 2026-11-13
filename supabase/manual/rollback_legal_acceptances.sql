@@ -1,4 +1,4 @@
--- Iron Log AI Stage 2B: ROLLBACK of 20261111000000_legal_acceptances.sql. YOU run this by hand (SQL Editor).
+-- Iron Log AI Stage 2B: ROLLBACK of 20261112060134_legal_acceptances.sql. YOU run this by hand (SQL Editor).
 -- NOT a migration; never applied automatically.
 --
 -- Effects:

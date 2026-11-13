@@ -6,8 +6,8 @@ service role. The browser can read published rows and sign playback URLs for the
 "published" only after you run `supabase/manual/publish_videos.sql` yourself; ingestion never publishes (see "Publishing").
 
 ## One-time setup (you run these; nothing is applied automatically)
-1. Review and apply the migrations in `supabase/migrations/` in order: `20261027010000_*`, `20261027010100_*`, then
-   `20261028000000_exercise_videos_published.sql` (adds the `published` flag and switches the table and storage
+1. Review and apply the migrations in `supabase/migrations/` in order: `20261027063157_*`, `20261027064620_*`, then
+   `20261028053743_exercise_videos_published.sql` (adds the `published` flag and switches the table and storage
    policies to it; its header has the rollback).
 2. Install ffmpeg (for `ffprobe`) if you want duration/resolution recorded. Without it the fields stay empty and are
    marked `unavailable`.

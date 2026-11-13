@@ -13,12 +13,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * itself or signed-URL generation. Those need verifying on the live project.
  */
 const read = (f: string) => readFileSync(resolve(import.meta.dirname, `../../supabase/migrations/${f}`), 'utf8');
-const CATALOG = read('20261027010000_exercise_videos_catalog.sql');
-const STORAGE = read('20261027010100_exercise_videos_storage.sql');
+const CATALOG = read('20261027063157_exercise_videos_catalog.sql');
+const STORAGE = read('20261027064620_exercise_videos_storage.sql');
 const manual = (f: string) => readFileSync(resolve(import.meta.dirname, `../../supabase/manual/${f}`), 'utf8');
 const PUBLISH_SQL = manual('publish_videos.sql');
 const UNPUBLISH_SQL = manual('unpublish_videos.sql');
-const PUBLISHED = read('20261028000000_exercise_videos_published.sql');
+const PUBLISHED = read('20261028053743_exercise_videos_published.sql');
 
 const U = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const sha = (n: number) => n.toString(16).padStart(64, '0');

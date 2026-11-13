@@ -50,7 +50,12 @@ export function validateSignUp(f: SignUpFields): SignUpErrors {
 }
 
 /** Maps Supabase auth errors to messages that don't reveal whether an account exists. */
-export function friendlyAuthError(err: { code?: string; message?: string; status?: number } | null | undefined): string {
+export const WEAK_PASSWORD_MESSAGE =
+  'That password isn\'t strong enough or has appeared in a known data breach. Please choose a different, longer password with letters and numbers.';
+export const BREACHED_PASSWORD_MESSAGE =
+  'That password has appeared in a known data breach, so it can\'t be used. Please choose a different one.';
+
+export function friendlyAuthError(err: { code?: string; message?: string; status?: number; reasons?: readonly string[] } | null | undefined): string {
   const code = err?.code ?? '';
   switch (code) {
     case 'invalid_credentials':
@@ -61,7 +66,9 @@ export function friendlyAuthError(err: { code?: string; message?: string; status
     case 'over_email_send_rate_limit':
       return 'Too many attempts. Please wait a few minutes and try again.';
     case 'weak_password':
-      return 'That password is too weak. Try a longer one with letters and numbers.';
+      // Supabase attaches `reasons` (length | characters | pwned) to weak_password errors. A leaked-password (pwned) rejection can be
+      // a long, well-formed password, so it must not be told to "try a longer one". Without reasons the cause is unknown: stay neutral.
+      return Array.isArray(err?.reasons) && err.reasons.includes('pwned') ? BREACHED_PASSWORD_MESSAGE : WEAK_PASSWORD_MESSAGE;
     case 'same_password':
       return 'Choose a password different from your current one.';
     case 'session_not_found':
@@ -76,14 +83,21 @@ export function friendlyAuthError(err: { code?: string; message?: string; status
 }
 
 /**
- * Shown when a sign-up is refused at the database layer (the strict legal-acceptance / 18+ triggers on auth.users).
- * Deliberately names no table, trigger, SQL error or policy detail. The wording stays honest about the ambiguity: Supabase Auth
- * reports EVERY database-side sign-up failure with the same generic error, so this message must not claim a single cause.
+ * Generic sign-up failure. Supabase Auth reports EVERY database-side sign-up failure (the strict legal-acceptance / 18+ triggers on
+ * auth.users, but also an outage or any other database problem) with the same generic error, so this message must not claim a cause.
+ * Names no table, trigger, SQL error or policy detail.
  */
-export const SIGNUP_REJECTED_MESSAGE =
+export const SIGNUP_GENERIC_FAILURE_MESSAGE =
+  'We couldn\'t complete your signup. Please refresh the page and try again. If the problem continues, contact support.';
+
+/**
+ * Policy-specific message, used ONLY when the error text itself carries one of the strict triggers' hint tokens, i.e. the rejection can be
+ * identified reliably. Never shown for the generic database error.
+ */
+export const SIGNUP_POLICY_REJECTED_MESSAGE =
   'Your signup could not be completed because the policy information may be out of date. Please refresh the page and try again.';
 
-type AuthErrorLike = { code?: string; message?: string; status?: number; name?: string } | null | undefined;
+type AuthErrorLike = { code?: string; message?: string; status?: number; name?: string; reasons?: readonly string[] } | null | undefined;
 
 /** Hint tokens the strict triggers raise with (see the legal_acceptance_enforcement and age_eligibility migrations). */
 const POLICY_REJECTION_HINT_RE = /\b(legal_acceptance_required|age_declaration_required)\b/;
@@ -107,6 +121,7 @@ function isGenericSignupDatabaseError(err: AuthErrorLike): boolean {
  */
 export function friendlySignUpError(err: AuthErrorLike): string {
   const message = err?.message ?? '';
-  if (POLICY_REJECTION_HINT_RE.test(message) || isGenericSignupDatabaseError(err)) return SIGNUP_REJECTED_MESSAGE;
+  if (POLICY_REJECTION_HINT_RE.test(message)) return SIGNUP_POLICY_REJECTED_MESSAGE;
+  if (isGenericSignupDatabaseError(err)) return SIGNUP_GENERIC_FAILURE_MESSAGE;
   return friendlyAuthError(err);
 }

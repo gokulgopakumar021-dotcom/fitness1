@@ -1,5 +1,5 @@
 -- IL-04 hardening for public.consume_ai_quota (DRAFT: written in remediation session 2, NOT applied to any database).
--- Follows 20261031000000_ai_usage_quota.sql, which stays unchanged.
+-- Follows 20261102045148_ai_usage_quota.sql, which stays unchanged.
 --
 -- Problem: any signed-in user can call consume_ai_quota directly (PostgREST /rest/v1/rpc) with an arbitrary
 -- p_bucket text (1..64 chars), and every new name creates a new counter row. Nothing ever deletes old rows.

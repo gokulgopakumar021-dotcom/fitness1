@@ -7,16 +7,16 @@ import { LEGAL } from '../legal/legalConfig';
 
 /**
  * Stage 2D / Stage 2: platform-wide 18+ eligibility (self-declaration, no date of birth). Runs the REAL migrations
- * 20261111000000, 20261112000000 and 20261112100000 in an in-process Postgres (same harness as rls.legalEnforcement.test.ts).
+ * 20261112060134, 20261113043228 and 20261113043241 in an in-process Postgres (same harness as rls.legalEnforcement.test.ts).
  *
  * Simulated: the `auth` schema (a bare auth.users table), auth.uid() and the Supabase roles, including supabase_auth_admin.
  * NOT VERIFIED until tested on a Supabase preview branch: that the hosted Auth service calls the hook, which sign-up paths
  * invoke it, and how Auth words a trigger failure. No migration has been applied to any Supabase project.
  */
 const read = (p: string) => readFileSync(resolve(import.meta.dirname, '../../supabase', p), 'utf8');
-const MIG_11 = read('migrations/20261111000000_legal_acceptances.sql');
-const MIG_12 = read('migrations/20261112000000_legal_acceptance_enforcement.sql');
-const MIG_13 = read('migrations/20261112100000_age_eligibility.sql');
+const MIG_11 = read('migrations/20261112060134_legal_acceptances.sql');
+const MIG_12 = read('migrations/20261113043228_legal_acceptance_enforcement.sql');
+const MIG_13 = read('migrations/20261113043241_age_eligibility.sql');
 const ROLLBACK = read('manual/rollback_age_eligibility.sql');
 
 const T = LEGAL.termsVersion;

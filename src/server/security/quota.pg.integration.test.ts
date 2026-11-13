@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
- * Runs the REAL `20261031000000_ai_usage_quota.sql` migration against a REAL PostgreSQL server and exercises
+ * Runs the REAL `20261102045148_ai_usage_quota.sql` migration against a REAL PostgreSQL server and exercises
  * `consume_ai_quota` over many genuine, simultaneous connections (one `psql` process per call, so each call is its own
  * session and transaction).
  *
@@ -23,7 +23,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  */
 const STRICT = process.env.REQUIRE_PG_TESTS === '1';
 const ADMIN_URL = process.env.PG_TEST_URL;
-const MIGRATION = resolve(import.meta.dirname, '../../../supabase/migrations/20261031000000_ai_usage_quota.sql');
+const MIGRATION = resolve(import.meta.dirname, '../../../supabase/migrations/20261102045148_ai_usage_quota.sql');
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const run = promisify(execFile);

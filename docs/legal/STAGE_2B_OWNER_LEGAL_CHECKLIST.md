@@ -47,7 +47,7 @@ Nothing below has been invented. Where the answer is unknown the page shows a pl
 ## C. Release steps (owner)
 
 1. Fill every placeholder; counsel signs off; set effective date and final version labels.
-2. Apply `supabase/migrations/20261111000000_legal_acceptances.sql` to a **staging/preview** Supabase project first, check sign-up and the notice, then Production **with explicit approval**. Rollback: `supabase/manual/rollback_legal_acceptances.sql`.
+2. Apply `supabase/migrations/20261112060134_legal_acceptances.sql` to a **staging/preview** Supabase project first, check sign-up and the notice, then Production **with explicit approval**. Rollback: `supabase/manual/rollback_legal_acceptances.sql`.
 3. Review `vercel.json` (five narrow rewrites) on a **Preview deployment** and open each route directly, refresh, and with a trailing slash.
 4. Set `LEGAL.isDraft = false`; run the tests; the release gate must pass.
 5. Merge and deploy only on the owner's explicit instruction.

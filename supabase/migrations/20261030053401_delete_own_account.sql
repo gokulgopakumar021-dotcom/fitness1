@@ -3,7 +3,7 @@
 -- The client cannot delete rows in auth.users (that needs the service role), so this SECURITY DEFINER function
 -- does it on the caller's behalf. It can only ever delete the row whose id equals the caller's own auth.uid():
 -- there is no parameter, so one user can never name another. public.profiles is removed by ON DELETE CASCADE.
--- Fitness data is not stored in the cloud (see 20261027000000_auth_profiles.sql), so there is nothing else to purge.
+-- Fitness data is not stored in the cloud (see 20261027051824_auth_profiles.sql), so there is nothing else to purge.
 -- Idempotent: safe to run more than once.
 
 create or replace function public.delete_own_account()

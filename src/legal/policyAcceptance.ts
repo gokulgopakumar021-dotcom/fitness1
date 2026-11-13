@@ -5,7 +5,7 @@ import { LEGAL } from './legalConfig';
  * Terms / Privacy acceptance helpers (Stage 2B).
  *
  * - Sign-up: the browser adds `legal_acceptance` to the sign-up metadata. A strict database trigger (migrations
- *   20261111000000 + 20261112000000) rejects sign-ups without the CURRENT versions and copies them into
+ *   20261112060134 + 20261113043228) rejects sign-ups without the CURRENT versions and copies them into
  *   public.legal_acceptances with the DATABASE clock. The checkbox is only the UI; the database is the enforcement.
  * - Existing users: a one-time notice calls the acknowledge_legal_update() function. Showing the notice records nothing.
  * - Checking "do I need to show the notice" fails SAFE: any error (table not migrated yet, offline, ...) means "unknown",

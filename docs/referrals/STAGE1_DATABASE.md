@@ -1,6 +1,6 @@
 # Referral system, Stage 1: database and security foundation
 
-Migration: `supabase/migrations/20261110000000_referral_core.sql` (DRAFT, not applied anywhere). Tests: `src/test/rls.referrals.test.ts`.
+Migration: `supabase/migrations/20261112060254_referral_core.sql` (DRAFT, not applied anywhere). Tests: `src/test/rls.referrals.test.ts`.
 Base: `main` @ `ceac8b8`. Additive only; no existing table, function, trigger or server file is changed.
 
 ## Tables
@@ -19,6 +19,5 @@ manual payouts bounded by the payable balance (14-day default hold, flagged/void
 - Hold period (D1) is a function parameter defaulting to 14 days; attribution cut-off (D4) is "no billing row or payment yet".
 
 ## Apply (when approved)
-Review first, then `supabase db push` against a branch/staging project, or run the file in the SQL editor. Seed an admin manually:
-`insert into public.app_admins (user_id) values ('<auth.users id>');`. Before applying, reconcile the existing live-vs-repo migration
-version drift noted in Stage 0. Rollback block is at the end of the migration.
+Review first, then apply to a branch/staging project (read `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md` before using `supabase db push`), or run the file in the SQL editor. Seed an admin manually:
+`insert into public.app_admins (user_id) values ('<auth.users id>');`. (The local-vs-live migration version drift noted in Stage 0 was reconciled in Stage 9; this migration is already recorded remotely as 20261112060254.) Rollback block is at the end of the migration.

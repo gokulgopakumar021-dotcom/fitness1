@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * `request.jwt.claim.sub` setting PostgREST sets) and the Supabase roles. What is NOT covered: Supabase's own
  * auth service, PostgREST, or the live project — this does not replace verifying on the real project.
  */
-const MIGRATION = readFileSync(resolve(import.meta.dirname, '../../supabase/migrations/20261027000000_auth_profiles.sql'), 'utf8');
+const MIGRATION = readFileSync(resolve(import.meta.dirname, '../../supabase/migrations/20261027051824_auth_profiles.sql'), 'utf8');
 
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';

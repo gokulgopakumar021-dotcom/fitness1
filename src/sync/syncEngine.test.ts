@@ -33,7 +33,7 @@ beforeAll(async () => {
     grant usage on schema public, auth to anon, authenticated;
     grant execute on function auth.uid() to anon, authenticated;
   `);
-  for (const f of ['20261027000000_auth_profiles.sql', '20261030000000_delete_own_account.sql',
+  for (const f of ['20261027051824_auth_profiles.sql', '20261030053401_delete_own_account.sql',
     '20261105071106_workout_cloud_sync.sql', '20261105072929_workout_sync_no_client_delete.sql']) await pg.exec(read(f));
 }, 60000);
 afterAll(async () => { await pg.close(); });

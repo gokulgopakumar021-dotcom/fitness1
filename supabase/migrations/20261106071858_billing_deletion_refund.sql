@@ -1,4 +1,4 @@
--- Iron Log: billing deletion safeguards + INR 5 authorization refund tracking (additive follow-up to 20261106000000_billing_core.sql).
+-- Iron Log: billing deletion safeguards + INR 5 authorization refund tracking (additive follow-up to 20261106052859_billing_core.sql).
 --
 -- Final Stage 1 design (docs/billing/STAGE1_ARCHITECTURE.md, section 5a). Idempotent: safe to run more than once, and a no-op
 -- for anything already present. Changes:
@@ -90,7 +90,7 @@ begin
 end;
 $$;
 
--- delete_own_account: same behaviour as 20261030000000, plus the billing gate. It takes the SAME per-user advisory lock as
+-- delete_own_account: same behaviour as 20261030053401, plus the billing gate. It takes the SAME per-user advisory lock as
 -- billing_begin_subscription, so a new subscription cannot be created while deletion is being decided. Grants are unchanged
 -- (create or replace keeps them): executable by authenticated users only.
 create or replace function public.delete_own_account()
@@ -147,7 +147,7 @@ grant select on public.billing_revenue_payments to service_role;
 
 -- ---------------------------------------------------------------------------------------------------------------------
 -- ROLLBACK (not part of the migration; run manually, only before real billing data exists):
---   -- restore the original delete_own_account() by re-running supabase/migrations/20261030000000_delete_own_account.sql
+--   -- restore the original delete_own_account() by re-running supabase/migrations/20261030053401_delete_own_account.sql
 --   drop view if exists public.billing_revenue_payments;
 --   drop function if exists public.billing_unrefunded_authorizations(integer);
 --   drop function if exists public.billing_assert_account_deletable(uuid);

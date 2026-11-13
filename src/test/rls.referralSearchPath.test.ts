@@ -6,13 +6,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
  * Stage 8 / V3: the PROPOSED search_path pin for the three referral guard trigger functions (supabase/proposed/...). Runs the REAL
- * 20261110000000_referral_core.sql (and its prerequisites) in an in-process Postgres, then the proposed SQL and its rollback, and
+ * 20261112060254_referral_core.sql (and its prerequisites) in an in-process Postgres, then the proposed SQL and its rollback, and
  * proves the append-only / immutability behaviour is identical before and after. Nothing here touches any Supabase project.
  * NOT covered: the hosted Supabase advisor re-scan (needs the migration applied to a real project), true concurrency.
  */
 const root = resolve(import.meta.dirname, '../../supabase');
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
-const PREREQ = ['20261027000000_auth_profiles.sql', '20261030000000_delete_own_account.sql', '20261106000000_billing_core.sql', '20261106100000_billing_deletion_refund.sql', '20261110000000_referral_core.sql'].map((f) => read(`migrations/${f}`));
+const PREREQ = ['20261027051824_auth_profiles.sql', '20261030053401_delete_own_account.sql', '20261106052859_billing_core.sql', '20261106071858_billing_deletion_refund.sql', '20261112060254_referral_core.sql'].map((f) => read(`migrations/${f}`));
 const PROPOSED = read('proposed/20261114000000_referral_trigger_search_path.sql');
 const ROLLBACK = read('manual/rollback_referral_trigger_search_path.sql');
 
@@ -104,6 +104,12 @@ describe('Stage 8 / V3: referral guard search_path pin (proposed, not applied)',
     const rb = strip(ROLLBACK).toLowerCase().split(';').map((s) => s.trim()).filter(Boolean);
     expect(rb).toHaveLength(3);
     for (const s of rb) expect(s).toMatch(/^alter function public\.referral_(forbid_mutation|attribution_guard|partner_guard)\(\)\s+reset search_path$/);
+  });
+
+  it('the rollback touches exactly the same three functions as the proposal (exact inverse, nothing extra)', () => {
+    const names = (sql: string) => [...strip(sql).matchAll(/alter function public\.(\w+)\(\)/gi)].map((m) => m[1]).sort();
+    expect(names(ROLLBACK)).toEqual(names(PROPOSED));
+    expect(names(PROPOSED)).toEqual([...FUNCS].sort());
   });
 
   it('does not modify the original referral migration or sit in the migrations directory', () => {

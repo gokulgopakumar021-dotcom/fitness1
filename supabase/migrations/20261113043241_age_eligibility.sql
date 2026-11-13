@@ -1,7 +1,7 @@
 -- Iron Log AI, Stage 2D / Stage 2: platform-wide 18+ ELIGIBILITY (lower-data design: self-declaration, NO date of birth).
 --
 -- STATUS: written for review. NOT applied to any Supabase project. Additive on top of
---   20261111000000_legal_acceptances.sql and 20261112000000_legal_acceptance_enforcement.sql,
+--   20261112060134_legal_acceptances.sql and 20261113043228_legal_acceptance_enforcement.sql,
 -- which it REQUIRES. All three must be released together, in order (see docs/legal/AGE_ELIGIBILITY_DESIGN.md).
 -- Idempotent: safe to run more than once.
 --

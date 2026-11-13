@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * the atomicity argument rests on INSERT .. ON CONFLICT DO UPDATE .. WHERE; real multi-connection concurrency is covered by
  * src/server/security/quota.pg.integration.test.ts (real PostgreSQL), and the live project by `npm run verify:quota`.
  */
-const MIGRATION = readFileSync(resolve(import.meta.dirname, '../../supabase/migrations/20261031000000_ai_usage_quota.sql'), 'utf8');
+const MIGRATION = readFileSync(resolve(import.meta.dirname, '../../supabase/migrations/20261102045148_ai_usage_quota.sql'), 'utf8');
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 let pg: PGlite;

@@ -13,8 +13,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  */
 const dir = resolve(import.meta.dirname, '../../supabase/migrations');
 const read = (f: string) => readFileSync(resolve(dir, f), 'utf8');
-const PROFILES = read('20261027000000_auth_profiles.sql');
-const DELETE_FN = read('20261030000000_delete_own_account.sql');
+const PROFILES = read('20261027051824_auth_profiles.sql');
+const DELETE_FN = read('20261030053401_delete_own_account.sql');
 const SYNC = read('20261105071106_workout_cloud_sync.sql');
 const HARDEN = read('20261105072929_workout_sync_no_client_delete.sql');
 

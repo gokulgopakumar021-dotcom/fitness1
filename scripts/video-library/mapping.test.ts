@@ -313,7 +313,7 @@ describe('generated SQL against a real Postgres (PGlite, real migrations)', () =
       alter table storage.objects enable row level security;
       grant usage on schema public, auth, storage to anon, authenticated;
     `);
-    for (const f of ['20261027010000_exercise_videos_catalog.sql', '20261027010100_exercise_videos_storage.sql', '20261028000000_exercise_videos_published.sql']) await pg.exec(read(f));
+    for (const f of ['20261027063157_exercise_videos_catalog.sql', '20261027064620_exercise_videos_storage.sql', '20261028053743_exercise_videos_published.sql']) await pg.exec(read(f));
   }, 60000);
   afterAll(async () => { await pg.close(); });
   beforeEach(async () => {

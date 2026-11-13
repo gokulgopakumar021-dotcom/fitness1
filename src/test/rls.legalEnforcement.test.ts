@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { LEGAL } from '../legal/legalConfig';
 
 /**
- * Stage 2D / Stage 1: server-side legal acceptance enforcement. Runs the REAL migrations 20261111000000 then 20261112000000 in an
+ * Stage 2D / Stage 1: server-side legal acceptance enforcement. Runs the REAL migrations 20261112060134 then 20261113043228 in an
  * in-process Postgres (same harness as rls.legalAcceptances.test.ts).
  *
  * Simulated: the `auth` schema (a bare auth.users table), auth.uid() and the Supabase roles, including supabase_auth_admin.
@@ -15,8 +15,8 @@ import { LEGAL } from '../legal/legalConfig';
  * Neither migration has been applied to any Supabase project.
  */
 const read = (p: string) => readFileSync(resolve(import.meta.dirname, '../../supabase', p), 'utf8');
-const MIG_11 = read('migrations/20261111000000_legal_acceptances.sql');
-const MIG_12 = read('migrations/20261112000000_legal_acceptance_enforcement.sql');
+const MIG_11 = read('migrations/20261112060134_legal_acceptances.sql');
+const MIG_12 = read('migrations/20261113043228_legal_acceptance_enforcement.sql');
 const ROLLBACK = read('manual/rollback_legal_enforcement.sql');
 
 const T = LEGAL.termsVersion;

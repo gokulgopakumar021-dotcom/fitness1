@@ -5,7 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  *
  * This is a SELF-DECLARATION, not verified identity or verified age, and NO date of birth or age is collected.
  * The browser only ever sends a positive declaration; the DATABASE decides whether it is acceptable (strict trigger and
- * Before User Created hook, migration 20261112100000) and stamps it with its own clock. The browser's idea of the
+ * Before User Created hook, migration 20261113043241) and stamps it with its own clock. The browser's idea of the
  * user's age (profile.age, localStorage, sessionStorage) is never consulted for eligibility.
  */
 export const AGE_DECLARATION_METADATA_KEY = 'age_declaration';

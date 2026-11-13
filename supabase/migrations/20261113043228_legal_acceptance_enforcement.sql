@@ -1,6 +1,6 @@
 -- Iron Log AI, Stage 2D / Stage 1: SERVER-SIDE enforcement of legal acceptance at sign-up.
 --
--- STATUS: written for review. NOT applied to any Supabase project. Additive on top of 20261111000000_legal_acceptances.sql,
+-- STATUS: written for review. NOT applied to any Supabase project. Additive on top of 20261112060134_legal_acceptances.sql,
 -- which it REQUIRES (and must be released together with it, see docs/legal/LEGAL_ACCEPTANCE_ENFORCEMENT.md).
 -- Idempotent: safe to run more than once.
 --
