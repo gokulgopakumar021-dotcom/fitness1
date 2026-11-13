@@ -2,7 +2,7 @@ import { getSupabase } from './supabase';
 import { announceBillingRefusal } from './billingGate';
 
 /**
- * Authenticated fetch for IRONLOG's own backend (`/api/*`). Every internal API call goes through this wrapper so the
+ * Authenticated fetch for Iron Log AI's own backend (`/api/*`). Every internal API call goes through this wrapper so the
  * Supabase access token is attached in one place.
  *
  * - Only same-API-origin requests get a token: a relative `/api/...` path, or an absolute URL whose origin equals the
@@ -23,7 +23,7 @@ function apiBase(): string {
   return ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '').trim().replace(/\/+$/, '');
 }
 
-/** Resolves the request URL, or null when it is not an IRONLOG API request (no token will be attached). */
+/** Resolves the request URL, or null when it is not an Iron Log AI API request (no token will be attached). */
 export function resolveApiUrl(input: string): string | null {
   const base = apiBase();
   if (input.startsWith('/api/') || input === '/api') return base ? `${base}${input}` : input;

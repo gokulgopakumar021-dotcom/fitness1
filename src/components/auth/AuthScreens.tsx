@@ -60,7 +60,7 @@ export const SplashScreen: React.FC = () => (
 );
 
 export const SetupErrorScreen: React.FC<{ message: string | null }> = ({ message }) => (
-  <AuthLayout title="Setup required" subtitle="IronLog AI can't reach its account service yet.">
+  <AuthLayout title="Setup required" subtitle="Iron Log AI can't reach its account service yet.">
     <div role="alert" className="flex gap-2 text-sm text-warning bg-warning/10 border border-warning/30 rounded-xl p-3">
       <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden />
       <span>{message ?? 'Supabase is not configured.'}</span>
@@ -326,7 +326,7 @@ const SignInForm: React.FC<FormProps> = ({ email, setEmail, go, callbackError, o
   });
 
   return (
-    <AuthLayout title="Welcome back" subtitle="Sign in to your IronLog AI account." onBackToHome={onBackToHome}>
+    <AuthLayout title="Welcome back" subtitle="Sign in to your Iron Log AI account." onBackToHome={onBackToHome}>
       <form onSubmit={submit} noValidate className="space-y-4" aria-busy={busy}>
         <FormError message={callbackError ?? formError} />
         <Field label="Email" type="email" value={email} onChange={setEmail} error={errors.email} autoComplete="email" disabled={busy} autoFocus />

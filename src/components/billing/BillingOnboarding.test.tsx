@@ -254,7 +254,7 @@ describe('authorisation outcomes', () => {
     expect(next).toMatch(/renews every month at ₹299 until you cancel/);
     expect(next).toMatch(/Settings, then Billing/);
     expect(container.querySelector('input[name="billing-plan"]')).toBeNull();
-    await click(byText('button', /^Continue to IronLog AI/));
+    await click(byText('button', /^Continue to Iron Log AI/));
     expect(app()).not.toBeNull();
     expect(onboardingLib.markBillingOnboardingDone).toHaveBeenCalledTimes(1);
   });

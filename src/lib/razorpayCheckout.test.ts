@@ -56,7 +56,7 @@ describe('Razorpay Checkout loader', () => {
 });
 
 describe('openSubscriptionCheckout', () => {
-  const args = { keyId: 'rzp_test_abc', subscriptionId: 'sub_ABC123456', description: 'Monthly plan', email: 'me@example.com', brandName: 'IronLog AI' };
+  const args = { keyId: 'rzp_test_abc', subscriptionId: 'sub_ABC123456', description: 'Monthly plan', email: 'me@example.com', brandName: 'Iron Log AI' };
 
   it('passes only the public key id and subscription id (never a secret), and resolves with the callback result', async () => {
     installFake();

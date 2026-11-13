@@ -3,7 +3,7 @@ import { BRAND } from '../../brand';
 import { cn } from './cn';
 
 /**
- * Official IRONLOG AI logo.
+ * Official Iron Log AI logo.
  *
  * Variants (all derived from the supplied logo, never redrawn):
  *  - `full`     emblem + wordmark + tagline  — hero / auth / splash / landing

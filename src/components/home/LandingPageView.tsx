@@ -55,7 +55,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               <span className="font-mono font-black tracking-widest text-base text-zinc-100">
-                IRONLOG AI
+                IRON LOG AI
               </span>
             </div>
             <span className="text-[10px] text-zinc-400 font-mono tracking-wider hidden sm:block">
@@ -238,7 +238,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
                 </div>
 
                 <p className="text-xs text-zinc-400 leading-relaxed font-mono">
-                  IronLog AI evaluates rep targets, RPE / RIR readings, and set failure thresholds across your last 3 workouts. When ceiling volume is sustained, it signals the exact micro-load bump required.
+                  Iron Log AI evaluates rep targets, RPE / RIR readings, and set failure thresholds across your last 3 workouts. When ceiling volume is sustained, it signals the exact micro-load bump required.
                 </p>
               </div>
             )}
@@ -619,7 +619,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
             <div className="p-5 bg-surface border border-line rounded-xl">
               <h4 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
                 <ChevronRight className="w-4 h-4 text-accent" />
-                How does IronLog AI calculate progressive overload?
+                How does Iron Log AI calculate progressive overload?
               </h4>
               <p className="mt-2 text-xs text-zinc-400 leading-relaxed">
                 Rather than arbitrary weight bumps, the engine tracks your specified target rep range (e.g. 8–10 reps). Once all target sets clear the top of the range at valid RPE, it recommends a micro-load jump (+1.25kg to +2.5kg) on the next session.
@@ -667,7 +667,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
               TRAIN SMARTER. BUILD STRONGER.
             </h2>
             <p className="text-sm text-zinc-400 mt-3 max-w-lg leading-relaxed">
-              Create an account and let IronLog AI guide your progression, nutrition and recovery.
+              Create an account and let Iron Log AI guide your progression, nutrition and recovery.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
               <button
@@ -695,7 +695,7 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <BrandEmblem className="h-5" />
-            <span className="font-bold text-zinc-200">IRONLOG AI // TRAIN SMARTER. BUILD STRONGER.</span>
+            <span className="font-bold text-zinc-200">IRON LOG AI // TRAIN SMARTER. BUILD STRONGER.</span>
           </div>
 
           <div className="flex items-center gap-4">

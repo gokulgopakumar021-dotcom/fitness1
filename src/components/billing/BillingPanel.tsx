@@ -378,7 +378,7 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
           >
             {status.trial.eligible ? `Start ${status.trial.days}-day trial` : `Subscribe, ${formatInr(plan.amountPaise)} per ${intervalWord(plan)}`}
           </Button>
-          <p className="text-label text-zinc-500">Payments are handled by Razorpay. Your card details never reach IronLog.</p>
+          <p className="text-label text-zinc-500">Payments are handled by Razorpay. Your card details never reach Iron Log AI.</p>
         </SettingsCard>
       )}
 

@@ -7,12 +7,12 @@ import { BRAND } from '../brand';
 const root = process.cwd();
 const pub = (p: string) => join(root, 'public', p.replace(/^\//, ''));
 
-describe('IRONLOG AI brand assets', () => {
+describe('Iron Log AI brand assets', () => {
   const manifest = JSON.parse(readFileSync(pub('manifest.webmanifest'), 'utf8'));
 
   it('manifest carries the new identity', () => {
-    expect(manifest.name).toBe('IronLog AI');
-    expect(manifest.short_name).toBe('IronLog');
+    expect(manifest.name).toBe('Iron Log AI');
+    expect(manifest.short_name).toBe('Iron Log AI');
     expect(manifest.theme_color).toBe('#050505');
     expect(manifest.background_color).toBe('#050505');
   });
@@ -24,8 +24,9 @@ describe('IRONLOG AI brand assets', () => {
 
   it('index.html links resolve and use the new name', () => {
     const html = readFileSync(join(root, 'index.html'), 'utf8');
-    expect(html).toContain('<title>IRONLOG AI');
-    expect(html).not.toMatch(/IRON LOG|Iron Log|Personal Fitness OS/);
+    expect(html).toContain('<title>Iron Log AI');
+    // Older names must not come back ("Personal Fitness OS"), nor the pre-Stage-5 one-word spellings.
+    expect(html).not.toMatch(/IRONLOG|IronLog|Personal Fitness OS/);
     for (const m of html.matchAll(/(?:href|content)="(\/(?:brand\/|favicon|manifest)[^"]*)"/g)) {
       expect(existsSync(pub(m[1])), m[1]).toBe(true);
     }
@@ -39,7 +40,8 @@ describe('IRONLOG AI brand assets', () => {
   });
 
   it('brand constants', () => {
-    expect(BRAND.name).toBe('IRONLOG AI');
+    expect(BRAND.name).toBe('Iron Log AI');
+    expect(BRAND.wordmark).toBe('IRON LOG AI');
     expect(BRAND.tagline).toBe('TRAIN SMARTER. BUILD STRONGER.');
   });
 });

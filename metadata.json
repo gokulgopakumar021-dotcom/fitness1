@@ -1,5 +1,5 @@
 {
-  "name": "IRONLOG AI — AI-Powered Fitness & Personal Training Platform",
+  "name": "Iron Log AI — AI-Powered Fitness & Personal Training Platform",
   "description": "AI-powered fitness and personal training: strength tracking, progressive overload, nutrition, recovery, Workout Mirror and Body Scan.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

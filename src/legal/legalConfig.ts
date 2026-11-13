@@ -7,7 +7,7 @@
  * `legalPages.test.tsx` fails if any placeholder would still be published.
  */
 export const LEGAL = {
-  /** Public brand approved by the owner. (The app UI currently spells it "IronLog AI"; see docs/legal/STAGE_2B_OWNER_LEGAL_CHECKLIST.md.) */
+  /** Public brand approved by the owner. The app UI uses the same spelling via src/brand.ts (enforced by src/test/brandConsistency.test.ts). */
   brandName: 'Iron Log AI',
   supportEmail: 'support@ironlog.app',
   /** true = drafts: banner + placeholders + reviewer notes are shown. Flip only after owner + counsel sign-off. */

@@ -1,7 +1,7 @@
 /**
  * Per-account storage scope.
  *
- * IronLog AI keeps its data in localStorage / IndexedDB under fixed `ironlog_*` names. Before accounts existed,
+ * Iron Log AI keeps its data in localStorage / IndexedDB under fixed `ironlog_*` names. Before accounts existed,
  * everything on a device shared those names. To stop one signed-in account from reading (or overwriting)
  * another account's data, every persisted name is passed through `scopedKey` / `scopedDbName`:
  *

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ------------------------------------------------------------------
-   IRONLOG AI DESIGN SYSTEM
+   IRON LOG AI DESIGN SYSTEM
    Theme-aware tokens. The CSS variables below switch between the dark
    and light themes (ThemeContext toggles `.dark` / `.light` on <html>).
    Tailwind token utilities (bg-surface, border-line, text-accent ...)
@@ -159,7 +159,7 @@
 }
 
 @theme {
-  /* Lime family -> IronLog AI brand ramp (sampled from the official logo: ~#8bf909) */
+  /* Lime family -> Iron Log AI brand ramp (sampled from the official logo: ~#8bf909) */
   --color-lime-50: #f6ffe5;
   --color-lime-100: #e8ffc2;
   --color-lime-200: #d2ff8f;
@@ -326,7 +326,7 @@
   }
 }
 
-/* IRONLOG AI logo: artwork has white/silver parts, so give it a dark plate on the light theme. */
+/* Iron Log AI logo: artwork has white/silver parts, so give it a dark plate on the light theme. */
 html.light .brand-logo {
   background: #050505;
   border-radius: 0.75rem;

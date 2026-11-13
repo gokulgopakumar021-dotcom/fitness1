@@ -28,7 +28,7 @@ Nothing below has been invented. Where the answer is unknown the page shows a pl
 
 1. **Governing law and dispute venue** (`governingLaw`) is a placeholder; no arbitration clause is proposed. Counsel to choose.
 2. **Liability cap** (three months of fees) in Terms is a placeholder proposal, not a verified standard.
-3. **Brand spelling.** Owner decided "Iron Log AI"; the app UI, logo files and `src/brand.ts` say "IronLog AI" / "IRONLOG AI". Legal pages use "Iron Log AI". Decide one spelling and align.
+3. **Brand spelling.** RESOLVED in Stage 2D / Stage 5: the approved public spelling is "Iron Log AI". App text, page metadata, the web manifest, notification titles and the legal pages now use it; `src/test/brandConsistency.test.ts` guards against drift. OPEN: the logo image files still show the one-word artwork "IRONLOG AI" (see docs/legal/STAGE_5_BRAND_CLEANUP.md).
 4. **Free vs paid split.** Landing copy now says AI features "may need a trial or a paid plan". Production `BILLING_ENFORCEMENT` was not inspected (default is `off`). Confirm the true split and adjust landing and Terms.
 5. **Live prices.** Prices are env-overridable. Confirm production still equals ₹299 / ₹1,499 and the trial length; policy copy hard-codes the prices (a test pins them to the code defaults only).
 6. **Supabase region, backup retention, Vercel log retention, Upstash region and configuration**: unverified; Privacy says so.

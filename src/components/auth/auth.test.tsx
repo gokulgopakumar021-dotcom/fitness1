@@ -450,7 +450,7 @@ describe('homepage before sign in and sign up', () => {
     await emit('INITIAL_SESSION', null);
 
     // Verifies homepage content is rendered first
-    expect(text()).toContain('IRONLOG AI');
+    expect(text()).toContain('IRON LOG AI');
     expect(text()).not.toMatch(/v2\.4/);
     expect(text()).toContain('Train Smarter.');
     expect(text()).toContain('EVERYTHING YOU NEED TO TRAIN SMARTER');
@@ -472,7 +472,7 @@ describe('homepage before sign in and sign up', () => {
     // Click Sign In on the homepage
     await click('Sign in');
     expect(text()).toContain('Welcome back');
-    expect(text()).toContain('Sign in to your IronLog AI account');
+    expect(text()).toContain('Sign in to your Iron Log AI account');
 
     // Click Back to Homepage
     await click('Back to Homepage');

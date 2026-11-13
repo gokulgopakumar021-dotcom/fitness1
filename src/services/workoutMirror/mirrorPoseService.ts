@@ -149,7 +149,7 @@ export class MirrorPoseService {
     ctx.save();
     ctx.clearRect(0, 0, width, height);
 
-    let primaryColor = '#8BF909'; // IronLog AI brand lime
+    let primaryColor = '#8BF909'; // Iron Log AI brand lime
     let glowColor = 'rgba(204, 255, 0, 0.4)';
     if (colorTheme === 'warning') {
       primaryColor = '#F59E0B';

@@ -132,12 +132,12 @@ export const TopHeader: React.FC<HeaderProps> = ({
             type="button"
             onClick={() => onSelectTab('home')}
             className="flex items-center gap-2.5 select-none shrink-0"
-            aria-label="IronLog AI home"
+            aria-label="Iron Log AI home"
           >
             <BrandEmblem className="h-7 sm:h-8" />
             <span className="flex items-baseline gap-2">
               <span className="text-[15px] sm:text-[17px] font-extrabold italic tracking-tight text-[var(--text-primary)] leading-none">
-                IRONLOG <span className="text-accent">AI</span>
+                IRON LOG <span className="text-accent">AI</span>
               </span>
               <span className="hidden xl:inline text-xs font-medium text-[var(--text-muted)]">Train smarter. Build stronger.</span>
             </span>
