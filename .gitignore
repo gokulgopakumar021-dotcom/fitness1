@@ -11,3 +11,4 @@ coverage/
 .video-library/
 .vercel
 recoding.mp4
+*.mp4

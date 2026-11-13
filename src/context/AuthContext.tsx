@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { getAuthRedirectUrl, getSupabase, getSupabaseConfigStatus } from '../lib/supabase';
-import { friendlyAuthError, normalizeEmail } from '../utils/authValidation';
+import { friendlyAuthError, friendlySignUpError, normalizeEmail } from '../utils/authValidation';
 import { BILLING_ONBOARDING_PENDING_DATA } from '../lib/billingOnboarding';
 import { buildSignupAcceptanceMetadata, SIGNUP_ACCEPTANCE_REQUIRED_MESSAGE } from '../legal/policyAcceptance';
 import { AGE_CONFIRMATION_REQUIRED_MESSAGE, buildSignupAgeMetadata } from '../legal/ageEligibility';
@@ -170,12 +170,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // billing_onboarding marks this as a NEW account so it is routed to plan selection after sign-in (UI routing only, see billingOnboarding.ts).
         options: { data: { full_name: fullName.trim(), ...BILLING_ONBOARDING_PENDING_DATA, ...buildSignupAcceptanceMetadata(), ...buildSignupAgeMetadata() }, emailRedirectTo: getAuthRedirectUrl() }
       });
-      if (error) return { ok: false, error: friendlyAuthError(error) };
+      if (error) return { ok: false, error: friendlySignUpError(error) };
       // With "Confirm email" enabled there is no session yet. An already-registered address also returns no session
       // (by design, to avoid revealing which emails exist), so both cases show the same "check your email" screen.
       return { ok: true, needsVerification: !data.session };
     } catch (e) {
-      return { ok: false, error: friendlyAuthError(e as Error) };
+      return { ok: false, error: friendlySignUpError(e as Error) };
     }
   }, []);
 

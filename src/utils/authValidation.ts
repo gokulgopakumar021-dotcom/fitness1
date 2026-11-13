@@ -74,3 +74,39 @@ export function friendlyAuthError(err: { code?: string; message?: string; status
   if (err?.message && /fetch|network/i.test(err.message)) return 'Network error. Check your connection and try again.';
   return 'Something went wrong. Please try again.';
 }
+
+/**
+ * Shown when a sign-up is refused at the database layer (the strict legal-acceptance / 18+ triggers on auth.users).
+ * Deliberately names no table, trigger, SQL error or policy detail. The wording stays honest about the ambiguity: Supabase Auth
+ * reports EVERY database-side sign-up failure with the same generic error, so this message must not claim a single cause.
+ */
+export const SIGNUP_REJECTED_MESSAGE =
+  'Your signup could not be completed because the policy information may be out of date. Please refresh the page and try again.';
+
+type AuthErrorLike = { code?: string; message?: string; status?: number; name?: string } | null | undefined;
+
+/** Hint tokens the strict triggers raise with (see the legal_acceptance_enforcement and age_eligibility migrations). */
+const POLICY_REJECTION_HINT_RE = /\b(legal_acceptance_required|age_declaration_required)\b/;
+
+/**
+ * Supabase Auth documents database-side failures during user creation as HTTP 500, code `unexpected_failure`, with one of a fixed
+ * set of generic messages. A custom message raised inside a trigger is NOT forwarded to the client, so the trigger's own text cannot
+ * be relied on. This matches only the sign-up flavours of that generic error, never a bare 500 or an unrelated message.
+ */
+function isGenericSignupDatabaseError(err: AuthErrorLike): boolean {
+  if (!err) return false;
+  const message = err.message ?? '';
+  if (!/\bdatabase error (saving|creating) new user\b/i.test(message)) return false;
+  // Accept the documented shape, tolerating clients that only expose one of status or code.
+  return err.code === 'unexpected_failure' || err.status === 500;
+}
+
+/**
+ * Sign-up-only wrapper around friendlyAuthError. Everything it does not positively recognise falls through unchanged,
+ * so network failures, rate limits, weak passwords and unknown errors keep their existing messages.
+ */
+export function friendlySignUpError(err: AuthErrorLike): string {
+  const message = err?.message ?? '';
+  if (POLICY_REJECTION_HINT_RE.test(message) || isGenericSignupDatabaseError(err)) return SIGNUP_REJECTED_MESSAGE;
+  return friendlyAuthError(err);
+}
