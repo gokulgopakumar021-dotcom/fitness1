@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ALLOWED_EXTERNALS } from '../../../scripts/bundle-api.mjs';
+import { LEGAL_ROUTE_LIST } from '../../legal/routes';
 
 /**
  * Stage 3.8 guards. They pin what vercel.json and package.json are allowed to say so that nothing broad, invented or
@@ -20,8 +21,16 @@ describe('vercel.json (Stage 3.8)', () => {
     expect(Object.keys(vercel).filter((k) => !allowed.includes(k))).toEqual([]);
   });
 
-  it('has exactly one rewrite: /api and /api/* to the single api function, with the reserved parameter; no SPA fallback', () => {
-    expect(vercel.rewrites).toEqual([{ source: '/api/:__ironlog_api_path*', destination: '/api' }]);
+  it('has exactly one API rewrite (/api and /api/* to the single api function, with the reserved parameter), listed first; no SPA fallback', () => {
+    expect(vercel.rewrites[0]).toEqual({ source: '/api/:__ironlog_api_path*', destination: '/api' });
+    expect(vercel.rewrites.filter((r: { source: string }) => r.source.startsWith('/api'))).toHaveLength(1);
+  });
+
+  it('the only other rewrites are the five exact legal-page paths (Stage 2B), each to /index.html, and they match the app route table', () => {
+    const rest = vercel.rewrites.slice(1);
+    expect(rest).toEqual(['/privacy', '/terms', '/refund-policy', '/cancellation-policy', '/contact'].map((source) => ({ source, destination: '/index.html' })));
+    expect(LEGAL_ROUTE_LIST.map((r) => r.path)).toEqual(rest.map((r: { source: string }) => r.source));
+    expect(vercel.rewrites.some((r: { source: string }) => /[*:()?+]/.test(r.source) && !r.source.startsWith('/api/'))).toBe(false);
   });
 
   it('configures only api/index.js, with the owner-decided maxDuration of 120 s and nothing else', () => {

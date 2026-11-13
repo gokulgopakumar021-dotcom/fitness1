@@ -38,6 +38,19 @@ const DEVICE_LEVEL_ALLOWLIST: ReadonlyArray<{ file: string; keyExpr: string; rea
   }
 ];
 
+/**
+ * sessionStorage stays BANNED everywhere except these exact (file, key) pairs. The general rule is unchanged: it cannot be scoped
+ * or erased by account scope, so a new use must be argued for here, with a written reason. Each entry is checked for staleness below.
+ */
+const SESSION_STORAGE_ALLOWLIST: ReadonlyArray<{ file: string; keyExpr: string; reason: string }> = [
+  {
+    file: 'src/legal/policyAcceptance.ts',
+    keyExpr: 'POLICY_NOTICE_SNOOZE_KEY',
+    reason:
+      '"Remind me later" on the existing-user policy notice. Deliberately SESSION-ONLY so it returns in a new session. Holds only the user id and the two policy version labels; no personal data, no content. It hides a notice and is not a legal acceptance.'
+  }
+];
+
 const stripComments = (code: string): string =>
   code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
 
@@ -62,7 +75,20 @@ export function scanSource(file: string, source: string): Violation[] {
   const code = stripComments(source);
   const out: Violation[] = [];
 
-  if (/\bsessionStorage\b/.test(code)) out.push({ file, problem: 'sessionStorage (cannot be scoped or erased by scope)' });
+  const sessionUses = [...code.matchAll(/\bsessionStorage\b/g)];
+  const sessionAllowed = SESSION_STORAGE_ALLOWLIST.filter((a) => a.file === file);
+  if (sessionUses.length > 0 && sessionAllowed.length === 0) {
+    out.push({ file, problem: 'sessionStorage (cannot be scoped or erased by scope)' });
+  } else if (sessionUses.length > 0) {
+    // An allow-listed file may use sessionStorage ONLY as sessionStorage.get/set/removeItem(<its allow-listed key>).
+    // Anything else (clear(), indexing, aliasing, window.sessionStorage, another key) is still a violation.
+    const calls = [...code.matchAll(/(?<![.\w])sessionStorage\.(getItem|setItem|removeItem)\s*\(/g)];
+    for (const m of calls) {
+      const arg = firstArg(code, m.index! + m[0].length - 1);
+      if (!sessionAllowed.some((a) => a.keyExpr === arg)) out.push({ file, problem: `sessionStorage.${m[1]}(${arg}) is not an allow-listed session key` });
+    }
+    if (calls.length !== sessionUses.length) out.push({ file, problem: 'sessionStorage used other than as an allow-listed get/set/removeItem call (alias, clear(), indexing or window.sessionStorage)' });
+  }
   if (/\blocalStorage\s*\[/.test(code)) out.push({ file, problem: 'localStorage[...] indexing' });
   if (/\blocalStorage\.clear\s*\(/.test(code)) out.push({ file, problem: 'localStorage.clear() (ignores account scope)' });
   if (/\bwindow\.localStorage\b|\bglobalThis\.localStorage\b/.test(code)) {
@@ -169,6 +195,18 @@ describe('IL-03 guard: localStorage keys cannot bypass the account scope', () =>
     }
   });
 
+  it('every sessionStorage allow-list entry is exact, still needed, justified, and the stored value holds only a user id and policy versions', () => {
+    expect(SESSION_STORAGE_ALLOWLIST).toHaveLength(1); // widening this list is a deliberate, reviewed change
+    for (const a of SESSION_STORAGE_ALLOWLIST) {
+      const code = stripComments(readFileSync(join(ROOT, a.file), 'utf8'));
+      expect(code, a.file).toMatch(new RegExp(`sessionStorage\\.getItem\\(\\s*${a.keyExpr}\\s*\\)`));
+      expect(code, a.file).toMatch(new RegExp(`sessionStorage\\.setItem\\(\\s*${a.keyExpr}\\s*,`));
+      expect(a.reason.length).toBeGreaterThan(20);
+      expect(code, 'the snooze file must not use localStorage at all').not.toMatch(/\blocalStorage\b/);
+      expect(code).toMatch(/const snoozeValue = \(userId: string, v: PolicyVersions\) => `\$\{userId\}\|\$\{v\.termsVersion\}\|\$\{v\.privacyVersion\}`;/);
+    }
+  });
+
   describe('the scanner itself catches bypasses (self-test)', () => {
     const bad: Array<[string, string]> = [
       ['string literal key', "localStorage.getItem('ironlog_water_unit');"],
@@ -182,11 +220,32 @@ describe('IL-03 guard: localStorage keys cannot bypass the account scope', () =>
       ['alias variable', "const s = localStorage; s.setItem('ironlog_x', '1');"],
       ['passed as argument', 'persist(localStorage, k);'],
       ['window alias', "window.localStorage.getItem('x');"],
-      ['unlisted file using the theme key', 'localStorage.getItem(THEME_STORAGE_KEY);']
+      ['unlisted file using the theme key', 'localStorage.getItem(THEME_STORAGE_KEY);'],
+      ['the snooze key from a file that is NOT allow-listed', 'sessionStorage.setItem(POLICY_NOTICE_SNOOZE_KEY, v);']
     ];
     for (const [label, src] of bad) {
       it(`flags: ${label}`, () => expect(scanSource('src/x/y.ts', src).length).toBeGreaterThan(0));
     }
+    const SNOOZE_FILE = 'src/legal/policyAcceptance.ts';
+    const badInSnoozeFile: Array<[string, string]> = [
+      ['a different sessionStorage key', "sessionStorage.setItem('other_key', v);"],
+      ['a literal key', "sessionStorage.getItem('ironlog_policy_notice_snoozed');"],
+      ['sessionStorage.clear()', 'sessionStorage.clear();'],
+      ['sessionStorage indexing', "sessionStorage['a'] = 'b';"],
+      ['an alias', 'const s = sessionStorage; s.setItem(POLICY_NOTICE_SNOOZE_KEY, v);'],
+      ['window.sessionStorage', 'window.sessionStorage.setItem(POLICY_NOTICE_SNOOZE_KEY, v);'],
+      ['passed as an argument', 'persist(sessionStorage, POLICY_NOTICE_SNOOZE_KEY);'],
+      ['localStorage with the snooze key (the exception covers sessionStorage only)', 'localStorage.setItem(POLICY_NOTICE_SNOOZE_KEY, v);'],
+      ['an unscoped localStorage key', "localStorage.setItem('k', v);"]
+    ];
+    for (const [label, src] of badInSnoozeFile) {
+      it(`flags, even in the allow-listed snooze file: ${label}`, () => expect(scanSource(SNOOZE_FILE, src).length).toBeGreaterThan(0));
+    }
+    it('accepts exactly the snooze key calls in exactly the snooze file', () => {
+      const ok = 'sessionStorage.getItem(POLICY_NOTICE_SNOOZE_KEY) === x; sessionStorage.setItem(POLICY_NOTICE_SNOOZE_KEY, v); sessionStorage.removeItem(POLICY_NOTICE_SNOOZE_KEY);';
+      expect(scanSource(SNOOZE_FILE, ok)).toEqual([]);
+      expect(scanSource('src/legal/other.ts', ok).length).toBeGreaterThan(0);
+    });
     const good: Array<[string, string]> = [
       ['scopedKey direct', "localStorage.getItem(scopedKey('a'));"],
       ['scopedKey with constant', 'localStorage.setItem(scopedKey(KEY), v);'],

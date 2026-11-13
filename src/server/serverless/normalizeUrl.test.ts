@@ -1,11 +1,13 @@
 // @vitest-environment node
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import express from 'express';
 import { describe, expect, it } from 'vitest';
 import { normalizeRewrittenUrl, RESERVED_REWRITE_PARAM } from './normalizeUrl';
+import { LEGAL_ROUTE_LIST } from '../../legal/routes';
+import { BILLING_ENDPOINTS, ENDPOINTS } from '../security/endpoints';
 
 const R = RESERVED_REWRITE_PARAM;
 const n = normalizeRewrittenUrl;
@@ -189,16 +191,51 @@ describe('vercel.json is consistent with the reserved parameter', () => {
   const ROOT = path.resolve(import.meta.dirname, '../../..');
   const cfg = JSON.parse(readFileSync(path.join(ROOT, 'vercel.json'), 'utf8'));
 
-  it('the single API rewrite names exactly the reserved parameter and targets /api', () => {
-    expect(cfg.rewrites).toEqual([{ source: `/api/:${R}*`, destination: '/api' }]);
+  // Stage 3: the five public legal pages (Stage 2B) are served by exact-path rewrites to the SPA entry. The ORIGINAL intent of these
+  // two tests is kept: exactly one rewrite for the API, with the reserved parameter, and no broad / SPA-fallback rewrite.
+  const LEGAL_PATHS = ['/privacy', '/terms', '/refund-policy', '/cancellation-policy', '/contact'];
+  const [apiRewrite, ...legalRewrites] = cfg.rewrites as Array<{ source: string; destination: string }>;
+
+  it('the single API rewrite names exactly the reserved parameter, targets /api, and is FIRST so it always wins', () => {
+    expect(apiRewrite).toEqual({ source: `/api/:${R}*`, destination: '/api' });
+    expect(cfg.rewrites.filter((r: { source: string }) => r.source.startsWith('/api'))).toHaveLength(1);
+  });
+
+  it('every other rewrite is exactly one of the five legal pages, mapped to /index.html, in a fixed order', () => {
+    expect(legalRewrites).toEqual(LEGAL_PATHS.map((source) => ({ source, destination: '/index.html' })));
+  });
+
+  it('the legal rewrites match the app route table (src/legal/routes.ts), so they cannot drift apart', () => {
+    expect(LEGAL_ROUTE_LIST.map((r) => r.path)).toEqual(LEGAL_PATHS);
   });
 
   it('no broad rewrite / SPA fallback and no framework, build or output override was added', () => {
-    for (const r of cfg.rewrites) expect(r.source.startsWith('/api')).toBe(true);
+    // Legal sources must be plain literals: no parameter, wildcard, group, regex or optional segment.
+    for (const r of legalRewrites) expect(r.source, r.source).toMatch(/^\/[a-z]+(?:-[a-z]+)*$/);
+    // The ONLY wildcard anywhere is the API rewrite's own named parameter.
+    expect(cfg.rewrites.filter((r: { source: string }) => /[*()?+:]/.test(r.source)).map((r: { source: string }) => r.source)).toEqual([apiRewrite.source]);
+    expect(cfg.rewrites.some((r: { source: string }) => r.source === '/' || r.source === '/(.*)' || r.source === '/:path*')).toBe(false);
     expect(cfg.framework).toBeUndefined();
     expect(cfg.buildCommand).toBeUndefined();
     expect(cfg.outputDirectory).toBeUndefined();
     expect(JSON.stringify(cfg)).not.toMatch(/:path\*/);
+  });
+
+  it('a legal rewrite can never capture or shadow an API route (sources are exact literals and none starts with /api)', () => {
+    const apiPaths = [...Object.keys(ENDPOINTS), ...Object.keys(BILLING_ENDPOINTS)].map((k) => `/api${k.split(' ')[1].replace(/:[A-Za-z]+/g, 'x')}`);
+    expect(apiPaths.length).toBeGreaterThan(10);
+    for (const r of legalRewrites) {
+      expect(r.source.startsWith('/api'), r.source).toBe(false);
+      expect(apiPaths, r.source).not.toContain(r.source);
+      // an exact-literal source cannot match any API path, nor /api/<legal path>
+      expect(`/api${r.source}`).not.toBe(r.source);
+    }
+    // /api itself, /api/x and /api/privacy are claimed by the API rewrite (first), never by a legal one.
+    expect(apiRewrite.source.startsWith('/api')).toBe(true);
+  });
+
+  it('the legal rewrites point at a real SPA entry file', () => {
+    for (const r of legalRewrites) expect(existsSync(path.join(ROOT, r.destination.replace(/^\//, ''))), r.destination).toBe(true);
   });
 });
 
