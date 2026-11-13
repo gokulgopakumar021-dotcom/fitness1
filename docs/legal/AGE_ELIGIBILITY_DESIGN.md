@@ -1,6 +1,6 @@
 # Iron Log AI: 18+ eligibility design (Stage 2D, Stage 2)
 
-**Status: implemented in the repository. `supabase/migrations/20261113043241_age_eligibility.sql` is recorded as applied on the hosted project (per `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md`; not re-read in Stage 10). Hosted objects and the trigger being active: NOT VERIFIED. Before User Created hook: UNKNOWN. Production `AGE_ENFORCEMENT`: UNKNOWN (code default `off`). Not legal advice.**
+**Status: implemented in the repository. `supabase/migrations/20261113043241_age_eligibility.sql` is recorded as applied on the hosted project (per `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md`; not re-read in Stage 10). Hosted objects and the age trigger: present and enabled (read-only query, 2026-11-13); real signup rejection not exercised. Before User Created hook: UNKNOWN. Production `AGE_ENFORCEMENT`: not set per the owner (2026-11-13), so the API age gate is effectively `off`. Not legal advice.**
 Owner decision: the entire platform, including Body Scan, is 18+. This was not reverted to 14+.
 
 ## What it is, and what it is not

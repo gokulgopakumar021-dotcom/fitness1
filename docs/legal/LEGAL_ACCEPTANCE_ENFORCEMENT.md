@@ -2,8 +2,8 @@
 
 Status (read this first; terms are defined in `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md` section 8):
 - Migration files `20261112060134_legal_acceptances.sql` and `20261113043228_legal_acceptance_enforcement.sql` exist locally and are **recorded as applied on the hosted project** (per the Stage 9 reconciliation; not re-read in Stage 10).
-- Hosted database objects, and the signup trigger being installed and active on the hosted `auth.users`: **NOT VERIFIED**. Tested locally in an in-process Postgres (PGlite) only.
-- Before User Created hook: **UNKNOWN**. It is a dashboard setting; this document's section 4 step 3 is not shown to have been done.
+- Hosted database objects and the signup trigger: verified present and enabled on `auth.users` by a read-only catalog query on 2026-11-13 (Stage 10C). Their behaviour on a real signup has not been exercised; local tests use an in-process Postgres (PGlite) only.
+- Before User Created hook: **UNKNOWN**. The function `public.hook_before_user_created` exists on the hosted project, but the dashboard setting is not readable with the available tools; this document's section 4 step 3 is not shown to have been done.
 - Legal release gate: **NOT cleared** (`LEGAL.isDraft` is `true`). The legal pages are drafts and have not been approved by counsel.
 - Hosted signup rejection behaviour is **NOT VERIFIED** (section 5 has not been recorded as run).
 Covers Stage 2D, Stage 1 (Stage 2C findings F1, F2, F3).

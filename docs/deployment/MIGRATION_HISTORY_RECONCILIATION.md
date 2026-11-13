@@ -88,17 +88,17 @@ Stop. Do not push, repair or revert. Record local versions, remote versions, and
 
 ## 8. Status vocabulary used across the docs
 
-These nine states are separate. One being true does not prove another. "Evidence in Stage 10" says what the Stage 10 audit (repository only, 10A/10B) actually checked.
+These nine states are separate. One being true does not prove another. "Evidence in Stage 10" says what the Stage 10 audit (repository review, owner-reported settings, and read-only Supabase queries on 2026-11-13) actually checked.
 
 | # | State | Evidence in Stage 10 |
 |---|---|---|
 | 1 | Migration file exists locally in `supabase/migrations/` | Verified (16 files). |
-| 2 | Migration is recorded as applied remotely (a row in the hosted migration history) | Taken from section 2 above (read during Stage 9). NOT re-read in Stage 10. |
-| 3 | Database objects created by the migration exist on the hosted project | NOT VERIFIED. Only the workout-sync objects were compared (section 3). |
-| 4 | Signup trigger is installed and active on `auth.users` | NOT VERIFIED on the hosted project. Locally replayed in PGlite only. |
-| 5 | Supabase "Before User Created" hook is configured and enabled | UNKNOWN. A dashboard setting; not readable from the repository. |
-| 6 | Age-enforcement API gate is on in production (`AGE_ENFORCEMENT=on`) | UNKNOWN. Code default is `off`. |
-| 7 | Billing-enforcement gate is on in production (`BILLING_ENFORCEMENT`) | UNKNOWN. Code default is `off`. |
+| 2 | Migration is recorded as applied remotely (a row in the hosted migration history) | Verified read-only on 2026-11-13 (Stage 10C): 16 remote rows, versions and names identical to the 16 local files. Statement text not re-compared. |
+| 3 | Database objects created by the migration exist on the hosted project | Verified by name on 2026-11-13: all 20 expected public tables (RLS on), the legal, age, billing and referral functions and their triggers. Definitions were not diffed, except the workout-sync objects (section 3). |
+| 4 | Signup trigger is installed and active on `auth.users` | Verified on 2026-11-13: `on_auth_user_created`, `on_auth_user_created_legal_acceptance` and `on_auth_user_created_age_declaration` are enabled. Live signup rejection behaviour is NOT VERIFIED (never exercised). |
+| 5 | Supabase "Before User Created" hook is configured and enabled | UNKNOWN. The function `public.hook_before_user_created` exists with the intended grants; whether the dashboard hook points at it is not readable with the available tools. |
+| 6 | Age-enforcement API gate is on in production (`AGE_ENFORCEMENT=on`) | NO. Owner reported on 2026-11-13 that the variable is not set in Vercel Production; the code default is `off`. |
+| 7 | Billing-enforcement gate is on in production (`BILLING_ENFORCEMENT`) | NO. Owner reported on 2026-11-13 that the variable is not set in Vercel Production; the code default is `off`. |
 | 8 | Legal release gate has been cleared (`LEGAL.isDraft = false` and the gate test passes) | NO. `LEGAL.isDraft` is `true` in `src/legal/legalConfig.ts`. |
 | 9 | Legal documents are finalized and approved by counsel | NO. Drafts; Indian legal review outstanding. |
 
