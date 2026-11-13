@@ -1,6 +1,6 @@
 # Referral system, Stage 1: database and security foundation
 
-Migration: `supabase/migrations/20261112060254_referral_core.sql` (DRAFT, not applied anywhere). Tests: `src/test/rls.referrals.test.ts`.
+Migration: `supabase/migrations/20261112060254_referral_core.sql`. Status: the file is in the repository and is **recorded as applied on the hosted project** as `20261112060254` (per `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md`; not re-read in Stage 10). The objects it creates on the hosted project are NOT VERIFIED here. The referral programme is **deferred from the initial launch** and `referral_sync_commission` is not attached to billing, so no commission accrues. Tests: `src/test/rls.referrals.test.ts`.
 Base: `main` @ `ceac8b8`. Additive only; no existing table, function, trigger or server file is changed.
 
 ## Tables
@@ -18,6 +18,9 @@ manual payouts bounded by the payable balance (14-day default hold, flagged/void
 - Admin functions re-check the acting user against `app_admins`; service_role has no direct write on any referral table.
 - Hold period (D1) is a function parameter defaulting to 14 days; attribution cut-off (D4) is "no billing row or payment yet".
 
-## Apply (when approved)
-Review first, then apply to a branch/staging project (read `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md` before using `supabase db push`), or run the file in the SQL editor. Seed an admin manually:
-`insert into public.app_admins (user_id) values ('<auth.users id>');`. (The local-vs-live migration version drift noted in Stage 0 was reconciled in Stage 9; this migration is already recorded remotely as 20261112060254.) Rollback block is at the end of the migration.
+## Applying (new project) and admin seed
+This migration is already recorded on the hosted project; do not apply it there again, and read `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md` (sections 4 to 6) before any push, because some migration-CLI commands are prohibited here. For a **new** project, apply it in filename order (after `20261112060134_legal_acceptances.sql`), on a branch/staging project first. Seed an admin manually:
+`insert into public.app_admins (user_id) values ('<auth.users id>');`. (The local-vs-live migration version drift noted in Stage 0 was reconciled in Stage 9.) Rollback block is at the end of the migration.
+
+## Proposed follow-up (not applied)
+`supabase/proposed/20261114000000_referral_trigger_search_path.sql` pins `search_path = ''` on the three guard trigger functions. It is PROPOSED only, outside `supabase/migrations/`, and needs a separate owner approval. Rollback: `supabase/manual/rollback_referral_trigger_search_path.sql`.

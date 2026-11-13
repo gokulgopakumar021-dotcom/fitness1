@@ -1,6 +1,11 @@
 # Legal acceptance enforcement: design, release sequence and manual steps
 
-Status: **written and tested locally only. Nothing is applied to Supabase. Enforcement is NOT ACTIVE in production.**
+Status (read this first; terms are defined in `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md` section 8):
+- Migration files `20261112060134_legal_acceptances.sql` and `20261113043228_legal_acceptance_enforcement.sql` exist locally and are **recorded as applied on the hosted project** (per the Stage 9 reconciliation; not re-read in Stage 10).
+- Hosted database objects, and the signup trigger being installed and active on the hosted `auth.users`: **NOT VERIFIED**. Tested locally in an in-process Postgres (PGlite) only.
+- Before User Created hook: **UNKNOWN**. It is a dashboard setting; this document's section 4 step 3 is not shown to have been done.
+- Legal release gate: **NOT cleared** (`LEGAL.isDraft` is `true`). The legal pages are drafts and have not been approved by counsel.
+- Hosted signup rejection behaviour is **NOT VERIFIED** (section 5 has not been recorded as run).
 Covers Stage 2D, Stage 1 (Stage 2C findings F1, F2, F3).
 
 ## 1. What is enforced
@@ -43,7 +48,7 @@ All three are checked in section 5 on a Supabase preview branch before anything 
 - Fails closed: an empty or missing allowlist rejects every sign-up.
 - Stage 2 (18+ declaration) will extend `legal_signup_violation` / the trigger in a further additive migration. Do not release 20261111 + 20261112 alone to production if the 18+ migration is meant to ship in the same launch; release the whole sequence together.
 
-## 4. Release sequence (no window where sign-up is unchecked)
+## 4. Release sequence (historical design; steps 1 and 2 are already recorded on the hosted project)
 
 `20261112060134_legal_acceptances.sql` on its own still has the swallowing trigger. If the two files were pushed one after the other, there would be a short interval in which sign-up is still bypassable. Close it by applying them in ONE transaction:
 

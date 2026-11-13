@@ -85,3 +85,21 @@ section 6 pass and the owner approves. The stale command `supabase migration rep
 Stop. Do not push, repair or revert. Record local versions, remote versions, and a normalized-SQL comparison per migration; classify each as
 (a) name-only, (b) SQL difference, (c) local-only, (d) remote-only. Fix the repo to match the remote history when the SQL is equivalent
 (file rename or add); escalate any real SQL difference to the owner before touching the database.
+
+## 8. Status vocabulary used across the docs
+
+These nine states are separate. One being true does not prove another. "Evidence in Stage 10" says what the Stage 10 audit (repository only, 10A/10B) actually checked.
+
+| # | State | Evidence in Stage 10 |
+|---|---|---|
+| 1 | Migration file exists locally in `supabase/migrations/` | Verified (16 files). |
+| 2 | Migration is recorded as applied remotely (a row in the hosted migration history) | Taken from section 2 above (read during Stage 9). NOT re-read in Stage 10. |
+| 3 | Database objects created by the migration exist on the hosted project | NOT VERIFIED. Only the workout-sync objects were compared (section 3). |
+| 4 | Signup trigger is installed and active on `auth.users` | NOT VERIFIED on the hosted project. Locally replayed in PGlite only. |
+| 5 | Supabase "Before User Created" hook is configured and enabled | UNKNOWN. A dashboard setting; not readable from the repository. |
+| 6 | Age-enforcement API gate is on in production (`AGE_ENFORCEMENT=on`) | UNKNOWN. Code default is `off`. |
+| 7 | Billing-enforcement gate is on in production (`BILLING_ENFORCEMENT`) | UNKNOWN. Code default is `off`. |
+| 8 | Legal release gate has been cleared (`LEGAL.isDraft = false` and the gate test passes) | NO. `LEGAL.isDraft` is `true` in `src/legal/legalConfig.ts`. |
+| 9 | Legal documents are finalized and approved by counsel | NO. Drafts; Indian legal review outstanding. |
+
+Words are not interchangeable: "applied" means state 2 only; "enabled" means a runtime setting (5 to 7); "approved" means state 9 only.

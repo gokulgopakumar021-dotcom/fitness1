@@ -30,8 +30,10 @@ Iron Log AI requires sign-in. Authentication uses Supabase Auth (email + passwor
 3. Never use the secret / `service_role` key or the database password in the frontend. The app refuses to start with a service-role key.
 4. Restart `npm run dev`. If configuration is missing, the app shows a setup screen instead of the sign-in form.
 
-### 2. Apply the database migration
-Run `supabase/migrations/20261027051824_auth_profiles.sql` once (Supabase dashboard → SQL Editor). It creates `public.profiles`, Row Level Security policies and the trigger that creates a profile for each new user. Before using the Supabase CLI (`supabase db push`) read `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md`.
+### 2. Database migrations
+**Fresh Supabase project (empty database) only:** run the files in `supabase/migrations/` in filename order (Supabase dashboard → SQL Editor, or a reviewed CLI push to the new project). The first, `20261027051824_auth_profiles.sql`, creates `public.profiles`, Row Level Security policies and the trigger that creates a profile for each new user. The later files add the other tables and signup enforcement; the legal-acceptance, referral and age-eligibility files have release-sequence notes in their own docs (`docs/legal/LEGAL_ACCEPTANCE_ENFORCEMENT.md`, `docs/referrals/STAGE1_DATABASE.md`), so read them first.
+
+**Existing project that already has migration history (the hosted Iron Log AI project is recorded as one, per `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md`):** do NOT re-run `20261027051824_auth_profiles.sql` or any other file already recorded. Several migration-CLI commands are prohibited for this repository; read `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md` (sections 4 to 6) before any push, and apply only new migrations, to a preview branch first.
 
 ### 3. Supabase dashboard → Authentication → URL Configuration
 - **Site URL:** your deployed URL (e.g. `https://your-app.example.com`).

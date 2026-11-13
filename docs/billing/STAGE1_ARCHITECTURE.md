@@ -1,6 +1,6 @@
 # Iron Log AI: Billing architecture (Stage 1 design)
 
-Status: **final Stage 1 design, owner-approved 2026-11-06 (decisions in §1 and §11)**. Draft migration not yet applied anywhere. Nothing here is applied to any database or deployed. Branch: `feature/razorpay-billing-trial`.
+Status: **final Stage 1 design, owner-approved 2026-11-06 (decisions in §1 and §11)**. This is the original Stage 1 design document, kept for context; it was written before the migrations were applied. Both billing migrations are in the repository and are **recorded as applied on the hosted project** (`20261106052859`, `20261106071858`, per `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md`; not re-read in Stage 10). That does NOT show that the database objects were checked, that the Razorpay plans and webhook are configured, or that `BILLING_ENFORCEMENT` is on in production (UNKNOWN; code default is `off`). Original working branch: `feature/razorpay-billing-trial`.
 The matching migrations are `supabase/migrations/20261106052859_billing_core.sql` and the additive follow-up `20261106071858_billing_deletion_refund.sql`, checked by `src/test/rls.billing.test.ts`.
 
 ## 1. Decisions (from the owner)
@@ -114,7 +114,7 @@ Trial timing: at creation the database sets `expire_by = now + 30 min` and `tria
 
 The route is added to the route-policy tests as an explicit, documented exception to "every `/api` route is authenticated".
 
-## 7. Database (draft migration)
+## 7. Database (migrations)
 
 | Table | Purpose | Client access |
 |---|---|---|

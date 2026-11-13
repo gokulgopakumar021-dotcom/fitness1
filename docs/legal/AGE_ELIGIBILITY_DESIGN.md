@@ -1,6 +1,6 @@
 # Iron Log AI: 18+ eligibility design (Stage 2D, Stage 2)
 
-**Status: implemented locally for review. NOT applied to any Supabase project, NOT deployed. Not legal advice.**
+**Status: implemented in the repository. `supabase/migrations/20261113043241_age_eligibility.sql` is recorded as applied on the hosted project (per `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md`; not re-read in Stage 10). Hosted objects and the trigger being active: NOT VERIFIED. Before User Created hook: UNKNOWN. Production `AGE_ENFORCEMENT`: UNKNOWN (code default `off`). Not legal advice.**
 Owner decision: the entire platform, including Body Scan, is 18+. This was not reverted to 14+.
 
 ## What it is, and what it is not
@@ -34,8 +34,8 @@ Payment-instrument-based adult check; third-party age-assurance or ID verificati
 3. Should the confirmation record be retained after account deletion (currently it is deleted with the account)?
 4. Is blocking existing accounts until they confirm acceptable, or is notice sufficient?
 
-## Production checklist (manual; nothing here has been done)
-1. Apply migrations `20261112060134`, `20261113043228`, `20261113043241` together, in order, ideally on a Supabase preview branch first.
+## Production checklist (manual; steps 2 to 5 are not shown to have been done)
+1. Migrations `20261112060134`, `20261113043228`, `20261113043241` are already recorded on the hosted project; do not re-apply or repair them. (For a new project, apply them together, in order, on a preview branch first.)
 2. Authentication > Hooks: select `public.hook_before_user_created` for Before User Created (optional second layer; the trigger already enforces).
 3. Set `AGE_ENFORCEMENT=shadow` on Vercel, watch logs for `age_shadow_would_deny`, then set `AGE_ENFORCEMENT=on`. Default is `off` so deploying before the migration cannot lock users out.
 4. Test on the preview branch: direct signup without the declaration is rejected; an existing account sees the screen; an unconfirmed token gets 403 from an AI route.
