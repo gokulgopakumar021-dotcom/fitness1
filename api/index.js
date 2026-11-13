@@ -1930,7 +1930,11 @@ function createBillingService(deps) {
       return {
         enforcement: config.enforcement,
         emailVerified: user.emailVerified,
-        trial: { eligible: trialEligible, days: config.trialDays, firstChargePreviewAt: trialEligible ? firstChargePreview : null, verificationDebit: { amountPaise: VERIFICATION_DEBIT_PAISE, refundedAutomatically: true } },
+        trial: { eligible: trialEligible, days: config.trialDays, firstChargePreviewAt: trialEligible ? firstChargePreview : null, verificationDebit: {
+          amountPaise: VERIFICATION_DEBIT_PAISE,
+          refundedAutomatically: true
+          /* legacy API field: NOT a verified claim and not displayed by the UI (Stage 4) */
+        } },
         plans: ["monthly", "annual"].map((k) => ({ key: k, amountPaise: config.plans[k].amountPaise, currency: "INR", billingPeriod: config.plans[k].period, interval: config.plans[k].interval })),
         entitlement: { state: entitlement.state, hasAccess: entitlement.has_access, accessEndsAt: entitlement.access_ends_at },
         subscription: latest ? toPublicSubscription(latest) : null

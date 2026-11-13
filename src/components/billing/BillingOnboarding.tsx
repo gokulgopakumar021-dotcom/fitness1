@@ -74,8 +74,8 @@ export const BillingOnboarding: React.FC<Props> = ({ onFinish, verifyDelaysMs, n
             <ol className="space-y-2 text-sm text-zinc-300 list-decimal pl-5">
               <li>Choose Monthly or Annual below. The plan price is set by our server, not by this page.</li>
               <li>
-                Authorise payment in Razorpay&apos;s secure checkout. A small card verification debit of ₹5 is made and refunded automatically; it is not part of the
-                plan price. UPI and bank mandates show their own amount in checkout.
+                Authorise payment in Razorpay&apos;s secure checkout. Razorpay may make a small card verification debit, shown as ₹5. It is not part of the plan price, and refund
+                handling is described in the Refund Policy. UPI and bank mandates show their own amount in checkout.
               </li>
               <li>Once Razorpay confirms, the trial starts. The first plan charge is taken when the trial ends, and the plan then renews until you cancel.</li>
             </ol>

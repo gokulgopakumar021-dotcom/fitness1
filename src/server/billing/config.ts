@@ -34,7 +34,7 @@ export interface BillingConfig {
   requestTimeoutMs: number;
 }
 
-/** Razorpay documents the token authentication amount for a future-start subscription as INR 5 (auto-refunded). */
+/** Razorpay documents the token authentication amount for a future-start subscription as INR 5 and describes it as auto-refunded. We issue no refund ourselves and have not verified the refund in Razorpay Test Mode, so no customer-facing text may promise it. */
 export const VERIFICATION_DEBIT_PAISE = 500;
 export const MAX_RECURRING_PAISE = 1_500_000;
 

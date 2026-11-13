@@ -124,7 +124,7 @@ export interface CreateResult {
   trialDays: number;
   firstChargeAt: string | null;
   authorizationExpiresAt: string | null;
-  /** What Razorpay charges at authorization. For a trial: the documented INR 5 verification debit, refunded automatically. Otherwise the full plan amount, not refunded. */
+  /** What Razorpay charges at authorization. For a trial: the INR 5 verification debit. Razorpay's docs describe it as auto-refunded, but THIS CODE ISSUES NO REFUND and the behaviour is not verified for this account: `refundable` is a legacy flag and must not be shown to customers as a promise. Otherwise the full plan amount, not refunded. */
   authorization: { amountPaise: number; refundable: boolean };
   reused: boolean;
 }
@@ -507,7 +507,7 @@ export function createBillingService(deps: BillingServiceDeps) {
       return {
         enforcement: config.enforcement,
         emailVerified: user.emailVerified,
-        trial: { eligible: trialEligible, days: config.trialDays, firstChargePreviewAt: trialEligible ? firstChargePreview : null, verificationDebit: { amountPaise: VERIFICATION_DEBIT_PAISE, refundedAutomatically: true } },
+        trial: { eligible: trialEligible, days: config.trialDays, firstChargePreviewAt: trialEligible ? firstChargePreview : null, verificationDebit: { amountPaise: VERIFICATION_DEBIT_PAISE, refundedAutomatically: true /* legacy API field: NOT a verified claim and not displayed by the UI (Stage 4) */ } },
         plans: (['monthly', 'annual'] as const).map((k) => ({ key: k, amountPaise: config.plans[k].amountPaise, currency: 'INR', billingPeriod: config.plans[k].period, interval: config.plans[k].interval })),
         entitlement: { state: entitlement.state, hasAccess: entitlement.has_access, accessEndsAt: entitlement.access_ends_at },
         subscription: latest ? toPublicSubscription(latest) : null

@@ -88,10 +88,11 @@ export const refundSections: LegalSectionDef[] = [
           include the payment reference. We will review it like any other charge query.
         </P>
         <ReviewNote>
-          The in-app text currently says this debit is “refunded automatically”. That has NOT been verified in Razorpay Test Mode, and this
-          policy deliberately does not repeat the claim. Verify the real behaviour for cards, UPI and e-mandate before launch, then update
-          both this section and the in-app wording (billingPresentation.ts, BillingOnboarding.tsx). Changing in-app wording needs owner
-          approval and is not done in this stage.
+          The in-app text no longer promises that this debit is returned on its own (corrected in Stage 2D, Stage 4): it says Razorpay may make the
+          debit and points here. Razorpay’s documentation says the ₹5 is returned for a future-start subscription, but that has NOT
+          been verified in Razorpay Test Mode for this account, this service issues no refund itself, and no bank timing is documented. Verify
+          the real behaviour for cards, UPI and e-mandate before launch. Only then decide whether this section and the in-app wording may
+          say more.
         </ReviewNote>
       </>
     )

@@ -160,7 +160,9 @@ describe('plan selection screen', () => {
     expect(text()).toContain('₹1,499 per year');
     expect(text()).toMatch(/3-day trial/);
     expect(text()).toContain('₹5');
-    expect(text()).toMatch(/refunded automatically|refunds it automatically/);
+    expect(text()).toMatch(/Razorpay may make a small card verification debit, shown as ₹5/);
+    expect(text()).toMatch(/refund handling is described in the Refund Policy/);
+    expect(text()).not.toMatch(/(?<!not )refunded automatically|refunds? it automatically|auto-?refund/i); // Stage 4: no promise we cannot verify
     expect(text()).toMatch(/only after Razorpay confirms|starts once Razorpay confirms|Once Razorpay confirms/);
     expect(text()).toMatch(/until you cancel/);
     expect(text()).not.toMatch(/\bfree\b/i);

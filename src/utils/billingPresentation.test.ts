@@ -65,11 +65,13 @@ describe('buildDisclosure (what the person reads before Checkout)', () => {
   const trial = buildDisclosure({ plan: monthly, trialEligible: true, trialDays: 3, verificationDebitPaise: 500, firstChargeAt: '2026-11-13T12:00:00Z' }).join('\n');
   const noTrial = buildDisclosure({ plan: annual, trialEligible: false, trialDays: 3, verificationDebitPaise: 500, firstChargeAt: null }).join('\n');
 
-  it('discloses amount, interval, trial length, first charge date, the verification debit and its automatic refund, renewal and cancellation', () => {
+  it('discloses amount, interval, trial length, first charge date, that the verification debit may be made (with NO automatic-refund promise), renewal and cancellation', () => {
     expect(trial).toContain('₹299 per month');
     expect(trial).toContain('3-day trial');
     expect(trial).toContain('₹5 card verification debit');
-    expect(trial).toMatch(/refunds it automatically/);
+    expect(trial).toMatch(/Razorpay may make a ₹5 card verification debit/);
+    expect(trial).toMatch(/refund handling is described in the Refund Policy/);
+    expect(trial).not.toMatch(/(?<!not )refunded automatically|refunds? it automatically|auto-?refund/i);
     expect(trial).toContain('13 Nov 2026');
     expect(trial).toMatch(/renews every month at ₹299 until you cancel/);
     expect(trial).toMatch(/cancel in Settings, then Billing/);
@@ -95,10 +97,11 @@ describe('buildDisclosure (what the person reads before Checkout)', () => {
 describe('paymentLabel', () => {
   const base: BillingPayment = { id: 'p', kind: 'authorization', status: 'authorized', amountPaise: 500, amountRefundedPaise: 0, currency: 'INR', method: 'card', paidAt: null, createdAt: '2026-11-10T00:00:00Z' };
   it('only says "Refunded in full" when the record shows a full refund', () => {
-    expect(paymentLabel(base).detail).toMatch(/processing automatically/);
+    expect(paymentLabel(base).detail).toMatch(/^Not shown as refunded yet\./);
+    expect(paymentLabel(base).detail).not.toMatch(/automatic/i); // Stage 4: never implies a refund is on its way
     expect(paymentLabel({ ...base, status: 'refunded', amountRefundedPaise: 500 }).detail).toBe('Refunded in full');
     expect(paymentLabel({ ...base, amountRefundedPaise: 500 }).detail).toBe('Refunded in full');
-    expect(paymentLabel({ ...base, amountRefundedPaise: 200 }).detail).toMatch(/processing/);
+    expect(paymentLabel({ ...base, amountRefundedPaise: 200 }).detail).toMatch(/Not shown as refunded yet/); // partial refund is not "Refunded in full"
   });
   it('labels charges separately from verification debits', () => {
     expect(paymentLabel({ ...base, kind: 'charge', status: 'captured', amountPaise: 29900 }).title).toBe('Subscription charge');

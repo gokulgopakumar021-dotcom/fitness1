@@ -100,7 +100,7 @@ export function paymentLabel(p: BillingPayment): { title: string; detail: string
     const refunded = p.status === 'refunded' || (p.amountRefundedPaise > 0 && p.amountRefundedPaise >= p.amountPaise);
     return {
       title: 'Card verification debit',
-      detail: refunded ? 'Refunded in full' : p.status === 'failed' ? 'Failed' : 'Refund is processing automatically. It is not part of your plan price.'
+      detail: refunded ? 'Refunded in full' : p.status === 'failed' ? 'Failed' : 'Not shown as refunded yet. It is not part of your plan price. See the Refund Policy if it is not returned.'
     };
   }
   return { title: 'Subscription charge', detail: p.status === 'captured' ? 'Paid' : p.status === 'refunded' ? 'Refunded' : p.status === 'failed' ? 'Failed' : 'Authorised' };
@@ -116,7 +116,8 @@ export interface DisclosureInput {
 
 /**
  * The text shown BEFORE Razorpay Checkout opens. Rules (from the approved design): state amount, interval, trial length, first
- * charge date, the verification debit and its automatic refund (card only until other methods are verified), automatic renewal
+ * charge date, that Razorpay MAY make the small verification debit and where refunds are explained (it must NOT promise an automatic
+ * refund: that is Razorpay's behaviour, it is not verified for this account, and this code issues no refund), automatic renewal
  * until cancelled, and how to cancel. It never calls the trial "free" and never says "no charge".
  */
 export function buildDisclosure(i: DisclosureInput): string[] {
@@ -134,7 +135,7 @@ export function buildDisclosure(i: DisclosureInput): string[] {
   return [
     `Plan: ${planName(i.plan.key)}, ${price}.`,
     `${i.trialDays}-day trial: it starts once Razorpay confirms your payment authorisation, not before.`,
-    `Today: Razorpay makes a ${formatInr(i.verificationDebitPaise)} card verification debit and refunds it automatically. It is not part of your plan price. For UPI or e-mandate, check the amount shown in Razorpay Checkout before you confirm.`,
+    `Today: Razorpay may make a ${formatInr(i.verificationDebitPaise)} card verification debit. It is not part of your plan price, and refund handling is described in the Refund Policy. For UPI or e-mandate, check the amount shown in Razorpay Checkout before you confirm.`,
     `First charge: ${formatInr(i.plan.amountPaise)} on ${when}, the day your trial ends. After that it renews every ${per} at ${formatInr(i.plan.amountPaise)} until you cancel.`,
     `To avoid the first charge, cancel in Settings, then Billing, before ${when}. If you cancel during the trial, future billing stops at once and you keep access until the trial ends.`
   ];

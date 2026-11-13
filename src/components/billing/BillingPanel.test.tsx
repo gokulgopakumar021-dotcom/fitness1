@@ -92,7 +92,9 @@ describe('BillingPanel: subscribing', () => {
     expect(text()).toContain('₹1,499 per year');
     const d = container.querySelector('[data-testid="disclosure"]')!.textContent!;
     expect(d).toContain('₹5 card verification debit');
-    expect(d).toMatch(/refunds it automatically/);
+    expect(d).toMatch(/Razorpay may make a ₹5 card verification debit/);
+    expect(d).toMatch(/Refund Policy/);
+    expect(d).not.toMatch(/(?<!not )refunded automatically|refunds? it automatically|auto-?refund/i);
     expect(d).toContain('13 Nov 2026');
     expect(d).toMatch(/until you cancel/);
     expect(d).toMatch(/Settings, then Billing/);

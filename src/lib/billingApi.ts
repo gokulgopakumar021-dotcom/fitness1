@@ -46,6 +46,7 @@ export interface BillingStatus {
     eligible: boolean;
     days: number;
     firstChargePreviewAt: string | null;
+    /** `refundedAutomatically` is a legacy field. It is NOT a verified claim and must not be displayed (Stage 4). */
     verificationDebit: { amountPaise: number; refundedAutomatically: boolean };
   };
   plans: BillingPlan[];
