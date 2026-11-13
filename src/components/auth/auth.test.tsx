@@ -18,7 +18,7 @@ vi.mock('../../lib/supabase', async (orig) => {
   return { ...real, getSupabase: () => (h.cfg.ok ? h.client : null), getSupabaseConfigStatus: () => h.cfg };
 });
 
-import { AuthProvider, INIT_TIMEOUT_MS } from '../../context/AuthContext';
+import { AuthProvider, INIT_TIMEOUT_MS, useAuth } from '../../context/AuthContext';
 import { AuthGate } from './AuthGate';
 import { SettingsView } from '../settings/SettingsView';
 import { db, DEFAULT_PROFILE } from '../../storage/db';
@@ -69,6 +69,9 @@ const type = async (label: string, value: string) => {
 };
 const legalBox = () => q<HTMLInputElement>('input[type="checkbox"]')!;
 const acceptLegal = async () => { await act(async () => { legalBox().click(); }); };
+// The 18+ confirmation is the SECOND checkbox on the sign-up form (Terms / Privacy is the first).
+const ageBox = () => container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[1];
+const confirmAdult = async () => { await act(async () => { ageBox().click(); }); };
 const submit = async () => {
   await act(async () => { q('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
 };
@@ -236,6 +239,7 @@ describe('sign up', () => {
     await type('Email', 'al@example.com');
     await type('Password', 'goodpass1');
     await type('Confirm password', 'goodpass1');
+    await confirmAdult();
     await submit();
     expect(h.client.auth.signUp).not.toHaveBeenCalled();
     expect(text()).toContain('Please agree to the Terms of Service and acknowledge the Privacy Policy');
@@ -253,6 +257,7 @@ describe('sign up', () => {
     await type('Password', 'goodpass1');
     await type('Confirm password', 'goodpass1');
     await acceptLegal();
+    await confirmAdult();
     await submit();
     const arg = h.client.auth.signUp.mock.calls[0][0];
     // New accounts are also tagged for post-signup plan selection (UI routing only; see lib/billingOnboarding.ts).
@@ -260,11 +265,55 @@ describe('sign up', () => {
     expect(arg.options.data).toEqual({
       full_name: 'Al Lifter',
       billing_onboarding: 'pending',
-      legal_acceptance: { terms_version: LEGAL.termsVersion, privacy_version: LEGAL.privacyVersion }
+      legal_acceptance: { terms_version: LEGAL.termsVersion, privacy_version: LEGAL.privacyVersion },
+      // 18+ self-declaration: a literal boolean, no date of birth and no age number (the database re-checks it).
+      age_declaration: { adult_18_plus: true }
     });
     expect(arg.options.emailRedirectTo).toMatch(/\/$/);
     expect(text()).toContain('Check your email');
     expect(q('[data-testid="private"]')).toBeNull();
+  });
+
+  it('shows the 18+ confirmation UNCHECKED by default, as its own required checkbox', () => {
+    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(2);
+    expect(ageBox().checked).toBe(false);
+    expect(ageBox().getAttribute('aria-required')).toBe('true');
+    expect(q<HTMLLabelElement>(`label[for="${ageBox().id}"]`)!.textContent).toBe('I confirm that I am 18 years of age or older.');
+    expect(legalBox().checked).toBe(false);
+  });
+
+  it('collects no date of birth and no age number on the sign-up form', () => {
+    expect(container.querySelector('input[type="date"]')).toBeNull();
+    expect(container.querySelector('input[type="number"]')).toBeNull();
+    expect(text().toLowerCase()).not.toContain('date of birth');
+  });
+
+  it('blocks sign-up without the 18+ confirmation even when the Terms box and every field are valid, and explains why', async () => {
+    await type('Full name', 'Al Lifter');
+    await type('Email', 'al@example.com');
+    await type('Password', 'goodpass1');
+    await type('Confirm password', 'goodpass1');
+    await acceptLegal();
+    await submit();
+    expect(h.client.auth.signUp).not.toHaveBeenCalled();
+    expect(text()).toContain('Please confirm that you are 18 years of age or older to create an account.');
+    expect(ageBox().getAttribute('aria-invalid')).toBe('true');
+    await confirmAdult(); // ticking clears the message
+    expect(text()).not.toContain('Please confirm that you are 18');
+    await confirmAdult(); // unticking blocks again
+    await submit();
+    expect(h.client.auth.signUp).not.toHaveBeenCalled();
+  });
+
+  it('the Terms box alone never satisfies the age box, and the age box alone never satisfies the Terms box', async () => {
+    await type('Full name', 'Al Lifter');
+    await type('Email', 'al@example.com');
+    await type('Password', 'goodpass1');
+    await type('Confirm password', 'goodpass1');
+    await confirmAdult();
+    await submit();
+    expect(h.client.auth.signUp).not.toHaveBeenCalled();
+    expect(text()).toContain('Please agree to the Terms of Service');
   });
 
   it('prevents duplicate sign-up submissions', async () => {
@@ -275,6 +324,7 @@ describe('sign up', () => {
     await type('Password', 'goodpass1');
     await type('Confirm password', 'goodpass1');
     await acceptLegal();
+    await confirmAdult();
     await submit();
     await submit();
     expect(h.client.auth.signUp).toHaveBeenCalledTimes(1);
@@ -454,3 +504,36 @@ describe('homepage before sign in and sign up', () => {
   });
 });
 
+
+describe('AuthContext.signUp refuses to call Supabase without BOTH declarations (defence in depth behind the form)', () => {
+  let ctx!: ReturnType<typeof useAuth>;
+  const Cap: React.FC = () => { ctx = useAuth(); return null; };
+  beforeEach(async () => {
+    await act(async () => { root.render(<AuthProvider><Cap /></AuthProvider>); });
+    await emit('INITIAL_SESSION', null);
+  });
+
+  it.each([
+    ['no Terms acceptance', false, true, /Terms of Service/],
+    ['no 18+ confirmation', true, false, /18 years of age or older/],
+    ['neither', false, false, /Terms of Service/]
+  ])('%s: nothing is sent', async (_l, legal, adult, msg) => {
+    const r = await ctx.signUp('Al', 'al@example.com', 'goodpass1', legal, adult);
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(msg);
+    expect(h.client.auth.signUp).not.toHaveBeenCalled();
+  });
+
+  it('a truthy-but-not-true value (e.g. the string "true") is not a confirmation', async () => {
+    const r = await ctx.signUp('Al', 'al@example.com', 'goodpass1', true, 'true' as unknown as boolean);
+    expect(r.ok).toBe(false);
+    expect(h.client.auth.signUp).not.toHaveBeenCalled();
+  });
+
+  it('with both, the metadata carries the literal boolean true and nothing about the person\'s age', async () => {
+    await ctx.signUp('Al', 'al@example.com', 'goodpass1', true, true);
+    const data = h.client.auth.signUp.mock.calls[0][0].options.data;
+    expect(data.age_declaration).toEqual({ adult_18_plus: true });
+    expect(JSON.stringify(data)).not.toMatch(/birth|dob|"age"/i);
+  });
+});

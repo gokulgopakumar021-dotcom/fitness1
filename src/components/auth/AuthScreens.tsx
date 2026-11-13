@@ -12,6 +12,7 @@ import {
   type SignUpErrors
 } from '../../utils/authValidation';
 import { validateLegalAcceptance } from '../../legal/policyAcceptance';
+import { MINIMUM_AGE, validateAgeConfirmation } from '../../legal/ageEligibility';
 import { LEGAL_ROUTES } from '../../legal/routes';
 
 /* ---------- layout ---------- */
@@ -170,6 +171,32 @@ const LegalAcceptance: React.FC<{ checked: boolean; onChange: (v: boolean) => vo
           <a href={LEGAL_ROUTES.terms.path} target="_blank" rel="noopener noreferrer" className={linkCls}>Terms of Service</a>{' '}
           and acknowledge that I have read the{' '}
           <a href={LEGAL_ROUTES.privacy.path} target="_blank" rel="noopener noreferrer" className={linkCls}>Privacy Policy</a>.
+        </label>
+      </div>
+      {error && <p id={`${id}-err`} role="alert" className="text-xs text-danger mt-1">{error}</p>}
+    </div>
+  );
+};
+
+/** Required 18+ confirmation for sign-up. Unchecked by default. A self-declaration: no date of birth is collected. */
+const AgeConfirmation: React.FC<{ checked: boolean; onChange: (v: boolean) => void; error: string | null; disabled?: boolean }> = ({ checked, onChange, error, disabled }) => {
+  const id = useId();
+  return (
+    <div>
+      <div className="flex items-start gap-3 min-h-[44px]">
+        <input
+          id={id}
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          disabled={disabled}
+          aria-required="true"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-err` : undefined}
+          className="mt-1 h-5 w-5 shrink-0 accent-[var(--chart-1)]"
+        />
+        <label htmlFor={id} className="text-sm text-zinc-300 leading-snug">
+          I confirm that I am {MINIMUM_AGE} years of age or older.
         </label>
       </div>
       {error && <p id={`${id}-err`} role="alert" className="text-xs text-danger mt-1">{error}</p>}
@@ -338,6 +365,9 @@ const SignUpForm: React.FC<FormProps> = ({ email, setEmail, go, onBackToHome }) 
   // Unchecked by default. Signup cannot proceed until the person ticks it (see also AuthContext.signUp).
   const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [legalError, setLegalError] = useState<string | null>(null);
+  // Unchecked by default (18+ self-declaration). Enforced again by the database, see src/legal/ageEligibility.ts.
+  const [confirmedAdult, setConfirmedAdult] = useState(false);
+  const [ageError, setAgeError] = useState<string | null>(null);
   const [errors, setErrors] = useState<SignUpErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const { busy, run } = useSubmitGuard();
@@ -347,11 +377,13 @@ const SignUpForm: React.FC<FormProps> = ({ email, setEmail, go, onBackToHome }) 
     const found = validateSignUp({ fullName, email, password, confirm });
     const legalProblem = validateLegalAcceptance(acceptedLegal);
     setErrors(found);
+    const ageProblem = validateAgeConfirmation(confirmedAdult);
     setLegalError(legalProblem);
+    setAgeError(ageProblem);
     setFormError(null);
-    if (Object.keys(found).length || legalProblem) return;
+    if (Object.keys(found).length || legalProblem || ageProblem) return;
     void run(async () => {
-      const r = await signUp(fullName, email, password, acceptedLegal);
+      const r = await signUp(fullName, email, password, acceptedLegal, confirmedAdult);
       if (!r.ok) { setFormError(r.error ?? 'Could not create account.'); return; }
       // needsVerification: show the check-your-email screen. Otherwise a session exists and AuthGate takes over.
       if (r.needsVerification) go('verify');
@@ -368,6 +400,7 @@ const SignUpForm: React.FC<FormProps> = ({ email, setEmail, go, onBackToHome }) 
           hint={`At least ${PASSWORD_MIN} characters, with a letter and a number.`} />
         <Field label="Confirm password" type="password" value={confirm} onChange={setConfirm} error={errors.confirm} autoComplete="new-password" disabled={busy} />
         <LegalAcceptance checked={acceptedLegal} onChange={(v) => { setAcceptedLegal(v); if (v) setLegalError(null); }} error={legalError} disabled={busy} />
+        <AgeConfirmation checked={confirmedAdult} onChange={(v) => { setConfirmedAdult(v); if (v) setAgeError(null); }} error={ageError} disabled={busy} />
         <Button type="submit" fullWidth loading={busy}>Create account</Button>
       </form>
       <p className="mt-5 text-sm text-zinc-400 text-center">Already have an account? <LinkButton onClick={() => go('signin')}>Sign in</LinkButton></p>

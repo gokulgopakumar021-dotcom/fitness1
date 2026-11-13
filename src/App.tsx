@@ -34,6 +34,8 @@ import { BillingRefusalNotice } from './components/billing/BillingRefusalNotice'
 import { BillingOnboardingGate } from './components/billing/BillingOnboardingGate';
 import { OPEN_BILLING_EVENT } from './lib/billingGate';
 import { PolicyUpdateNotice } from './components/legal/PolicyUpdateNotice';
+import { AgeEligibilityProvider } from './context/AgeEligibilityContext';
+import { AgeEligibilityGate } from './components/legal/AgeEligibilityGate';
 
 /** The private application. Only ever mounted by AuthGate, after storage is scoped to the signed-in account. */
 function AppShell() {
@@ -306,11 +308,16 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <AuthGate>
-          <SyncProvider>
-            <BillingOnboardingGate>
-              <AppShell />
-            </BillingOnboardingGate>
-          </SyncProvider>
+          {/* 18+ eligibility comes from the database and blocks the private app (and its cloud sync / billing screens) until confirmed. */}
+          <AgeEligibilityProvider>
+            <AgeEligibilityGate>
+              <SyncProvider>
+                <BillingOnboardingGate>
+                  <AppShell />
+                </BillingOnboardingGate>
+              </SyncProvider>
+            </AgeEligibilityGate>
+          </AgeEligibilityProvider>
         </AuthGate>
       </AuthProvider>
     </ThemeProvider>

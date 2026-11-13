@@ -321,10 +321,16 @@ export const privacySections: LegalSectionDef[] = [
     title: 'Age and children',
     body: (
       <>
-        <P>Body Scan is only for people aged 18 or older. Minimum age for an account: <Pending field="minimumAge" />.</P>
+        <P>
+          Iron Log AI is only for people aged 18 or older, and so is Body Scan. When you sign up, or once for an account created before this
+          rule, you confirm that you are 18 or older. We store only that confirmation: that you confirmed it, when, and which version of the
+          Terms was current. We do not collect your date of birth or your age for this, and we do not verify it. If you are under 18, do not
+          use the Service. You can delete your account and its data at any time. Deleting your account also deletes this confirmation.
+        </P>
         <ReviewNote>
-          The owner’s product preference is 14+, which is not a legally approved policy. Indian law treats anyone under 18 as a child for data
-          protection purposes. See docs/legal/AGE_ELIGIBILITY_RESEARCH.md. No final age gate has been implemented.
+          Owner decision: 18+ for the whole Service. This is a self-declaration, not verified age. Counsel to confirm the wording, whether
+          self-declaration is enough under the DPDP Act, 2023 (anyone under 18 is a child), and whether the confirmation record should be
+          kept after account deletion. See docs/legal/AGE_ELIGIBILITY_DESIGN.md and docs/legal/AGE_ELIGIBILITY_RESEARCH.md.
         </ReviewNote>
       </>
     )

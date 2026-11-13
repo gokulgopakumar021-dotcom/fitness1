@@ -1,4 +1,5 @@
 import type { Express, NextFunction, Request, RequestHandler, Response } from 'express';
+import { createAgeGate, loadAgeEnforcement, SupabaseAgeStore, type AgeEnforcementMode, type AgeStore } from './ageGate';
 import { createAuthMiddleware, createSupabaseVerifier, type TokenVerifier } from './auth';
 import { loadSecurityConfig, type SecurityConfig } from './config';
 import { createCors } from './cors';
@@ -8,6 +9,7 @@ import { createSecurityHeaders } from './headers';
 import { createJsonBody } from './jsonBody';
 import { createQuotaGate, DegradingQuotaStore, MemoryQuotaStore, SupabaseQuotaStore, type QuotaStore } from './quota';
 import { createRateLimiter, MemoryRateStore, type RateStore } from './rateLimit';
+import { logger } from './logger';
 import { requestContext } from './requestContext';
 import { validateBody } from './validation';
 import './types';
@@ -20,6 +22,9 @@ export interface SecurityDeps {
   now?: () => number;
   /** Billing entitlement gate for ai:true routes; runs after validation and before the daily quota gate. */
   entitlementGate?: RequestHandler;
+  /** 18+ eligibility (Stage 2D / Stage 2). Defaults: mode from AGE_ENFORCEMENT (off when unset), store = the caller's own token against Supabase. */
+  ageEnforcement?: AgeEnforcementMode;
+  ageStore?: AgeStore;
 }
 
 const isHealth = (req: Request) => (req.method === 'GET' || req.method === 'HEAD') && req.path === '/health';
@@ -101,6 +106,12 @@ export function installSecurity(app: Express, deps: SecurityDeps = {}): Security
       alwaysClosed: closedRoute
     })
   );
+
+  // 18+ eligibility: server-authoritative, after auth and rate limits and BEFORE the body is parsed (see ageGate.ts).
+  const age = deps.ageEnforcement ? { mode: deps.ageEnforcement, invalid: false } : loadAgeEnforcement();
+  if (age.invalid) logger.error('age_enforcement_invalid', { effectiveMode: age.mode });
+  else if (age.mode === 'off' && config.production) logger.warn('age_enforcement_off', {});
+  app.use('/api', createAgeGate({ mode: age.mode, store: deps.ageStore ?? new SupabaseAgeStore(config), now }));
 
   app.use('/api', createJsonBody());
   app.use('/api', (req: Request, res: Response, next: NextFunction) => validateBody(res.locals.policy?.schema)(req, res, next));

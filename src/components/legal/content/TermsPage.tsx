@@ -53,14 +53,15 @@ export const termsSections: LegalSectionDef[] = [
     body: (
       <>
         <P>
-          You must be at least <Pending field="minimumAge" /> to create an account. Body Scan is available only to people aged 18 or older.
-          You must give accurate sign-up information and be able to form a binding agreement where you live. If you are under 18, you should
-          use the Service only where the law allows and with any parent or guardian involvement the law requires.
+          You must be at least 18 years of age to create an account or use the Service. When you sign up, or when we ask you to confirm on an
+          account created earlier, you confirm that you are 18 or older. We record only that you confirmed it. We do not ask for your date of
+          birth and we do not independently verify your age. If you are under 18, do not create or use an account. Body Scan is covered by the
+          same rule. You must give accurate sign-up information and be able to form a binding agreement where you live.
         </P>
         <ReviewNote>
-          Minimum age is unresolved. The owner prefers 14+, but Indian data-protection rules treat under-18s as children and require
-          verifiable parental consent for processing their data once the relevant provisions take effect, and minors’ ability to contract is a
-          separate question. Do not publish this clause until counsel has decided the age policy. See docs/legal/AGE_ELIGIBILITY_RESEARCH.md.
+          Owner decision: the whole Service is 18+ (not 14+). Wording is a draft for counsel. Counsel to confirm: whether a self-declaration is
+          sufficient, what the Terms should say if someone reveals they are under 18, and the contracting-capacity wording. See
+          docs/legal/AGE_ELIGIBILITY_DESIGN.md and docs/legal/AGE_ELIGIBILITY_RESEARCH.md.
         </ReviewNote>
       </>
     )

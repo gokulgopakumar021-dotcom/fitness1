@@ -3,6 +3,7 @@ import React, { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BodyScanFlow } from './BodyScanFlow';
+import { AgeEligibilityContext } from '../../context/AgeEligibilityContext';
 import { DEFAULT_PROFILE } from '../../storage/db';
 import { getBodyScanConsent } from '../../storage/bodyScanConsent';
 import { getStorageSummary, listScans } from '../../storage/bodyScanStore';
@@ -26,7 +27,11 @@ let blobCounter = 0;
 
 const render = async (profile: UserProfile) => {
   await act(async () => {
-    root.render(<BodyScanFlow profile={profile} onClose={() => {}} createEngine={createEngine} />);
+    root.render(
+      <AgeEligibilityContext.Provider value={{ status: 'declared', declare: async () => true }}>
+        <BodyScanFlow profile={profile} onClose={() => {}} createEngine={createEngine} />
+      </AgeEligibilityContext.Provider>
+    );
   });
 };
 const click = async (el: Element | undefined) => {

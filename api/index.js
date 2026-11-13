@@ -1377,11 +1377,11 @@ var BILLING_ENDPOINTS = {
   "GET /billing/payments": { bucket: "billing-payments", ai: false, perMinute: 20, bodyLimit: SMALL },
   "POST /billing/subscriptions": { bucket: "billing-create", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.createSubscription },
   "POST /billing/subscriptions/verify": { bucket: "billing-verify", ai: false, perMinute: 10, bodyLimit: SMALL, schema: billingSchemas.verifySubscription },
-  "POST /billing/subscriptions/cancel": { bucket: "billing-cancel", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.empty },
+  "POST /billing/subscriptions/cancel": { bucket: "billing-cancel", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.empty, ageExempt: true },
   // Stage 5: payment recovery (pending/halted) and the cancel-then-delete flow. Each calls Razorpay, so the limits are tight.
   "POST /billing/subscriptions/recover": { bucket: "billing-recover", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.empty },
-  "GET /billing/account/deletion-check": { bucket: "billing-deletion-check", ai: false, perMinute: 10, bodyLimit: SMALL },
-  "POST /billing/account/prepare-deletion": { bucket: "billing-prepare-deletion", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.prepareDeletion }
+  "GET /billing/account/deletion-check": { bucket: "billing-deletion-check", ai: false, perMinute: 10, bodyLimit: SMALL, ageExempt: true },
+  "POST /billing/account/prepare-deletion": { bucket: "billing-prepare-deletion", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.prepareDeletion, ageExempt: true }
 };
 var BARCODE_POLICY = { bucket: "barcode", ai: false, perMinute: 30, bodyLimit: SMALL };
 function resolvePolicy(method, path) {
@@ -2151,6 +2151,9 @@ function registerBillingRoutes(app, deps = {}) {
   app.post("/api/billing/account/prepare-deletion", handler(async (s, req, res) => res.json({ success: true, ...await s.prepareDeletion(req.user, { confirmCancelPaidNow: req.body?.confirmCancelPaidNow === true }) }), lazy));
 }
 
+// src/server/security/ageGate.ts
+import { createClient as createClient3 } from "@supabase/supabase-js";
+
 // src/server/security/auth.ts
 import { createClient as createClient2 } from "@supabase/supabase-js";
 var accessTokens = /* @__PURE__ */ new WeakMap();
@@ -2246,6 +2249,117 @@ function createAuthMiddleware({ config, verify, failureStore, now = Date.now }) 
       }
       req.user = result.user;
       accessTokens.set(req, token);
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
+// src/server/security/ageGate.ts
+function loadAgeEnforcement(env = process.env) {
+  const raw = (env.AGE_ENFORCEMENT ?? "").trim().toLowerCase();
+  if (raw === "" || raw === "off") return { mode: "off", invalid: false };
+  if (raw === "shadow" || raw === "on") return { mode: raw, invalid: false };
+  return { mode: "off", invalid: true };
+}
+var AgeStoreUnavailableError = class extends Error {
+  constructor(reason) {
+    super(`age eligibility store unavailable: ${reason}`);
+    this.reason = reason;
+    this.name = "AgeStoreUnavailableError";
+  }
+};
+var SupabaseAgeStore = class {
+  constructor(cfg, opts = {}) {
+    this.cfg = cfg;
+    this.timeoutMs = opts.timeoutMs ?? 3e3;
+  }
+  async isDeclaredAdult(_userId, accessToken) {
+    if (!this.cfg.supabaseUrl || !this.cfg.supabaseKey) throw new AgeStoreUnavailableError("not_configured");
+    if (!accessToken) throw new AgeStoreUnavailableError("no_token");
+    let data;
+    try {
+      const client = createClient3(this.cfg.supabaseUrl, this.cfg.supabaseKey, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        global: { headers: { Authorization: `Bearer ${accessToken}` } }
+      });
+      const res = await client.rpc("get_my_age_eligibility").abortSignal(AbortSignal.timeout(this.timeoutMs));
+      if (res.error) {
+        const name = res.error.name ?? "";
+        if (name === "AbortError" || name === "TimeoutError" || /abort/i.test(res.error.message ?? "")) throw new AgeStoreUnavailableError("timeout");
+        const code = String(res.error.code ?? "");
+        throw new AgeStoreUnavailableError(/^[A-Za-z0-9_]{1,12}$/.test(code) ? `rpc_${code}` : "rpc_error");
+      }
+      data = res.data;
+    } catch (err) {
+      if (err instanceof AgeStoreUnavailableError) throw err;
+      const name = err?.name ?? "";
+      throw new AgeStoreUnavailableError(name === "AbortError" || name === "TimeoutError" ? "timeout" : "transport");
+    }
+    if (data === "declared") return true;
+    if (data === "unknown") return false;
+    throw new AgeStoreUnavailableError("bad_shape");
+  }
+};
+var PositiveAgeCache = class {
+  constructor(ttlMs, maxEntries, now) {
+    this.ttlMs = ttlMs;
+    this.maxEntries = maxEntries;
+    this.now = now;
+    this.hits = /* @__PURE__ */ new Map();
+  }
+  has(userId) {
+    const exp = this.hits.get(userId);
+    if (exp === void 0) return false;
+    if (exp <= this.now()) {
+      this.hits.delete(userId);
+      return false;
+    }
+    return true;
+  }
+  add(userId) {
+    if (this.hits.size >= this.maxEntries) {
+      const oldest = this.hits.keys().next().value;
+      if (oldest !== void 0) this.hits.delete(oldest);
+    }
+    this.hits.set(userId, this.now() + this.ttlMs);
+  }
+};
+function createAgeGate(opts) {
+  const now = opts.now ?? Date.now;
+  const cache = new PositiveAgeCache(opts.cacheTtlMs ?? 5 * 6e4, 5e3, now);
+  return async (req, res, next) => {
+    try {
+      if (opts.mode === "off") return next();
+      const policy = resolvePolicy(req.method, req.path);
+      if (!policy || policy.ageExempt || !req.user) return next();
+      const userId = req.user.id;
+      if (cache.has(userId)) return next();
+      let declared;
+      try {
+        declared = await opts.store.isDeclaredAdult(userId, getAccessToken(req));
+      } catch (err) {
+        logger.error("age_eligibility_check_failed", {
+          requestId: req.requestId,
+          bucket: policy.bucket,
+          reason: err instanceof AgeStoreUnavailableError ? err.reason : "unexpected"
+        });
+        declared = void 0;
+      }
+      if (opts.mode === "shadow") {
+        if (declared === void 0) logger.warn("age_shadow_unavailable", { requestId: req.requestId, bucket: policy.bucket });
+        else if (!declared) logger.warn("age_shadow_would_deny", { requestId: req.requestId, userId, bucket: policy.bucket });
+        else cache.add(userId);
+        return next();
+      }
+      if (declared === void 0) {
+        return sendError(req, res, 503, "age_eligibility_unavailable", "Your eligibility could not be checked. Please try again shortly.", { "Retry-After": "5" });
+      }
+      if (!declared) {
+        return sendError(req, res, 403, "age_confirmation_required", "Please confirm that you are 18 years of age or older to continue.");
+      }
+      cache.add(userId);
       next();
     } catch (err) {
       next(err);
@@ -2477,7 +2591,7 @@ function createJsonBody() {
 }
 
 // src/server/security/quota.ts
-import { createClient as createClient3 } from "@supabase/supabase-js";
+import { createClient as createClient4 } from "@supabase/supabase-js";
 var MemoryQuotaStore = class {
   constructor() {
     this.counts = /* @__PURE__ */ new Map();
@@ -2508,7 +2622,7 @@ var SupabaseQuotaStore = class {
     if (!accessToken) throw new QuotaStoreUnavailableError("no_token");
     let data;
     try {
-      const client = createClient3(this.cfg.supabaseUrl, this.cfg.supabaseKey, {
+      const client = createClient4(this.cfg.supabaseUrl, this.cfg.supabaseKey, {
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
         global: { headers: { Authorization: `Bearer ${accessToken}` } }
       });
@@ -2663,6 +2777,10 @@ function installSecurity(app, deps = {}) {
       alwaysClosed: closedRoute
     })
   );
+  const age = deps.ageEnforcement ? { mode: deps.ageEnforcement, invalid: false } : loadAgeEnforcement();
+  if (age.invalid) logger.error("age_enforcement_invalid", { effectiveMode: age.mode });
+  else if (age.mode === "off" && config.production) logger.warn("age_enforcement_off", {});
+  app.use("/api", createAgeGate({ mode: age.mode, store: deps.ageStore ?? new SupabaseAgeStore(config), now }));
   app.use("/api", createJsonBody());
   app.use("/api", (req, res, next) => validateBody(res.locals.policy?.schema)(req, res, next));
   if (deps.entitlementGate) app.use("/api", deps.entitlementGate);
@@ -4421,7 +4539,7 @@ Generate an exhaustive, scientifically rigorous transformation roadmap strictly 
 
 // src/server/security/redisRateStore.ts
 import { createHash as createHash2 } from "node:crypto";
-import { createClient as createClient4, defineScript } from "redis";
+import { createClient as createClient5, defineScript } from "redis";
 var HIT_SCRIPT = `
 local c = redis.call('INCR', KEYS[1])
 local ttl = redis.call('PTTL', KEYS[1])
@@ -4498,7 +4616,7 @@ var RedisRateStore = class {
   /** Builds a client and starts connecting in the background; requests are refused (not queued) until it is ready. */
   openClient() {
     const opts = this.options;
-    const client = createClient4({
+    const client = createClient5({
       url: opts.url,
       // Commands fail immediately while disconnected instead of queueing until reconnect: a request must get its
       // 503 (or its degraded decision) now, not after an unbounded wait.

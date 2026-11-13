@@ -3,6 +3,7 @@ import React, { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BodyScanFlow } from './BodyScanFlow';
+import { AgeEligibilityContext } from '../../context/AgeEligibilityContext';
 import { DEFAULT_PROFILE } from '../../storage/db';
 import { getBodyScanConsent } from '../../storage/bodyScanConsent';
 import { listScans, getStorageSummary } from '../../storage/bodyScanStore';
@@ -17,7 +18,11 @@ let cam: FakeCamera;
 
 const render = async (profile: UserProfile) => {
   await act(async () => {
-    root.render(<BodyScanFlow profile={profile} onClose={() => {}} />);
+    root.render(
+      <AgeEligibilityContext.Provider value={{ status: 'declared', declare: async () => true }}>
+        <BodyScanFlow profile={profile} onClose={() => {}} />
+      </AgeEligibilityContext.Provider>
+    );
   });
 };
 const click = async (el: Element) => {

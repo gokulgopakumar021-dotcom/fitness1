@@ -7,7 +7,10 @@ Prepared 12 November 2026 from web research of secondary sources (law-firm and t
 Rules, and the Gazette commencement notification) were **not** read directly in this stage. Counsel must verify every point below
 against the primary sources.
 
-## 1. The owner's preference, and why it is not implemented
+> **UPDATE (Stage 2D):** the owner has since decided **18+ for the entire platform** (Option A below). Sections 1 and 3 are kept as
+> the original research record. The implementation and its limits are in `AGE_ELIGIBILITY_DESIGN.md`.
+
+## 1. The owner's earlier preference (superseded by the 18+ decision)
 
 The owner prefers a minimum account age of 14. Under the DPDP Act, 2023 a "child" is anyone under 18. A 14+ account gate therefore
 means accepting 14 to 17-year-olds, who are children for data-protection purposes. The Terms and Privacy drafts show the minimum age
