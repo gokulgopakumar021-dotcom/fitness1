@@ -22,7 +22,7 @@ Date: 2026-11-14. Status legend: **DONE**, **OPEN**, **BLOCKED**, **UNKNOWN**.
 | # | Finding | Status |
 |---|---|---|
 | 1 | Existing drafts were already careful (no compliance claims, no invented facts, no referral wording). Checked against code rather than assumed. | DONE |
-| 2 | Terms did not state the three-day trial. Added "currently three days" and a review note on live env values and the 30-minute authorisation window. | DONE |
+| 2 | Terms did not state the three-day trial. Added "currently three days" and a review note on live env values and the 30-minute authorisation window. **Stage 13.1 correction:** the review note said the first charge follows "sign-up"; it is fixed at checkout creation. Corrected. | DONE (corrected in 13.1) |
 | 3 | Terms had no Body Scan limitation. Added a bullet (18+, device-based, no body-fat estimate, approximate, not clinical), mirroring the in-app consent screen. | DONE |
 | 4 | Privacy did not mention support emails. Added; no retention period invented. | DONE |
 | 5 | Privacy did not say acceptance and 18+ records are deleted with the account (they are: `ON DELETE CASCADE`). Added to the data table and deletion list; counsel note added. | DONE text / OPEN (lawyer) |
@@ -42,7 +42,7 @@ Full table in `docs/legal/IRON_LOG_AI_OWNER_INFORMATION_REQUIRED.md`. Operator l
 
 ## 7. Subscription and refund wording findings
 - Prices and trial in code defaults equal the owner decision (29,900 and 149,900 paise, 3 days); now tested. Live Vercel and Razorpay values were not readable: **UNKNOWN**.
-- First charge is trial length plus a 30-minute authorisation window; Terms review note records this.
+- First charge is scheduled for checkout creation + 30-minute authorisation window + trial length (not "after sign-up", corrected in Stage 13.1); the date is fixed at checkout and not promised as 72 hours after authorisation. See the Stage 13.1 correction report.
 - Cancellation code matches the page: trial cancels at once with access until the trial end; paid cancels at cycle end; deletion cancels immediately, no refund of the current period.
 - Refund page matches the owner's limited-refund decision; no automatic or timed refund promise; ₹5 return not promised.
 - Stage 12 Razorpay Test Mode verification remains pending, so provider behaviour is **BLOCKED / not verified**. No payment or refund was made.

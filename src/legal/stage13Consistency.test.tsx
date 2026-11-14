@@ -8,6 +8,7 @@ import { LegalRoot } from '../components/legal/LegalRoot';
 import { LEGAL } from './legalConfig';
 import type { LegalRouteKey } from './routes';
 import { loadBillingConfig } from '../server/billing/config';
+import { buildDisclosure } from '../utils/billingPresentation';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -98,5 +99,84 @@ describe('Stage 13: deletion text matches the schema', () => {
     const b = readFileSync('supabase/migrations/20261113043241_age_eligibility.sql', 'utf8');
     expect(a).toMatch(/user_id\s+uuid not null references auth\.users \(id\) on delete cascade/);
     expect(b).toMatch(/user_id\s+uuid primary key references auth\.users \(id\) on delete cascade/);
+  });
+});
+
+/**
+ * Stage 13.1: trial-timing wording. The implemented timing is anchored here from the source so the wording cannot drift from it:
+ * trial_end_at = checkout creation (database clock) + authorisation window + trial days, and the same instant is sent to Razorpay as
+ * start_at. The date is fixed at checkout; it is not recomputed from the moment of authorisation, and no 72-hour promise is made.
+ */
+describe('Stage 13.1: trial timing wording matches the implemented timing', () => {
+  const sql = readFileSync('supabase/migrations/20261106052859_billing_core.sql', 'utf8');
+  const service = readFileSync('src/server/billing/service.ts', 'utf8');
+  const customerFacing = (): string[] => {
+    const pages = (['terms', 'privacy', 'refund-policy', 'cancellation-policy', 'contact'] as const).map(text);
+    const disclosure = buildDisclosure({
+      plan: { key: 'monthly', amountPaise: 29900, currency: 'INR', interval: 'month', billingPeriod: 'monthly' } as never,
+      trialEligible: true, trialDays: 3, verificationDebitPaise: 500, firstChargeAt: '2026-11-13T12:00:00Z'
+    }).join('\n');
+    const ui = ['BillingParts', 'BillingOnboarding', 'BillingPanel'].map((f) => readFileSync(`src/components/billing/${f}.tsx`, 'utf8')).join('\n');
+    return [...pages, disclosure, ui];
+  };
+
+  it('source: the trial end is the authorisation deadline plus the trial days, fixed in the database at checkout creation', () => {
+    expect(sql).toMatch(/v_expire := now\(\) \+ v_window;/);
+    expect(sql).toMatch(/v_trial_end := case when v_eligible then v_expire \+ make_interval\(days => p_trial_days\) else null end;/);
+  });
+  it('source: the stored trial end is what is sent to Razorpay as start_at, with expire_by as the authorisation deadline', () => {
+    expect(service).toMatch(/start_at: Math\.floor\(Date\.parse\(begin\.trial_end_at as string\) \/ 1000\)/);
+    expect(service).toMatch(/expire_by: Math\.floor\(Date\.parse\(begin\.expire_by as string\) \/ 1000\)/);
+  });
+  it('the Terms say the date is set at checkout, call the first charge scheduled, and disclaim any payment guarantee', () => {
+    const t = text('terms');
+    expect(t).toMatch(/set when you start checkout and does not move if you authorise later/);
+    expect(t).toMatch(/first plan charge is scheduled for the date your trial is set to end/);
+    expect(t).toMatch(/exact time it is taken can vary/);
+    expect(t).toMatch(/does not guarantee that a later payment will succeed/);
+  });
+  it('the pre-checkout disclosure calls the first charge scheduled and says the date is set at checkout', () => {
+    const d = buildDisclosure({
+      plan: { key: 'monthly', amountPaise: 29900, currency: 'INR', interval: 'month', billingPeriod: 'monthly' } as never,
+      trialEligible: true, trialDays: 3, verificationDebitPaise: 500, firstChargeAt: '2026-11-13T12:00:00Z'
+    }).join('\n');
+    expect(d).toMatch(/is scheduled for 13 Nov 2026/);
+    expect(d).toMatch(/date is set when you start checkout/);
+    expect(d).not.toMatch(/the day your trial ends/);
+  });
+  it('no customer-facing document promises 72 hours or three full days after authorisation, or an exact charge time', () => {
+    for (const c of customerFacing()) {
+      expect(c).not.toMatch(/\b72[- ]?hours?\b/i);
+      expect(c).not.toMatch(/(three|3)[- ]full[- ]days?|full (three|3)[- ]day|exactly (three|3) days|(three|3) days? (after|from) (you )?(authoris|authoriz|confirm)/i);
+      expect(c).not.toMatch(/Counted from when your authorisation was confirmed/);
+      expect(c).not.toMatch(/charged? (at|by) (exactly|precisely)|guaranteed (first )?(charge|payment)/i);
+    }
+  });
+  it('no document or review note says the first charge follows sign-up', () => {
+    const docs = ['docs/legal/IRON_LOG_AI_INDIAN_LAWYER_REVIEW_PACKET.md', 'docs/legal/IRON_LOG_AI_OWNER_INFORMATION_REQUIRED.md'].map((f) => readFileSync(f, 'utf8')).join('\n');
+    const terms = readFileSync('src/components/legal/content/TermsPage.tsx', 'utf8');
+    expect(terms).not.toMatch(/authorisation window[^.]*after sign-up/);
+    expect(docs.replace(/Stage 13 wrongly said "after sign-up"/, '')).not.toMatch(/authorisation window[^.]*after sign-up/);
+  });
+});
+
+describe('Stage 13.1: owner decisions are unchanged', () => {
+  it('prices, the one-trial rule, the limited refund approach and 18+ wording are all still in place', () => {
+    const terms = text('terms');
+    expect(terms).toContain('₹299 per month');
+    expect(terms).toContain('₹1,499 per year');
+    expect(terms).toMatch(/One trial is allowed per account and per email address/);
+    expect(text('refund-policy')).not.toMatch(/change of mind[^.]*(will|can) be refunded/i);
+    expect(terms).toMatch(/18/);
+    expect(['terms', 'privacy'].map((r) => text(r as LegalRouteKey)).join(' ')).not.toMatch(/verified (your )?age|government ID/i);
+  });
+  it('the draft state and the release gate stay active', () => {
+    expect(LEGAL.isDraft).toBe(true);
+    expect(LEGAL.effectiveDate).toBeNull();
+    expect(readFileSync('src/legal/releaseGate.ts', 'utf8')).toMatch(/releaseBlockers/);
+  });
+  it('the ₹5 wording makes no verified-refund claim', () => {
+    const all = (['terms', 'refund-policy'] as const).map(text).join(' ');
+    expect(all).not.toMatch(/₹5[^.]*(is|will be) (automatically )?refunded|₹5 (is|will be) returned/i);
   });
 });

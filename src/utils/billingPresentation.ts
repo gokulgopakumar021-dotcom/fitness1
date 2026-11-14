@@ -136,7 +136,7 @@ export function buildDisclosure(i: DisclosureInput): string[] {
     `Plan: ${planName(i.plan.key)}, ${price}.`,
     `${i.trialDays}-day trial: it starts once Razorpay confirms your payment authorisation, not before.`,
     `Today: Razorpay may make a ${formatInr(i.verificationDebitPaise)} card verification debit. It is not part of your plan price, and refund handling is described in the Refund Policy. For UPI or e-mandate, check the amount shown in Razorpay Checkout before you confirm.`,
-    `First charge: ${formatInr(i.plan.amountPaise)} on ${when}, the day your trial ends. After that it renews every ${per} at ${formatInr(i.plan.amountPaise)} until you cancel.`,
+    `First charge: ${formatInr(i.plan.amountPaise)} is scheduled for ${when}, when your trial is set to end. This date is set when you start checkout. After that it renews every ${per} at ${formatInr(i.plan.amountPaise)} until you cancel.`,
     `To avoid the first charge, cancel in Settings, then Billing, before ${when}. If you cancel during the trial, future billing stops at once and you keep access until the trial ends.`
   ];
 }

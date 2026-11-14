@@ -25,7 +25,7 @@ export const StatusSummary: React.FC<{ status: BillingStatus; state: PanelState;
       <SettingRows>
         {state === 'trialing' && (
           <>
-            <SettingRow label="Trial" description="Counted from when your authorisation was confirmed.">
+            <SettingRow label="Trial" description="Your trial end date was set when you started checkout.">
               <span className="text-sm text-white" data-testid="trial-days">
                 {days === 0 ? 'Ends today' : `${days} ${days === 1 ? 'day' : 'days'} left`}
               </span>
@@ -35,7 +35,7 @@ export const StatusSummary: React.FC<{ status: BillingStatus; state: PanelState;
                 <span className="text-sm text-white">{formatDate(sub.trialStartAt)}</span>
               </SettingRow>
             )}
-            <SettingRow label="Trial ends" description="Your first charge is taken on this date unless you cancel first.">
+            <SettingRow label="Trial ends" description="Your first charge is scheduled for this date unless you cancel first.">
               <span className="text-sm text-white">{formatDate(sub?.trialEndAt ?? end)}</span>
             </SettingRow>
           </>
@@ -320,7 +320,7 @@ export const TrialEndExplainer: React.FC<{ status: BillingStatus }> = ({ status 
       <ul className="space-y-2 text-sm text-zinc-300 list-disc pl-5">
         <li>Your trial runs until {ends}. Everything you have access to now stays available until then.</li>
         <li>
-          On {ends} your first payment of {price} is taken from the payment method you authorised, then it renews every {per} at {price} until you cancel.
+          Your first payment of {price} is scheduled for {ends} from the payment method you authorised, then it renews every {per} at {price} until you cancel.
         </li>
         <li>To avoid the first payment, cancel in Settings, then Billing, before {ends}. Future billing stops at once and you keep access until the trial ends.</li>
       </ul>

@@ -24,7 +24,7 @@ Statuses: **DONE**, **OPEN**, **BLOCKED**, **UNKNOWN**. "Evidence" is where the 
 | Eligibility 18+ and self-declaration | Present, no verification claim (test) | DONE |
 | Account security and responsibilities | Present | DONE |
 | Prices ₹299 / ₹1,499, no tax added | Present; equals code defaults (test); live values unread | DONE text / UNKNOWN live |
-| Three-day trial | Added in Stage 13 ("currently three days"); billing behaviour unverified | DONE text / BLOCKED on Stage 12 |
+| Three-day trial | "Currently three days"; Stage 13.1: end/first-charge date is set at checkout creation (creation + 30-min window + 3 days), described as scheduled, no 72-hour promise, no payment guarantee; provider behaviour unverified | DONE text (13.1) / BLOCKED on Stage 12 |
 | Trial authorisation, ₹5 debit, renewal | Present; refund of ₹5 deferred to Refund Policy | DONE text |
 | Payment failure | Only implied (cancellation and availability sections) | OPEN (lawyer to say if a dedicated clause is needed) |
 | AI, fitness, medical and emergency disclaimers | Present, no diagnosis or guaranteed results | DONE |

@@ -34,7 +34,7 @@ export const refundSections: LegalSectionDef[] = [
     body: (
       <UL>
         <li><strong>Duplicate payment:</strong> you were charged more than once for the same plan and period.</li>
-        <li><strong>Incorrect charge:</strong> you were charged an amount or at a time that does not match what the app showed you before you authorised payment, or after your subscription was cancelled and had stopped.</li>
+        <li><strong>Incorrect charge:</strong> you were charged an amount or on a date that does not match what the app showed you before you authorised payment, or after your subscription was cancelled and had stopped.</li>
         <li><strong>Verified billing error:</strong> after investigating, we or Razorpay confirm that a payment was taken in error.</li>
       </UL>
     )

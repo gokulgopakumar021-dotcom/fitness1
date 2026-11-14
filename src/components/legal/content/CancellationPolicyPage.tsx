@@ -58,7 +58,7 @@ export const cancellationSections: LegalSectionDef[] = [
     title: 'Cancel before the first charge',
     body: (
       <P>
-        If you start a trial, the app shows the date of the first plan charge before you confirm. To avoid that charge, cancel before that date.
+        If you start a trial, the app shows the date your first plan charge is scheduled for before you confirm. To avoid that charge, cancel before that date.
         We recommend cancelling a day early to allow for time zones and for Razorpay to confirm.
       </P>
     )
