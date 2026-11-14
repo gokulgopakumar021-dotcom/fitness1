@@ -114,6 +114,11 @@ export const privacySections: LegalSectionDef[] = [
           Which plan you chose, trial and renewal status, payment status, amounts, dates and Razorpay reference identifiers. Card or UPI
           details are entered in Razorpay’s checkout, which Razorpay operates.
         </P>
+        <SubHeading>Support messages</SubHeading>
+        <P>
+          If you email us, we receive your email address and whatever you send, and we use it to reply and to handle your request. We have not
+          set a fixed period for keeping support emails.
+        </P>
         <SubHeading>Technical and security data</SubHeading>
         <P>
           Our servers keep structured, redacted logs of requests and errors, and use your IP address and account identifier for rate limiting.
@@ -134,6 +139,7 @@ export const privacySections: LegalSectionDef[] = [
             ['Display name', 'Cloud (Supabase) and this device', 'Held by our provider'],
             ['Workout plans, sessions, workout in progress, active plan', 'This device and cloud (Supabase)', 'Yes, as part of your account'],
             ['AI daily usage counters', 'Cloud (Supabase)', 'Counters only, no content'],
+            ['Record that you accepted or acknowledged the Terms and Privacy Policy, and your 18+ confirmation (versions and times only)', 'Cloud (Supabase)', 'Held by our provider'],
             ['Subscription and payment records', 'Cloud (Supabase) and Razorpay', 'Yes'],
             ['Fitness profile (age, sex, height, weight, goals, targets)', 'This device only', 'No'],
             ['Nutrition logs, custom foods, water', 'This device only', 'No'],
@@ -216,7 +222,7 @@ export const privacySections: LegalSectionDef[] = [
           advertising or analytics trackers in the application code audited for this draft.
         </P>
         <ReviewNote>
-          Supabase project region, Vercel log retention and the exact Upstash configuration have not been verified. Cross-border processing
+          The Supabase project region was read from the project listing on 2026-11-14 (ap-northeast-1, Tokyo); Vercel log retention and the exact Upstash configuration have not been verified. Cross-border processing
           (for example Gemini and Vercel functions running in Tokyo) needs legal review. “We do not sell” wording needs counsel’s confirmation.
         </ReviewNote>
       </>
@@ -279,7 +285,7 @@ export const privacySections: LegalSectionDef[] = [
         <P>You can delete your account in Settings, then Account. You must re-enter your password and type a confirmation word. Then:</P>
         <UL>
           <li>If you have a subscription, it is cancelled first. Deletion is refused until the payment provider confirms the subscription has stopped, so deletion can be blocked or delayed if Razorpay is unavailable. Nothing is removed in that case.</li>
-          <li>Your sign-in account, display name, synchronised workout data and AI usage counters are removed from our database.</li>
+          <li>Your sign-in account, display name, synchronised workout data, AI usage counters, and your records of accepting or acknowledging the Terms and Privacy Policy and of your 18+ confirmation are removed from our database.</li>
           <li>Data for that account is erased from the device you are using. The app does this on a best-effort basis.</li>
         </UL>
         <P>What is not removed:</P>
@@ -311,7 +317,9 @@ export const privacySections: LegalSectionDef[] = [
         </P>
         <ReviewNote>
           Counsel must confirm which rights, notices, grievance-officer details and response timelines apply, and whether the current
-          deletion design (hash and payment-record retention) is acceptable.
+          deletion design (hash and payment-record retention) is acceptable. Acceptance and 18+ records are deleted with the account
+          (foreign keys with ON DELETE CASCADE), so after deletion we cannot show that an account once accepted a given version.
+          Counsel to decide whether a minimal, non-identifying record should be kept instead.
         </ReviewNote>
       </>
     )
@@ -345,6 +353,10 @@ export const privacySections: LegalSectionDef[] = [
           security headers. No system is completely secure. Device-only data is only as secure as your device, browser profile and screen
           lock. Please use a strong, unique password.
         </P>
+        <ReviewNote>
+          No personal-data-breach notification wording is included because no process or timeline has been set. Counsel to advise what notice to
+          the affected users and to any authority applies, and the owner to define an incident-response contact. No promise is made here.
+        </ReviewNote>
       </>
     )
   },

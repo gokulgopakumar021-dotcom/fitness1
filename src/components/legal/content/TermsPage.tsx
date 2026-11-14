@@ -96,7 +96,7 @@ export const termsSections: LegalSectionDef[] = [
         </UL>
         <SubHeading>Trial</SubHeading>
         <UL>
-          <li>New accounts may be offered a trial. It starts only after Razorpay confirms your payment authorisation, not before. A trial is not “no charge”.</li>
+          <li>New accounts may be offered a trial, currently three days. It starts only after Razorpay confirms your payment authorisation, not before. A trial is not “no charge”.</li>
           <li>When you authorise, Razorpay may make a small verification debit (shown as ₹5 for cards). It is not part of the plan price. Whether and how it is returned is covered in the Refund Policy.</li>
           <li>The first plan charge is taken on the day the trial ends, and the plan then renews until you cancel. The app shows the date before you confirm.</li>
           <li>One trial is allowed per account and per email address.</li>
@@ -107,7 +107,7 @@ export const termsSections: LegalSectionDef[] = [
         </P>
         <ReviewNote>
           Confirm with a CA how GST and invoicing apply to a digital subscription, and with counsel how “free” and trial-to-paid advertising and
-          recurring-payment rules apply. Prices are configurable on the server, so confirm the live values still equal ₹299 and ₹1,499 before publishing.
+          recurring-payment rules apply. Prices and the trial length are configurable on the server (BILLING_PRICE_*_PAISE, BILLING_TRIAL_DAYS; code defaults 29,900 and 149,900 paise and 3 days), so confirm the live Vercel values and the Razorpay plan amounts still equal ₹299, ₹1,499 and three days before publishing. The first charge is scheduled the trial length plus the authorisation window (code default 30 minutes) after sign-up, so “three days” is approximate to the minute; the app shows the exact date.
         </ReviewNote>
       </>
     )
@@ -122,6 +122,7 @@ export const termsSections: LegalSectionDef[] = [
         <li>AI output is not guaranteed to be unique, and similar output may be given to others.</li>
         <li>Your prompts and some context are sent to Google’s Gemini API to generate responses (see the Privacy Policy).</li>
         <li>Workout Mirror gives feedback from an on-device pose model, not from a person or a video review by AI. Its feedback is approximate.</li>
+        <li>Body Scan is for people aged 18 or over and runs on your device. It cannot tell you your body-fat percentage or diagnose anything. Anything estimated from a photo is approximate, and it is a general tracking aid, not a medical or clinical assessment.</li>
       </UL>
     )
   },
