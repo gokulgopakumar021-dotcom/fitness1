@@ -23,15 +23,15 @@ Scope: what was verified in the repository, what was changed, what remains. This
 Because no consent UI exists yet, **Coach Iron no longer receives live heart rate or device name at all**, for anyone. This is the privacy-conservative default and was chosen over leaving unconsented health data flowing. The coach still works; it just doesn't see heart rate. **Reversing it is a one-line change in each call site, but I recommend against it until the consent screen, the Gemini-tier decision and the policy text exist.** Decision needed from the owner.
 
 ### Limits of the fix (do not overstate)
-1. The gate is **client-side**. The server still accepts any `bluetooth` object (`validation.ts` uses `loose({kind:'object'})`). A modified client could still send BPM about *itself*. Server enforcement should read `wearable_ai_consents` (proposed table) before including any health field. Not built.
+1. The gate is **client-side**. The server still accepts any `bluetooth` object (`validation.ts` uses `loose({kind:'object'})`). A modified client could still send BPM about *itself*. Server enforcement should read `wearable_ai_consents` (table now exists live, empty) before including any health field. Not built.
 2. `deviceName` is a free-text string that is interpolated into a prompt: a prompt-injection surface once provider-supplied names exist. Constrain/escape it server-side.
 3. No consent UI, no policy text, no "what was shared" display was built or published (and none may be, per the brief; legal text is not touched).
 
-## 3. Supabase / RLS design (proposed, tested in PGlite, not applied)
+## 3. Supabase / RLS design (tested in PGlite; applied live 2026-11-15)
 
 Verified by `src/test/rls.wearableFoundation.test.ts` (11 tests): RLS on all five tables; no grants to `anon`; cross-user reads return nothing; inserting under another user's id is rejected; **a sample cannot be attached to another user's device** (composite FK `(device_id, user_id)`); simulated origin, wrong unit, NaN and unknown metric are rejected by CHECK constraints; duplicates collapse on `(user_id, dedupe_key)`; clients cannot UPDATE samples; **clients cannot read, insert or update provider credentials and cannot create cloud connections**; disconnect cascades credentials; consent has no default row and rejects unknown categories; account deletion cascades everywhere.
 
-**Not verified:** the live Supabase schema, real PostgREST/GoTrue behaviour, concurrency (PGlite is single-connection), grants that Supabase adds automatically in the real project (e.g. default privileges). The Supabase connector was **not used**; no production read or write occurred. Re-audit against the live project is required before applying.
+**Live check after applying:** RLS on all five tables; `anon` has no grants; credentials table has no policy and no client grants; the project's default privileges (full access to `anon`/`authenticated`) were overridden by the migration's explicit revokes. **Not verified:** real PostgREST/GoTrue behaviour with real users (no live cross-user test was run), concurrency (PGlite is single-connection).
 
 ## 4. Credential handling
 
@@ -48,4 +48,4 @@ No OAuth client secret, refresh token or service-role key exists in any new brow
 7. Health data of minors: the age gate exists; wearable handling for under-18s was not reviewed.
 
 ## 6. Not done, by instruction
-No policy was published, `LEGAL.isDraft` is unchanged (guard test), no production setting, secret, subscription or Razorpay item was touched, nothing was committed or pushed.
+No policy was published, `LEGAL.isDraft` is unchanged (guard test), no secret, subscription or Razorpay item was touched, nothing was committed or pushed. The only production change is the owner-instructed wearable migration (main report section 10a).

@@ -1,5 +1,5 @@
--- PROPOSED (BT-04). Not applied to any database. Review, apply to the project first, then move into supabase/migrations
--- with the version the CLI records. Idempotent where practical.
+-- BT-04 wearable foundation. Applied to the live project on 2026-11-15 as version 20261115131442 (name: wearable_foundation).
+-- Idempotent where practical.
 --
 -- Ownership model: every row carries user_id = auth.uid(); RLS restricts all access to the owner; devices are linked to
 -- samples with a COMPOSITE foreign key so a sample can never point at another user's device. Simulated data has no

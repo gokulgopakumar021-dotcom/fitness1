@@ -1,21 +1,21 @@
 # BT-04 — Unified Wearable Data Model
 
-Implemented as: `src/wearables/types.ts`, `normalize.ts` (pure TypeScript, tested) and the **proposed, unapplied** migration `supabase/proposed/20261116000000_wearable_foundation.sql` (tested in-process with PGlite). Nothing here has been applied to any database.
+Implemented as: `src/wearables/types.ts`, `normalize.ts` (pure TypeScript, tested) and the migration `supabase/migrations/20261115131442_wearable_foundation.sql` (tested in-process with PGlite and **applied to the live project on 2026-11-15** at the owner's instruction).
 
 ## 1. Entities: what was built and what was deliberately not
 
 | Entity | Decision | Why |
 |---|---|---|
-| `wearable_connections` | **Proposed** | One row per integration link (provider + external account). Status, scopes, last sync, last error, revocation time. Created by `service_role` only, because only a server can complete an OAuth/aggregator link. |
-| `wearable_devices` | **Proposed** | One row per physical/logical source. Unique per `(user_id, ingestion_method, device_key)`. Browser BLE ids are not stable across browsers, so a BLE device is a convenience identity, not proof of the same hardware. |
-| `wearable_samples` | **Proposed** | Single narrow table for point and interval measurements. Chosen over per-metric tables because the metric list is small, units are constrained by a CHECK, and one dedupe key serves all metrics. |
-| `wearable_ai_consents` | **Proposed (added beyond the brief's list)** | Server-side record of the separate AI consent. No row = no consent. |
-| `wearable_provider_credentials` | **Proposed** | Holds only a `secret_ref` (pointer to a secret store). RLS on, no policy, no grant to `anon`/`authenticated`. Tokens are never stored in a client-readable table. |
+| `wearable_connections` | **Applied** | One row per integration link (provider + external account). Status, scopes, last sync, last error, revocation time. Created by `service_role` only, because only a server can complete an OAuth/aggregator link. |
+| `wearable_devices` | **Applied** | One row per physical/logical source. Unique per `(user_id, ingestion_method, device_key)`. Browser BLE ids are not stable across browsers, so a BLE device is a convenience identity, not proof of the same hardware. |
+| `wearable_samples` | **Applied** | Single narrow table for point and interval measurements. Chosen over per-metric tables because the metric list is small, units are constrained by a CHECK, and one dedupe key serves all metrics. |
+| `wearable_ai_consents` | **Applied (added beyond the brief's list)** | Server-side record of the separate AI consent. No row = no consent. |
+| `wearable_provider_credentials` | **Applied** | Holds only a `secret_ref` (pointer to a secret store). RLS on, no policy, no grant to `anon`/`authenticated`. Tokens are never stored in a client-readable table. |
 | `wearable_sessions`, `wearable_sleep_sessions`, `wearable_daily_summaries`, `wearable_sync_jobs` | **Deferred** | Sessions and sleep can be expressed as interval samples (`workout_duration`, `sleep_duration`) until a provider needs stage-level detail. Daily summaries are *derived* and are computed (see section 4) rather than stored, so they cannot drift from their sources. Sync jobs are needed only when a server worker exists (BT-08). Adding them now would be speculative. |
 
 ## 2. Required principles → where each is enforced
 
-| Principle | TypeScript (`normalize.ts`) | Database (proposed SQL) |
+| Principle | TypeScript (`normalize.ts`) | Database (applied SQL) |
 |---|---|---|
 | User ownership | n/a (server derives user from the verified token) | `user_id` on every row; RLS `user_id = auth.uid()`; cascade on account deletion |
 | Device identity + manufacturer + model | required fields | `device_key`, `manufacturer` (NOT NULL), `model` |

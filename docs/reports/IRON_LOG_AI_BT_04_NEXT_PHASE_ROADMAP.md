@@ -6,7 +6,7 @@ Principle: **PWA first, maximum practical compatibility, native later.** This re
 1. **Base branch.** BT-04 was built on `feature/ironlog-billing-referrals-launch` @ `ac300aa` (21 commits ahead of `main`; includes the migration-history reconciliation). Confirm this is the base and how it will reach `main`.
 2. **Coach Iron and live heart rate.** It is now off by default (see the security report). Keep it off until consent exists, or accept a different interim.
 3. **Gemini tier/terms** (free vs paid, retention, training use) and counsel engagement for the privacy text.
-4. **Apply the proposed migration?** Only after a read-only comparison against the live project and the recorded real version in `REMOTE_HISTORY`.
+4. **Done:** wearable migration applied live as `20261115131442` and recorded in `REMOTE_HISTORY`. **Still pending:** the referral `search_path` proposal (now `20261116000000_…`), which fixes three live advisor warnings.
 5. **Hardware:** which watches/bands/straps the owner already has (drives the test list).
 6. Whether to **apply to Garmin's developer program** (business application, privacy policy must be on a business page per forum reports).
 

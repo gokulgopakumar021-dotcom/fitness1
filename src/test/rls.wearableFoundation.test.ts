@@ -5,11 +5,11 @@ import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
- * Runs the PROPOSED wearable migration in an in-process Postgres with a simulated auth schema and Supabase roles.
+ * Runs the wearable migration (applied live 2026-11-15) in an in-process Postgres with a simulated auth schema and Supabase roles.
  * NOT covered: Supabase's own auth service/PostgREST, the live project (nothing here touches it), concurrency.
  */
 const root = resolve(import.meta.dirname, '../..');
-const SQL = readFileSync(resolve(root, 'supabase/proposed/20261116000000_wearable_foundation.sql'), 'utf8');
+const SQL = readFileSync(resolve(root, 'supabase/migrations/20261115131442_wearable_foundation.sql'), 'utf8');
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 let pg: PGlite;
@@ -44,10 +44,9 @@ afterAll(async () => { await pg.close(); });
 
 const TABLES = ['wearable_connections', 'wearable_devices', 'wearable_samples', 'wearable_ai_consents', 'wearable_provider_credentials'];
 
-describe('proposed wearable migration', () => {
-  it('is not placed in supabase/migrations (history guard) and is idempotent to re-apply', async () => {
-    expect(readdirSync(resolve(root, 'supabase/migrations')).some((f) => f.includes('wearable'))).toBe(false);
-    expect(existsSync(resolve(root, 'supabase/proposed/README.md'))).toBe(true);
+describe('wearable migration', () => {
+  it('is recorded in supabase/migrations under the live version and is idempotent to re-apply', async () => {
+    expect(readdirSync(resolve(root, 'supabase/migrations'))).toContain('20261115131442_wearable_foundation.sql');
     await expect(pg.exec(SQL)).resolves.toBeDefined();
   });
   it('enables RLS everywhere and grants nothing to anon', async () => {

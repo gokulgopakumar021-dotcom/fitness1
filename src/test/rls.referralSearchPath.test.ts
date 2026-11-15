@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const root = resolve(import.meta.dirname, '../../supabase');
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
 const PREREQ = ['20261027051824_auth_profiles.sql', '20261030053401_delete_own_account.sql', '20261106052859_billing_core.sql', '20261106071858_billing_deletion_refund.sql', '20261112060254_referral_core.sql'].map((f) => read(`migrations/${f}`));
-const PROPOSED = read('proposed/20261114000000_referral_trigger_search_path.sql');
+const PROPOSED = read('proposed/20261116000000_referral_trigger_search_path.sql');
 const ROLLBACK = read('manual/rollback_referral_trigger_search_path.sql');
 
 const FUNCS = ['referral_forbid_mutation', 'referral_attribution_guard', 'referral_partner_guard'] as const;
@@ -114,7 +114,7 @@ describe('Stage 8 / V3: referral guard search_path pin (proposed, not applied)',
 
   it('does not modify the original referral migration or sit in the migrations directory', () => {
     expect(PREREQ[4]).not.toMatch(/search_path = ''\s*\n\s*as \$\$\s*\nbegin\s*\n\s*raise exception '% on %/);
-    expect(() => readFileSync(resolve(root, 'migrations/20261114000000_referral_trigger_search_path.sql'))).toThrow();
+    expect(() => readFileSync(resolve(root, 'migrations/20261116000000_referral_trigger_search_path.sql'))).toThrow();
   });
 
   it('guards enforce before the change (baseline)', async () => {

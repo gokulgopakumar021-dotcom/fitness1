@@ -1,4 +1,4 @@
--- Rollback for supabase/proposed/20261114000000_referral_trigger_search_path.sql (Stage 8 / V3). Manual, never auto-run.
+-- Rollback for supabase/proposed/20261116000000_referral_trigger_search_path.sql (Stage 8 / V3). Manual, never auto-run.
 -- Removes only the per-function search_path setting, returning the functions to their original (advisor-warned) state.
 -- Does not touch triggers, data, RLS, grants or function bodies.
 
