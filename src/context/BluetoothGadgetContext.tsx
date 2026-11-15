@@ -110,7 +110,7 @@ export const BluetoothGadgetProvider: React.FC<{
     setDevice(dev);
     setIsConnected(true);
     setIsSimulated(true);
-    setBatteryLevel(dev.batteryLevel ?? 88);
+    setBatteryLevel(null);
   }, []);
 
   const disconnect = useCallback(() => {

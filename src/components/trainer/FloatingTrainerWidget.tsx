@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Bot, X, Send } from 'lucide-react';
 import { UserProfile, WorkoutSession } from '../../types';
 import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
+import { buildTrainerBluetoothContext } from '../../wearables/trainerContext';
 import { NavTab } from '../layout/Navbar';
 import { Badge, Button, Card } from '../ui';
 import { apiFetch } from '../../lib/apiFetch';
@@ -25,7 +26,7 @@ export const FloatingTrainerWidget: React.FC<FloatingTrainerWidgetProps> = ({
   const [quickQuestion, setQuickQuestion] = useState<string>('');
   const [quickReply, setQuickReply] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const { isConnected, liveHeartRate } = useBluetoothGadget();
+  const { isConnected, isSimulated, device, liveHeartRate } = useBluetoothGadget();
 
   if (currentTab === 'trainer') return null;
 
@@ -44,7 +45,7 @@ export const FloatingTrainerWidget: React.FC<FloatingTrainerWidgetProps> = ({
           userMessage: q,
           profile,
           activeSession,
-          bluetooth: { isConnected, bpm: liveHeartRate }
+          bluetooth: buildTrainerBluetoothContext({ isConnected, isSimulated, deviceName: device?.name, bpm: liveHeartRate })
         })
       });
 

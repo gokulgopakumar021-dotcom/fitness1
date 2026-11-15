@@ -5,6 +5,9 @@ export interface BluetoothDeviceInfo {
   name: string;
   deviceType: 'heart_rate_monitor' | 'smart_band' | 'cycling_sensor' | 'smart_scale' | 'generic';
   connected: boolean;
+  /** True only for the built-in demo simulator. Simulated data must never be stored or sent to an AI provider. */
+  isSimulated?: boolean;
+  /** Present only when read from the device; undefined means unknown (never a guess). */
   batteryLevel?: number;
   lastHeartRate?: number;
   rssi?: number;

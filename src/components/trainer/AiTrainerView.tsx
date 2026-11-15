@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { UserProfile, WorkoutSession } from '../../types';
 import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
+import { buildTrainerBluetoothContext } from '../../wearables/trainerContext';
 import { ExercisePostureModal } from '../posture/ExercisePostureModal';
 import { DynamicWarmupModal } from './DynamicWarmupModal';
 import { DreamPhysiqueModal } from './DreamPhysiqueModal';
@@ -60,7 +61,7 @@ export const AiTrainerView: React.FC<AiTrainerViewProps> = ({
   onNavigate,
   onProfileUpdated
 }) => {
-  const { isConnected, device, liveHeartRate, setIsGadgetModalOpen } = useBluetoothGadget();
+  const { isConnected, isSimulated, device, liveHeartRate, setIsGadgetModalOpen } = useBluetoothGadget();
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     {
       id: 'welcome',
@@ -130,7 +131,7 @@ How can I coach you today? You can generate a 5-minute pre-workout dynamic warm-
           userMessage: text,
           profile,
           activeSession,
-          bluetooth: { isConnected, bpm: liveHeartRate },
+          bluetooth: buildTrainerBluetoothContext({ isConnected, isSimulated, deviceName: device?.name, bpm: liveHeartRate }),
           mirrorInsights: getFormInsights()
         })
       });

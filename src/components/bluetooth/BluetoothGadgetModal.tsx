@@ -17,6 +17,7 @@ import {
 import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
 import { HEART_RATE_ZONES } from '../../types/bluetooth';
 import { Button, Modal } from '../ui';
+import { detectWearableCapabilities, readCapabilityEnv } from '../../wearables/capabilities';
 
 export const BluetoothGadgetModal: React.FC = () => {
   const {
@@ -190,7 +191,7 @@ export const BluetoothGadgetModal: React.FC = () => {
                     Connect Real Bluetooth Fitness Monitor
                   </h3>
                   <p className="text-xs text-white/50 leading-relaxed">
-                    Uses the standard Bluetooth SIG Heart Rate Service (0x180D). Supports chest straps, smart bands, and fitness watches.
+                    Reads live heart rate only from devices that broadcast the standard Bluetooth Heart Rate Service (0x180D), and only while this page is open. Many smartwatches and bands do not broadcast it, so a device that is not found may simply not be supported.
                   </p>
                 </div>
               </div>
@@ -198,11 +199,12 @@ export const BluetoothGadgetModal: React.FC = () => {
               <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
                 <button
                   onClick={connectRealDevice}
-                  disabled={isConnecting}
+                  disabled={isConnecting || !isSupported}
+                  aria-disabled={!isSupported}
                   className="touch-press flex-1 min-h-[44px] py-2.5 px-4 bg-accent hover:bg-accent-hover text-accent-ink font-bold text-xs tracking-wide rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                 >
                   <Bluetooth className={`w-4 h-4 ${isConnecting ? 'animate-spin' : ''}`} />
-                  <span>{isConnecting ? 'Scanning Bluetooth Devices...' : 'Pair Physical Bluetooth Gadget'}</span>
+                  <span>{isConnecting ? 'Scanning Bluetooth Devices...' : isSupported ? 'Pair Physical Bluetooth Gadget' : 'Bluetooth unavailable in this browser'}</span>
                 </button>
 
                 <button
@@ -218,7 +220,7 @@ export const BluetoothGadgetModal: React.FC = () => {
                 <div className="mt-2 p-2.5 bg-warning/10 border border-warning/20 rounded-lg text-[11px] text-warning flex items-center gap-2">
                   <Info className="w-4 h-4 shrink-0 text-warning" />
                   <span>
-                    Your current browser does not expose native Web Bluetooth (requires Chrome/Edge or Android). You can use the Virtual BLE Simulator above to experience live heart rate features!
+                    {detectWearableCapabilities(readCapabilityEnv()).message} The simulator below is a demo with generated numbers, not a real device.
                   </span>
                 </div>
               )}
@@ -227,26 +229,26 @@ export const BluetoothGadgetModal: React.FC = () => {
             {/* Compatible Gadgets Breakdown */}
             <div className="space-y-2">
               <span className="text-[11px] font-mono text-white/50 tracking-wide font-semibold">
-                Tested &amp; Compatible Gadgets:
+                Devices that may work (none verified yet):
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 <div className="p-3 bg-white/[0.02] border border-line rounded-xl space-y-1">
                   <div className="font-bold text-white flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-accent" />
-                    <span>Chest Strap Monitors</span>
+                    <Info className="w-3.5 h-3.5 text-white/50" />
+                    <span>Chest straps (standard BLE heart rate)</span>
                   </div>
                   <p className="text-[11px] text-white/50">
-                    Polar H10, H9, Garmin HRM-Pro, Wahoo TICKR, CooSpo H6
+                    Straps that follow the Bluetooth heart-rate standard are the most likely to work. Not yet tested on real hardware in Iron Log.
                   </p>
                 </div>
 
                 <div className="p-3 bg-white/[0.02] border border-line rounded-xl space-y-1">
                   <div className="font-bold text-white flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-accent" />
-                    <span>Optical Bands &amp; Watches</span>
+                    <Info className="w-3.5 h-3.5 text-white/50" />
+                    <span>Watches and bands</span>
                   </div>
                   <p className="text-[11px] text-white/50">
-                    Scosche Rhythm+, Whoop 4.0, Apple Watch &amp; Galaxy Watch (via BLE HR broadcast)
+                    Only if the watch has a heart-rate broadcast mode that is switched on. Support varies by brand and model and is not verified.
                   </p>
                 </div>
               </div>
