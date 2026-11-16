@@ -1,14 +1,17 @@
 /**
- * Separate, explicit, revocable consent for letting an external AI provider see wearable/health data.
- * Off by default. This module is the single gate; the server must ALSO enforce it before any prompt includes health fields.
+ * CLIENT CACHE of the account's wearable consent. The authority is the server record (wearable_ai_consents, written through
+ * PUT /api/wearables/consent and enforced on every request by the server). This cache is refreshed from the server (see
+ * consentClient.ts) and only decides whether the browser bothers to send data; it can never grant anything by itself.
+ * Off by default.
  */
 import { scopedKey } from '../storage/storageScope';
+import { WEARABLE_CONSENT_CATEGORIES, WEARABLE_CONSENT_VERSION } from './consentPolicy';
 
 export const WEARABLE_AI_CONSENT_KEY = 'ironlog_wearable_ai_consent_v1';
 /** Bump when categories or purpose change; stored consent for an older version no longer counts. */
-export const WEARABLE_AI_CONSENT_VERSION = 1;
+export const WEARABLE_AI_CONSENT_VERSION = WEARABLE_CONSENT_VERSION;
 
-export const WEARABLE_AI_CATEGORIES = ['live_heart_rate', 'sleep_and_recovery_metrics', 'activity_metrics'] as const;
+export const WEARABLE_AI_CATEGORIES = WEARABLE_CONSENT_CATEGORIES;
 export type WearableAiCategory = (typeof WEARABLE_AI_CATEGORIES)[number];
 
 export interface WearableAiConsent { version: number; categories: WearableAiCategory[]; grantedAt: string }

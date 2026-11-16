@@ -1,3 +1,5 @@
+import { zoneNumberForBpm } from '../wearables/heartRateZones';
+
 // TypeScript definitions for Web Bluetooth API and Fitness Gadgets
 
 export interface BluetoothDeviceInfo {
@@ -19,8 +21,9 @@ export interface HeartRateData {
   energyExpendedJoules?: number;
   rrIntervalsMs?: number[];
   timestamp: number;
-  zone: 1 | 2 | 3 | 4 | 5;
-  zoneName: string;
+  /** Absent when no maximum heart rate is known (no age and no user value). Never a guessed zone. */
+  zone?: 1 | 2 | 3 | 4 | 5;
+  zoneName?: string;
 }
 
 export interface BluetoothGadgetState {
@@ -30,12 +33,15 @@ export interface BluetoothGadgetState {
   device: BluetoothDeviceInfo | null;
   liveHeartRate: number | null;
   heartRateHistory: { time: number; bpm: number }[];
+  /** null when bpm or maximum heart rate is unknown: show no zone rather than a guess. */
   currentZone: {
     zone: 1 | 2 | 3 | 4 | 5;
     name: string;
     description: string;
     color: string;
-  };
+  } | null;
+  /** Maximum heart rate used for zones, or null when unknown. */
+  maxHeartRate: { bpm: number; source: 'user' | 'age_estimate' } | null;
   batteryLevel: number | null;
   isSimulated: boolean;
   activeCaloriesBurned: number;
@@ -50,12 +56,8 @@ export const HEART_RATE_ZONES = [
   { zone: 5 as const, minPct: 90, maxPct: 100, name: 'Zone 5: Maximum Peak', description: 'Max sprint & heavy 1RM exertion', color: 'text-rose-400 bg-rose-500/10 border-rose-500/30' },
 ];
 
-export function calculateHeartRateZone(bpm: number, age: number = 25): (typeof HEART_RATE_ZONES)[0] {
-  const maxHR = 220 - age;
-  const pct = (bpm / maxHR) * 100;
-  if (pct < 60) return HEART_RATE_ZONES[0];
-  if (pct < 70) return HEART_RATE_ZONES[1];
-  if (pct < 80) return HEART_RATE_ZONES[2];
-  if (pct < 90) return HEART_RATE_ZONES[3];
-  return HEART_RATE_ZONES[4];
+/** Zone for a bpm against a KNOWN maximum heart rate. Returns null when either is unusable (no default age). */
+export function calculateHeartRateZone(bpm: number, maxHr: number | null): (typeof HEART_RATE_ZONES)[0] | null {
+  const n = zoneNumberForBpm(bpm, maxHr);
+  return n === null ? null : HEART_RATE_ZONES[n - 1];
 }

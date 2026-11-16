@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Bluetooth,
   Heart,
@@ -17,6 +17,7 @@ import {
 import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
 import { HEART_RATE_ZONES } from '../../types/bluetooth';
 import { Button, Modal } from '../ui';
+import { MIN_USER_MAX_HR, MAX_USER_MAX_HR, describeMaxHrSource } from '../../wearables/heartRateZones';
 import { detectWearableCapabilities, readCapabilityEnv } from '../../wearables/capabilities';
 
 export const BluetoothGadgetModal: React.FC = () => {
@@ -31,6 +32,9 @@ export const BluetoothGadgetModal: React.FC = () => {
     liveHeartRate,
     heartRateHistory,
     currentZone,
+    maxHeartRate,
+    userMaxHeartRate,
+    setUserMaxHeartRate,
     batteryLevel,
     activeCaloriesBurned,
     error,
@@ -39,6 +43,18 @@ export const BluetoothGadgetModal: React.FC = () => {
     disconnect,
     setExertion
   } = useBluetoothGadget();
+  const [maxHrDraft, setMaxHrDraft] = useState<string>('');
+  const [maxHrError, setMaxHrError] = useState<string | null>(null);
+
+  const saveMaxHr = () => {
+    const n = Number(maxHrDraft);
+    if (!maxHrDraft.trim() || !Number.isFinite(n) || setUserMaxHeartRate(n) !== Math.round(n)) {
+      setMaxHrError(`Enter a whole number from ${MIN_USER_MAX_HR} to ${MAX_USER_MAX_HR}.`);
+      return;
+    }
+    setMaxHrError(null);
+    setMaxHrDraft('');
+  };
 
   return (
     <Modal
@@ -110,10 +126,12 @@ export const BluetoothGadgetModal: React.FC = () => {
                     <span>Training Zone</span>
                   </div>
                   <div className="text-base sm:text-lg font-bold font-mono text-accent mt-1 truncate">
-                    Zone {currentZone.zone}
+                    {currentZone ? `Zone ${currentZone.zone}` : '--'}
                   </div>
                   <div className="text-[11px] text-white/50 truncate">
-                    {currentZone.name.split(':')[1] || currentZone.name}
+                    {currentZone
+                      ? `${currentZone.name.split(':')[1] || currentZone.name} · est.`
+                      : maxHeartRate ? 'Waiting for a reading' : 'Set max HR below'}
                   </div>
                 </div>
 
@@ -259,14 +277,39 @@ export const BluetoothGadgetModal: React.FC = () => {
         {/* Heart Rate Zones Reference Table */}
         <div className="space-y-2 pt-3 border-t border-line">
           <span className="text-[11px] font-mono text-white/50 tracking-wide font-semibold">
-            Target Heart Rate Zones:
+            Target Heart Rate Zones (estimates):
           </span>
+          <p className="text-[11px] text-white/50" data-testid="max-hr-summary">
+            {maxHeartRate
+              ? `${describeMaxHrSource(maxHeartRate.source)}: ${maxHeartRate.bpm} bpm. Zones are training estimates, not medical measurements.`
+              : 'No maximum heart rate is set and no valid age is on your profile, so no zone is shown. Enter your max HR to enable zones.'}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="user-max-hr" className="text-[11px] text-white/60">Your max HR (bpm)</label>
+            <input
+              id="user-max-hr"
+              type="number"
+              inputMode="numeric"
+              min={MIN_USER_MAX_HR}
+              max={MAX_USER_MAX_HR}
+              value={maxHrDraft}
+              onChange={(e) => setMaxHrDraft(e.target.value)}
+              placeholder={userMaxHeartRate ? String(userMaxHeartRate) : 'e.g. 190'}
+              className="w-24 rounded-lg border border-line bg-surface-2 px-2 py-1 text-xs font-mono text-white"
+              aria-describedby={maxHrError ? 'user-max-hr-error' : undefined}
+            />
+            <Button size="sm" variant="secondary" onClick={saveMaxHr}>Save</Button>
+            {userMaxHeartRate !== null && (
+              <Button size="sm" variant="ghost" onClick={() => { setUserMaxHeartRate(null); setMaxHrError(null); }}>Clear</Button>
+            )}
+          </div>
+          {maxHrError && <p id="user-max-hr-error" role="alert" className="text-[11px] text-danger">{maxHrError}</p>}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-xs font-mono">
             {HEART_RATE_ZONES.map((z) => (
               <div
                 key={z.zone}
                 className={`p-2 rounded-lg border text-center transition-colors ${
-                  liveHeartRate && currentZone.zone === z.zone
+                  liveHeartRate && currentZone && currentZone.zone === z.zone
                     ? 'border-accent bg-accent/10 text-accent font-bold'
                     : 'bg-white/[0.02] border-line text-white/50'
                 }`}

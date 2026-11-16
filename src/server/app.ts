@@ -8,6 +8,11 @@ import { MemoryRateStore } from './security/rateLimit';
 import { installApiTail, installSecurity, handleRouteError, type SecurityDeps } from './security';
 import { logger, serializeError } from './security/logger';
 import { ui, UNTRUSTED_NOTICE } from './security/prompt';
+import { getAccessToken } from './security/auth';
+import { registerWearableRoutes, type WearableDeps } from './wearables/routes';
+import { SupabaseWearableStore, WearableStoreUnavailableError, type WearableStore } from './wearables/store';
+import { buildCoachHrHistory, COACH_HISTORY_WINDOW_DAYS, formatCoachHrHistory } from '../wearables/coachHistory';
+import { activeCategories, authoriseTrainerBluetooth, type AuthorisedTrainerBluetooth } from '../wearables/consentPolicy';
 import { validateExtractedPlan } from './security/aiOutput';
 import { capFreeText, checkAiOutput } from './security/aiSchemas';
 
@@ -24,13 +29,15 @@ export const COACH_TIMEOUT_MS = 45_000;
  * rate limits, authentication, route-specific body limits, validation, AI quotas) before any handler runs.
  * Body size limits live in src/server/security/endpoints.ts (the old global 25 MB parser was removed).
  */
-export function createApp(deps: SecurityDeps & { billing?: BillingDeps } = {}) {
+export function createApp(deps: SecurityDeps & { billing?: BillingDeps; wearables?: WearableDeps } = {}) {
 const app = express();
 // Razorpay webhook: needs the raw body and cannot send a JWT, so it is mounted before the JSON/auth pipeline (see billing/routes.ts).
 // installSecurity keeps receiving `deps` untouched, so its guard (a Redis-configured app must be given the shared store) still fires.
 // The webhook's per-IP limiter uses the same shared store when one is provided; the in-memory fallback exists only for local dev and tests.
 installBillingWebhook(app, { ...deps.billing, rateStore: deps.rateStore ?? new MemoryRateStore(deps.now ?? Date.now), now: deps.now });
-installSecurity(app, { ...deps, entitlementGate: deps.entitlementGate ?? createBillingEntitlementGate(deps.billing) });
+const securityConfig = installSecurity(app, { ...deps, entitlementGate: deps.entitlementGate ?? createBillingEntitlementGate(deps.billing) });
+const wearableStore: WearableStore = deps.wearables?.store ?? new SupabaseWearableStore(securityConfig);
+registerWearableRoutes(app, securityConfig, { ...deps.wearables, store: wearableStore });
 registerBillingRoutes(app, { ...deps.billing, now: deps.now });
 
 // Healthcheck endpoint
@@ -917,7 +924,7 @@ Format strictly as JSON matching this schema:
 
 // AI Feature 8: AI Fitness Personal Trainer ("Coach Iron")
 app.post('/api/ai-personal-trainer', async (req, res) => {
-  const { messages, userMessage, profile, activeSession, recovery, bluetooth } = req.body;
+  const { messages, userMessage, profile, activeSession, recovery } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
@@ -926,6 +933,31 @@ app.post('/api/ai-personal-trainer', async (req, res) => {
       success: true,
       reply: `Coach Iron here! I'm tracking your training. Remember: progressive overload is built on consistency and pristine biomechanics. For your current goal (${ui(profile?.primaryGoal || 'Muscle Gain')}), ensure your working sets hit 1-2 RIR and rest 2-3 minutes between compound lifts. Connect your Bluetooth gadget to track live heart rate recovery!`
     });
+  }
+
+  // BT-04B/BT-04C: wearable data reaches the prompt only if the account's consent, read from the database on EVERY request, allows it.
+  // - Live heart rate: whatever the client sent in `bluetooth` is reduced to {isConnected, deviceName, bpm}; any other field is dropped.
+  // - Historical heart rate: built here from the account's own stored samples, only with `historical_heart_rate`. The client never
+  //   supplies history (any such field in the body is ignored), and nothing but numbers and dates this server formats enters the prompt.
+  // If consent cannot be verified (database down, bad token) all wearable data is withheld and Coach Iron answers normally without it.
+  let allowed: ReturnType<typeof activeCategories> = new Set();
+  try {
+    allowed = activeCategories(await wearableStore.readConsent(req.user!.id, getAccessToken(req)));
+  } catch {
+    logger.warn('trainer_wearable_consent_unverified', { requestId: req.requestId });
+  }
+  const bluetooth: AuthorisedTrainerBluetooth = authoriseTrainerBluetooth(req.body.bluetooth, allowed);
+  let hrHistoryLine: string | null = null;
+  if (allowed.has('historical_heart_rate')) {
+    try {
+      const now = new Date();
+      const since = new Date(now.getTime() - COACH_HISTORY_WINDOW_DAYS * 86_400_000).toISOString();
+      const read = await wearableStore.readRecentHeartRate(req.user!.id, getAccessToken(req), since);
+      hrHistoryLine = formatCoachHrHistory(buildCoachHrHistory(read.samples, now, read.truncated));
+    } catch (err) {
+      // Fail closed for the history only; the reason code carries no health data.
+      logger.warn('trainer_hr_history_unavailable', { requestId: req.requestId, reason: err instanceof WearableStoreUnavailableError ? err.reason : 'error' });
+    }
   }
 
   try {
@@ -950,7 +982,7 @@ ${activeSession ? `Currently working out: ${activeSession.dayName} (${activeSess
 RECOVERY & BIOMETRIC TELEMETRY:
 - Readiness: ${recovery?.overallReadiness ? `${recovery.overallReadiness}%` : 'Normal'}
 - Rest Day Status: ${recovery?.optimalRestDays?.isRestRecommendedToday ? 'Rest Recommended Today' : 'Ready to Train'}
-- Bluetooth Gadget: ${bluetooth?.isConnected ? `Connected: ${bluetooth.deviceName || 'Heart Rate Monitor'} (Live HR: ${bluetooth.bpm || 'N/A'} BPM)` : 'No gadget connected'}
+- Bluetooth Gadget: ${bluetooth.isConnected ? `Connected: ${ui(bluetooth.deviceName || 'Heart Rate Monitor')} (Live HR: ${bluetooth.bpm ?? 'N/A'} BPM)` : 'No gadget connected'}${hrHistoryLine ? `\n${hrHistoryLine}` : ''}
 
 COACHING DIRECTIVES:
 1. Always prioritize correct posture, joint safety, and biomechanical cues (e.g. elbow tuck, midfoot balance, spinal neutrality).

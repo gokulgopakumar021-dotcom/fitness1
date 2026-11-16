@@ -2,10 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import {
   BluetoothDeviceInfo,
   BluetoothGadgetState,
-  calculateHeartRateZone,
-  HEART_RATE_ZONES
+  calculateHeartRateZone
 } from '../types/bluetooth';
 import { bluetoothFitness } from '../services/bluetoothFitness';
+import { estimateActiveKcalPerMinute } from '../wearables/energy';
+import { resolveMaxHeartRate } from '../wearables/heartRateZones';
+import { readUserMaxHr, writeUserMaxHr } from '../wearables/maxHrStore';
 import { UserProfile } from '../types';
 
 interface BluetoothGadgetContextType extends BluetoothGadgetState {
@@ -15,6 +17,9 @@ interface BluetoothGadgetContextType extends BluetoothGadgetState {
   connectSimulatedDevice: (name?: string) => void;
   disconnect: () => void;
   setExertion: (bpm: number) => void;
+  /** Save (or clear with null) the user's own maximum heart rate. Returns the stored value. */
+  setUserMaxHeartRate: (bpm: number | null) => number | null;
+  userMaxHeartRate: number | null;
 }
 
 const BluetoothGadgetContext = createContext<BluetoothGadgetContextType | null>(null);
@@ -35,13 +40,24 @@ export const BluetoothGadgetProvider: React.FC<{
   const [error, setError] = useState<string | null>(null);
   const [isGadgetModalOpen, setIsGadgetModalOpen] = useState<boolean>(false);
 
-  const age = profile.age || 26;
-  const weightKg = profile.currentWeightKg || 75;
+  const [userMaxHeartRate, setUserMaxHeartRateState] = useState<number | null>(() => readUserMaxHr());
+  // No fallback age: with neither a plausible age nor a user value there is no maximum and no zone.
+  const maxHeartRate = resolveMaxHeartRate({ age: profile.age, userMaxHr: userMaxHeartRate });
+  const maxHrBpm = maxHeartRate?.bpm ?? null;
 
   useEffect(() => {
     setIsSupported(bluetoothFitness.isSupported());
-    bluetoothFitness.setUserAge(age);
-  }, [age]);
+  }, []);
+
+  useEffect(() => {
+    bluetoothFitness.setMaxHeartRate(maxHrBpm);
+  }, [maxHrBpm]);
+
+  const setUserMaxHeartRate = useCallback((bpm: number | null) => {
+    const stored = writeUserMaxHr(bpm);
+    setUserMaxHeartRateState(stored);
+    return stored;
+  }, []);
 
   // Subscribe to service events
   useEffect(() => {
@@ -52,15 +68,10 @@ export const BluetoothGadgetProvider: React.FC<{
         return next.slice(-60); // keep last 60 seconds
       });
 
-      // Calculate approximate active calorie expenditure per second using Keytel formula:
-      // Cal/min = (-55.0969 + (0.6309 x HR) + (0.1988 x Weight) + (0.2017 x Age)) / 4.184
-      if (data.bpm > 90) {
-        const calPerMin = Math.max(
-          1,
-          (-55.0969 + 0.6309 * data.bpm + 0.1988 * weightKg + 0.2017 * age) / 4.184
-        );
-        const calPerSec = calPerMin / 60;
-        setActiveCaloriesBurned((prev) => Number((prev + calPerSec).toFixed(1)));
+      // Approximate active energy: an ESTIMATE, produced only from real age, weight and sex (see wearables/energy.ts).
+      const calPerMin = estimateActiveKcalPerMinute({ bpm: data.bpm, age: profile.age, weightKg: profile.currentWeightKg, sex: profile.sex });
+      if (calPerMin !== null) {
+        setActiveCaloriesBurned((prev) => Number((prev + calPerMin / 60).toFixed(1)));
       }
     });
 
@@ -86,7 +97,7 @@ export const BluetoothGadgetProvider: React.FC<{
       unsubDisc();
       unsubErr();
     };
-  }, [age, weightKg]);
+  }, [profile.age, profile.currentWeightKg, profile.sex]);
 
   const connectRealDevice = useCallback(async () => {
     setIsConnecting(true);
@@ -125,9 +136,7 @@ export const BluetoothGadgetProvider: React.FC<{
     bluetoothFitness.adjustSimulatedExertion(bpm);
   }, []);
 
-  const currentZone = liveHeartRate
-    ? calculateHeartRateZone(liveHeartRate, age)
-    : HEART_RATE_ZONES[0];
+  const currentZone = liveHeartRate ? calculateHeartRateZone(liveHeartRate, maxHrBpm) : null;
 
   return (
     <BluetoothGadgetContext.Provider
@@ -140,6 +149,9 @@ export const BluetoothGadgetProvider: React.FC<{
         liveHeartRate,
         heartRateHistory,
         currentZone,
+        maxHeartRate,
+        userMaxHeartRate,
+        setUserMaxHeartRate,
         batteryLevel,
         activeCaloriesBurned,
         error,

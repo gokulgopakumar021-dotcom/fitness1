@@ -23,6 +23,8 @@ import { AiTrainerView } from './components/trainer/AiTrainerView';
 import { FloatingTrainerWidget } from './components/trainer/FloatingTrainerWidget';
 import { BluetoothGadgetProvider } from './context/BluetoothGadgetContext';
 import { BluetoothGadgetModal } from './components/bluetooth/BluetoothGadgetModal';
+import { WearablesView } from './components/wearables/WearablesView';
+import { WearableSyncController } from './components/wearables/WearableSyncController';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { AuthGate } from './components/auth/AuthGate';
@@ -211,6 +213,8 @@ function AppShell() {
 
             {currentTab === 'videos' && <VideoLibraryView />}
 
+            {currentTab === 'wearables' && <WearablesView />}
+
             {currentTab === 'progression' && (
               <ProgressionView
                 profile={profile}
@@ -298,6 +302,7 @@ function AppShell() {
 
         {/* Global Bluetooth Fitness Gadgets Hub Modal */}
         <BluetoothGadgetModal />
+        <WearableSyncController activeSessionId={activeSession?.id ?? null} />
       </div>
     </BluetoothGadgetProvider>
   );

@@ -22,14 +22,15 @@ class BluetoothFitnessService {
   private isSimulating: boolean = false;
   private simulationInterval: any = null;
   private simulatedBpm: number = 118;
-  private userAge: number = 25;
+  /** Maximum heart rate for zones; null = unknown, so no zone is attached to readings. */
+  private maxHr: number | null = null;
 
   public isSupported(): boolean {
     return detectWearableCapabilities(readCapabilityEnv()).directBluetooth;
   }
 
-  public setUserAge(age: number) {
-    this.userAge = age > 0 ? age : 25;
+  public setMaxHeartRate(maxHr: number | null) {
+    this.maxHr = typeof maxHr === 'number' && maxHr > 0 ? maxHr : null;
   }
 
   public onHeartRate(cb: HeartRateCallback) {
@@ -160,15 +161,15 @@ class BluetoothFitnessService {
     const parsed = parseHeartRateMeasurement(value);
     if (!parsed.ok) return; // malformed or "no reading": stays missing, never becomes 0
     const { bpm, contactDetected, energyExpendedJoules, rrIntervalsMs } = parsed.value;
-    const zoneInfo = calculateHeartRateZone(bpm, this.userAge);
+    const zoneInfo = calculateHeartRateZone(bpm, this.maxHr);
     const hrData: HeartRateData = {
       bpm,
       contactDetected,
       energyExpendedJoules,
       rrIntervalsMs,
       timestamp: Date.now(),
-      zone: zoneInfo.zone,
-      zoneName: zoneInfo.name
+      zone: zoneInfo?.zone,
+      zoneName: zoneInfo?.name
     };
     this.hrListeners.forEach((cb) => cb(hrData));
   }
@@ -187,15 +188,15 @@ class BluetoothFitnessService {
       const delta = (Math.random() - 0.48) * 4;
       this.simulatedBpm = Math.min(178, Math.max(72, Math.round(this.simulatedBpm + delta)));
 
-      const zoneInfo = calculateHeartRateZone(this.simulatedBpm, this.userAge);
+      const zoneInfo = calculateHeartRateZone(this.simulatedBpm, this.maxHr);
 
       const hrData: HeartRateData = {
         bpm: this.simulatedBpm,
         contactDetected: true,
         rrIntervalsMs: [Math.round(60000 / this.simulatedBpm)],
         timestamp: Date.now(),
-        zone: zoneInfo.zone,
-        zoneName: zoneInfo.name
+        zone: zoneInfo?.zone,
+        zoneName: zoneInfo?.name
       };
 
       this.hrListeners.forEach((cb) => cb(hrData));

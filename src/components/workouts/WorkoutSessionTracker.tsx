@@ -47,6 +47,7 @@ import {
   cn
 } from '../ui';
 import { ExerciseCard } from './ExerciseCard';
+import { WorkoutHeartRate } from '../wearables/WorkoutHeartRate';
 import { apiFetch } from '../../lib/apiFetch';
 
 interface WorkoutTrackerProps {
@@ -655,7 +656,8 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                   const totalVol = calculateVolumeLoad(completedWorkingSets, false);
                   return (
                     <li key={sess.id}>
-                      <Card pad="sm" className="flex items-center justify-between gap-3">
+                      <Card pad="sm" className="space-y-2">
+                        <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-sm text-white truncate">{sess.dayName}</span>
@@ -673,6 +675,9 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                           <span className="text-volt-adaptive font-semibold">{totalVol.toLocaleString()}</span>
                           <span className="text-zinc-500 ml-1">{profile.preferredUnit}</span>
                         </div>
+                        </div>
+                        {/* BT-04C: stored wearable heart rate, read-only and loaded on demand. Demo sessions never have any. */}
+                        {!sess.isDemo && <WorkoutHeartRate sessionId={sess.id} />}
                       </Card>
                     </li>
                   );
@@ -855,9 +860,11 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
                 {liveHeartRate ?? '--'} <span className="text-label text-zinc-400 font-normal">BPM</span>
               </span>
             </div>
-            <span className={cn('px-2 py-0.5 rounded-full text-label font-semibold border', currentZone.color)}>
-              {currentZone.name}
-            </span>
+            {currentZone && (
+              <span className={cn('px-2 py-0.5 rounded-full text-label font-semibold border', currentZone.color)}>
+                {currentZone.name} <span className="font-normal opacity-70">(est.)</span>
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-3 font-mono text-xs">

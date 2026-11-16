@@ -1,7 +1,8 @@
 import React, { useLayoutEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../storage/db';
-import { SIGNED_OUT_SCOPE, setStorageScope } from '../../storage/storageScope';
+import { SIGNED_OUT_SCOPE, getStorageScope, setStorageScope } from '../../storage/storageScope';
+import { clearWearableOutbox } from '../../wearables/outboxStore';
 import { AuthScreen, ResetPasswordScreen, SetupErrorScreen, SessionErrorScreen, SplashScreen } from './AuthScreens';
 import { LandingPage } from '../home/LandingPage';
 
@@ -30,6 +31,9 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children, initialUnauthScree
 
   // Layout effect: runs before paint and before children can mount for the new user.
   useLayoutEffect(() => {
+    // Sign-out or account switch: drop the outgoing account's unsent wearable readings while its scope is still active.
+    // No-op when the previous scope was unscoped/signed-out, so a page reload keeps the signed-in user's outbox.
+    if (getStorageScope() !== (userId ? userId.toLowerCase() : SIGNED_OUT_SCOPE)) clearWearableOutbox();
     if (userId) {
       setStorageScope(userId);
       // Seeds this account's local fitness profile only if none exists yet; never overwrites.

@@ -19,7 +19,8 @@ function walk(dir: string, out: string[] = []): string[] {
 
 const root = process.cwd();
 // Routes are registered by createApp(), which Stage 3.1 moved verbatim from server.ts to src/server/app.ts.
-const serverSrc = readFileSync(join(root, 'src/server/app.ts'), 'utf8');
+// BT-04B: wearable routes are registered by registerWearableRoutes() in their own file, so both files are scanned.
+const serverSrc = ['src/server/app.ts', 'src/server/wearables/routes.ts'].map((f) => readFileSync(join(root, f), 'utf8')).join('\n');
 const serverRoutes = [...serverSrc.matchAll(/app\.(get|post|put|delete|patch)\(\s*'(\/api\/[^']*)'/g)].map((m) => ({
   method: m[1].toUpperCase(),
   path: m[2]
@@ -51,8 +52,10 @@ describe('client → server route contract', () => {
 
   it.each(clientCalls)('$path has a security policy ($file)', ({ path }) => {
     const apiPath = concrete(path).replace(/^\/api/, '');
-    const method = apiPath.startsWith('/nutrition/barcode/') ? 'GET' : 'POST';
-    expect(resolvePolicy(method, apiPath)).toBeDefined();
+    // The policy must exist for a method the server actually registers on that path (not an assumed POST).
+    const methods = serverRoutes.filter((r) => new RegExp('^' + r.path.replace(/:[^/]+/g, '[^/]+') + '$').test(concrete(path))).map((r) => r.method);
+    expect(methods.length).toBeGreaterThan(0);
+    expect(methods.some((m) => resolvePolicy(m, apiPath) !== undefined)).toBe(true);
   });
 
   it('every AI endpoint with a policy is registered in server.ts', () => {

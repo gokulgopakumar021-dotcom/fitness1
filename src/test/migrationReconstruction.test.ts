@@ -54,7 +54,7 @@ describe('fresh database reconstruction from supabase/migrations', () => {
   it('applies every migration, in order, without a SQL error or a missing dependency', () => {
     expect(failure).toBeNull();
     expect(applied).toEqual(files);
-    expect(files).toHaveLength(16);
+    expect(files).toHaveLength(17);
   });
   it('creates the expected public tables, all with row level security enabled', async () => {
     const t = await rows<{ relname: string; relrowsecurity: boolean }>(

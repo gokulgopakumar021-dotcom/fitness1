@@ -1350,6 +1350,59 @@ var billingSchemas = {
   prepareDeletion: object({ confirmCancelPaidNow: optionalBool })
 };
 
+// src/wearables/consentPolicy.ts
+var WEARABLE_CONSENT_VERSION = 1;
+var WEARABLE_CONSENT_CATEGORIES = [
+  "live_heart_rate",
+  // live bpm from a real device may be sent to the AI coach
+  "historical_heart_rate",
+  // stored heart-rate history may be sent to the AI coach
+  "workout_health_sync",
+  // wearable measurements may be stored in the account (never implies AI sharing)
+  "sleep_and_recovery_metrics",
+  // other wearable metrics: resting HR, HRV, sleep, SpO2, respiratory rate
+  "activity_metrics"
+  // other wearable metrics: steps, energy, distance
+];
+var KNOWN = new Set(WEARABLE_CONSENT_CATEGORIES);
+function activeCategories(rec, currentVersion = WEARABLE_CONSENT_VERSION) {
+  if (!rec || rec.version !== currentVersion || !Array.isArray(rec.categories)) return /* @__PURE__ */ new Set();
+  return new Set(rec.categories.filter((c) => KNOWN.has(c)));
+}
+var isWearableConsentCategory = (v) => typeof v === "string" && KNOWN.has(v);
+function sanitizeDeviceName(v) {
+  if (typeof v !== "string") return void 0;
+  const cleaned = v.normalize("NFKC").replace(/[^\p{L}\p{N} ._()\-+]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 32).trim();
+  return /[\p{L}\p{N}]/u.test(cleaned) ? cleaned : void 0;
+}
+function authoriseTrainerBluetooth(raw, allowed) {
+  const none = { isConnected: false };
+  if (!allowed.has("live_heart_rate") || !raw || typeof raw !== "object" || Array.isArray(raw)) return none;
+  const r = raw;
+  if (r.isConnected !== true || r.isSimulated === true || r.origin === "simulated") return none;
+  const out = { isConnected: true };
+  const name = sanitizeDeviceName(r.deviceName);
+  if (name) out.deviceName = name;
+  const bpm = typeof r.bpm === "number" ? r.bpm : NaN;
+  if (Number.isFinite(bpm) && bpm >= 20 && bpm <= 255) out.bpm = Math.round(bpm);
+  return out;
+}
+
+// src/server/wearables/schemas.ts
+var wearableSchemas = {
+  consentUpdate: object({ categories: list(oneOf(WEARABLE_CONSENT_CATEGORIES), { max: WEARABLE_CONSENT_CATEGORIES.length, required: true }) }),
+  /** BT-04C: one workout session id per request, in the body (the project does not read query strings; see normalizeUrl tripwire). */
+  workoutHeartRate: object({ sessionId: text({ max: 128, required: true }) }),
+  /** BT-04C task 4: no input. The account comes from the verified token; there is nothing for the client to choose. */
+  consentHistory: object({}),
+  ingest: object({
+    device: loose({ kind: "object", required: true, maxKeys: 10, maxDepth: 2, maxString: 200 }),
+    workoutSessionId: text({ max: 128 }),
+    // Bounded here; the handler enforces the 200-record batch limit and reports each record's outcome.
+    samples: loose({ kind: "array", required: true, maxArray: 500, maxKeys: 16, maxDepth: 2, maxString: 200 })
+  })
+};
+
 // src/server/security/endpoints.ts
 var SMALL = "64kb";
 var MEDIUM = "256kb";
@@ -1383,10 +1436,19 @@ var BILLING_ENDPOINTS = {
   "GET /billing/account/deletion-check": { bucket: "billing-deletion-check", ai: false, perMinute: 10, bodyLimit: SMALL, ageExempt: true },
   "POST /billing/account/prepare-deletion": { bucket: "billing-prepare-deletion", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.prepareDeletion, ageExempt: true }
 };
+var WEARABLE_ENDPOINTS = {
+  "GET /wearables/consent": { bucket: "wearables-consent-read", ai: false, perMinute: 30, bodyLimit: SMALL },
+  "PUT /wearables/consent": { bucket: "wearables-consent-write", ai: false, perMinute: 10, bodyLimit: SMALL, schema: wearableSchemas.consentUpdate },
+  // BT-04C: read-only (a POST so the session id travels in a validated body), one session per request. Generous enough for a history list, small enough to stop scraping.
+  "POST /wearables/workout-heart-rate": { bucket: "wearables-workout-hr-read", ai: false, perMinute: 30, bodyLimit: SMALL, schema: wearableSchemas.workoutHeartRate },
+  // BT-04C task 4: read-only audit trail of the caller's own consent changes (POST + empty body: the project never reads the query string).
+  "POST /wearables/consent-history": { bucket: "wearables-consent-history-read", ai: false, perMinute: 20, bodyLimit: SMALL, schema: wearableSchemas.consentHistory },
+  "POST /wearables/ingest": { bucket: "wearables-ingest", ai: false, perMinute: 20, bodyLimit: MEDIUM, schema: wearableSchemas.ingest }
+};
 var BARCODE_POLICY = { bucket: "barcode", ai: false, perMinute: 30, bodyLimit: SMALL };
 function resolvePolicy(method, path) {
   const clean = path.length > 1 ? path.replace(/\/+$/, "") : path;
-  const hit = ENDPOINTS[`${method.toUpperCase()} ${clean}`] ?? BILLING_ENDPOINTS[`${method.toUpperCase()} ${clean}`];
+  const hit = ENDPOINTS[`${method.toUpperCase()} ${clean}`] ?? BILLING_ENDPOINTS[`${method.toUpperCase()} ${clean}`] ?? WEARABLE_ENDPOINTS[`${method.toUpperCase()} ${clean}`];
   if (hit) return hit;
   if (method.toUpperCase() === "GET" && /^\/nutrition\/barcode\/[^/]+$/.test(clean)) return BARCODE_POLICY;
   return void 0;
@@ -2803,6 +2865,558 @@ function ui(value) {
   return `<user_input>${cleanText(s)}</user_input>`;
 }
 
+// src/wearables/types.ts
+var METRICS = {
+  heart_rate: { unit: "bpm", min: 20, max: 255, cumulative: false },
+  resting_heart_rate: { unit: "bpm", min: 20, max: 200, cumulative: false },
+  // RMSSD and SDNN are different statistics; providers must not be mixed under one type.
+  hrv_rmssd: { unit: "ms", min: 0, max: 400, cumulative: false },
+  hrv_sdnn: { unit: "ms", min: 0, max: 400, cumulative: false },
+  steps: { unit: "count", min: 0, max: 2e5, cumulative: true },
+  active_energy: { unit: "kcal", min: 0, max: 2e4, cumulative: true },
+  total_energy: { unit: "kcal", min: 0, max: 3e4, cumulative: true },
+  distance: { unit: "m", min: 0, max: 5e5, cumulative: true },
+  workout_duration: { unit: "s", min: 1, max: 86400, cumulative: true },
+  sleep_duration: { unit: "s", min: 1, max: 86400, cumulative: true },
+  blood_oxygen: { unit: "percent", min: 50, max: 100, cumulative: false },
+  respiratory_rate: { unit: "breaths_per_min", min: 3, max: 70, cumulative: false }
+};
+
+// src/wearables/normalize.ts
+var ORIGINS = /* @__PURE__ */ new Set(["live", "synchronized", "manual", "simulated"]);
+var METHODS2 = /* @__PURE__ */ new Set(["direct_ble", "cloud_api", "aggregator", "native_health_store", "manual_import"]);
+var ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
+function parseIso(s) {
+  if (typeof s !== "string" || !ISO.test(s)) return null;
+  const t3 = Date.parse(s);
+  return Number.isFinite(t3) ? t3 : null;
+}
+function normalizeSample(input, now = () => /* @__PURE__ */ new Date()) {
+  const errors = [];
+  if (!input.deviceId || typeof input.deviceId !== "string") errors.push("deviceId required");
+  if (!input.provider) errors.push("provider required");
+  if (!input.manufacturer) errors.push("manufacturer required");
+  if (!METHODS2.has(input.ingestionMethod)) errors.push("invalid ingestionMethod");
+  if (!ORIGINS.has(input.origin)) errors.push("invalid origin");
+  const spec = METRICS[input.metric];
+  if (!spec) errors.push(`unknown metric: ${String(input.metric)}`);
+  const v = input.value;
+  if (typeof v !== "number" || !Number.isFinite(v)) errors.push("value must be a finite number");
+  if (spec) {
+    if (input.unit !== spec.unit) errors.push(`invalid unit "${input.unit}" for ${input.metric}; expected ${spec.unit}`);
+    if (typeof v === "number" && Number.isFinite(v) && (v < spec.min || v > spec.max)) errors.push(`${input.metric} out of plausible range`);
+  }
+  const startMs = parseIso(input.measuredAt);
+  if (startMs === null) errors.push("measuredAt must be ISO-8601 with timezone offset or Z");
+  let endMs = null;
+  if (input.measuredEndAt != null) {
+    endMs = parseIso(input.measuredEndAt);
+    if (endMs === null) errors.push("measuredEndAt invalid");
+    else if (startMs !== null && endMs < startMs) errors.push("measuredEndAt before measuredAt");
+  }
+  const nowMs = now().getTime();
+  if (startMs !== null && startMs > nowMs + 5 * 6e4) errors.push("measuredAt is in the future");
+  const tz = input.tzOffsetMin ?? null;
+  if (tz !== null && (!Number.isInteger(tz) || tz < -840 || tz > 840)) errors.push("tzOffsetMin invalid");
+  if (errors.length || !spec || startMs === null) return { ok: false, errors };
+  const measuredAt = new Date(startMs).toISOString();
+  const measuredEndAt = endMs === null ? null : new Date(endMs).toISOString();
+  const quality = input.quality ?? (input.origin === "manual" ? "user_entered" : "unverified");
+  const sourceRecordId = input.sourceRecordId?.trim() ? input.sourceRecordId.trim() : null;
+  return {
+    ok: true,
+    sample: {
+      deviceId: input.deviceId,
+      provider: input.provider,
+      manufacturer: input.manufacturer,
+      model: input.model ?? null,
+      ingestionMethod: input.ingestionMethod,
+      origin: input.origin,
+      metric: input.metric,
+      value: v,
+      unit: spec.unit,
+      measuredAt,
+      measuredEndAt,
+      tzOffsetMin: tz,
+      sourceRecordId,
+      quality,
+      importedAt: input.importedAt ?? now().toISOString(),
+      dedupeKey: dedupeKey({ provider: input.provider, deviceId: input.deviceId, metric: input.metric, sourceRecordId, measuredAt, measuredEndAt })
+    }
+  };
+}
+function dedupeKey(p) {
+  const tail = p.sourceRecordId ? `id:${p.sourceRecordId}` : `t:${p.measuredAt}/${p.measuredEndAt ?? ""}`;
+  return `${p.provider}|${p.deviceId}|${p.metric}|${tail}`;
+}
+
+// src/server/wearables/ingest.ts
+var MAX_BATCH = 200;
+var MAX_SAMPLE_AGE_MS = 366 * 24 * 36e5;
+var ORIGINS_BY_METHOD = { direct_ble: ["live", "synchronized"], manual_import: ["manual"] };
+var PROVIDER_BY_METHOD = { direct_ble: "web_bluetooth", manual_import: "manual" };
+var DEVICE_KEY = /^[A-Za-z0-9+/=_:.\- ]{1,200}$/;
+var SESSION_ID = /^[A-Za-z0-9_:.\-]{1,128}$/;
+var isValidSessionId = (v) => typeof v === "string" && SESSION_ID.test(v);
+var SOURCE_RECORD = /^[A-Za-z0-9_:.\-]{1,200}$/;
+function cleanLabel(v, max) {
+  if (typeof v !== "string") return null;
+  const s = v.normalize("NFKC").replace(/[^\p{L}\p{N} ._()\-+/]/gu, " ").replace(/\s+/g, " ").trim().slice(0, max).trim();
+  return /[\p{L}\p{N}]/u.test(s) ? s : null;
+}
+var reasonOf = (errors) => errors[0].replace(/["'`<>]/g, "").slice(0, 120);
+function prepareBatch(body, now = () => /* @__PURE__ */ new Date()) {
+  const d = body.device;
+  const method = d?.ingestionMethod;
+  if (!d || typeof d !== "object" || method !== "direct_ble" && method !== "manual_import") {
+    return { ok: false, code: "invalid_device", message: "device.ingestionMethod must be direct_ble or manual_import." };
+  }
+  const deviceKey = typeof d.deviceKey === "string" && DEVICE_KEY.test(d.deviceKey) ? d.deviceKey.trim() : null;
+  const manufacturer = cleanLabel(d.manufacturer, 100);
+  if (!deviceKey || !manufacturer) return { ok: false, code: "invalid_device", message: "device.deviceKey and device.manufacturer are required." };
+  const device = { deviceKey, manufacturer, model: cleanLabel(d.model, 100), displayName: cleanLabel(d.displayName, 100), ingestionMethod: method };
+  const samples = body.samples;
+  if (!Array.isArray(samples) || samples.length === 0) return { ok: false, code: "invalid_batch", message: "samples must be a non-empty array." };
+  if (samples.length > MAX_BATCH) return { ok: false, code: "batch_too_large", message: `A batch holds at most ${MAX_BATCH} samples.` };
+  let workoutSessionId = null;
+  if (body.workoutSessionId != null) {
+    if (typeof body.workoutSessionId !== "string" || !SESSION_ID.test(body.workoutSessionId)) return { ok: false, code: "invalid_workout_session", message: "workoutSessionId is not a valid id." };
+    workoutSessionId = body.workoutSessionId;
+  }
+  const results = [];
+  const rows = [];
+  const rowIndex = [];
+  const nowMs = now().getTime();
+  samples.forEach((raw, index) => {
+    const r = raw;
+    if (!r || typeof r !== "object" || Array.isArray(r)) return void results.push({ index, status: "invalid", reason: "not an object" });
+    if (typeof r.metric !== "string" || !Object.hasOwn(METRICS, r.metric)) return void results.push({ index, status: "unsupported", reason: "metric not supported" });
+    if (r.origin === "simulated") return void results.push({ index, status: "rejected", reason: "simulated data is never stored" });
+    if (typeof r.origin !== "string" || !ORIGINS_BY_METHOD[method].includes(r.origin)) {
+      return void results.push({ index, status: "rejected", reason: "origin not allowed for this ingestion method" });
+    }
+    const sourceRecordId = typeof r.sourceRecordId === "string" && SOURCE_RECORD.test(r.sourceRecordId) ? r.sourceRecordId : null;
+    const n2 = normalizeSample({
+      deviceId: deviceKey,
+      provider: PROVIDER_BY_METHOD[method],
+      manufacturer,
+      model: device.model,
+      ingestionMethod: method,
+      origin: r.origin,
+      metric: r.metric,
+      value: r.value,
+      unit: typeof r.unit === "string" ? r.unit : "",
+      measuredAt: typeof r.measuredAt === "string" ? r.measuredAt : "",
+      measuredEndAt: typeof r.measuredEndAt === "string" ? r.measuredEndAt : null,
+      tzOffsetMin: typeof r.tzOffsetMin === "number" ? r.tzOffsetMin : null,
+      sourceRecordId,
+      quality: method === "manual_import" ? "user_entered" : "unverified"
+    }, now);
+    if (!n2.ok) return void results.push({ index, status: "invalid", reason: reasonOf(n2.errors) });
+    const s = n2.sample;
+    if (Date.parse(s.measuredAt) < nowMs - MAX_SAMPLE_AGE_MS) return void results.push({ index, status: "invalid", reason: "measuredAt is too old" });
+    rows.push({
+      metric: s.metric,
+      value: s.value,
+      unit: s.unit,
+      measuredAt: s.measuredAt,
+      measuredEndAt: s.measuredEndAt,
+      tzOffsetMin: s.tzOffsetMin,
+      sourceRecordId: s.sourceRecordId,
+      origin: s.origin,
+      quality: s.quality,
+      dedupeKey: s.dedupeKey,
+      workoutSessionId
+    });
+    rowIndex.push(index);
+  });
+  return { ok: true, device, workoutSessionId, rows, rowIndex, results };
+}
+function finalizeResults(p, insertedKeys, verdict = {}) {
+  const inserted = new Set(insertedKeys);
+  const verified = new Set(verdict.verifiedKeys ?? []);
+  const outside = new Set(verdict.outsideSessionKeys ?? []);
+  const seen = /* @__PURE__ */ new Set();
+  const out = [...p.results];
+  p.rows.forEach((row, i) => {
+    const index = p.rowIndex[i];
+    if (outside.has(row.dedupeKey) && !inserted.has(row.dedupeKey)) {
+      seen.add(row.dedupeKey);
+      return void out.push({ index, status: "rejected", reason: "outside_session_window" });
+    }
+    const first = inserted.has(row.dedupeKey) && !seen.has(row.dedupeKey);
+    seen.add(row.dedupeKey);
+    if (!first) return void out.push({ index, status: "duplicate" });
+    out.push(p.workoutSessionId ? { index, status: "accepted", verification: verified.has(row.dedupeKey) ? "verified" : "unverified" } : { index, status: "accepted" });
+  });
+  return out.sort((a, b) => a.index - b.index);
+}
+function summarize(results) {
+  const s = { received: results.length, accepted: 0, duplicate: 0, rejected: 0, unsupported: 0, invalid: 0 };
+  for (const r of results) s[r.status]++;
+  return s;
+}
+
+// src/wearables/workoutHrSummary.ts
+var MAX_SERIES_POINTS = 96;
+var MIN_BPM = 20;
+var MAX_BPM = 255;
+var usable = (s) => Number.isFinite(s.bpm) && s.bpm >= MIN_BPM && s.bpm <= MAX_BPM && Number.isFinite(Date.parse(s.measuredAt));
+function summarizeWorkoutHeartRate(samples, truncated = false, maxPoints = MAX_SERIES_POINTS) {
+  const rows = samples.filter(usable).map((s) => ({ ...s, ms: Date.parse(s.measuredAt) })).sort((a, b) => a.ms - b.ms);
+  if (rows.length === 0) return null;
+  let min = Infinity;
+  let max = -Infinity;
+  let sum = 0;
+  let verified = 0;
+  for (const r of rows) {
+    if (r.bpm < min) min = r.bpm;
+    if (r.bpm > max) max = r.bpm;
+    sum += r.bpm;
+    if (r.verified === true) verified++;
+  }
+  const first = rows[0].ms;
+  const last = rows[rows.length - 1].ms;
+  const cap = Math.max(2, Math.floor(maxPoints));
+  let series;
+  if (rows.length <= cap) {
+    series = rows.map((r) => ({ t: new Date(r.ms).toISOString(), bpm: r.bpm }));
+  } else {
+    const span = Math.max(1, last - first);
+    const acc = /* @__PURE__ */ new Map();
+    for (const r of rows) {
+      const i = Math.min(cap - 1, Math.floor((r.ms - first) / span * cap));
+      const b = acc.get(i) ?? { s: 0, n: 0, t: 0 };
+      b.s += r.bpm;
+      b.n += 1;
+      b.t += r.ms;
+      acc.set(i, b);
+    }
+    series = [...acc.entries()].sort((a, b) => a[0] - b[0]).map(([, b]) => ({ t: new Date(Math.round(b.t / b.n)).toISOString(), bpm: Math.round(b.s / b.n) }));
+  }
+  return {
+    sampleCount: rows.length,
+    minBpm: min,
+    avgBpm: Math.round(sum / rows.length),
+    maxBpm: max,
+    firstAt: new Date(first).toISOString(),
+    lastAt: new Date(last).toISOString(),
+    session: verified === rows.length ? "verified" : verified === 0 ? "unverified" : "mixed",
+    truncated,
+    series
+  };
+}
+
+// src/server/wearables/store.ts
+import { createClient as createClient5 } from "@supabase/supabase-js";
+
+// src/wearables/consentHistory.ts
+var CONSENT_HISTORY_LIMIT = 100;
+function isConsentEvent(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  const e = v;
+  return isWearableConsentCategory(e.category) && (e.action === "granted" || e.action === "revoked") && typeof e.version === "number" && Number.isInteger(e.version) && e.version >= 1 && typeof e.at === "string" && Number.isFinite(Date.parse(e.at));
+}
+function toConsentEvents(rows, limit = CONSENT_HISTORY_LIMIT) {
+  if (!Array.isArray(rows)) return { events: [], truncated: false };
+  const events = [];
+  for (const r of rows) {
+    if (!r || typeof r !== "object") continue;
+    const row = r;
+    const candidate = { category: row.category, action: row.action, version: row.consent_version, at: row.created_at };
+    if (isConsentEvent(candidate)) events.push(candidate);
+  }
+  return { events: events.slice(0, limit), truncated: rows.length > limit };
+}
+
+// src/server/wearables/store.ts
+var WearableStoreUnavailableError = class extends Error {
+  constructor(reason) {
+    super(`wearable store unavailable: ${reason}`);
+    this.reason = reason;
+    this.name = "WearableStoreUnavailableError";
+  }
+};
+var WearableConsentRequiredError = class extends Error {
+  constructor() {
+    super("consent_required");
+    this.name = "WearableConsentRequiredError";
+  }
+};
+var HR_READ_PAGE = 1e3;
+var RECENT_HR_PAGES = 5;
+var HR_READ_PAGES = 8;
+var safeCode = (c) => typeof c === "string" && /^[A-Za-z0-9_]{1,12}$/.test(c) ? c : "error";
+var SupabaseWearableStore = class {
+  constructor(cfg, opts = {}) {
+    this.cfg = cfg;
+    this.timeoutMs = opts.timeoutMs ?? 4e3;
+  }
+  client(token) {
+    if (!this.cfg.supabaseUrl || !this.cfg.supabaseKey) throw new WearableStoreUnavailableError("not_configured");
+    if (!token) throw new WearableStoreUnavailableError("no_token");
+    return createClient5(this.cfg.supabaseUrl, this.cfg.supabaseKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+  }
+  fail(err) {
+    const name = err?.name ?? "";
+    if (err?.message === "consent_required" || err?.code === "P0001") throw new WearableConsentRequiredError();
+    if (name === "AbortError" || name === "TimeoutError" || /abort/i.test(err?.message ?? "")) throw new WearableStoreUnavailableError("timeout");
+    throw new WearableStoreUnavailableError(`rpc_${safeCode(err?.code)}`);
+  }
+  async readConsent(userId, token) {
+    const c = this.client(token);
+    try {
+      const res = await c.from("wearable_ai_consents").select("version,categories").eq("user_id", userId).abortSignal(AbortSignal.timeout(this.timeoutMs)).maybeSingle();
+      if (res.error) this.fail(res.error);
+      const d = res.data;
+      if (!d) return null;
+      if (typeof d.version !== "number" || !Array.isArray(d.categories) || !d.categories.every((x) => typeof x === "string")) throw new WearableStoreUnavailableError("bad_shape");
+      return { version: d.version, categories: d.categories };
+    } catch (err) {
+      if (err instanceof WearableStoreUnavailableError || err instanceof WearableConsentRequiredError) throw err;
+      return this.fail(err);
+    }
+  }
+  async setConsent(token, categories, version) {
+    const c = this.client(token);
+    try {
+      const res = await c.rpc("set_my_wearable_consent", { p_categories: categories, p_version: version }).abortSignal(AbortSignal.timeout(this.timeoutMs));
+      if (res.error) this.fail(res.error);
+    } catch (err) {
+      if (err instanceof WearableStoreUnavailableError || err instanceof WearableConsentRequiredError) throw err;
+      this.fail(err);
+    }
+  }
+  async ingest(token, device, rows) {
+    const c = this.client(token);
+    const p_device = { device_key: device.deviceKey, manufacturer: device.manufacturer, model: device.model, display_name: device.displayName, ingestion_method: device.ingestionMethod };
+    const p_samples = rows.map((r) => ({
+      metric: r.metric,
+      value: r.value,
+      unit: r.unit,
+      measured_at: r.measuredAt,
+      measured_end_at: r.measuredEndAt,
+      tz_offset_min: r.tzOffsetMin,
+      source_record_id: r.sourceRecordId,
+      origin: r.origin,
+      quality: r.quality,
+      dedupe_key: r.dedupeKey,
+      workout_session_id: r.workoutSessionId
+    }));
+    try {
+      const res = await c.rpc("ingest_wearable_batch", { p_device, p_samples }).abortSignal(AbortSignal.timeout(this.timeoutMs * 2));
+      if (res.error) this.fail(res.error);
+      const d = res.data;
+      if (!d || typeof d.device_id !== "string" || !Array.isArray(d.inserted_keys)) throw new WearableStoreUnavailableError("bad_shape");
+      const strings2 = (v) => Array.isArray(v) ? v.filter((k) => typeof k === "string") : [];
+      return { deviceId: d.device_id, insertedKeys: strings2(d.inserted_keys), verifiedKeys: strings2(d.verified_keys), outsideSessionKeys: strings2(d.rejected_keys) };
+    } catch (err) {
+      if (err instanceof WearableStoreUnavailableError || err instanceof WearableConsentRequiredError) throw err;
+      return this.fail(err);
+    }
+  }
+  async readWorkoutHeartRate(userId, token, workoutSessionId) {
+    const c = this.client(token);
+    const samples = [];
+    try {
+      for (let page = 0; page < HR_READ_PAGES; page++) {
+        const from = page * HR_READ_PAGE;
+        const res = await c.from("wearable_samples").select("value,measured_at,workout_session_verified").eq("user_id", userId).eq("workout_session_id", workoutSessionId).eq("metric", "heart_rate").order("measured_at", { ascending: true }).order("id", { ascending: true }).range(from, from + HR_READ_PAGE - 1).abortSignal(AbortSignal.timeout(this.timeoutMs));
+        if (res.error) this.fail(res.error);
+        const rows = res.data;
+        if (!Array.isArray(rows)) throw new WearableStoreUnavailableError("bad_shape");
+        for (const r of rows) {
+          if (typeof r.value !== "number" || typeof r.measured_at !== "string") continue;
+          samples.push({ bpm: r.value, measuredAt: r.measured_at, verified: typeof r.workout_session_verified === "boolean" ? r.workout_session_verified : null });
+        }
+        if (rows.length < HR_READ_PAGE) return { samples, truncated: false };
+      }
+      return { samples, truncated: true };
+    } catch (err) {
+      if (err instanceof WearableStoreUnavailableError || err instanceof WearableConsentRequiredError) throw err;
+      return this.fail(err);
+    }
+  }
+  async readConsentHistory(userId, token) {
+    const c = this.client(token);
+    try {
+      const res = await c.from("wearable_consent_events").select("category,action,consent_version,created_at").eq("user_id", userId).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(CONSENT_HISTORY_LIMIT + 1).abortSignal(AbortSignal.timeout(this.timeoutMs));
+      if (res.error) this.fail(res.error);
+      if (!Array.isArray(res.data)) throw new WearableStoreUnavailableError("bad_shape");
+      return toConsentEvents(res.data);
+    } catch (err) {
+      if (err instanceof WearableStoreUnavailableError || err instanceof WearableConsentRequiredError) throw err;
+      return this.fail(err);
+    }
+  }
+  async readRecentHeartRate(userId, token, sinceIso) {
+    const c = this.client(token);
+    const samples = [];
+    const deadline = Date.now() + this.timeoutMs * 2;
+    try {
+      for (let page = 0; page < RECENT_HR_PAGES; page++) {
+        const left = deadline - Date.now();
+        if (left <= 0) throw new WearableStoreUnavailableError("timeout");
+        const from = page * HR_READ_PAGE;
+        const res = await c.from("wearable_samples").select("value,measured_at,workout_session_id").eq("user_id", userId).eq("metric", "heart_rate").in("origin", ["live", "synchronized"]).not("workout_session_id", "is", null).gte("measured_at", sinceIso).order("measured_at", { ascending: false }).order("id", { ascending: false }).range(from, from + HR_READ_PAGE - 1).abortSignal(AbortSignal.timeout(Math.min(this.timeoutMs, left)));
+        if (res.error) this.fail(res.error);
+        const rows = res.data;
+        if (!Array.isArray(rows)) throw new WearableStoreUnavailableError("bad_shape");
+        for (const r of rows) {
+          if (typeof r.value !== "number" || typeof r.measured_at !== "string" || typeof r.workout_session_id !== "string") continue;
+          samples.push({ bpm: r.value, measuredAt: r.measured_at, sessionId: r.workout_session_id });
+        }
+        if (rows.length < HR_READ_PAGE) return { samples, truncated: false };
+      }
+      return { samples, truncated: true };
+    } catch (err) {
+      if (err instanceof WearableStoreUnavailableError || err instanceof WearableConsentRequiredError) throw err;
+      return this.fail(err);
+    }
+  }
+};
+
+// src/server/wearables/routes.ts
+var unavailable2 = (req, res) => sendError(req, res, 503, "wearable_store_unavailable", "Wearable data is temporarily unavailable. Nothing was changed.", { "Retry-After": "5" });
+function registerWearableRoutes(app, config, deps = {}) {
+  const store = deps.store ?? new SupabaseWearableStore(config);
+  const now = deps.now ?? (() => /* @__PURE__ */ new Date());
+  app.get("/api/wearables/consent", async (req, res) => {
+    try {
+      const rec = await store.readConsent(req.user.id, getAccessToken(req));
+      const active = [...activeCategories(rec)];
+      return res.json({
+        success: true,
+        currentVersion: WEARABLE_CONSENT_VERSION,
+        categories: active,
+        // A record under another version authorises nothing; the UI must ask again.
+        stale: !!rec && rec.version !== WEARABLE_CONSENT_VERSION
+      });
+    } catch (err) {
+      if (err instanceof WearableStoreUnavailableError) {
+        logger.warn("wearable_consent_unavailable", { requestId: req.requestId, reason: err.reason });
+        return unavailable2(req, res);
+      }
+      throw err;
+    }
+  });
+  app.put("/api/wearables/consent", async (req, res) => {
+    const categories = [...new Set(req.body.categories ?? [])];
+    try {
+      await store.setConsent(getAccessToken(req), categories, WEARABLE_CONSENT_VERSION);
+      logger.info("wearable_consent_changed", { requestId: req.requestId, count: categories.length });
+      return res.json({ success: true, currentVersion: WEARABLE_CONSENT_VERSION, categories, stale: false });
+    } catch (err) {
+      if (err instanceof WearableStoreUnavailableError) {
+        logger.warn("wearable_consent_write_unavailable", { requestId: req.requestId, reason: err.reason });
+        return unavailable2(req, res);
+      }
+      throw err;
+    }
+  });
+  app.post("/api/wearables/consent-history", async (req, res) => {
+    try {
+      const read = await store.readConsentHistory(req.user.id, getAccessToken(req));
+      return res.json({ success: true, events: read.events, truncated: read.truncated });
+    } catch (err) {
+      if (err instanceof WearableStoreUnavailableError) {
+        logger.warn("wearable_consent_history_unavailable", { requestId: req.requestId, reason: err.reason });
+        return unavailable2(req, res);
+      }
+      throw err;
+    }
+  });
+  app.post("/api/wearables/workout-heart-rate", async (req, res) => {
+    const sessionId = req.body.sessionId;
+    if (!isValidSessionId(sessionId)) return sendError(req, res, 400, "invalid_workout_session", "sessionId is not a valid id.");
+    try {
+      const read = await store.readWorkoutHeartRate(req.user.id, getAccessToken(req), sessionId);
+      return res.json({ success: true, sessionId, summary: summarizeWorkoutHeartRate(read.samples, read.truncated) });
+    } catch (err) {
+      if (err instanceof WearableStoreUnavailableError) {
+        logger.warn("wearable_workout_hr_unavailable", { requestId: req.requestId, reason: err.reason });
+        return unavailable2(req, res);
+      }
+      throw err;
+    }
+  });
+  app.post("/api/wearables/ingest", async (req, res) => {
+    const token = getAccessToken(req);
+    const prepared = prepareBatch(req.body, now);
+    if (!prepared.ok) return sendError(req, res, prepared.code === "batch_too_large" ? 413 : 400, prepared.code, prepared.message);
+    try {
+      const allowed = activeCategories(await store.readConsent(req.user.id, token));
+      if (!allowed.has("workout_health_sync")) {
+        return sendError(req, res, 403, "consent_required", "Turn on workout health-data sync in Wearables settings before sending measurements.");
+      }
+      let outcome = { insertedKeys: [], verifiedKeys: [], outsideSessionKeys: [] };
+      if (prepared.rows.length) {
+        outcome = await store.ingest(token, prepared.device, prepared.rows);
+      }
+      const results = finalizeResults(prepared, outcome.insertedKeys, { verifiedKeys: outcome.verifiedKeys, outsideSessionKeys: outcome.outsideSessionKeys });
+      const summary = summarize(results);
+      logger.info("wearable_ingest", { requestId: req.requestId, ...summary });
+      return res.json({ success: true, summary, results, syncedAt: now().toISOString() });
+    } catch (err) {
+      if (err instanceof WearableConsentRequiredError) return sendError(req, res, 403, "consent_required", "Turn on workout health-data sync in Wearables settings before sending measurements.");
+      if (err instanceof WearableStoreUnavailableError) {
+        logger.warn("wearable_ingest_unavailable", { requestId: req.requestId, reason: err.reason });
+        return unavailable2(req, res);
+      }
+      throw err;
+    }
+  });
+}
+
+// src/wearables/coachHistory.ts
+var COACH_HISTORY_WINDOW_DAYS = 30;
+var COACH_HISTORY_MAX_SESSIONS = 5;
+var COACH_HISTORY_MIN_READINGS = 10;
+var COACH_HISTORY_MAX_SESSION_MS = 6 * 60 * 6e4;
+var plausible = (n2) => Number.isFinite(n2) && n2 >= 20 && n2 <= 255;
+function buildCoachHrHistory(samples, now, truncated) {
+  const end = now.getTime();
+  const start = end - COACH_HISTORY_WINDOW_DAYS * 864e5;
+  const groups = /* @__PURE__ */ new Map();
+  for (const s of samples) {
+    const t3 = Date.parse(s.measuredAt);
+    if (!Number.isFinite(t3) || t3 < start || t3 > end || !plausible(s.bpm) || typeof s.sessionId !== "string" || !s.sessionId) continue;
+    const g = groups.get(s.sessionId) ?? { t: [], b: [] };
+    g.t.push(t3);
+    g.b.push(s.bpm);
+    groups.set(s.sessionId, g);
+  }
+  let sessions = [...groups.values()].map((g) => {
+    const first = Math.min(...g.t);
+    const last = Math.max(...g.t);
+    return { first, last, g };
+  }).sort((a, b) => b.last - a.last);
+  if (truncated && sessions.length) sessions = sessions.slice(0, -1);
+  const out = [];
+  for (const { first, last, g } of sessions) {
+    if (g.b.length < COACH_HISTORY_MIN_READINGS || last - first > COACH_HISTORY_MAX_SESSION_MS) continue;
+    out.push({
+      date: new Date(first).toISOString().slice(0, 10),
+      minutes: Math.max(1, Math.round((last - first) / 6e4)),
+      minBpm: Math.round(Math.min(...g.b)),
+      maxBpm: Math.round(Math.max(...g.b)),
+      avgBpm: Math.round(g.b.reduce((a, c) => a + c, 0) / g.b.length),
+      readings: g.b.length
+    });
+    if (out.length === COACH_HISTORY_MAX_SESSIONS) break;
+  }
+  return { windowDays: COACH_HISTORY_WINDOW_DAYS, sessions: out, partial: truncated };
+}
+function formatCoachHrHistory(h) {
+  const head = `- Stored heart-rate history (read-only data from the athlete's own wearable, last ${h.windowDays} days; informational, not a medical measurement, never a diagnosis):`;
+  if (!h.sessions.length) return `${head} no usable workout heart rate is stored.`;
+  const lines = h.sessions.map((s) => `  - ${s.date}: ${s.minutes} min, average ${s.avgBpm} bpm (lowest ${s.minBpm}, highest ${s.maxBpm}), ${s.readings} readings`);
+  return [`${head} ${h.sessions.length} recent workout${h.sessions.length === 1 ? "" : "s"}, newest first.`, ...lines, ...h.partial ? ["  - Older workouts in this window were not loaded."] : []].join("\n");
+}
+
 // src/server/security/aiOutput.ts
 var MAX_DAYS = 14;
 var MAX_EXERCISES = 40;
@@ -3062,7 +3676,9 @@ var COACH_TIMEOUT_MS = 45e3;
 function createApp(deps = {}) {
   const app = express3();
   installBillingWebhook(app, { ...deps.billing, rateStore: deps.rateStore ?? new MemoryRateStore(deps.now ?? Date.now), now: deps.now });
-  installSecurity(app, { ...deps, entitlementGate: deps.entitlementGate ?? createBillingEntitlementGate(deps.billing) });
+  const securityConfig = installSecurity(app, { ...deps, entitlementGate: deps.entitlementGate ?? createBillingEntitlementGate(deps.billing) });
+  const wearableStore = deps.wearables?.store ?? new SupabaseWearableStore(securityConfig);
+  registerWearableRoutes(app, securityConfig, { ...deps.wearables, store: wearableStore });
   registerBillingRoutes(app, { ...deps.billing, now: deps.now });
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", time: (/* @__PURE__ */ new Date()).toISOString() });
@@ -3843,13 +4459,31 @@ Format strictly as JSON matching this schema:
     }
   });
   app.post("/api/ai-personal-trainer", async (req, res) => {
-    const { messages, userMessage, profile: profile2, activeSession, recovery, bluetooth } = req.body;
+    const { messages, userMessage, profile: profile2, activeSession, recovery } = req.body;
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return res.json({
         success: true,
         reply: `Coach Iron here! I'm tracking your training. Remember: progressive overload is built on consistency and pristine biomechanics. For your current goal (${ui(profile2?.primaryGoal || "Muscle Gain")}), ensure your working sets hit 1-2 RIR and rest 2-3 minutes between compound lifts. Connect your Bluetooth gadget to track live heart rate recovery!`
       });
+    }
+    let allowed = /* @__PURE__ */ new Set();
+    try {
+      allowed = activeCategories(await wearableStore.readConsent(req.user.id, getAccessToken(req)));
+    } catch {
+      logger.warn("trainer_wearable_consent_unverified", { requestId: req.requestId });
+    }
+    const bluetooth = authoriseTrainerBluetooth(req.body.bluetooth, allowed);
+    let hrHistoryLine = null;
+    if (allowed.has("historical_heart_rate")) {
+      try {
+        const now = /* @__PURE__ */ new Date();
+        const since = new Date(now.getTime() - COACH_HISTORY_WINDOW_DAYS * 864e5).toISOString();
+        const read = await wearableStore.readRecentHeartRate(req.user.id, getAccessToken(req), since);
+        hrHistoryLine = formatCoachHrHistory(buildCoachHrHistory(read.samples, now, read.truncated));
+      } catch (err) {
+        logger.warn("trainer_hr_history_unavailable", { requestId: req.requestId, reason: err instanceof WearableStoreUnavailableError ? err.reason : "error" });
+      }
     }
     try {
       const ai = createGenAI({ apiKey }, COACH_TIMEOUT_MS);
@@ -3872,7 +4506,8 @@ ${activeSession ? `Currently working out: ${activeSession.dayName} (${activeSess
 RECOVERY & BIOMETRIC TELEMETRY:
 - Readiness: ${recovery?.overallReadiness ? `${recovery.overallReadiness}%` : "Normal"}
 - Rest Day Status: ${recovery?.optimalRestDays?.isRestRecommendedToday ? "Rest Recommended Today" : "Ready to Train"}
-- Bluetooth Gadget: ${bluetooth?.isConnected ? `Connected: ${bluetooth.deviceName || "Heart Rate Monitor"} (Live HR: ${bluetooth.bpm || "N/A"} BPM)` : "No gadget connected"}
+- Bluetooth Gadget: ${bluetooth.isConnected ? `Connected: ${ui(bluetooth.deviceName || "Heart Rate Monitor")} (Live HR: ${bluetooth.bpm ?? "N/A"} BPM)` : "No gadget connected"}${hrHistoryLine ? `
+${hrHistoryLine}` : ""}
 
 COACHING DIRECTIVES:
 1. Always prioritize correct posture, joint safety, and biomechanical cues (e.g. elbow tuck, midfoot balance, spinal neutrality).
@@ -4543,7 +5178,7 @@ Generate an exhaustive, scientifically rigorous transformation roadmap strictly 
 
 // src/server/security/redisRateStore.ts
 import { createHash as createHash2 } from "node:crypto";
-import { createClient as createClient5, defineScript } from "redis";
+import { createClient as createClient6, defineScript } from "redis";
 var HIT_SCRIPT = `
 local c = redis.call('INCR', KEYS[1])
 local ttl = redis.call('PTTL', KEYS[1])
@@ -4620,7 +5255,7 @@ var RedisRateStore = class {
   /** Builds a client and starts connecting in the background; requests are refused (not queued) until it is ready. */
   openClient() {
     const opts = this.options;
-    const client = createClient5({
+    const client = createClient6({
       url: opts.url,
       // Commands fail immediately while disconnected instead of queueing until reconnect: a request must get its
       // 503 (or its degraded decision) now, not after an unbounded wait.

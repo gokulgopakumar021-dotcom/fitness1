@@ -1,5 +1,6 @@
 import { schemas, type Schema } from './validation';
 import { billingSchemas } from '../billing/schemas';
+import { wearableSchemas } from '../wearables/schemas';
 
 /**
  * Single source of truth for per-endpoint policy: rate limit, daily AI quota, body-size limit and request schema.
@@ -58,11 +59,22 @@ export const BILLING_ENDPOINTS: Record<string, EndpointPolicy> = {
   'POST /billing/account/prepare-deletion': { bucket: 'billing-prepare-deletion', ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.prepareDeletion, ageExempt: true }
 };
 
+/** BT-04B wearables. Not AI routes. Ingest is the only write path for measurements (the database also refuses direct client inserts once the proposed migration is applied). */
+export const WEARABLE_ENDPOINTS: Record<string, EndpointPolicy> = {
+  'GET /wearables/consent': { bucket: 'wearables-consent-read', ai: false, perMinute: 30, bodyLimit: SMALL },
+  'PUT /wearables/consent': { bucket: 'wearables-consent-write', ai: false, perMinute: 10, bodyLimit: SMALL, schema: wearableSchemas.consentUpdate },
+  // BT-04C: read-only (a POST so the session id travels in a validated body), one session per request. Generous enough for a history list, small enough to stop scraping.
+  'POST /wearables/workout-heart-rate': { bucket: 'wearables-workout-hr-read', ai: false, perMinute: 30, bodyLimit: SMALL, schema: wearableSchemas.workoutHeartRate },
+  // BT-04C task 4: read-only audit trail of the caller's own consent changes (POST + empty body: the project never reads the query string).
+  'POST /wearables/consent-history': { bucket: 'wearables-consent-history-read', ai: false, perMinute: 20, bodyLimit: SMALL, schema: wearableSchemas.consentHistory },
+  'POST /wearables/ingest': { bucket: 'wearables-ingest', ai: false, perMinute: 20, bodyLimit: MEDIUM, schema: wearableSchemas.ingest }
+};
+
 export const BARCODE_POLICY: EndpointPolicy = { bucket: 'barcode', ai: false, perMinute: 30, bodyLimit: SMALL };
 
 export function resolvePolicy(method: string, path: string): EndpointPolicy | undefined {
   const clean = path.length > 1 ? path.replace(/\/+$/, '') : path;
-  const hit = ENDPOINTS[`${method.toUpperCase()} ${clean}`] ?? BILLING_ENDPOINTS[`${method.toUpperCase()} ${clean}`];
+  const hit = ENDPOINTS[`${method.toUpperCase()} ${clean}`] ?? BILLING_ENDPOINTS[`${method.toUpperCase()} ${clean}`] ?? WEARABLE_ENDPOINTS[`${method.toUpperCase()} ${clean}`];
   if (hit) return hit;
   if (method.toUpperCase() === 'GET' && /^\/nutrition\/barcode\/[^/]+$/.test(clean)) return BARCODE_POLICY;
   return undefined;
