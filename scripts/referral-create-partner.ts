@@ -62,6 +62,7 @@ const dryRun = flags.get('dry-run') === 'true';
 if (!url || !serviceKey) fail('Set SUPABASE_URL (or VITE_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY.');
 if (!UUID_RE.test(adminId)) fail('Set REFERRAL_ADMIN_USER_ID to your auth user uuid (it must be in public.app_admins).');
 
+if (!/^eyJ|^sb_secret_/.test(serviceKey)) fail('SUPABASE_SERVICE_ROLE_KEY does not look like a Supabase secret key (expected to start with eyJ or sb_secret_). Vercel hides sensitive values on pull; copy it from Supabase, Project Settings, API Keys.');
 const projectHost = new URL(url).host; // shown so you can see which project this run targets
 const db = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
@@ -111,7 +112,7 @@ if (command === 'create') {
       continue;
     }
     if (error.code === '42501') fail('REFERRAL_ADMIN_USER_ID is not an admin. Insert it into public.app_admins first.');
-    fail(`Create failed (${error.code ?? 'error'}).`);
+    fail(`Create failed (${error.code ?? 'no code'}): ${error.message}${error.message.toLowerCase().includes('api key') || String((error as { status?: number }).status) === '401' ? ' -- the SUPABASE_SERVICE_ROLE_KEY in .env was rejected by this project.' : ''}`);
   }
   fail('Could not find a free random code after 5 tries; run again.');
 }
