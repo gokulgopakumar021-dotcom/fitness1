@@ -25,7 +25,8 @@
     "video:map-sql": "tsx scripts/video-library/mapping.ts sql",
     "video:duplicates": "tsx scripts/video-library/duplicates.ts",
     "video:probe": "tsx scripts/video-library/probe.ts",
-    "video:backfill-media": "tsx scripts/video-library/probeBackfillSql.ts"
+    "video:backfill-media": "tsx scripts/video-library/probeBackfillSql.ts",
+    "referral:partner": "tsx scripts/referral-create-partner.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
