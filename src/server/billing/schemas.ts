@@ -36,6 +36,8 @@ export const billingSchemas = {
     referralCode: optionalPattern(/^[A-Za-z0-9]{4,20}$/, 'referral code', 20),
     fullPriceToken: optionalPattern(/^[A-Za-z0-9_-]{20,400}\.[A-Za-z0-9_-]{20,100}$/, 'token', 500)
   }),
+  /** The code is deliberately NOT format-checked here: a malformed code must get the same answer as an unknown one (see attributeReferral). */
+  attributeReferral: object({ code: text({ max: 40, required: false }) }),
   verifySubscription: object({
     razorpay_payment_id: pattern(RZP_PAY, 'payment id', 64),
     razorpay_subscription_id: pattern(RZP_SUB, 'subscription id', 64),

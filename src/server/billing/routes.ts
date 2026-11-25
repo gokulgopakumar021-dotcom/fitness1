@@ -121,6 +121,7 @@ export function registerBillingRoutes(app: Express, deps: BillingDeps = {}) {
   app.get('/api/billing/status', handler(async (s, req, res) => res.json({ success: true, ...(await s.getStatus(req.user!)) }), lazy));
   app.get('/api/billing/payments', handler(async (s, req, res) => res.json({ success: true, payments: await s.listPayments(req.user!) }), lazy));
   app.post('/api/billing/subscriptions', handler(async (s, req, res) => res.json({ success: true, ...(await s.createSubscription(req.user!, req.body.planKey, { referralCode: req.body.referralCode, fullPriceToken: req.body.fullPriceToken })) }), lazy));
+  app.post('/api/billing/referral/attribute', handler(async (s, req, res) => { await s.attributeReferral(req.user!, req.body?.code); res.json({ success: true }); }, lazy));
   app.post('/api/billing/subscriptions/verify', handler(async (s, req, res) => res.json({ success: true, ...(await s.verifyAuthorization(req.user!, req.body)) }), lazy));
   app.post('/api/billing/subscriptions/cancel', handler(async (s, req, res) => res.json({ success: true, ...(await s.cancel(req.user!)) }), lazy));
   app.post('/api/billing/subscriptions/recover', handler(async (s, req, res) => res.json({ success: true, ...(await s.startRecovery(req.user!)) }), lazy));

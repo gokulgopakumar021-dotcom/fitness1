@@ -50,6 +50,8 @@ export const BILLING_ENDPOINTS: Record<string, EndpointPolicy> = {
   'GET /billing/status': { bucket: 'billing-status', ai: false, perMinute: 30, bodyLimit: SMALL },
   'GET /billing/payments': { bucket: 'billing-payments', ai: false, perMinute: 20, bodyLimit: SMALL },
   'POST /billing/subscriptions': { bucket: 'billing-create', ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.createSubscription },
+  // Sign-up creator code: one cheap database call. Not age-exempt; a signed-up user has already made the 18+ declaration.
+  'POST /billing/referral/attribute': { bucket: 'billing-referral-attribute', ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.attributeReferral },
   'POST /billing/subscriptions/verify': { bucket: 'billing-verify', ai: false, perMinute: 10, bodyLimit: SMALL, schema: billingSchemas.verifySubscription },
   'POST /billing/subscriptions/cancel': { bucket: 'billing-cancel', ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.empty, ageExempt: true },
   // Stage 5: payment recovery (pending/halted) and the cancel-then-delete flow. Each calls Razorpay, so the limits are tight.

@@ -14,6 +14,7 @@ import {
 import { validateLegalAcceptance } from '../../legal/policyAcceptance';
 import { MINIMUM_AGE, validateAgeConfirmation } from '../../legal/ageEligibility';
 import { LEGAL_ROUTES } from '../../legal/routes';
+import { clearPendingCreatorCode, readPendingCreatorCode, sanitiseCreatorInput, storePendingCreatorCode } from '../../lib/referralSignup';
 
 /* ---------- layout ---------- */
 
@@ -362,6 +363,8 @@ const SignUpForm: React.FC<FormProps> = ({ email, setEmail, go, onBackToHome }) 
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  // Optional creator code, prefilled from a ?ref= link. It is never validated against the server here and never blocks sign-up.
+  const [creatorCode, setCreatorCode] = useState(() => readPendingCreatorCode() ?? '');
   // Unchecked by default. Signup cannot proceed until the person ticks it (see also AuthContext.signUp).
   const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [legalError, setLegalError] = useState<string | null>(null);
@@ -383,6 +386,8 @@ const SignUpForm: React.FC<FormProps> = ({ email, setEmail, go, onBackToHome }) 
     setFormError(null);
     if (Object.keys(found).length || legalProblem || ageProblem) return;
     void run(async () => {
+      // Kept in this browser only until the verified session exists (see AuthGate). A malformed or empty field simply stores nothing.
+      if (!storePendingCreatorCode(creatorCode)) clearPendingCreatorCode();
       const r = await signUp(fullName, email, password, acceptedLegal, confirmedAdult);
       if (!r.ok) { setFormError(r.error ?? 'Could not create account.'); return; }
       // needsVerification: show the check-your-email screen. Otherwise a session exists and AuthGate takes over.
@@ -399,6 +404,8 @@ const SignUpForm: React.FC<FormProps> = ({ email, setEmail, go, onBackToHome }) 
         <Field label="Password" type="password" value={password} onChange={setPassword} error={errors.password} autoComplete="new-password" disabled={busy}
           hint={`At least ${PASSWORD_MIN} characters, with a letter and a number.`} />
         <Field label="Confirm password" type="password" value={confirm} onChange={setConfirm} error={errors.confirm} autoComplete="new-password" disabled={busy} />
+        <Field label="Creator code (optional)" value={creatorCode} onChange={(v) => setCreatorCode(sanitiseCreatorInput(v))} autoComplete="off" disabled={busy}
+          hint="Optional. It is never needed to create your account." />
         <LegalAcceptance checked={acceptedLegal} onChange={(v) => { setAcceptedLegal(v); if (v) setLegalError(null); }} error={legalError} disabled={busy} />
         <AgeConfirmation checked={confirmedAdult} onChange={(v) => { setConfirmedAdult(v); if (v) setAgeError(null); }} error={ageError} disabled={busy} />
         <Button type="submit" fullWidth loading={busy}>Create account</Button>

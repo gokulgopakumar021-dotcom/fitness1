@@ -493,3 +493,81 @@ describe('BillingPanel: mobile layout and accessibility contract (class and sema
     expect(container.innerHTML).not.toMatch(/\bw-\[\d{3,}px\]|min-w-\[\d{3,}px\]/); // nothing that forces horizontal scroll on a phone
   });
 });
+
+describe('BillingPanel: creator discount already attached (for example from sign-up)', () => {
+  const attributed = (over: Partial<BillingStatus> = {}) => baseStatus({ referral: { enabled: true, attributed: true }, ...over });
+  const choice = (over: Record<string, unknown> = {}) => ({
+    success: true, discountUnavailable: true, reason: 'offer_rejected', planKey: 'monthly', fullPricePaise: 29900, discountedFirstChargePaise: 23920, fullPriceToken: 'tok.sig', ...over
+  });
+
+  it('shows the discount before payment and sends no code: the server applies it', async () => {
+    api.fetchBillingStatus.mockResolvedValue(attributed());
+    api.createSubscription.mockResolvedValue(created({ referralDiscount: { applied: true, firstChargePaise: 23920, renewalPaise: 29900 } }));
+    checkout.openSubscriptionCheckout.mockResolvedValue({ kind: 'dismissed' });
+    await mount();
+    expect(text()).toContain('Creator discount applied');
+    expect(text()).toContain('₹239.20');
+    expect(text()).toContain('then ₹299 per month');
+    expect(text()).toMatch(/₹5 verification payment is not discounted/);
+    await agree();
+    await click(startButton());
+    expect(api.createSubscription).toHaveBeenCalledWith('monthly', {});
+  });
+
+  it('shows nothing when the account has no attribution, or the offer is off', async () => {
+    api.fetchBillingStatus.mockResolvedValue(baseStatus({ referral: { enabled: true, attributed: false } }));
+    await mount();
+    expect(text()).not.toContain('Creator discount applied');
+    act(() => root.unmount());
+    root = createRoot(container);
+    api.fetchBillingStatus.mockResolvedValue(baseStatus({ referral: { enabled: false, attributed: true } }));
+    await mount();
+    expect(text()).not.toContain('Creator discount applied');
+  });
+
+  it('the annual plan shows no discount', async () => {
+    api.fetchBillingStatus.mockResolvedValue(attributed());
+    await mount();
+    await click(container.querySelector('input[value="annual"]'));
+    expect(text()).not.toContain('Creator discount applied');
+  });
+
+  it('no discount line when the trial is not available (the server will stop and ask)', async () => {
+    api.fetchBillingStatus.mockResolvedValue(attributed({ trial: { eligible: false, days: 3, firstChargePreviewAt: null, verificationDebit: { amountPaise: 500, refundedAutomatically: true } } }));
+    await mount();
+    expect(text()).not.toContain('Creator discount applied');
+  });
+
+  it('the code box stays as a fallback, and a typed code is sent and replaces the automatic line', async () => {
+    api.fetchBillingStatus.mockResolvedValue(attributed());
+    api.createSubscription.mockResolvedValue(created());
+    checkout.openSubscriptionCheckout.mockResolvedValue({ kind: 'dismissed' });
+    await mount();
+    const box = container.querySelector<HTMLInputElement>('#referral-code')!;
+    expect(box).not.toBeNull();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(box, 'creator20');
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(text()).not.toContain('Creator discount applied');
+    await agree();
+    await click(startButton());
+    expect(api.createSubscription).toHaveBeenCalledWith('monthly', { referralCode: 'CREATOR20' });
+  });
+
+  it('if the server cannot apply the discount it stops and offers the choice; full price is only sent with the one-time token', async () => {
+    api.fetchBillingStatus.mockResolvedValue(attributed());
+    api.createSubscription.mockResolvedValueOnce(choice());
+    await mount();
+    await agree();
+    await click(startButton());
+    expect(checkout.openSubscriptionCheckout).not.toHaveBeenCalled();
+    expect(text()).toContain('Nothing has been charged');
+    expect(byText('button', /Try again with the discount/)).toBeTruthy();
+
+    api.createSubscription.mockResolvedValueOnce(created());
+    checkout.openSubscriptionCheckout.mockResolvedValue({ kind: 'dismissed' });
+    await click(byText('button', /Continue at ₹299/));
+    expect(api.createSubscription).toHaveBeenLastCalledWith('monthly', { fullPriceToken: 'tok.sig' });
+  });
+});

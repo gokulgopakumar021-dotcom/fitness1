@@ -32,6 +32,8 @@ export class FakeStore implements BillingStore {
   /** code -> partner state for the fake referral_attribute_user. */
   partners = new Map<string, { status: 'active' | 'suspended'; userId?: string }>();
   attributions = new Map<string, { code: string; status: 'active' | 'void' }>();
+  /** Every call of the fake attributeSignup (user id and normalised code), whatever its outcome. */
+  signupAttempts: Array<{ userId: string; code: string }> = [];
   failNext: Record<string, boolean> = {};
   calls: string[] = [];
   constructor(private readonly clock: FakeClock) {}
@@ -68,6 +70,21 @@ export class FakeStore implements BillingStore {
     const planOf = (id: string) => this.subs.find((s) => s.id === id)?.plan_key;
     const paid = this.payments.some((x) => x.userId === userId && x.kind === 'charge' && (x.status === 'captured' || x.status === 'refunded') && planOf(x.subscriptionId) === 'monthly');
     return paid ? 'not_eligible' : 'eligible';
+  }
+  async attributeSignup(userId: string, code: string, _emailHash?: string) {
+    this.hit('attributeSignup');
+    this.signupAttempts.push({ userId, code });
+    if (this.attributions.has(userId)) return;
+    const p = this.partners.get(code);
+    if (!p || p.status !== 'active' || p.userId === userId) return;
+    if (this.subs.some((s) => s.user_id === userId) || this.payments.some((x) => x.userId === userId)) return;
+    this.attributions.set(userId, { code, status: 'active' });
+  }
+  async activeReferral(userId: string) {
+    this.hit('activeReferral');
+    if (this.attributions.get(userId)?.status !== 'active') return false;
+    const planOf = (id: string) => this.subs.find((s) => s.id === id)?.plan_key;
+    return !this.payments.some((x) => x.userId === userId && x.kind === 'charge' && (x.status === 'captured' || x.status === 'refunded') && planOf(x.subscriptionId) === 'monthly');
   }
   async beginSubscription(a: BeginSubscriptionArgs) {
     this.hit('beginSubscription');

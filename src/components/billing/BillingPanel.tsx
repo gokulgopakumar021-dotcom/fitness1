@@ -391,6 +391,13 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
               )}
             </div>
           )}
+          {plan.key === 'monthly' && status.referral?.enabled && status.referral.attributed === true && status.trial.eligible && referralCode.trim() === '' && (
+            <Card tone="accent" role="status">
+              <p className="text-sm text-zinc-100">
+                Creator discount applied: 20% off your first monthly charge after the trial ({formatInr(Math.round(plan.amountPaise * 0.8))}), then {formatInr(plan.amountPaise)} per month. The {formatInr(verificationDebit)} verification payment is not discounted.
+              </p>
+            </Card>
+          )}
           {discountChoice && (
             <div role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-2">
               <p className="text-sm text-zinc-100">

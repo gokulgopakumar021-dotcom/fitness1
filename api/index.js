@@ -852,6 +852,12 @@ function createSupabaseBillingStore(config, client) {
     return (Array.isArray(data) ? data[0] : data) ?? null;
   };
   const LIVE_LIST = "(creating,created,authenticated,active,pending,halted)";
+  const attributionUsable = async (userId) => {
+    const attr = await one("referral_status", db.from("referral_attributions").select("status").eq("referred_user_id", userId).limit(1));
+    if (!attr || attr.status !== "active") return false;
+    const paid = await one("referral_used", db.from("billing_payments").select("id, billing_subscriptions!inner(plan_key)").eq("user_id", userId).eq("kind", "charge").in("status", ["captured", "refunded"]).eq("billing_subscriptions.plan_key", "monthly").limit(1));
+    return !paid;
+  };
   return {
     async getEntitlement(userId, graceHours) {
       const r = await rpcOne("entitlement", "billing_get_entitlement", { p_user_id: userId, p_pending_grace_hours: graceHours });
@@ -869,10 +875,14 @@ function createSupabaseBillingStore(config, client) {
       if (!r) throw new BillingStoreError("referral_attribute");
       if (r.outcome === "rejected_unknown_code" || r.outcome === "rejected_inactive_partner" || r.outcome === "rejected_self_referral") return "invalid_code";
       if (r.outcome !== "attributed" && r.outcome !== "existing") return "not_eligible";
-      const attr = await one("referral_status", db.from("referral_attributions").select("status").eq("referred_user_id", userId).limit(1));
-      if (!attr || attr.status !== "active") return "not_eligible";
-      const paid = await one("referral_used", db.from("billing_payments").select("id, billing_subscriptions!inner(plan_key)").eq("user_id", userId).eq("kind", "charge").in("status", ["captured", "refunded"]).eq("billing_subscriptions.plan_key", "monthly").limit(1));
-      return paid ? "not_eligible" : "eligible";
+      return await attributionUsable(userId) ? "eligible" : "not_eligible";
+    },
+    async attributeSignup(userId, code, emailHash) {
+      const r = await rpcOne("referral_attribute", "referral_attribute_user", { p_user_id: userId, p_code: code, p_email_hash: emailHash, p_source: "signup", p_risk_flags: [] });
+      if (!r) throw new BillingStoreError("referral_attribute");
+    },
+    async activeReferral(userId) {
+      return attributionUsable(userId);
     },
     async beginSubscription(a) {
       const r = await rpcOne("begin_subscription", "billing_begin_subscription", {
@@ -1366,6 +1376,8 @@ var billingSchemas = {
     referralCode: optionalPattern(/^[A-Za-z0-9]{4,20}$/, "referral code", 20),
     fullPriceToken: optionalPattern(/^[A-Za-z0-9_-]{20,400}\.[A-Za-z0-9_-]{20,100}$/, "token", 500)
   }),
+  /** The code is deliberately NOT format-checked here: a malformed code must get the same answer as an unknown one (see attributeReferral). */
+  attributeReferral: object({ code: text({ max: 40, required: false }) }),
   verifySubscription: object({
     razorpay_payment_id: pattern(RZP_PAY, "payment id", 64),
     razorpay_subscription_id: pattern(RZP_SUB, "subscription id", 64),
@@ -1401,6 +1413,8 @@ var BILLING_ENDPOINTS = {
   "GET /billing/status": { bucket: "billing-status", ai: false, perMinute: 30, bodyLimit: SMALL },
   "GET /billing/payments": { bucket: "billing-payments", ai: false, perMinute: 20, bodyLimit: SMALL },
   "POST /billing/subscriptions": { bucket: "billing-create", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.createSubscription },
+  // Sign-up creator code: one cheap database call. Not age-exempt; a signed-up user has already made the 18+ declaration.
+  "POST /billing/referral/attribute": { bucket: "billing-referral-attribute", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.attributeReferral },
   "POST /billing/subscriptions/verify": { bucket: "billing-verify", ai: false, perMinute: 10, bodyLimit: SMALL, schema: billingSchemas.verifySubscription },
   "POST /billing/subscriptions/cancel": { bucket: "billing-cancel", ai: false, perMinute: 5, bodyLimit: SMALL, schema: billingSchemas.empty, ageExempt: true },
   // Stage 5: payment recovery (pending/halted) and the cancel-then-delete flow. Each calls Razorpay, so the limits are tight.
@@ -1459,6 +1473,7 @@ function createEntitlementGate(opts) {
 import { createHmac, timingSafeEqual } from "node:crypto";
 var REFERRAL_DISCOUNT_BPS = 2e3;
 var REFERRAL_TOKEN_TTL_MS = 10 * 6e4;
+var REFERRAL_CODE_PATTERN = /^[A-Z0-9]{4,20}$/;
 var discountedFirstChargePaise = (planAmountPaise) => planAmountPaise - Math.round(planAmountPaise * REFERRAL_DISCOUNT_BPS / 1e4);
 var normaliseReferralCode = (raw) => {
   const c = (raw ?? "").trim().toUpperCase();
@@ -1731,6 +1746,9 @@ function createBillingService(deps) {
         if (eligibility !== "eligible") return await choice(eligibility);
         if (!await store.trialClaimAvailable(user.id, emailHash)) return await choice("trial_unavailable");
         wantOffer = true;
+      } else if (planKey === "monthly" && config.referralOfferId && await store.activeReferral(user.id)) {
+        if (!await store.trialClaimAvailable(user.id, emailHash)) return await choice("trial_unavailable");
+        wantOffer = true;
       }
       for (let attempt = 0; attempt < 2; attempt++) {
         const begin = await store.beginSubscription({
@@ -1815,6 +1833,19 @@ function createBillingService(deps) {
       throw new ApiError(409, "subscription_in_progress", "Another subscription attempt is in progress. Please try again in a moment.");
     } catch (err) {
       throw toApiError(err, "create_subscription");
+    }
+  }
+  async function attributeReferral(user, rawCode) {
+    requireConfigured();
+    const email = requireVerifiedEmail(user);
+    const code = typeof rawCode === "string" ? normaliseReferralCode(rawCode) : void 0;
+    if (!code || !REFERRAL_CODE_PATTERN.test(code)) return;
+    const emailHash = hashEmail(email, config.trialPepper);
+    if (!emailHash) return;
+    try {
+      await store.attributeSignup(user.id, code, emailHash);
+    } catch (err) {
+      throw toApiError(err, "referral_attribute");
     }
   }
   async function tryCancelOrphan(rzpId) {
@@ -2020,6 +2051,14 @@ function createBillingService(deps) {
         }
       }
       const entitlement = await store.getEntitlement(user.id, config.pendingGraceHours);
+      let referralAttributed = false;
+      if (config.referralOfferId) {
+        try {
+          referralAttributed = await store.activeReferral(user.id);
+        } catch (err) {
+          logger.warn("billing_status_referral_failed", { op: err instanceof BillingStoreError ? err.op : "other" });
+        }
+      }
       let trialEligible = false;
       const hash = user.emailVerified && user.email && config.trialDays > 0 ? hashEmail(user.email, config.trialPepper) : void 0;
       if (hash) trialEligible = await store.trialClaimAvailable(user.id, hash);
@@ -2033,7 +2072,7 @@ function createBillingService(deps) {
           refundedAutomatically: true
           /* legacy API field: NOT a verified claim and not displayed by the UI (Stage 4) */
         } },
-        referral: { enabled: !!config.referralOfferId },
+        referral: { enabled: !!config.referralOfferId, attributed: referralAttributed },
         plans: ["monthly", "annual"].map((k) => ({ key: k, amountPaise: config.plans[k].amountPaise, currency: "INR", billingPeriod: config.plans[k].period, interval: config.plans[k].interval })),
         entitlement: { state: entitlement.state, hasAccess: entitlement.has_access, accessEndsAt: entitlement.access_ends_at },
         subscription: latest ? toPublicSubscription(latest) : null
@@ -2165,7 +2204,7 @@ function createBillingService(deps) {
     const e = await store.getEntitlement(userId, config.pendingGraceHours);
     return { state: e.state, hasAccess: e.has_access };
   }
-  return { checkEntitlement, createSubscription, verifyAuthorization, cancel, getStatus, listPayments, handleWebhook, reconcileRow, reconcileBatch, startRecovery, deletionCheck, prepareDeletion };
+  return { checkEntitlement, createSubscription, attributeReferral, verifyAuthorization, cancel, getStatus, listPayments, handleWebhook, reconcileRow, reconcileBatch, startRecovery, deletionCheck, prepareDeletion };
 }
 
 // src/server/billing/routes.ts
@@ -2247,6 +2286,10 @@ function registerBillingRoutes(app, deps = {}) {
   app.get("/api/billing/status", handler(async (s, req, res) => res.json({ success: true, ...await s.getStatus(req.user) }), lazy));
   app.get("/api/billing/payments", handler(async (s, req, res) => res.json({ success: true, payments: await s.listPayments(req.user) }), lazy));
   app.post("/api/billing/subscriptions", handler(async (s, req, res) => res.json({ success: true, ...await s.createSubscription(req.user, req.body.planKey, { referralCode: req.body.referralCode, fullPriceToken: req.body.fullPriceToken }) }), lazy));
+  app.post("/api/billing/referral/attribute", handler(async (s, req, res) => {
+    await s.attributeReferral(req.user, req.body?.code);
+    res.json({ success: true });
+  }, lazy));
   app.post("/api/billing/subscriptions/verify", handler(async (s, req, res) => res.json({ success: true, ...await s.verifyAuthorization(req.user, req.body) }), lazy));
   app.post("/api/billing/subscriptions/cancel", handler(async (s, req, res) => res.json({ success: true, ...await s.cancel(req.user) }), lazy));
   app.post("/api/billing/subscriptions/recover", handler(async (s, req, res) => res.json({ success: true, ...await s.startRecovery(req.user) }), lazy));

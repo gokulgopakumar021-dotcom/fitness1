@@ -50,8 +50,12 @@ export interface BillingStatus {
     verificationDebit: { amountPaise: number; refundedAutomatically: boolean };
   };
   plans: BillingPlan[];
-  /** True when a creator referral code can be applied at checkout (monthly plan only). */
-  referral?: { enabled: boolean };
+  /**
+   * `enabled`: a creator referral code can be applied at checkout (monthly plan only).
+   * `attributed`: this account already has an active creator attribution (for example from sign-up) and no monthly charge yet, so the
+   * discount applies to the monthly plan without typing a code. Display hint only: the server decides at checkout.
+   */
+  referral?: { enabled: boolean; attributed?: boolean };
   entitlement: { state: EntitlementState; hasAccess: boolean; accessEndsAt: string | null };
   subscription: PublicSubscription | null;
 }
@@ -183,6 +187,8 @@ export const createSubscription = (planKey: PlanKey, opts: { referralCode?: stri
     ...(opts.referralCode ? { referralCode: opts.referralCode } : {}),
     ...(opts.fullPriceToken ? { fullPriceToken: opts.fullPriceToken } : {})
   });
+/** Sign-up creator code. The answer is always the same plain success: it never says whether the code was accepted. */
+export const attributeReferral = (code: string) => post<{ success: true }>('/api/billing/referral/attribute', { code });
 export const verifySubscription = (cb: CheckoutCallback) =>
   post<VerifyResult & { success: true }>('/api/billing/subscriptions/verify', {
     razorpay_payment_id: cb.razorpay_payment_id,

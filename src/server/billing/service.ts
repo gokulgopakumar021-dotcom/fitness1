@@ -2,7 +2,7 @@ import { ApiError } from '../security/errors';
 import { logger } from '../security/logger';
 import type { AuthUser } from '../security/types';
 import { VERIFICATION_DEBIT_PAISE, type BillingConfig, type PlanKey } from './config';
-import { discountedFirstChargePaise, issueFullPriceToken, normaliseReferralCode, verifyFullPriceToken } from './referralDiscount';
+import { discountedFirstChargePaise, issueFullPriceToken, normaliseReferralCode, REFERRAL_CODE_PATTERN, verifyFullPriceToken } from './referralDiscount';
 import { BillingUnavailableError } from './diagnostics';
 import { hashEmail } from './emailHash';
 import { RazorpayError, type RazorpayGateway, type RzpPayment, type RzpSubscription } from './gateway';
@@ -223,6 +223,11 @@ export function createBillingService(deps: BillingServiceDeps) {
         if (eligibility !== 'eligible') return await choice(eligibility);
         if (!(await store.trialClaimAvailable(user.id, emailHash))) return await choice('trial_unavailable');
         wantOffer = true;
+      } else if (planKey === 'monthly' && config.referralOfferId && (await store.activeReferral(user.id))) {
+        // Already attributed at sign-up (or at an earlier checkout) and no monthly charge captured yet: the discount applies with no code
+        // typed. If it cannot be applied after this point, the same stop-and-choose flow as a typed code takes over. Never a silent full price.
+        if (!(await store.trialClaimAvailable(user.id, emailHash))) return await choice('trial_unavailable');
+        wantOffer = true;
       }
 
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -312,6 +317,25 @@ export function createBillingService(deps: BillingServiceDeps) {
       throw new ApiError(409, 'subscription_in_progress', 'Another subscription attempt is in progress. Please try again in a moment.');
     } catch (err) {
       throw toApiError(err, 'create_subscription');
+    }
+  }
+
+  /**
+   * Sign-up creator code. The user id is the verified token's, the body only carries the code. Every refusal (malformed, unknown or inactive
+   * code, self-referral, user already has billing, already attributed) looks identical to the caller, so codes cannot be guessed through
+   * this route. Only a database failure is an error, so the browser keeps the code for one more try.
+   */
+  async function attributeReferral(user: AuthUser, rawCode: unknown): Promise<void> {
+    requireConfigured();
+    const email = requireVerifiedEmail(user);
+    const code = typeof rawCode === 'string' ? normaliseReferralCode(rawCode) : undefined;
+    if (!code || !REFERRAL_CODE_PATTERN.test(code)) return;
+    const emailHash = hashEmail(email, config.trialPepper as string);
+    if (!emailHash) return;
+    try {
+      await store.attributeSignup(user.id, code, emailHash);
+    } catch (err) {
+      throw toApiError(err, 'referral_attribute');
     }
   }
 
@@ -560,6 +584,14 @@ export function createBillingService(deps: BillingServiceDeps) {
         }
       }
       const entitlement = await store.getEntitlement(user.id, config.pendingGraceHours);
+      let referralAttributed = false;
+      if (config.referralOfferId) {
+        try {
+          referralAttributed = await store.activeReferral(user.id);
+        } catch (err) {
+          logger.warn('billing_status_referral_failed', { op: err instanceof BillingStoreError ? err.op : 'other' }); // display only: a failed read hides the line, it never changes a price
+        }
+      }
       let trialEligible = false;
       const hash = user.emailVerified && user.email && config.trialDays > 0 ? hashEmail(user.email, config.trialPepper as string) : undefined;
       if (hash) trialEligible = await store.trialClaimAvailable(user.id, hash);
@@ -569,7 +601,7 @@ export function createBillingService(deps: BillingServiceDeps) {
         enforcement: config.enforcement,
         emailVerified: user.emailVerified,
         trial: { eligible: trialEligible, days: config.trialDays, firstChargePreviewAt: trialEligible ? firstChargePreview : null, verificationDebit: { amountPaise: VERIFICATION_DEBIT_PAISE, refundedAutomatically: true /* legacy API field: NOT a verified claim and not displayed by the UI (Stage 4) */ } },
-        referral: { enabled: !!config.referralOfferId },
+        referral: { enabled: !!config.referralOfferId, attributed: referralAttributed },
         plans: (['monthly', 'annual'] as const).map((k) => ({ key: k, amountPaise: config.plans[k].amountPaise, currency: 'INR', billingPeriod: config.plans[k].period, interval: config.plans[k].interval })),
         entitlement: { state: entitlement.state, hasAccess: entitlement.has_access, accessEndsAt: entitlement.access_ends_at },
         subscription: latest ? toPublicSubscription(latest) : null
@@ -727,6 +759,6 @@ export function createBillingService(deps: BillingServiceDeps) {
     return { state: e.state, hasAccess: e.has_access };
   }
 
-  return { checkEntitlement, createSubscription, verifyAuthorization, cancel, getStatus, listPayments, handleWebhook, reconcileRow, reconcileBatch, startRecovery, deletionCheck, prepareDeletion };
+  return { checkEntitlement, createSubscription, attributeReferral, verifyAuthorization, cancel, getStatus, listPayments, handleWebhook, reconcileRow, reconcileBatch, startRecovery, deletionCheck, prepareDeletion };
 }
 export type BillingService = ReturnType<typeof createBillingService>;

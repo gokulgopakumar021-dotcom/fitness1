@@ -13,6 +13,9 @@ const h = vi.hoisted(() => {
   return state;
 });
 
+const refApi = vi.hoisted(() => ({ attributeReferral: vi.fn() }));
+vi.mock('../../lib/billingApi', async (orig) => ({ ...(await orig<typeof import('../../lib/billingApi')>()), ...refApi }));
+
 vi.mock('../../lib/supabase', async (orig) => {
   const real = await orig<typeof import('../../lib/supabase')>();
   return { ...real, getSupabase: () => (h.cfg.ok ? h.client : null), getSupabaseConfigStatus: () => h.cfg };
@@ -24,6 +27,8 @@ import { SettingsView } from '../settings/SettingsView';
 import { db, DEFAULT_PROFILE } from '../../storage/db';
 import { SIGNED_OUT_SCOPE, getStorageScope, scopedKey, setStorageScope } from '../../storage/storageScope';
 import { LEGAL } from '../../legal/legalConfig';
+import { BillingApiError } from '../../lib/billingApi';
+import { readPendingCreatorCode, REFERRAL_STORAGE_KEY, storePendingCreatorCode } from '../../lib/referralSignup';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -535,5 +540,130 @@ describe('AuthContext.signUp refuses to call Supabase without BOTH declarations 
     const data = h.client.auth.signUp.mock.calls[0][0].options.data;
     expect(data.age_declaration).toEqual({ adult_18_plus: true });
     expect(JSON.stringify(data)).not.toMatch(/birth|dob|"age"/i);
+  });
+});
+
+describe('creator code at sign-up', () => {
+  const verified = (id: string) => { const s = session(id, 'Al'); return { user: { ...s.user, email_confirmed_at: '2026-11-25T00:00:00Z' } }; };
+  const fillValid = async () => {
+    await type('Full name', 'Al Lifter');
+    await type('Email', 'al@example.com');
+    await type('Password', 'goodpass1');
+    await type('Confirm password', 'goodpass1');
+    await acceptLegal();
+    await confirmAdult();
+  };
+  const codeInput = () => {
+    const l = Array.from(container.querySelectorAll('label')).find((x) => x.textContent === 'Creator code (optional)') as HTMLLabelElement | undefined;
+    return l ? (container.querySelector(`#${CSS.escape(l.htmlFor)}`) as HTMLInputElement) : null;
+  };
+  beforeEach(() => {
+    refApi.attributeReferral.mockReset();
+    refApi.attributeReferral.mockResolvedValue({ success: true });
+    window.history.replaceState({}, '', '/');
+  });
+  afterEach(() => { window.history.replaceState({}, '', '/'); });
+
+  it('the sign-up form has an optional, empty, non-required creator code field', async () => {
+    await mountApp();
+    await emit('INITIAL_SESSION', null);
+    await click('Create account');
+    const el = codeInput()!;
+    expect(el).not.toBeNull();
+    expect(el.value).toBe('');
+    expect(el.required).toBe(false);
+  });
+
+  it('a ?ref= link prefills the field in uppercase', async () => {
+    window.history.replaceState({}, '', '/?ref=creator20');
+    await mountApp();
+    await emit('INITIAL_SESSION', null);
+    await click('Create account');
+    expect(codeInput()!.value).toBe('CREATOR20');
+    expect(readPendingCreatorCode()).toBe('CREATOR20');
+  });
+
+  it('a ?ref= link is not remembered for an already signed-in session', async () => {
+    window.history.replaceState({}, '', '/?ref=creator20');
+    await mountApp();
+    await emit('INITIAL_SESSION', verified(A));
+    expect(readPendingCreatorCode()).toBeUndefined();
+    expect(refApi.attributeReferral).not.toHaveBeenCalled();
+  });
+
+  it('a wrong code never blocks account creation and shows no message about the code', async () => {
+    await mountApp();
+    await emit('INITIAL_SESSION', null);
+    await click('Create account');
+    await fillValid();
+    await type('Creator code (optional)', 'zzzz9999');
+    await submit();
+    expect(h.client.auth.signUp).toHaveBeenCalledTimes(1);
+    expect(text()).toContain('Check your email');
+    expect(text().toLowerCase()).not.toMatch(/invalid code|code was not|not accepted/);
+    expect(readPendingCreatorCode()).toBe('ZZZZ9999'); // kept in the browser only; nothing was sent yet
+    expect(refApi.attributeReferral).not.toHaveBeenCalled();
+  });
+
+  it('a malformed or empty field stores nothing and still creates the account', async () => {
+    storePendingCreatorCode('OLDCODE1');
+    await mountApp();
+    await emit('INITIAL_SESSION', null);
+    await click('Create account');
+    await fillValid();
+    await type('Creator code (optional)', '');
+    await submit();
+    expect(h.client.auth.signUp).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem(REFERRAL_STORAGE_KEY)).toBeNull();
+  });
+
+  it('after the verified session arrives the code is sent once, cleared, and the app opens', async () => {
+    await mountApp();
+    await emit('INITIAL_SESSION', null);
+    await click('Create account');
+    await fillValid();
+    await type('Creator code (optional)', 'creator20');
+    await submit();
+    await emit('SIGNED_IN', verified(A));
+    expect(refApi.attributeReferral).toHaveBeenCalledTimes(1);
+    expect(refApi.attributeReferral).toHaveBeenCalledWith('CREATOR20');
+    expect(readPendingCreatorCode()).toBeUndefined();
+    expect(text()).toContain('PRIVATE:');
+  });
+
+  it('an unverified session sends nothing and keeps the code', async () => {
+    storePendingCreatorCode('CREATOR20');
+    await mountApp();
+    await emit('INITIAL_SESSION', session(A, 'Al'));
+    expect(refApi.attributeReferral).not.toHaveBeenCalled();
+    expect(readPendingCreatorCode()).toBe('CREATOR20');
+    expect(text()).toContain('PRIVATE:');
+  });
+
+  it('a server failure never blocks the app; the code is kept for one more try', async () => {
+    storePendingCreatorCode('CREATOR20');
+    refApi.attributeReferral.mockRejectedValue(new BillingApiError(503, 'billing_unavailable', 'x'));
+    await mountApp();
+    await emit('INITIAL_SESSION', verified(A));
+    expect(text()).toContain('PRIVATE:');
+    expect(readPendingCreatorCode()).toBe('CREATOR20');
+  });
+
+  it('a slow server does not hold the app back beyond the wait limit', async () => {
+    vi.useFakeTimers();
+    storePendingCreatorCode('CREATOR20');
+    refApi.attributeReferral.mockImplementation(() => new Promise(() => {}));
+    await mountApp();
+    await emit('INITIAL_SESSION', verified(A));
+    expect(text()).not.toContain('PRIVATE:');
+    await act(async () => { vi.advanceTimersByTime(4100); });
+    expect(text()).toContain('PRIVATE:');
+  });
+
+  it('with no stored code the server is never called', async () => {
+    await mountApp();
+    await emit('INITIAL_SESSION', verified(A));
+    expect(refApi.attributeReferral).not.toHaveBeenCalled();
+    expect(text()).toContain('PRIVATE:');
   });
 });

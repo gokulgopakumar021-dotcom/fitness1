@@ -34,6 +34,14 @@ export interface BillingStore {
    * ever been captured. The INR 5 authorization payment is kind 'authorization' and never counts. Call BEFORE beginSubscription.
    */
   referralEligibility(userId: string, code: string, emailHash: string): Promise<ReferralEligibility>;
+  /**
+   * Records a creator-code attribution at sign-up through the existing first-touch function (source 'signup'). Every outcome
+   * (attributed, existing, unknown or inactive code, self-referral, user already has billing) resolves the same way: the caller
+   * must never learn which one it was. Only a database failure throws.
+   */
+  attributeSignup(userId: string, code: string, emailHash: string): Promise<void>;
+  /** True when this user has an active attribution and no monthly charge has ever been captured or refunded. Read-only; no code needed. */
+  activeReferral(userId: string): Promise<boolean>;
   beginSubscription(args: BeginSubscriptionArgs): Promise<BeginSubscriptionResult>;
   getForUser(userId: string, id: string): Promise<SubscriptionRow | null>;
   getLiveForUser(userId: string): Promise<SubscriptionRow | null>;
@@ -85,6 +93,14 @@ export function createSupabaseBillingStore(config: Pick<BillingConfig, 'supabase
 
   const LIVE_LIST = '(creating,created,authenticated,active,pending,halted)';
 
+  /** Active attribution and no captured or refunded monthly charge yet (the INR 5 authorization is kind 'authorization' and never counts). */
+  const attributionUsable = async (userId: string): Promise<boolean> => {
+    const attr = (await one('referral_status', db.from('referral_attributions').select('status').eq('referred_user_id', userId).limit(1))) as { status: string } | null;
+    if (!attr || attr.status !== 'active') return false;
+    const paid = await one('referral_used', db.from('billing_payments').select('id, billing_subscriptions!inner(plan_key)').eq('user_id', userId).eq('kind', 'charge').in('status', ['captured', 'refunded']).eq('billing_subscriptions.plan_key', 'monthly').limit(1));
+    return !paid;
+  };
+
   return {
     async getEntitlement(userId, graceHours) {
       const r = await rpcOne<Entitlement>('entitlement', 'billing_get_entitlement', { p_user_id: userId, p_pending_grace_hours: graceHours });
@@ -104,10 +120,16 @@ export function createSupabaseBillingStore(config: Pick<BillingConfig, 'supabase
       if (!r) throw new BillingStoreError('referral_attribute');
       if (r.outcome === 'rejected_unknown_code' || r.outcome === 'rejected_inactive_partner' || r.outcome === 'rejected_self_referral') return 'invalid_code';
       if (r.outcome !== 'attributed' && r.outcome !== 'existing') return 'not_eligible';
-      const attr = (await one('referral_status', db.from('referral_attributions').select('status').eq('referred_user_id', userId).limit(1))) as { status: string } | null;
-      if (!attr || attr.status !== 'active') return 'not_eligible';
-      const paid = await one('referral_used', db.from('billing_payments').select('id, billing_subscriptions!inner(plan_key)').eq('user_id', userId).eq('kind', 'charge').in('status', ['captured', 'refunded']).eq('billing_subscriptions.plan_key', 'monthly').limit(1));
-      return paid ? 'not_eligible' : 'eligible';
+      return (await attributionUsable(userId)) ? 'eligible' : 'not_eligible';
+    },
+
+    async attributeSignup(userId, code, emailHash) {
+      const r = await rpcOne<{ outcome: string }>('referral_attribute', 'referral_attribute_user', { p_user_id: userId, p_code: code, p_email_hash: emailHash, p_source: 'signup', p_risk_flags: [] });
+      if (!r) throw new BillingStoreError('referral_attribute');
+    },
+
+    async activeReferral(userId) {
+      return attributionUsable(userId);
     },
 
     async beginSubscription(a) {
