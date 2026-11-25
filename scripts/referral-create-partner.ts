@@ -1,11 +1,12 @@
 // Creates and manages creator (referral partner) codes through the existing admin SQL functions.
-//   npx tsx scripts/referral-create-partner.ts create --name "Rahul Fitness" [--code RAHUL20] [--rate 20] [--user <app user uuid>] [--dry-run]
+//   npx tsx scripts/referral-create-partner.ts create --name "Rahul Fitness" [--code RAHUL20 | --random] [--rate 20] [--user <app user uuid>] [--dry-run]
 //   npx tsx scripts/referral-create-partner.ts list
 //   npx tsx scripts/referral-create-partner.ts status --code RAHUL20 --to suspended|active|terminated
 //   npx tsx scripts/referral-create-partner.ts rate --code RAHUL20 --rate 15
 // Needs in .env (or the shell): SUPABASE_URL (or VITE_SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY, REFERRAL_ADMIN_USER_ID.
 // REFERRAL_ADMIN_USER_ID must already be a row in public.app_admins; the database re-checks it on every call and audits it.
-// Without --code a random 8-character code is generated (letters and digits, no look-alikes), so codes are hard to guess.
+// Without --code the code is made from the creator's name: "Rahul Fitness" -> RAHULFITNESS (letters and digits only, max 20).
+// If that code is taken, a number is added (RAHULFITNESS2, RAHULFITNESS3, ...). Add --random for a hard-to-guess random code instead.
 // --rate is the creator's commission in percent (default 20). The customer's discount is the Razorpay offer, not this.
 // Terminated is permanent. Codes can never be edited or deleted. Output has no keys or secrets.
 import 'dotenv/config';
@@ -42,6 +43,11 @@ function randomCode(length = 8): string {
   return out;
 }
 
+function codeFromName(name: string, suffix = ''): string {
+  const base = name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return base.slice(0, 20 - suffix.length) + suffix;
+}
+
 function ratePercentToBps(raw: string | undefined): number {
   if (raw === undefined) return 2000;
   const pct = Number(raw);
@@ -51,7 +57,7 @@ function ratePercentToBps(raw: string | undefined): number {
 
 const { command, flags } = parse(process.argv.slice(2));
 if (!['create', 'list', 'status', 'rate'].includes(command)) {
-  fail('Usage: create --name "..." [--code X] [--rate 20] [--user uuid] [--dry-run] | list | status --code X --to active|suspended|terminated | rate --code X --rate 15');
+  fail('Usage: create --name "..." [--code X | --random] [--rate 20] [--user uuid] [--dry-run] | list | status --code X --to active|suspended|terminated | rate --code X --rate 15');
 }
 
 const url = (process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '').trim();
@@ -82,14 +88,21 @@ if (command === 'create') {
   const given = flags.get('code')?.trim().toUpperCase();
   if (given !== undefined && !CODE_RE.test(given)) fail('--code must be 4 to 20 characters, uppercase letters and digits only.');
 
+  const random = flags.get('random') === 'true';
+  if (given !== undefined && random) fail('Use either --code or --random, not both.');
+  if (given === undefined && !random && codeFromName(name).length < 4) {
+    fail('That name has fewer than 4 letters or digits, so no code can be made from it. Pass --code, or use --random.');
+  }
+
   if (dryRun) {
-    console.log(`DRY RUN against ${projectHost}: would create "${name}" code ${given ?? '(random)'} at ${bps / 100}% commission. Nothing was written.`);
+    console.log(`DRY RUN against ${projectHost}: would create "${name}" code ${given ?? (flags.get('random') === 'true' ? '(random)' : codeFromName(name) || '(none: name too short)')} at ${bps / 100}% commission. Nothing was written.`);
     process.exit(0);
   }
 
-  // A generated code retries on the rare collision; a code you chose never retries.
-  for (let attempt = 0; attempt < (given ? 1 : 5); attempt++) {
-    const code = given ?? randomCode();
+  // Order of tries: your --code (once); a name-based code, then CODE2, CODE3, ...; or random codes with --random.
+  const maxTries = given ? 1 : random ? 5 : 30;
+  for (let attempt = 0; attempt < maxTries; attempt++) {
+    const code = given ?? (random ? randomCode() : codeFromName(name, attempt === 0 ? '' : String(attempt + 1)));
     const { data, error } = await db.rpc('referral_admin_create_partner', {
       p_actor: adminId,
       p_user_id: userId ?? null,
@@ -108,13 +121,14 @@ if (command === 'create') {
       process.exit(0);
     }
     if (error.code === '23505') {
-      if (given) fail(`Code ${code} is already taken (or that app user is already a partner).`);
+      if (error.message.includes('user_id')) fail('That app user is already a creator.');
+      if (given) fail(`Code ${code} is already taken.`);
       continue;
     }
     if (error.code === '42501') fail('REFERRAL_ADMIN_USER_ID is not an admin. Insert it into public.app_admins first.');
     fail(`Create failed (${error.code ?? 'no code'}): ${error.message}${error.message.toLowerCase().includes('api key') || String((error as { status?: number }).status) === '401' ? ' -- the SUPABASE_SERVICE_ROLE_KEY in .env was rejected by this project.' : ''}`);
   }
-  fail('Could not find a free random code after 5 tries; run again.');
+  fail('Could not find a free code after several tries. Pass --code, or run again.');
 }
 
 if (command === 'list') {
