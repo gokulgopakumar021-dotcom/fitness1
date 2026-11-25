@@ -168,7 +168,7 @@ describe('after the cause is fixed', () => {
     const r = await create();
     const j = await r.json();
     expect(r.status).toBe(200);
-    expect(j).toMatchObject({ success: true, planKey: 'monthly', amountPaise: 29900, currency: 'INR', trialEligible: true, trialDays: 3 });
+    expect(j).toMatchObject({ success: true, planKey: 'monthly', amountPaise: 39900, currency: 'INR', trialEligible: true, trialDays: 3 });
     expect(r.headers.get('x-request-id')).toBeTruthy();
     expect(gateway.created).toHaveLength(1);
     // Creating a checkout never activates anything by itself: access still requires Razorpay-confirmed authorization.

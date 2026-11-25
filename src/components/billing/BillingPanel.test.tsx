@@ -121,7 +121,7 @@ describe('BillingPanel: subscribing', () => {
     await click(startButton());
 
     expect(api.createSubscription).toHaveBeenCalledTimes(1);
-    expect(api.createSubscription).toHaveBeenCalledWith('monthly'); // plan KEY only: never an amount, plan id or user id
+    expect(api.createSubscription).toHaveBeenCalledWith('monthly', {}); // plan KEY only: never an amount, plan id or user id
     expect(checkout.openSubscriptionCheckout).toHaveBeenCalledWith(expect.objectContaining({ keyId: 'rzp_test_key', subscriptionId: 'sub_ABC123456', email: 'me@example.com' }));
     expect(api.verifySubscription).toHaveBeenCalledWith(callback);
     expect(text()).toContain('Authorisation confirmed');
@@ -136,7 +136,7 @@ describe('BillingPanel: subscribing', () => {
     await click(container.querySelector('input[value="annual"]'));
     await agree();
     await click(startButton());
-    expect(api.createSubscription).toHaveBeenCalledWith('annual');
+    expect(api.createSubscription).toHaveBeenCalledWith('annual', {});
   });
 
   it('does not treat the Checkout callback as success: a server refusal shows an error and no success state', async () => {

@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { BRAND } from '../../brand';
 import {
   BillingApiError, cancelSubscription, createSubscription, fetchBillingPayments, fetchBillingStatus, startRecovery, verifySubscription,
-  type BillingPayment, type BillingStatus, type CheckoutCallback, type PlanKey
+  type BillingPayment, type BillingStatus, type CheckoutCallback, type DiscountChoice, type PlanKey
 } from '../../lib/billingApi';
 import { openSubscriptionCheckout } from '../../lib/razorpayCheckout';
 import { formatDate, formatInr, intervalWord, panelState, planName, sameLocalDay } from '../../utils/billingPresentation';
@@ -55,6 +55,10 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
   const [flow, setFlow] = useState<Flow>({ phase: 'idle' });
   /** Set when the server's exact first-charge date differs from the date that was disclosed: re-disclose before Checkout. */
   const [correctedDate, setCorrectedDate] = useState<string | null>(null);
+  /** Creator referral code typed by the customer (monthly plan only; the server validates it). */
+  const [referralCode, setReferralCode] = useState('');
+  /** Set when the server could not apply the discount: nothing was created and the customer must choose. */
+  const [discountChoice, setDiscountChoice] = useState<DiscountChoice | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -210,13 +214,22 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
     }
   };
 
-  const startCheckout = async () => {
+  const startCheckout = async (fullPriceToken?: string) => {
     if (!plan || !agreed || busy || submitting.current) return;
     submitting.current = true;
     setFlow({ phase: 'creating' });
+    setDiscountChoice(null);
     try {
-      const created = await createSubscription(plan.key);
+      const code = plan.key === 'monthly' && status?.referral?.enabled !== false ? referralCode.trim() : '';
+      const result = await createSubscription(plan.key, { ...(code ? { referralCode: code } : {}), ...(fullPriceToken ? { fullPriceToken } : {}) });
       if (!mounted.current) return;
+      if ('discountUnavailable' in result) {
+        // Nothing was charged or created. The customer chooses: fix the code and retry, or explicitly continue at the full price.
+        setDiscountChoice(result);
+        setFlow({ phase: 'idle' });
+        return;
+      }
+      const created = result;
       // What the server actually set up must match what was just disclosed. If anything differs, show the corrected terms and
       // ask again instead of opening Checkout on terms the person has not seen.
       const moved =
@@ -358,7 +371,41 @@ export const BillingPanel: React.FC<Props> = ({ verifyDelaysMs = DEFAULT_VERIFY_
           title={state === 'trial_expired' || state === 'cancelled' ? 'Subscribe again' : 'Choose a plan'}
           description={status.trial.eligible ? `Includes a ${status.trial.days}-day trial. Review the billing details before you continue.` : 'Review the billing details before you continue.'}
         >
-          <PlanPicker plans={status.plans} value={planKey} onChange={(k) => { setPlanKey(k); setAgreed(false); setCorrectedDate(null); }} disabled={busy} />
+          <PlanPicker plans={status.plans} value={planKey} onChange={(k) => { setPlanKey(k); setAgreed(false); setCorrectedDate(null); setDiscountChoice(null); }} disabled={busy} />
+          {plan.key === 'monthly' && status.referral?.enabled && (
+            <div className="space-y-1">
+              <label htmlFor="referral-code" className="text-label text-zinc-400">Creator code (optional)</label>
+              <input
+                id="referral-code"
+                value={referralCode}
+                onChange={(e) => { setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20)); setDiscountChoice(null); }}
+                disabled={busy}
+                autoComplete="off"
+                maxLength={20}
+                className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm text-zinc-100"
+              />
+              {referralCode.trim() !== '' && (
+                <p className="text-label text-zinc-400">
+                  With a valid code, 20% off your first monthly charge after the trial ({formatInr(Math.round(plan.amountPaise * 0.8))}), then {formatInr(plan.amountPaise)} per month. The {formatInr(verificationDebit)} verification payment is not discounted.
+                </p>
+              )}
+            </div>
+          )}
+          {discountChoice && (
+            <div role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-2">
+              <p className="text-sm text-zinc-100">
+                {discountChoice.reason === 'invalid_code' ? 'That creator code was not accepted.'
+                  : discountChoice.reason === 'trial_unavailable' ? 'The creator discount applies to new trials, and a trial is not available for this account.'
+                  : discountChoice.reason === 'not_eligible' ? 'This account is not eligible for the creator discount.'
+                  : 'The creator discount could not be applied right now.'}{' '}
+                Nothing has been charged. You can try again with the discount, or continue at the full price of {formatInr(discountChoice.fullPricePaise)} per month.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button variant="secondary" onClick={() => void startCheckout()} disabled={busy}>Try again with the discount</Button>
+                <Button onClick={() => void startCheckout(discountChoice.fullPriceToken)} disabled={busy}>Continue at {formatInr(discountChoice.fullPricePaise)}</Button>
+              </div>
+            </div>
+          )}
           <Disclosure
             plan={plan}
             trialEligible={status.trial.eligible}

@@ -53,9 +53,11 @@ describe('billing client guards', () => {
     }
   });
 
-  it('billing wire calls send a plan key only and use no client-side amounts', () => {
+  it('billing wire calls send a plan key (plus optional creator code / server token) and use no client-side amounts', () => {
     const api = strip(read('src/lib/billingApi.ts'));
-    expect(api).toMatch(/createSubscription = \(planKey: PlanKey\) => post<[^>]*>\('\/api\/billing\/subscriptions', \{ planKey \}\)/);
+    // The body carries the plan key plus, optionally, a creator code and a server-issued full-price token. Never an amount, plan id or user id.
+    expect(api).toMatch(/createSubscription = \(planKey: PlanKey, opts: \{ referralCode\?: string; fullPriceToken\?: string \} = \{\}\)/);
+    expect(api).toMatch(/'\/api\/billing\/subscriptions', \{\s*planKey,/);
     expect(api).not.toMatch(/amount_paise|amountPaise:\s*\w+\s*[,}]\s*\)/);
   });
 

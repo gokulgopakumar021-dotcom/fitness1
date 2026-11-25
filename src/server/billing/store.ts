@@ -5,6 +5,8 @@ import type {
   SubStatus, WebhookEventArgs, WebhookGate, WebhookOutcome
 } from './types';
 
+export type ReferralEligibility = 'eligible' | 'invalid_code' | 'not_eligible';
+
 /** Thrown for any database failure. The message is static: PostgREST errors can carry table, column and constraint names. */
 export class BillingStoreError extends Error {
   constructor(
@@ -26,6 +28,12 @@ export class BillingStoreError extends Error {
 export interface BillingStore {
   getEntitlement(userId: string, graceHours: number): Promise<Entitlement>;
   trialClaimAvailable(userId: string, emailHash: string): Promise<boolean>;
+  /**
+   * Validates a creator code through the existing first-touch attribution function (unknown, inactive and self-referral codes and
+   * users who already have billing are refused there), then checks the attribution is active and that no monthly charge has
+   * ever been captured. The INR 5 authorization payment is kind 'authorization' and never counts. Call BEFORE beginSubscription.
+   */
+  referralEligibility(userId: string, code: string, emailHash: string): Promise<ReferralEligibility>;
   beginSubscription(args: BeginSubscriptionArgs): Promise<BeginSubscriptionResult>;
   getForUser(userId: string, id: string): Promise<SubscriptionRow | null>;
   getLiveForUser(userId: string): Promise<SubscriptionRow | null>;
@@ -89,6 +97,17 @@ export function createSupabaseBillingStore(config: Pick<BillingConfig, 'supabase
       if (byHash && !(byHash.state === 'reserved' && (byHash.user_id === null || byHash.user_id === userId))) return false;
       const consumed = await one('claim_by_user', db.from('billing_trial_claims').select('email_hash').eq('user_id', userId).eq('state', 'consumed').limit(1));
       return consumed === null;
+    },
+
+    async referralEligibility(userId, code, emailHash) {
+      const r = await rpcOne<{ outcome: string }>('referral_attribute', 'referral_attribute_user', { p_user_id: userId, p_code: code, p_email_hash: emailHash, p_source: 'checkout', p_risk_flags: [] });
+      if (!r) throw new BillingStoreError('referral_attribute');
+      if (r.outcome === 'rejected_unknown_code' || r.outcome === 'rejected_inactive_partner' || r.outcome === 'rejected_self_referral') return 'invalid_code';
+      if (r.outcome !== 'attributed' && r.outcome !== 'existing') return 'not_eligible';
+      const attr = (await one('referral_status', db.from('referral_attributions').select('status').eq('referred_user_id', userId).limit(1))) as { status: string } | null;
+      if (!attr || attr.status !== 'active') return 'not_eligible';
+      const paid = await one('referral_used', db.from('billing_payments').select('id, billing_subscriptions!inner(plan_key)').eq('user_id', userId).eq('kind', 'charge').in('status', ['captured', 'refunded']).eq('billing_subscriptions.plan_key', 'monthly').limit(1));
+      return paid ? 'not_eligible' : 'eligible';
     },
 
     async beginSubscription(a) {

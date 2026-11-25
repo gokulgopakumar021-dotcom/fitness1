@@ -864,6 +864,16 @@ function createSupabaseBillingStore(config, client) {
       const consumed = await one("claim_by_user", db.from("billing_trial_claims").select("email_hash").eq("user_id", userId).eq("state", "consumed").limit(1));
       return consumed === null;
     },
+    async referralEligibility(userId, code, emailHash) {
+      const r = await rpcOne("referral_attribute", "referral_attribute_user", { p_user_id: userId, p_code: code, p_email_hash: emailHash, p_source: "checkout", p_risk_flags: [] });
+      if (!r) throw new BillingStoreError("referral_attribute");
+      if (r.outcome === "rejected_unknown_code" || r.outcome === "rejected_inactive_partner" || r.outcome === "rejected_self_referral") return "invalid_code";
+      if (r.outcome !== "attributed" && r.outcome !== "existing") return "not_eligible";
+      const attr = await one("referral_status", db.from("referral_attributions").select("status").eq("referred_user_id", userId).limit(1));
+      if (!attr || attr.status !== "active") return "not_eligible";
+      const paid = await one("referral_used", db.from("billing_payments").select("id, billing_subscriptions!inner(plan_key)").eq("user_id", userId).eq("kind", "charge").in("status", ["captured", "refunded"]).eq("billing_subscriptions.plan_key", "monthly").limit(1));
+      return paid ? "not_eligible" : "eligible";
+    },
     async beginSubscription(a) {
       const r = await rpcOne("begin_subscription", "billing_begin_subscription", {
         p_user_id: a.userId,
@@ -1111,12 +1121,12 @@ function loose(opts = {}) {
 }
 function object(shape, refine) {
   return (v, path) => {
-    const body = absent(v) ? {} : v;
-    if (typeof body !== "object" || Array.isArray(body)) return bad(path, "must be a JSON object");
+    const body2 = absent(v) ? {} : v;
+    if (typeof body2 !== "object" || Array.isArray(body2)) return bad(path, "must be a JSON object");
     const out = {};
     const issues = [];
     for (const [key, validator] of Object.entries(shape)) {
-      const r = validator(body[key], key);
+      const r = validator(body2[key], key);
       if (!r.ok) issues.push(...r.issues);
       else if (r.value !== void 0) out[key] = r.value;
     }
@@ -1127,12 +1137,12 @@ function object(shape, refine) {
 var EXTRACT_MIME_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/webp", "text/plain", "text/csv"];
 var MAX_FILE_BYTES = 10 * 1024 * 1024;
 var BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
-function base64DecodedLength(b64) {
-  const pad = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
-  return b64.length / 4 * 3 - pad;
+function base64DecodedLength(b642) {
+  const pad = b642.endsWith("==") ? 2 : b642.endsWith("=") ? 1 : 0;
+  return b642.length / 4 * 3 - pad;
 }
-function checkFileSignature(b64, mime) {
-  const head = Buffer.from(b64.slice(0, 64), "base64");
+function checkFileSignature(b642, mime) {
+  const head = Buffer.from(b642.slice(0, 64), "base64");
   const startsWith = (...bytes) => bytes.every((b, i) => head[i] === b);
   switch (mime) {
     case "application/pdf":
@@ -1144,7 +1154,7 @@ function checkFileSignature(b64, mime) {
     case "image/webp":
       return head.subarray(0, 4).toString("latin1") === "RIFF" && head.subarray(8, 12).toString("latin1") === "WEBP" ? null : "content does not look like a WebP image";
     default: {
-      const sample = Buffer.from(b64.slice(0, 1368), "base64");
+      const sample = Buffer.from(b642.slice(0, 1368), "base64");
       return sample.includes(0) ? "content does not look like text" : null;
     }
   }
@@ -1290,9 +1300,11 @@ function loadBillingConfig(env = process.env) {
     return { key, razorpayPlanId, amountPaise, period, interval: 1, totalCount };
   };
   const plans = {
-    monthly: mk("monthly", "RAZORPAY_PLAN_ID_MONTHLY", "BILLING_PRICE_MONTHLY_PAISE", 29900, "BILLING_TOTAL_COUNT_MONTHLY", 120, "monthly"),
+    monthly: mk("monthly", "RAZORPAY_PLAN_ID_MONTHLY", "BILLING_PRICE_MONTHLY_PAISE", 39900, "BILLING_TOTAL_COUNT_MONTHLY", 120, "monthly"),
     annual: mk("annual", "RAZORPAY_PLAN_ID_ANNUAL", "BILLING_PRICE_ANNUAL_PAISE", 149900, "BILLING_TOTAL_COUNT_ANNUAL", 10, "yearly")
   };
+  const referralOfferId = clean(env.RAZORPAY_OFFER_ID_REFERRAL);
+  if (referralOfferId && !/^offer_[A-Za-z0-9]{6,40}$/.test(referralOfferId)) problems.push("RAZORPAY_OFFER_ID_REFERRAL must be a Razorpay offer id (offer_...).");
   const trialDays = int(env.BILLING_TRIAL_DAYS, 3);
   const authWindowMinutes = int(env.BILLING_AUTH_WINDOW_MINUTES, 30);
   const pendingGraceHours = int(env.BILLING_PENDING_GRACE_HOURS, 0);
@@ -1315,6 +1327,7 @@ function loadBillingConfig(env = process.env) {
     supabaseUrl,
     serviceRoleKey,
     plans,
+    referralOfferId,
     trialDays,
     authWindowMinutes,
     pendingGraceHours,
@@ -1335,12 +1348,24 @@ var pattern = (re, label, max) => {
     return re.test(r.value) ? r : { ok: false, issues: [`${path}: is not a valid ${label}`] };
   };
 };
+var optionalPattern = (re, label, max) => {
+  const t3 = text({ max, required: false });
+  return (v, path) => {
+    const r = t3(v, path);
+    if (!r.ok || r.value === void 0) return r;
+    return re.test(r.value) ? r : { ok: false, issues: [`${path}: is not a valid ${label}`] };
+  };
+};
 var optionalBool = (v, path) => {
   if (v === void 0 || v === null) return { ok: true, value: void 0 };
   return typeof v === "boolean" ? { ok: true, value: v } : { ok: false, issues: [`${path}: must be true or false`] };
 };
 var billingSchemas = {
-  createSubscription: object({ planKey: oneOf(PLAN_KEYS, { required: true }) }),
+  createSubscription: object({
+    planKey: oneOf(PLAN_KEYS, { required: true }),
+    referralCode: optionalPattern(/^[A-Za-z0-9]{4,20}$/, "referral code", 20),
+    fullPriceToken: optionalPattern(/^[A-Za-z0-9_-]{20,400}\.[A-Za-z0-9_-]{20,100}$/, "token", 500)
+  }),
   verifySubscription: object({
     razorpay_payment_id: pattern(RZP_PAY, "payment id", 64),
     razorpay_subscription_id: pattern(RZP_SUB, "subscription id", 64),
@@ -1430,14 +1455,48 @@ function createEntitlementGate(opts) {
   };
 }
 
+// src/server/billing/referralDiscount.ts
+import { createHmac, timingSafeEqual } from "node:crypto";
+var REFERRAL_DISCOUNT_BPS = 2e3;
+var REFERRAL_TOKEN_TTL_MS = 10 * 6e4;
+var discountedFirstChargePaise = (planAmountPaise) => planAmountPaise - Math.round(planAmountPaise * REFERRAL_DISCOUNT_BPS / 1e4);
+var normaliseReferralCode = (raw) => {
+  const c = (raw ?? "").trim().toUpperCase();
+  return c === "" ? void 0 : c;
+};
+var b64 = (s) => Buffer.from(s, "utf8").toString("base64url");
+var sign = (secret, payload) => createHmac("sha256", `${secret}:referral-full-price-v1`).update(payload).digest("base64url");
+var body = (b, exp) => [b.userId, b.planKey, b.amountPaise, b.latestRowId, exp].join("|");
+function issueFullPriceToken(secret, b, nowMs) {
+  const payload = body(b, nowMs + REFERRAL_TOKEN_TTL_MS);
+  return `${b64(payload)}.${sign(secret, payload)}`;
+}
+function verifyFullPriceToken(secret, token, expected, nowMs) {
+  const [p, sig] = token.split(".");
+  if (!p || !sig || token.split(".").length !== 2) return false;
+  let payload;
+  try {
+    payload = Buffer.from(p, "base64url").toString("utf8");
+  } catch {
+    return false;
+  }
+  const want = Buffer.from(sign(secret, payload));
+  const got = Buffer.from(sig);
+  if (want.length !== got.length || !timingSafeEqual(want, got)) return false;
+  const parts = payload.split("|");
+  const exp = Number(parts[4]);
+  if (parts.length !== 5 || !Number.isFinite(exp) || nowMs > exp) return false;
+  return parts.slice(0, 4).join("|") === body(expected, exp).split("|").slice(0, 4).join("|");
+}
+
 // src/server/billing/signature.ts
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac as createHmac2, timingSafeEqual as timingSafeEqual2 } from "node:crypto";
 var HEX = /^[0-9a-f]{64}$/i;
-var hmacSha256Hex = (secret, data) => createHmac("sha256", secret).update(data).digest("hex");
+var hmacSha256Hex = (secret, data) => createHmac2("sha256", secret).update(data).digest("hex");
 var sha256Hex = (data) => createHash("sha256").update(data).digest("hex");
 function safeEqualHex(a, b) {
   if (typeof a !== "string" || typeof b !== "string" || !HEX.test(a) || !HEX.test(b)) return false;
-  return timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
+  return timingSafeEqual2(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
 }
 function verifyPaymentSignature(args) {
   const { paymentId, subscriptionId, signature, keySecret } = args;
@@ -1619,7 +1678,7 @@ function createBillingService(deps) {
     }
     planChecked.set(plan.razorpayPlanId, clock());
   }
-  function checkoutResult(row, rzpId, planKey, trialEligible, trialEndAt, expireBy, reused) {
+  function checkoutResult(row, rzpId, planKey, trialEligible, trialEndAt, expireBy, reused, discounted = false) {
     const plan = config.plans[planKey];
     return {
       subscriptionId: rzpId,
@@ -1633,19 +1692,46 @@ function createBillingService(deps) {
       firstChargeAt: trialEndAt,
       authorizationExpiresAt: expireBy,
       authorization: trialEligible ? { amountPaise: VERIFICATION_DEBIT_PAISE, refundable: true } : { amountPaise: plan.amountPaise, refundable: false },
-      reused
+      reused,
+      ...discounted ? { referralDiscount: { applied: true, firstChargePaise: discountedFirstChargePaise(plan.amountPaise), renewalPaise: plan.amountPaise } } : {}
     };
   }
   const IN_FLIGHT_MS = Math.max(6e4, config.requestTimeoutMs * 3);
-  async function createSubscription(user, planKey) {
+  async function createSubscription(user, planKey, opts = {}) {
     requireConfigured();
     const email = requireVerifiedEmail(user);
     const plan = config.plans[planKey];
     if (!plan) throw new ApiError(400, "invalid_plan", "Unknown plan.");
     const emailHash = hashEmail(email, config.trialPepper);
     if (!emailHash) throw new ApiError(400, "invalid_email", "Your account email cannot be used for billing.");
+    const secret = config.trialPepper;
+    const choice = async (reason) => {
+      const latest = await store.getLatestForUser(user.id);
+      return {
+        discountUnavailable: true,
+        reason,
+        planKey,
+        fullPricePaise: plan.amountPaise,
+        discountedFirstChargePaise: discountedFirstChargePaise(plan.amountPaise),
+        fullPriceToken: issueFullPriceToken(secret, { userId: user.id, planKey, amountPaise: plan.amountPaise, latestRowId: latest?.id ?? "none" }, clock())
+      };
+    };
     try {
       await assertPlanMatches(planKey);
+      const code = normaliseReferralCode(opts.referralCode);
+      let wantOffer = false;
+      if (opts.fullPriceToken) {
+        const latest = await store.getLatestForUser(user.id);
+        const ok2 = planKey === "monthly" && verifyFullPriceToken(secret, opts.fullPriceToken, { userId: user.id, planKey, amountPaise: plan.amountPaise, latestRowId: latest?.id ?? "none" }, clock());
+        if (!ok2) throw new ApiError(409, "full_price_token_invalid", "That confirmation has expired. Please review the price and try again.");
+      } else if (code) {
+        if (planKey !== "monthly") throw new ApiError(400, "referral_monthly_only", "Referral codes apply to the monthly plan only.");
+        if (!config.referralOfferId) return await choice("not_configured");
+        const eligibility = await store.referralEligibility(user.id, code, emailHash);
+        if (eligibility !== "eligible") return await choice(eligibility);
+        if (!await store.trialClaimAvailable(user.id, emailHash)) return await choice("trial_unavailable");
+        wantOffer = true;
+      }
       for (let attempt = 0; attempt < 2; attempt++) {
         const begin = await store.beginSubscription({
           userId: user.id,
@@ -1668,8 +1754,9 @@ function createBillingService(deps) {
           }
           if (row2.status === "created" && row2.razorpay_subscription_id) {
             const live = await gateway.fetchSubscription(row2.razorpay_subscription_id);
-            if (live.status === "created" && !stale && row2.plan_key === planKey) {
-              return checkoutResult(row2, row2.razorpay_subscription_id, planKey, row2.trial_end_at !== null, row2.trial_end_at, row2.expire_by, true);
+            const hasOffer = !!live.offer_id;
+            if (live.status === "created" && !stale && row2.plan_key === planKey && hasOffer === wantOffer) {
+              return checkoutResult(row2, row2.razorpay_subscription_id, planKey, row2.trial_end_at !== null, row2.trial_end_at, row2.expire_by, true, hasOffer);
             }
             if (live.status === "created") {
               const cancelled = await gateway.cancelSubscription(row2.razorpay_subscription_id, false);
@@ -1686,6 +1773,10 @@ function createBillingService(deps) {
         const row = await store.getForUser(user.id, begin.subscription_id);
         if (!row) throw new BillingStoreError("new_row");
         const trial = begin.trial_eligible && !!begin.trial_end_at;
+        if (wantOffer && !trial) {
+          await store.markCreateFailed(row.id, user.id).catch(() => void 0);
+          return await choice("trial_unavailable");
+        }
         let rzp;
         try {
           rzp = await gateway.createSubscription({
@@ -1694,11 +1785,18 @@ function createBillingService(deps) {
             ...trial ? { start_at: Math.floor(Date.parse(begin.trial_end_at) / 1e3) } : {},
             expire_by: Math.floor(Date.parse(begin.expire_by) / 1e3),
             customer_notify: 1,
+            ...wantOffer ? { offer_id: config.referralOfferId } : {},
             notes: { user_id: user.id, plan_key: planKey, billing_row: row.id }
           });
         } catch (err) {
           await store.markCreateFailed(row.id, user.id).catch(() => void 0);
+          if (wantOffer && err instanceof RazorpayError && err.kind === "rejected") return await choice("offer_rejected");
           throw err;
+        }
+        if (wantOffer && rzp.offer_id !== config.referralOfferId) {
+          await tryCancelOrphan(rzp.id);
+          await store.markCreateFailed(row.id, user.id).catch(() => void 0);
+          return await choice("offer_rejected");
         }
         if (rzp.status !== "created") {
           await tryCancelOrphan(rzp.id);
@@ -1712,7 +1810,7 @@ function createBillingService(deps) {
           await store.markCreateFailed(row.id, user.id).catch(() => void 0);
           throw err;
         }
-        return checkoutResult(row, rzp.id, planKey, trial, begin.trial_end_at, begin.expire_by, false);
+        return checkoutResult(row, rzp.id, planKey, trial, begin.trial_end_at, begin.expire_by, false, wantOffer);
       }
       throw new ApiError(409, "subscription_in_progress", "Another subscription attempt is in progress. Please try again in a moment.");
     } catch (err) {
@@ -1753,17 +1851,17 @@ function createBillingService(deps) {
     if (isTerminal(rzp.status)) await store.markStopVerified(row.id, rzp.status);
     return { ...row, ...patch };
   }
-  async function verifyAuthorization(user, body) {
+  async function verifyAuthorization(user, body2) {
     requireConfigured();
     try {
-      const row = await store.getByRazorpayIdForUser(user.id, body.razorpay_subscription_id);
+      const row = await store.getByRazorpayIdForUser(user.id, body2.razorpay_subscription_id);
       if (!row || !row.razorpay_subscription_id) throw new ApiError(404, "subscription_not_found", "Subscription not found.");
-      const okSig = verifyPaymentSignature({ paymentId: body.razorpay_payment_id, subscriptionId: row.razorpay_subscription_id, signature: body.razorpay_signature, keySecret: config.keySecret });
+      const okSig = verifyPaymentSignature({ paymentId: body2.razorpay_payment_id, subscriptionId: row.razorpay_subscription_id, signature: body2.razorpay_signature, keySecret: config.keySecret });
       if (!okSig) {
         logger.warn("billing_invalid_payment_signature", { userId: user.id, subscriptionRow: row.id });
         throw new ApiError(400, "invalid_signature", "Payment verification failed.");
       }
-      if (!PAY_ID.test(body.razorpay_payment_id)) throw new ApiError(400, "invalid_signature", "Payment verification failed.");
+      if (!PAY_ID.test(body2.razorpay_payment_id)) throw new ApiError(400, "invalid_signature", "Payment verification failed.");
       if (row.auth_verified_at) {
         if (row.status === "pending" || row.status === "halted") {
           const fresh = await reconcileRow(row);
@@ -1776,7 +1874,7 @@ function createBillingService(deps) {
       if (rzp.status !== "authenticated" && rzp.status !== "active") {
         throw new ApiError(409, "authorization_not_confirmed", "Razorpay has not confirmed this authorization yet. Please try again in a moment.");
       }
-      const updated = await applyAndMaybeAuthorize(row, rzp, body.razorpay_payment_id);
+      const updated = await applyAndMaybeAuthorize(row, rzp, body2.razorpay_payment_id);
       return { verified: true, alreadyVerified: false, subscription: toPublicSubscription(updated) };
     } catch (err) {
       throw toApiError(err, "verify_authorization");
@@ -1935,6 +2033,7 @@ function createBillingService(deps) {
           refundedAutomatically: true
           /* legacy API field: NOT a verified claim and not displayed by the UI (Stage 4) */
         } },
+        referral: { enabled: !!config.referralOfferId },
         plans: ["monthly", "annual"].map((k) => ({ key: k, amountPaise: config.plans[k].amountPaise, currency: "INR", billingPeriod: config.plans[k].period, interval: config.plans[k].interval })),
         entitlement: { state: entitlement.state, hasAccess: entitlement.has_access, accessEndsAt: entitlement.access_ends_at },
         subscription: latest ? toPublicSubscription(latest) : null
@@ -2147,7 +2246,7 @@ function registerBillingRoutes(app, deps = {}) {
   const lazy = createLazyBilling(deps);
   app.get("/api/billing/status", handler(async (s, req, res) => res.json({ success: true, ...await s.getStatus(req.user) }), lazy));
   app.get("/api/billing/payments", handler(async (s, req, res) => res.json({ success: true, payments: await s.listPayments(req.user) }), lazy));
-  app.post("/api/billing/subscriptions", handler(async (s, req, res) => res.json({ success: true, ...await s.createSubscription(req.user, req.body.planKey) }), lazy));
+  app.post("/api/billing/subscriptions", handler(async (s, req, res) => res.json({ success: true, ...await s.createSubscription(req.user, req.body.planKey, { referralCode: req.body.referralCode, fullPriceToken: req.body.fullPriceToken }) }), lazy));
   app.post("/api/billing/subscriptions/verify", handler(async (s, req, res) => res.json({ success: true, ...await s.verifyAuthorization(req.user, req.body) }), lazy));
   app.post("/api/billing/subscriptions/cancel", handler(async (s, req, res) => res.json({ success: true, ...await s.cancel(req.user) }), lazy));
   app.post("/api/billing/subscriptions/recover", handler(async (s, req, res) => res.json({ success: true, ...await s.startRecovery(req.user) }), lazy));
@@ -4895,15 +4994,15 @@ function sendInitFailure(req, res, err) {
     res.end();
     return;
   }
-  const body = JSON.stringify({ success: false, error: INIT_FAILURE_MESSAGE, code: "service_unavailable", requestId });
+  const body2 = JSON.stringify({ success: false, error: INIT_FAILURE_MESSAGE, code: "service_unavailable", requestId });
   res.statusCode = 503;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Content-Length", Buffer.byteLength(body));
+  res.setHeader("Content-Length", Buffer.byteLength(body2));
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Retry-After", String(retryAfter));
   res.setHeader("X-Request-Id", requestId);
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.end(req.method === "HEAD" ? void 0 : body);
+  res.end(req.method === "HEAD" ? void 0 : body2);
 }
 
 // src/server/serverless/normalizeUrl.ts
@@ -4960,14 +5059,14 @@ function sendUnexpectedFailure(req, res) {
     return;
   }
   const requestId = resolveRequestId(req.headers["x-request-id"]);
-  const body = JSON.stringify({ success: false, error: "Internal server error.", code: "internal_error", requestId });
+  const body2 = JSON.stringify({ success: false, error: "Internal server error.", code: "internal_error", requestId });
   res.statusCode = 500;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Content-Length", Buffer.byteLength(body));
+  res.setHeader("Content-Length", Buffer.byteLength(body2));
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Request-Id", requestId);
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.end(req.method === "HEAD" ? void 0 : body);
+  res.end(req.method === "HEAD" ? void 0 : body2);
 }
 
 // src/server/serverless/entry.ts

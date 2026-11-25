@@ -1,7 +1,7 @@
 // Test doubles only. Not imported by any production module (and therefore never bundled into api/index.js).
 import { loadBillingConfig, type BillingConfig } from './config';
 import { RazorpayError, type CreateSubscriptionParams, type RazorpayGateway, type RzpPayment, type RzpPlan, type RzpSubscription } from './gateway';
-import { BillingStoreError, type BillingStore } from './store';
+import { BillingStoreError, type BillingStore, type ReferralEligibility } from './store';
 import type { BeginSubscriptionArgs, PaymentRecord, SubscriptionPatch, SubscriptionRow, SubStatus, WebhookGate } from './types';
 import { LIVE, TERMINAL } from './types';
 
@@ -29,6 +29,9 @@ export class FakeStore implements BillingStore {
   payments: Array<PaymentRecord & { id: string }> = [];
   claims = new Map<string, { userId: string | null; subscriptionId: string | null; state: 'reserved' | 'consumed' }>();
   events = new Map<string, { status: string; type: string; code: string | null }>();
+  /** code -> partner state for the fake referral_attribute_user. */
+  partners = new Map<string, { status: 'active' | 'suspended'; userId?: string }>();
+  attributions = new Map<string, { code: string; status: 'active' | 'void' }>();
   failNext: Record<string, boolean> = {};
   calls: string[] = [];
   constructor(private readonly clock: FakeClock) {}
@@ -52,6 +55,19 @@ export class FakeStore implements BillingStore {
     const c = this.claims.get(emailHash);
     if (c && !(c.state === 'reserved' && (c.userId === null || c.userId === userId))) return false;
     return ![...this.claims.values()].some((x) => x.userId === userId && x.state === 'consumed');
+  }
+  async referralEligibility(userId: string, code: string, _emailHash?: string): Promise<ReferralEligibility> {
+    this.hit('referralEligibility');
+    if (!this.attributions.has(userId)) {
+      const p = this.partners.get(code);
+      if (!p || p.status !== 'active' || p.userId === userId) return 'invalid_code';
+      if (this.subs.some((s) => s.user_id === userId) || this.payments.some((x) => x.userId === userId)) return 'not_eligible';
+      this.attributions.set(userId, { code, status: 'active' });
+    }
+    if (this.attributions.get(userId)!.status !== 'active') return 'not_eligible';
+    const planOf = (id: string) => this.subs.find((s) => s.id === id)?.plan_key;
+    const paid = this.payments.some((x) => x.userId === userId && x.kind === 'charge' && (x.status === 'captured' || x.status === 'refunded') && planOf(x.subscriptionId) === 'monthly');
+    return paid ? 'not_eligible' : 'eligible';
   }
   async beginSubscription(a: BeginSubscriptionArgs) {
     this.hit('beginSubscription');
@@ -164,6 +180,8 @@ export class FakeGateway implements RazorpayGateway {
   plans = new Map<string, RzpPlan>();
   created: CreateSubscriptionParams[] = [];
   cancels: Array<{ id: string; cycleEnd: boolean }> = [];
+  /** When set, createSubscription with an offer_id rejects like Razorpay's 'Offer not applicable'. */
+  rejectOffer = false;
   fail: Partial<Record<'fetchPlan' | 'createSubscription' | 'fetchSubscription' | 'cancelSubscription' | 'fetchPayment', RazorpayError>> = {};
   private n = 0;
   constructor(cfg: BillingConfig) {
@@ -174,7 +192,8 @@ export class FakeGateway implements RazorpayGateway {
   async fetchPlan(id: string) { this.maybe('fetchPlan'); const p = this.plans.get(id); if (!p) throw new RazorpayError('rejected', 400); return p; }
   async createSubscription(p: CreateSubscriptionParams) {
     this.maybe('createSubscription'); this.created.push(p);
-    const s: RzpSubscription = { id: `sub_Test${String(++this.n).padStart(8, '0')}`, plan_id: p.plan_id, status: 'created', total_count: p.total_count, paid_count: 0, start_at: p.start_at ?? null, expire_by: p.expire_by };
+    if (p.offer_id && this.rejectOffer) throw new RazorpayError('rejected', 400, 'BAD_REQUEST_ERROR');
+    const s: RzpSubscription = { id: `sub_Test${String(++this.n).padStart(8, '0')}`, plan_id: p.plan_id, status: 'created', total_count: p.total_count, paid_count: 0, offer_id: p.offer_id ?? null, start_at: p.start_at ?? null, expire_by: p.expire_by };
     this.subs.set(s.id, s); return { ...s };
   }
   async fetchSubscription(id: string) { this.maybe('fetchSubscription'); const s = this.subs.get(id); if (!s) throw new RazorpayError('rejected', 400); return { ...s }; }

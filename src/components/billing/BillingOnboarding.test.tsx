@@ -185,7 +185,7 @@ describe('plan selection screen', () => {
     await agree();
     await click(startButton());
     expect(api.createSubscription).toHaveBeenCalledTimes(1);
-    expect(api.createSubscription).toHaveBeenCalledWith('monthly');
+    expect(api.createSubscription).toHaveBeenCalledWith('monthly', {});
   });
 
   it('annual: switching plans updates the selected plan and the key sent, and asks for the terms again', async () => {
@@ -198,7 +198,7 @@ describe('plan selection screen', () => {
     expect(startButton()!.disabled).toBe(true);
     await agree();
     await click(startButton());
-    expect(api.createSubscription).toHaveBeenCalledWith('annual');
+    expect(api.createSubscription).toHaveBeenCalledWith('annual', {});
   });
 
   it('opens Checkout with what the server returned and never with a client price', async () => {
@@ -352,7 +352,7 @@ describe('accounts that already have billing state', () => {
     checkout.openSubscriptionCheckout.mockResolvedValue({ kind: 'dismissed' });
     await agree();
     await click(startButton());
-    expect(api.createSubscription).toHaveBeenCalledWith('monthly'); // the server, not the page, decides there is no trial
+    expect(api.createSubscription).toHaveBeenCalledWith('monthly', {}); // the server, not the page, decides there is no trial
   });
 });
 

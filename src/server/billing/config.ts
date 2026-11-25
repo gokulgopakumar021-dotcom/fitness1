@@ -26,6 +26,8 @@ export interface BillingConfig {
   supabaseUrl?: string;
   serviceRoleKey?: string;
   plans: Record<PlanKey, PlanConfig>;
+  /** Razorpay single-use 20% subscription offer id (created in the dashboard). Unset = referral discount switched off. */
+  referralOfferId?: string;
   trialDays: number;
   authWindowMinutes: number;
   pendingGraceHours: number;
@@ -73,9 +75,12 @@ export function loadBillingConfig(env: Env = process.env): BillingConfig {
     return { key, razorpayPlanId, amountPaise, period, interval: 1, totalCount };
   };
   const plans = {
-    monthly: mk('monthly', 'RAZORPAY_PLAN_ID_MONTHLY', 'BILLING_PRICE_MONTHLY_PAISE', 29_900, 'BILLING_TOTAL_COUNT_MONTHLY', 120, 'monthly'),
+    monthly: mk('monthly', 'RAZORPAY_PLAN_ID_MONTHLY', 'BILLING_PRICE_MONTHLY_PAISE', 39_900, 'BILLING_TOTAL_COUNT_MONTHLY', 120, 'monthly'),
     annual: mk('annual', 'RAZORPAY_PLAN_ID_ANNUAL', 'BILLING_PRICE_ANNUAL_PAISE', 149_900, 'BILLING_TOTAL_COUNT_ANNUAL', 10, 'yearly')
   };
+
+  const referralOfferId = clean(env.RAZORPAY_OFFER_ID_REFERRAL);
+  if (referralOfferId && !/^offer_[A-Za-z0-9]{6,40}$/.test(referralOfferId)) problems.push('RAZORPAY_OFFER_ID_REFERRAL must be a Razorpay offer id (offer_...).');
 
   const trialDays = int(env.BILLING_TRIAL_DAYS, 3);
   const authWindowMinutes = int(env.BILLING_AUTH_WINDOW_MINUTES, 30);
@@ -101,6 +106,7 @@ export function loadBillingConfig(env: Env = process.env): BillingConfig {
     supabaseUrl,
     serviceRoleKey,
     plans,
+    referralOfferId,
     trialDays,
     authWindowMinutes,
     pendingGraceHours,

@@ -59,7 +59,7 @@ describe('payment recovery (pending and halted)', () => {
   it.each(['pending', 'halted'] as const)('returns Checkout parameters for a %s subscription, re-reading Razorpay first', async (status) => {
     const id = await failedRenewal(t, status);
     const r = await t.svc.startRecovery(userA);
-    expect(r).toMatchObject({ subscriptionId: id, keyId: 'rzp_test_abc123XYZ', planKey: 'monthly', amountPaise: 29900, status, cardChangeOnly: true });
+    expect(r).toMatchObject({ subscriptionId: id, keyId: 'rzp_test_abc123XYZ', planKey: 'monthly', amountPaise: 39900, status, cardChangeOnly: true });
     expect(t.store.subs[0].status).toBe(status);
     expect(JSON.stringify(r)).not.toContain(SECRETS.keySecret);
   });

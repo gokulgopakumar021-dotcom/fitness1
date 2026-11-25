@@ -35,7 +35,7 @@ describe('subscription creation', () => {
     expect(new Date(r.firstChargeAt!).getTime()).toBe(sent.start_at! * 1000);
     expect(sent.expire_by).toBeLessThan(sent.start_at!);
     expect(sent.notes.user_id).toBe('user-a');
-    expect(r).toMatchObject({ amountPaise: 29900, trialEligible: true, trialDays: 3, authorization: { amountPaise: 500, refundable: true }, keyId: 'rzp_test_abc123XYZ', reused: false });
+    expect(r).toMatchObject({ amountPaise: 39900, trialEligible: true, trialDays: 3, authorization: { amountPaise: 500, refundable: true }, keyId: 'rzp_test_abc123XYZ', reused: false });
     expect(JSON.stringify(r)).not.toContain(SECRETS.keySecret);
     expect(t.store.subs[0].status).toBe('created');
   });
@@ -116,7 +116,7 @@ describe('subscription creation', () => {
     const r = await t.svc.createSubscription(userA, 'monthly');
     expect(r.trialEligible).toBe(false);
     expect(r.firstChargeAt).toBeNull();
-    expect(r.authorization).toEqual({ amountPaise: 29900, refundable: false });
+    expect(r.authorization).toEqual({ amountPaise: 39900, refundable: false });
     expect(t.gateway.created[0].start_at).toBeUndefined();
   });
   it('the same confirmed email on a new account (after deletion) gets no second trial', async () => {
@@ -247,7 +247,7 @@ describe('status and payments', () => {
   it('reports server-configured plans, trial eligibility and the INR 5 disclosure data, with no Razorpay ids', async () => {
     const t = setup();
     const s = await t.svc.getStatus(userA);
-    expect(s.plans.map((p) => [p.key, p.amountPaise])).toEqual([['monthly', 29900], ['annual', 149900]]);
+    expect(s.plans.map((p) => [p.key, p.amountPaise])).toEqual([['monthly', 39900], ['annual', 149900]]);
     expect(s.trial).toMatchObject({ eligible: true, days: 3, verificationDebit: { amountPaise: 500, refundedAutomatically: true } });
     expect(s.entitlement.hasAccess).toBe(false);
     await t.svc.createSubscription(userA, 'monthly');

@@ -17,6 +17,7 @@ export interface RzpSubscription {
   paid_count?: number;
   total_count?: number;
   remaining_count?: number | string;
+  offer_id?: string | null;
   has_scheduled_changes?: boolean;
   change_scheduled_at?: number | string | null;
   notes?: Record<string, unknown> | unknown[];
@@ -48,6 +49,8 @@ export interface CreateSubscriptionParams {
   /** Unix seconds: last moment the customer may authorize. */
   expire_by: number;
   customer_notify: 0 | 1;
+  /** Razorpay subscription offer (dashboard-created). Only ever our own configured id, never request input. */
+  offer_id?: string;
   notes: Record<string, string>;
 }
 

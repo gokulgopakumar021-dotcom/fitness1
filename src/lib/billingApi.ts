@@ -50,6 +50,8 @@ export interface BillingStatus {
     verificationDebit: { amountPaise: number; refundedAutomatically: boolean };
   };
   plans: BillingPlan[];
+  /** True when a creator referral code can be applied at checkout (monthly plan only). */
+  referral?: { enabled: boolean };
   entitlement: { state: EntitlementState; hasAccess: boolean; accessEndsAt: string | null };
   subscription: PublicSubscription | null;
 }
@@ -79,6 +81,18 @@ export interface CreateSubscriptionResult {
   authorizationExpiresAt: string | null;
   authorization: { amountPaise: number; refundable: boolean };
   reused: boolean;
+  /** Present only when the creator-code discount is linked: first monthly charge after the trial, then the normal price. */
+  referralDiscount?: { applied: true; firstChargePaise: number; renewalPaise: number };
+}
+
+/** The requested discount could not be applied and nothing was created. Show the choice; `fullPriceToken` is the one-time, price-bound proof that the customer chose the full price. */
+export interface DiscountChoice {
+  discountUnavailable: true;
+  reason: 'invalid_code' | 'not_eligible' | 'trial_unavailable' | 'offer_rejected' | 'not_configured';
+  planKey: PlanKey;
+  fullPricePaise: number;
+  discountedFirstChargePaise: number;
+  fullPriceToken: string;
 }
 
 export interface CheckoutCallback {
@@ -163,7 +177,12 @@ const post = <T>(path: string, payload: unknown = {}) =>
 export const fetchBillingStatus = () => call<BillingStatus & { success: true }>('/api/billing/status');
 export const fetchBillingPayments = async (): Promise<BillingPayment[]> => (await call<{ payments: BillingPayment[] }>('/api/billing/payments')).payments;
 /** Body is the plan KEY only. The server owns amounts, plan ids and identity. */
-export const createSubscription = (planKey: PlanKey) => post<CreateSubscriptionResult & { success: true }>('/api/billing/subscriptions', { planKey });
+export const createSubscription = (planKey: PlanKey, opts: { referralCode?: string; fullPriceToken?: string } = {}) =>
+  post<(CreateSubscriptionResult | DiscountChoice) & { success: true }>('/api/billing/subscriptions', {
+    planKey,
+    ...(opts.referralCode ? { referralCode: opts.referralCode } : {}),
+    ...(opts.fullPriceToken ? { fullPriceToken: opts.fullPriceToken } : {})
+  });
 export const verifySubscription = (cb: CheckoutCallback) =>
   post<VerifyResult & { success: true }>('/api/billing/subscriptions/verify', {
     razorpay_payment_id: cb.razorpay_payment_id,

@@ -2,6 +2,7 @@ import { ApiError } from '../security/errors';
 import { logger } from '../security/logger';
 import type { AuthUser } from '../security/types';
 import { VERIFICATION_DEBIT_PAISE, type BillingConfig, type PlanKey } from './config';
+import { discountedFirstChargePaise, issueFullPriceToken, normaliseReferralCode, verifyFullPriceToken } from './referralDiscount';
 import { BillingUnavailableError } from './diagnostics';
 import { hashEmail } from './emailHash';
 import { RazorpayError, type RazorpayGateway, type RzpPayment, type RzpSubscription } from './gateway';
@@ -127,6 +128,20 @@ export interface CreateResult {
   /** What Razorpay charges at authorization. For a trial: the INR 5 verification debit. Razorpay's docs describe it as auto-refunded, but THIS CODE ISSUES NO REFUND and the behaviour is not verified for this account: `refundable` is a legacy flag and must not be shown to customers as a promise. Otherwise the full plan amount, not refunded. */
   authorization: { amountPaise: number; refundable: boolean };
   reused: boolean;
+  /** Present only when the Razorpay offer is linked to this subscription: first monthly charge after the trial, then the plan price. */
+  referralDiscount?: { applied: true; firstChargePaise: number; renewalPaise: number };
+}
+
+export interface CreateOptions { referralCode?: string; fullPriceToken?: string }
+
+/** Returned (HTTP 200, nothing created at Razorpay) when a requested discount cannot be applied. The client must show the choice; full price is only ever charged after the customer returns `fullPriceToken`. */
+export interface DiscountChoiceResult {
+  discountUnavailable: true;
+  reason: 'invalid_code' | 'not_eligible' | 'trial_unavailable' | 'offer_rejected' | 'not_configured';
+  planKey: PlanKey;
+  fullPricePaise: number;
+  discountedFirstChargePaise: number;
+  fullPriceToken: string;
 }
 
 export function createBillingService(deps: BillingServiceDeps) {
@@ -158,18 +173,21 @@ export function createBillingService(deps: BillingServiceDeps) {
     planChecked.set(plan.razorpayPlanId, clock());
   }
 
-  function checkoutResult(row: { id: string }, rzpId: string, planKey: PlanKey, trialEligible: boolean, trialEndAt: string | null, expireBy: string | null, reused: boolean): CreateResult {
+  function checkoutResult(row: { id: string }, rzpId: string, planKey: PlanKey, trialEligible: boolean, trialEndAt: string | null, expireBy: string | null, reused: boolean, discounted = false): CreateResult {
     const plan = config.plans[planKey];
     return {
       subscriptionId: rzpId, keyId: config.keyId as string, planKey, amountPaise: plan.amountPaise, currency: 'INR', billingPeriod: plan.period,
       trialEligible, trialDays: trialEligible ? config.trialDays : 0, firstChargeAt: trialEndAt, authorizationExpiresAt: expireBy,
-      authorization: trialEligible ? { amountPaise: VERIFICATION_DEBIT_PAISE, refundable: true } : { amountPaise: plan.amountPaise, refundable: false }, reused
+      authorization: trialEligible ? { amountPaise: VERIFICATION_DEBIT_PAISE, refundable: true } : { amountPaise: plan.amountPaise, refundable: false }, reused,
+      ...(discounted ? { referralDiscount: { applied: true as const, firstChargePaise: discountedFirstChargePaise(plan.amountPaise), renewalPaise: plan.amountPaise } } : {})
     };
   }
 
   const IN_FLIGHT_MS = Math.max(60_000, config.requestTimeoutMs * 3);
 
-  async function createSubscription(user: AuthUser, planKey: PlanKey): Promise<CreateResult> {
+  async function createSubscription(user: AuthUser, planKey: PlanKey): Promise<CreateResult>;
+  async function createSubscription(user: AuthUser, planKey: PlanKey, opts: CreateOptions): Promise<CreateResult | DiscountChoiceResult>;
+  async function createSubscription(user: AuthUser, planKey: PlanKey, opts: CreateOptions = {}): Promise<CreateResult | DiscountChoiceResult> {
     requireConfigured();
     const email = requireVerifiedEmail(user);
     const plan = config.plans[planKey];
@@ -177,8 +195,36 @@ export function createBillingService(deps: BillingServiceDeps) {
     const emailHash = hashEmail(email, config.trialPepper as string);
     if (!emailHash) throw new ApiError(400, 'invalid_email', 'Your account email cannot be used for billing.');
 
+    const secret = config.trialPepper as string;
+    const choice = async (reason: DiscountChoiceResult['reason']): Promise<DiscountChoiceResult> => {
+      const latest = await store.getLatestForUser(user.id);
+      return {
+        discountUnavailable: true, reason, planKey, fullPricePaise: plan.amountPaise, discountedFirstChargePaise: discountedFirstChargePaise(plan.amountPaise),
+        fullPriceToken: issueFullPriceToken(secret, { userId: user.id, planKey, amountPaise: plan.amountPaise, latestRowId: latest?.id ?? 'none' }, clock())
+      };
+    };
+
     try {
       await assertPlanMatches(planKey);
+
+      // Referral discount. The offer is requested only for a monthly checkout that carries a creator code and has no accepted full-price token.
+      const code = normaliseReferralCode(opts.referralCode);
+      let wantOffer = false;
+      if (opts.fullPriceToken) {
+        // The customer explicitly chose the full price. The token is bound to this user, plan, price and their newest billing row, so it
+        // dies the moment any checkout attempt is created from it (or any other row appears) and cannot be replayed.
+        const latest = await store.getLatestForUser(user.id);
+        const ok = planKey === 'monthly' && verifyFullPriceToken(secret, opts.fullPriceToken, { userId: user.id, planKey, amountPaise: plan.amountPaise, latestRowId: latest?.id ?? 'none' }, clock());
+        if (!ok) throw new ApiError(409, 'full_price_token_invalid', 'That confirmation has expired. Please review the price and try again.');
+      } else if (code) {
+        if (planKey !== 'monthly') throw new ApiError(400, 'referral_monthly_only', 'Referral codes apply to the monthly plan only.');
+        if (!config.referralOfferId) return await choice('not_configured');
+        const eligibility = await store.referralEligibility(user.id, code, emailHash);
+        if (eligibility !== 'eligible') return await choice(eligibility);
+        if (!(await store.trialClaimAvailable(user.id, emailHash))) return await choice('trial_unavailable');
+        wantOffer = true;
+      }
+
       for (let attempt = 0; attempt < 2; attempt++) {
         const begin = await store.beginSubscription({
           userId: user.id, emailHash, planKey, razorpayPlanId: plan.razorpayPlanId, billingPeriod: plan.period, amountPaise: plan.amountPaise,
@@ -199,8 +245,9 @@ export function createBillingService(deps: BillingServiceDeps) {
           }
           if (row.status === 'created' && row.razorpay_subscription_id) {
             const live = await gateway.fetchSubscription(row.razorpay_subscription_id);
-            if (live.status === 'created' && !stale && row.plan_key === planKey) {
-              return checkoutResult(row, row.razorpay_subscription_id, planKey, row.trial_end_at !== null, row.trial_end_at, row.expire_by, true);
+            const hasOffer = !!live.offer_id;
+            if (live.status === 'created' && !stale && row.plan_key === planKey && hasOffer === wantOffer) {
+              return checkoutResult(row, row.razorpay_subscription_id, planKey, row.trial_end_at !== null, row.trial_end_at, row.expire_by, true, hasOffer);
             }
             if (live.status === 'created') {
               // Unauthorized and either stale or for another plan: cancel it at Razorpay, and only proceed once Razorpay says it is stopped.
@@ -221,17 +268,31 @@ export function createBillingService(deps: BillingServiceDeps) {
         const row = await store.getForUser(user.id, begin.subscription_id);
         if (!row) throw new BillingStoreError('new_row');
         const trial = begin.trial_eligible && !!begin.trial_end_at;
+        if (wantOffer && !trial) {
+          // The discount is for the first charge AFTER a trial; without a trial the first payment would be the authorization itself.
+          await store.markCreateFailed(row.id, user.id).catch(() => undefined);
+          return await choice('trial_unavailable');
+        }
         let rzp: RzpSubscription;
         try {
           rzp = await gateway.createSubscription({
             plan_id: plan.razorpayPlanId, total_count: plan.totalCount,
             ...(trial ? { start_at: Math.floor(Date.parse(begin.trial_end_at as string) / 1000) } : {}),
             expire_by: Math.floor(Date.parse(begin.expire_by as string) / 1000), customer_notify: 1,
+            ...(wantOffer ? { offer_id: config.referralOfferId } : {}),
             notes: { user_id: user.id, plan_key: planKey, billing_row: row.id }
           });
         } catch (err) {
           await store.markCreateFailed(row.id, user.id).catch(() => undefined);
+          // Razorpay refused the offer (not applicable, not found, expired): stop and let the customer choose. Never retry at full price on our own.
+          if (wantOffer && err instanceof RazorpayError && err.kind === 'rejected') return await choice('offer_rejected');
           throw err;
+        }
+        if (wantOffer && rzp.offer_id !== config.referralOfferId) {
+          // Razorpay accepted the call but did not link the offer: this subscription would charge full price. Stop it.
+          await tryCancelOrphan(rzp.id);
+          await store.markCreateFailed(row.id, user.id).catch(() => undefined);
+          return await choice('offer_rejected');
         }
         if (rzp.status !== 'created') {
           await tryCancelOrphan(rzp.id);
@@ -246,7 +307,7 @@ export function createBillingService(deps: BillingServiceDeps) {
           await store.markCreateFailed(row.id, user.id).catch(() => undefined);
           throw err;
         }
-        return checkoutResult(row, rzp.id, planKey, trial, begin.trial_end_at, begin.expire_by, false);
+        return checkoutResult(row, rzp.id, planKey, trial, begin.trial_end_at, begin.expire_by, false, wantOffer);
       }
       throw new ApiError(409, 'subscription_in_progress', 'Another subscription attempt is in progress. Please try again in a moment.');
     } catch (err) {
@@ -508,6 +569,7 @@ export function createBillingService(deps: BillingServiceDeps) {
         enforcement: config.enforcement,
         emailVerified: user.emailVerified,
         trial: { eligible: trialEligible, days: config.trialDays, firstChargePreviewAt: trialEligible ? firstChargePreview : null, verificationDebit: { amountPaise: VERIFICATION_DEBIT_PAISE, refundedAutomatically: true /* legacy API field: NOT a verified claim and not displayed by the UI (Stage 4) */ } },
+        referral: { enabled: !!config.referralOfferId },
         plans: (['monthly', 'annual'] as const).map((k) => ({ key: k, amountPaise: config.plans[k].amountPaise, currency: 'INR', billingPeriod: config.plans[k].period, interval: config.plans[k].interval })),
         entitlement: { state: entitlement.state, hasAccess: entitlement.has_access, accessEndsAt: entitlement.access_ends_at },
         subscription: latest ? toPublicSubscription(latest) : null

@@ -42,7 +42,7 @@ describe('JWT-protected billing routes', () => {
     const r = await fetch(server.base + '/api/billing/status', { headers: auth('user-a') });
     const j = await r.json();
     expect(r.status).toBe(200);
-    expect(j.plans.map((p: { amountPaise: number }) => p.amountPaise)).toEqual([29900, 149900]);
+    expect(j.plans.map((p: { amountPaise: number }) => p.amountPaise)).toEqual([39900, 149900]);
     expect(r.headers.get('cache-control')).toBe('no-store');
   });
   it('create accepts a plan key only: unknown plans and client-supplied amounts/ids are ignored or rejected', async () => {
@@ -53,7 +53,7 @@ describe('JWT-protected billing routes', () => {
     expect(gateway.created[0]).toMatchObject({ plan_id: 'plan_MonthlyTest01', total_count: 120 });
     expect(gateway.created[0].notes.user_id).toBe('user-a');
     expect(store.subs[0].user_id).toBe('user-a');
-    expect(store.subs[0].amount_paise).toBe(29900);
+    expect(store.subs[0].amount_paise).toBe(39900);
   });
   it('the unverified-email check applies even when the platform does not require verified email', async () => {
     const r = await post('/api/billing/subscriptions', auth('user-a', { verified: false }), { planKey: 'monthly' });

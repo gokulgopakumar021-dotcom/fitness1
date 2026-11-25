@@ -67,7 +67,7 @@ describe('billing configuration', () => {
     const c = loadBillingConfig(TEST_ENV);
     expect(c.problems).toEqual([]);
     expect(c.configured).toBe(true);
-    expect([c.plans.monthly.amountPaise, c.plans.annual.amountPaise]).toEqual([29900, 149900]);
+    expect([c.plans.monthly.amountPaise, c.plans.annual.amountPaise]).toEqual([39900, 149900]);
     expect([c.plans.monthly.totalCount, c.plans.annual.totalCount]).toEqual([120, 10]);
     expect([c.trialDays, c.pendingGraceHours, c.authWindowMinutes, c.enforcement]).toEqual([3, 0, 30, 'off']);
   });
