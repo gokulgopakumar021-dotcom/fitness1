@@ -190,10 +190,10 @@ describe('accuracy guards on policy copy', () => {
 
   it('prices in Terms equal the server defaults (drift guard) and no GST claim is made', () => {
     const cfg = loadBillingConfig({});
-    expect(cfg.plans.monthly.amountPaise).toBe(29_900);
+    expect(cfg.plans.monthly.amountPaise).toBe(39_900);
     expect(cfg.plans.annual.amountPaise).toBe(149_900);
     const terms = text('terms');
-    expect(terms).toContain('₹299 per month');
+    expect(terms).toContain('₹399 per month');
     expect(terms).toContain('₹1,499 per year');
     expect(terms).not.toMatch(/GST (registered|number|collected|included)|inclusive of GST/i);
   });

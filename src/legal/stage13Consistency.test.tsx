@@ -30,14 +30,14 @@ const text = (route: LegalRouteKey): string => {
 
 describe('Stage 13: policy text equals the code defaults the owner approved', () => {
   const cfg = loadBillingConfig({});
-  it('code defaults are ₹299 / ₹1,499 and a three-day trial', () => {
-    expect(cfg.plans.monthly.amountPaise).toBe(29_900);
+  it('code defaults are ₹399 / ₹1,499 and a three-day trial', () => {
+    expect(cfg.plans.monthly.amountPaise).toBe(39_900);
     expect(cfg.plans.annual.amountPaise).toBe(149_900);
     expect(cfg.trialDays).toBe(3);
   });
   it('the Terms state the same prices and the three-day trial', () => {
     const t = text('terms');
-    expect(t).toContain('₹299 per month');
+    expect(t).toContain('₹399 per month');
     expect(t).toContain('₹1,499 per year');
     expect(t).toMatch(/currently three days/);
   });
@@ -163,7 +163,7 @@ describe('Stage 13.1: trial timing wording matches the implemented timing', () =
 describe('Stage 13.1: owner decisions are unchanged', () => {
   it('prices, the one-trial rule, the limited refund approach and 18+ wording are all still in place', () => {
     const terms = text('terms');
-    expect(terms).toContain('₹299 per month');
+    expect(terms).toContain('₹399 per month');
     expect(terms).toContain('₹1,499 per year');
     expect(terms).toMatch(/One trial is allowed per account and per email address/);
     expect(text('refund-policy')).not.toMatch(/change of mind[^.]*(will|can) be refunded/i);

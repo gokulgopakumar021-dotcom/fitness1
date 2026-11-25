@@ -90,7 +90,8 @@ export const termsSections: LegalSectionDef[] = [
         </P>
         <SubHeading>Prices and billing</SubHeading>
         <UL>
-          <li>Monthly plan: ₹299 per month. Annual plan: ₹1,499 per year.</li>
+          <li>Monthly plan: ₹399 per month. Annual plan: ₹1,499 per year.</li>
+          <li>A creator code, if valid, gives 20% off the first monthly charge after the trial only. The ₹5 verification payment is not discounted, and renewals are ₹399 per month.</li>
           <li>The amount shown in the app before you authorise payment is the amount that applies to you. At the time of this draft, checkout charges those amounts with no separate tax amount added. We do not state any tax registration or tax collection in this draft.</li>
           <li>Subscriptions are processed by Razorpay and renew automatically every month or year at the plan price until you cancel.</li>
         </UL>
@@ -108,7 +109,7 @@ export const termsSections: LegalSectionDef[] = [
         </P>
         <ReviewNote>
           Confirm with a CA how GST and invoicing apply to a digital subscription, and with counsel how “free” and trial-to-paid advertising and
-          recurring-payment rules apply. Prices and the trial length are configurable on the server (BILLING_PRICE_*_PAISE, BILLING_TRIAL_DAYS; code defaults 29,900 and 149,900 paise and 3 days), so confirm the live Vercel values and the Razorpay plan amounts still equal ₹299, ₹1,499 and three days before publishing. The trial end date and first charge are fixed when checkout is created (database time): the authorisation window (code default 30 minutes) plus the trial length after that moment. A customer who authorises inside the window therefore has the trial end date at least the trial length after authorising, and up to the window longer. The text deliberately does not promise 72 hours, because the exact first-charge time depends on Razorpay's scheduling, which Stage 12 has not verified; the app shows the date.
+          recurring-payment rules apply. Prices and the trial length are configurable on the server (BILLING_PRICE_*_PAISE, BILLING_TRIAL_DAYS; code defaults 39,900 and 149,900 paise and 3 days), so confirm the live Vercel values and the Razorpay plan amounts still equal ₹399, ₹1,499 and three days before publishing. The trial end date and first charge are fixed when checkout is created (database time): the authorisation window (code default 30 minutes) plus the trial length after that moment. A customer who authorises inside the window therefore has the trial end date at least the trial length after authorising, and up to the window longer. The text deliberately does not promise 72 hours, because the exact first-charge time depends on Razorpay's scheduling, which Stage 12 has not verified; the app shows the date.
         </ReviewNote>
       </>
     )

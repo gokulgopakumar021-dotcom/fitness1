@@ -64,10 +64,10 @@ describe('landing page', () => {
   it('shows the approved prices, and they match the server defaults (drift guard)', () => {
     mount();
     const t = container.textContent ?? '';
-    expect(t).toContain('₹299 per month');
+    expect(t).toContain('₹399 per month');
     expect(t).toContain('₹1,499 per year');
     const cfg = loadBillingConfig({});
-    expect([cfg.plans.monthly.amountPaise, cfg.plans.annual.amountPaise]).toEqual([29_900, 149_900]);
+    expect([cfg.plans.monthly.amountPaise, cfg.plans.annual.amountPaise]).toEqual([39_900, 149_900]);
   });
 
   it('the privacy section no longer implies everything is tied to the account', () => {

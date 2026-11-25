@@ -58,7 +58,7 @@ describe('draft state is protected while the owner and counsel have not finished
 
   it('owner-approved facts that ARE settled stay in place: 18+, prices, support address', () => {
     expect(pages.terms).toMatch(/at least 18 years of age/);
-    expect(pages.terms).toContain('₹299 per month');
+    expect(pages.terms).toContain('₹399 per month');
     expect(pages.terms).toContain('₹1,499 per year');
     expect(pages.contact).toContain(LEGAL.supportEmail);
     expect(`${pages.terms} ${pages.privacy}`).not.toMatch(/\b1[3-7]\+|aged 1[3-7]\b|at least 1[3-7] years/);

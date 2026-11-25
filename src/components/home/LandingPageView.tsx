@@ -597,8 +597,9 @@ export const LandingPageView: React.FC<LandingPageProps> = ({
                 <li>AI food analysis, recovery insights, overload optimiser, physique analysis and plan import</li>
               </ul>
               <p className="mt-3 text-xs text-zinc-300">
-                Paid plans: ₹299 per month or ₹1,499 per year. A trial may be offered when you start a plan; the first charge date and the full
-                terms are shown before you pay. See the <a href="/terms" className="text-accent underline underline-offset-2">Terms</a>,{' '}
+                Paid plans: ₹399 per month or ₹1,499 per year. A trial may be offered when you start a plan; the first charge date and the full
+                terms are shown before you pay. A creator code gives 20% off the first monthly charge after the trial only; the ₹5 verification
+                payment is not discounted and renewals are ₹399. See the <a href="/terms" className="text-accent underline underline-offset-2">Terms</a>,{' '}
                 <a href="/refund-policy" className="text-accent underline underline-offset-2">Refund Policy</a> and{' '}
                 <a href="/cancellation-policy" className="text-accent underline underline-offset-2">Cancellation Policy</a>.
               </p>
