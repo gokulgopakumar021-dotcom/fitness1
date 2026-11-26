@@ -91,8 +91,10 @@ export function loadBillingConfig(env: Env = process.env): BillingConfig {
   if (!inRange(pendingGraceHours, 0, 168)) problems.push('BILLING_PENDING_GRACE_HOURS must be an integer between 0 and 168.');
   if (!inRange(requestTimeoutMs, 1000, 60_000)) problems.push('BILLING_RAZORPAY_TIMEOUT_MS must be between 1000 and 60000.');
 
-  const rawEnforcement = (clean(env.BILLING_ENFORCEMENT) ?? 'off').toLowerCase(); // tolerate "ON"/"On"; anything else is reported, never guessed
-  let enforcement: EnforcementMode = 'off';
+  // FAIL CLOSED: unset or unrecognised means premium (AI) routes are enforced. Only an explicit "off" or "shadow" relaxes the gate
+  // (local development and tests). Tolerate "ON"/"On"; an unrecognised value is reported, and still enforces.
+  const rawEnforcement = (clean(env.BILLING_ENFORCEMENT) ?? 'on').toLowerCase();
+  let enforcement: EnforcementMode = 'on';
   if (rawEnforcement === 'off' || rawEnforcement === 'shadow' || rawEnforcement === 'on') enforcement = rawEnforcement;
   else problems.push('BILLING_ENFORCEMENT must be off, shadow or on.');
 

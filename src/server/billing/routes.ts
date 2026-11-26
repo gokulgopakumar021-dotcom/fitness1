@@ -109,8 +109,8 @@ export function createBillingEntitlementGate(deps: BillingDeps = {}) {
   const lazy = createLazyBilling(deps);
   const config = deps.config ?? loadBillingConfig();
   const mode = config.enforcement;
-  // An unrecognised BILLING_ENFORCEMENT value leaves the gate OFF (a typo must never lock every user out), so it has to be loud:
-  // otherwise an operator who meant "on" would believe AI routes are gated while nothing is.
+  // Fail closed: an unset or unrecognised BILLING_ENFORCEMENT value ENFORCES the gate (a typo must never open premium routes).
+  // It is still logged loudly so the operator notices the misconfiguration instead of assuming "off" or "shadow" took effect.
   if (config.problems.some((p) => p.startsWith('BILLING_ENFORCEMENT'))) logger.error('billing_enforcement_invalid', { effectiveMode: mode });
   return createEntitlementGate({ mode, check: async (userId, req) => lazy.get(req)?.checkEntitlement(userId) });
 }

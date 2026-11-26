@@ -30,7 +30,7 @@ const ai = () => fetch(server!.base + '/api/generate-plan', { method: 'POST', he
 const grant = (store: FakeStore) => store.subs.push({ id: 's1', user_id: 'user-a', status: 'authenticated', trial_end_at: new Date(Date.now() + 1e9).toISOString(), plan_key: 'monthly' } as never);
 
 describe('entitlement gate', () => {
-  it('off (default): no billing lookup, AI route behaves as before', async () => {
+  it('off (explicit opt-out only): no billing lookup, AI route behaves as before', async () => {
     const { store, consume } = await boot('off');
     const r = await ai();
     expect(r.status).not.toBe(402);

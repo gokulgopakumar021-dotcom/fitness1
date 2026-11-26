@@ -88,9 +88,9 @@ describe('BILLING_ENFORCEMENT misconfiguration is never silent', () => {
       expect(c.problems, raw).toEqual([]);
     }
   });
-  it('an unrecognised value leaves the gate off (no lock-out) but logs an error at startup', () => {
+  it('an unrecognised value FAILS CLOSED (gate stays on) and logs an error at startup', () => {
     const config = testBillingConfig({ BILLING_ENFORCEMENT: 'enabled' });
-    expect(config.enforcement).toBe('off');
+    expect(config.enforcement).toBe('on');
     createBillingEntitlementGate({ config });
     const lines = err.mock.calls.map((c: unknown[]) => String(c[0]));
     expect(lines.some((l: string) => l.includes('billing_enforcement_invalid'))).toBe(true);

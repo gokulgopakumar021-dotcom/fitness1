@@ -69,7 +69,7 @@ describe('billing configuration', () => {
     expect(c.configured).toBe(true);
     expect([c.plans.monthly.amountPaise, c.plans.annual.amountPaise]).toEqual([39900, 149900]);
     expect([c.plans.monthly.totalCount, c.plans.annual.totalCount]).toEqual([120, 10]);
-    expect([c.trialDays, c.pendingGraceHours, c.authWindowMinutes, c.enforcement]).toEqual([3, 0, 30, 'off']);
+    expect([c.trialDays, c.pendingGraceHours, c.authWindowMinutes, c.enforcement]).toEqual([3, 0, 30, 'on']);
   });
   it('is not configured when anything required is missing, and problem text never contains a value', () => {
     for (const k of ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET', 'BILLING_TRIAL_PEPPER', 'SUPABASE_SERVICE_ROLE_KEY', 'RAZORPAY_PLAN_ID_MONTHLY']) {
