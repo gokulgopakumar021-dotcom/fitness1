@@ -23,6 +23,8 @@ import {
 import { formatDelta } from '../../utils/progressionPresentation';
 import { LineChart } from '../common/Charts';
 import { BodyScanFlow } from '../bodyscan/BodyScanFlow';
+import { PremiumMark } from '../billing/PremiumLock';
+import { usePremiumGate, useCloseWhenLocked } from '../../context/EntitlementContext';
 import {
   Badge,
   Button,
@@ -116,6 +118,11 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({ profile, onProfile
   const unit = profile.preferredUnit || 'kg';
   const [metrics, setMetrics] = useState<BodyMetricEntry[]>(() => db.getBodyMetrics());
   const [showBodyScan, setShowBodyScan] = useState(false);
+  // Body Scan is premium (display lock: it runs on-device, there is no server route to refuse). Weight, BMI and measurements stay free.
+  const { guard } = usePremiumGate();
+  const openBodyScan = guard(() => setShowBodyScan(true));
+  // Access ended while a scan is open: leave it and open billing.
+  useCloseWhenLocked(showBodyScan, () => setShowBodyScan(false));
   const [notice, setNotice] = useState<string | null>(null);
 
   // Trends
@@ -333,8 +340,9 @@ export const BodyMetricsView: React.FC<BodyMetricsProps> = ({ profile, onProfile
         }
         actions={
           <>
-            <Button variant="secondary" icon={<Scan className="w-4 h-4" aria-hidden />} onClick={() => setShowBodyScan(true)}>
+            <Button variant="secondary" icon={<Scan className="w-4 h-4" aria-hidden />} onClick={openBodyScan}>
               Body Scan
+              <PremiumMark />
             </Button>
             <Button icon={<Plus className="w-4 h-4" aria-hidden />} onClick={openLog}>
               Log measurement

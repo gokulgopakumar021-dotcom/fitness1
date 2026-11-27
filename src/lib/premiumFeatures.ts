@@ -3,11 +3,12 @@
  * (every `ai: true` route in src/server/security/endpoints.ts) is the real enforcement. This list exists so the UI locks and the
  * server gate cannot drift apart silently; premiumFeatures.test.ts fails if a server AI route is missing here.
  *
- * Free and NOT listed (never locked): basic workout tracking, manual/search/barcode nutrition logging, local Body Scan camera and
- * pose tracking, local analytics and the rule-based recovery model.
+ * Free and NOT listed (never locked): basic workout tracking, manual/search/barcode nutrition logging, weight/BMI/measurement
+ * logging, local analytics, the rule-based recovery model, and deleting your own stored data (Settings > Data controls, including
+ * Body Scan data).
  *
  * `enforcement: 'ui-only'` marks premium features that no server route can enforce today: the Video Library is read straight from
- * Supabase (RLS + signed Storage URLs) and Workout Mirror runs on-device. For those the lock is display only.
+ * Supabase (RLS + signed Storage URLs), and Workout Mirror and Body Scan run on-device. For those the lock is display only.
  */
 export interface PremiumFeature {
   id: string;
@@ -35,6 +36,7 @@ export const PREMIUM_FEATURES: readonly PremiumFeature[] = [
   { id: 'form-coach', label: 'AI Form Coach', routes: ['/api/ai-form-analyzer'], entry: 'Form & biomechanics modal: "AI Form Coach" tab (the diagram tabs stay free)' },
   { id: 'recovery-insights', label: 'AI recovery analysis', routes: ['/api/ai-recovery-insights'], entry: 'Overview: "Run AI Recovery Analysis" (the local recovery model stays free)' },
   { id: 'workout-mirror', label: 'Workout Mirror', routes: [], entry: 'Sidebar, More sheet, Home "More" list; every navigation path to the tab', enforcement: 'ui-only' },
+  { id: 'body-scan', label: 'Body Scan', routes: [], entry: 'Body & BMI: "Body Scan" button (the rest of Body & BMI stays free)', enforcement: 'ui-only' },
   { id: 'video-library', label: 'Video Library and in-modal exercise videos', routes: [], entry: 'Sidebar, More sheet, Home "More" list; "Exercise video" section in the form modal', enforcement: 'ui-only' },
   { id: 'dream-physique', label: 'AI Dream Physique and physique analysis', routes: ['/api/ai-generate-physique', '/api/ai-physique-analysis'], entry: 'AI Coach tab > "Physique Blueprint" (modal also closes itself when locked)' }
 ];

@@ -18,6 +18,7 @@ import { ExercisePostureModal } from '../posture/ExercisePostureModal';
 import { DesktopSidebar, NAV_GROUPS } from '../layout/Navbar';
 import { FloatingTrainerWidget } from '../trainer/FloatingTrainerWidget';
 import { HomeExploreCard } from '../home/HomeSections';
+import { BodyMetricsView } from '../body/BodyMetricsView';
 import { BluetoothGadgetProvider } from '../../context/BluetoothGadgetContext';
 import { db, DEFAULT_PROFILE } from '../../storage/db';
 import { getCurrentDayKey } from '../../storage/nutritionTargetCommit';
@@ -276,5 +277,49 @@ describe('navigation and widget', () => {
     expect(billingOpened).toBe(1);
     expect(page()).not.toContain('Quick Assist');
     expect(aiCalls()).toHaveLength(0);
+  });
+});
+
+// ------------------------------------------------------------------------------------------------------ body scan
+describe('body scan', () => {
+  const body = <BodyMetricsView profile={DEFAULT_PROFILE} onProfileUpdated={() => {}} />;
+
+  it('locked: Body Scan shows Premium and opens billing instead of the scan; the rest of Body & BMI stays free', async () => {
+    await renderWith(LOCKED(), body);
+    expect(norm(buttonWithText('Body Scan')!)).toContain('Premium');
+    expect(norm(buttonWithText('Log measurement')!)).not.toContain('Premium');
+    expect(lockCount()).toBe(1);
+
+    await click(buttonWithText('Body Scan'));
+    expect(billingOpened).toBe(1);
+    expect(page()).not.toContain('Back to Body Metrics');
+    expect(page()).toContain('Log measurement');
+
+    await click(buttonWithText('Log measurement'));
+    expect(billingOpened).toBe(1);
+    expect(document.body.querySelector('[role="dialog"]')).toBeTruthy();
+  });
+
+  it('entitled: no lock, and Body Scan opens as before', async () => {
+    await renderWith(ENTITLED(), body);
+    expect(lockCount()).toBe(0);
+    await click(buttonWithText('Body Scan'));
+    expect(page()).toContain('Back to Body Metrics');
+    expect(billingOpened).toBe(0);
+  });
+
+  it('access ends while a scan is open: leaves the scan and opens billing', async () => {
+    let hasAccess = true;
+    await act(async () => root.render(<EntitlementProvider userId="u1" fetchStatus={async () => statusOf(hasAccess)}>{body}</EntitlementProvider>));
+    await flush();
+    await click(buttonWithText('Body Scan'));
+    expect(page()).toContain('Back to Body Metrics');
+
+    hasAccess = false;
+    // the lock appears the way it does in the app: a server 402 (the status re-read then confirms it)
+    await act(async () => { window.dispatchEvent(new CustomEvent('ironlog:billing-refusal', { detail: { kind: 'subscription_required', state: 'none' } })); });
+    await flush();
+    expect(page()).not.toContain('Back to Body Metrics');
+    expect(billingOpened).toBe(1);
   });
 });

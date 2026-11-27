@@ -30,22 +30,23 @@ describe('premium feature registry', () => {
 
   it('marks exactly the features no server route can enforce as ui-only (their lock is display only)', () => {
     const uiOnly = PREMIUM_FEATURES.filter((f) => f.enforcement === 'ui-only');
-    expect(uiOnly.map((f) => f.id).sort()).toEqual(['video-library', 'workout-mirror']);
+    expect(uiOnly.map((f) => f.id).sort()).toEqual(['body-scan', 'video-library', 'workout-mirror']);
     for (const f of uiOnly) expect(f.routes).toEqual([]);
     for (const f of PREMIUM_FEATURES.filter((x) => x.enforcement !== 'ui-only')) expect(f.routes.length).toBeGreaterThan(0);
   });
 });
 
 describe('free areas are never gated', () => {
-  const walk = (dir: string): string[] =>
-    readdirSync(dir).flatMap((n) => {
-      const p = join(dir, n);
-      return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(n) && !/\.test\./.test(n) ? [p] : [];
-    });
+  const walk = (path: string): string[] =>
+    statSync(path).isDirectory()
+      ? readdirSync(path).flatMap((n) => walk(join(path, n)))
+      : /\.(ts|tsx)$/.test(path) && !/\.test\./.test(path)
+        ? [path]
+        : [];
 
-  // Local Body Scan camera/pose tracking and the camera/pose services must not reference the premium locks. (Workout Mirror and the Video
-  // Library are premium, but they are locked at their navigation entry points, never inside the camera/pose services.)
-  it.each(['src/components/bodyscan', 'src/components/body', 'src/services'])('%s does not import premium locks', (dir) => {
+  // Premium locks live only at entry points (tabs, buttons). The camera/pose capture code and services never reference them, and
+  // neither does anything in Settings, so deleting your own stored data (including Body Scan data) can never be locked.
+  it.each(['src/components/bodyscan', 'src/components/settings/DataControls.tsx', 'src/services'])('%s does not import premium locks', (dir) => {
     for (const file of walk(dir)) {
       const src = readFileSync(file, 'utf8');
       expect(src, file).not.toMatch(/EntitlementContext|PremiumLock|premiumFeatures/);
