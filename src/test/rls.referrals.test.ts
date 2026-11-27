@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  *    partners cannot change their rate or approve/pay, app_admins/attributions/audit are server-only,
  *  - admin functions: service_role only, and independently re-check the acting user against app_admins,
  *  - attribution: first-touch, immutable, server-validated (unknown/inactive/self-referral/post-billing rejected),
- *  - commission math at 20% (INR 299 -> 59.80, INR 1,499 -> 299.80), no trial/authorization/failed commission,
+ *  - commission math at 20% (INR 399 -> 79.80, INR 1,499 -> 299.80), no trial/authorization/failed commission,
  *  - refunds (partial, full, repeat, reinstatement, order independence) and chargebacks via the append-only ledger,
  *  - uniqueness (partner code, one accrual per payment, dedupe key) and append-only/immutability triggers,
  *  - payouts bounded by the payable balance, hold period, flagged-attribution hold, void as compensating entry, audit rows,
@@ -67,13 +67,13 @@ let seq = 0;
 /** Inserts a subscription + payment directly (as the billing server would) and returns the payment uuid. */
 async function makePayment(user: string | null, opts: { kind?: string; status?: string; amount?: number; refunded?: number } = {}) {
   seq += 1;
-  const amount = opts.amount ?? 29900;
+  const amount = opts.amount ?? 39900;
   const status = opts.status ?? 'captured';
   const refunded = opts.refunded ?? 0;
   const sub = (
     await val<{ id: string }>(
       `insert into public.billing_subscriptions (user_id, plan_key, razorpay_plan_id, billing_period, amount_paise, status, razorpay_subscription_id)
-       values ($1,'monthly','plan_m','monthly',29900,'completed',$2) returning id`,
+       values ($1,'monthly','plan_m','monthly',39900,'completed',$2) returning id`,
       [user, `sub_${seq}_${Math.random()}`]
     )
   )[0].id;
@@ -350,10 +350,10 @@ describe('attribution: server-authoritative, first-touch, immutable', () => {
 });
 
 describe('commission accrual: 20% of successfully collected charges only', () => {
-  it('accrues INR 59.80 on a 299 charge and 299.80 on a 1,499 charge, once per payment', async () => {
-    const p1 = await makePayment(C1, { amount: 29900 });
+  it('accrues INR 79.80 on a 399 charge and 299.80 on a 1,499 charge, once per payment', async () => {
+    const p1 = await makePayment(C1, { amount: 39900 });
     expect(await sync(p1)).toMatchObject({ outcome: 'accrued' });
-    expect(await net(p1)).toBe(59.8);
+    expect(await net(p1)).toBe(79.8);
     expect(await sync(p1)).toMatchObject({ outcome: 'unchanged' }); // replay
     expect(await sync(p1)).toMatchObject({ outcome: 'unchanged' });
     expect((await ledger(p1)).length).toBe(1);
@@ -369,8 +369,8 @@ describe('commission accrual: 20% of successfully collected charges only', () =>
   it('never pays commission on trial, authorization-only, authorized-only or failed payments', async () => {
     const auth = await makePayment(C1, { kind: 'authorization', status: 'authorized', amount: 500 });
     const authCaptured = await makePayment(C1, { kind: 'authorization', status: 'captured', amount: 500 });
-    const authorizedCharge = await makePayment(C1, { kind: 'charge', status: 'authorized', amount: 29900 });
-    const failed = await makePayment(C1, { kind: 'charge', status: 'failed', amount: 29900 });
+    const authorizedCharge = await makePayment(C1, { kind: 'charge', status: 'authorized', amount: 39900 });
+    const failed = await makePayment(C1, { kind: 'charge', status: 'failed', amount: 39900 });
     const zero = await makePayment(C1, { kind: 'charge', status: 'captured', amount: 0 });
     for (const p of [auth, authCaptured, authorizedCharge, failed, zero]) {
       expect((await sync(p)).outcome).toBe('not_eligible');
@@ -387,21 +387,21 @@ describe('commission accrual: 20% of successfully collected charges only', () =>
   });
 
   it('snapshots the rate: a later rate change affects future accruals only', async () => {
-    const before = await makePayment(C1, { amount: 29900 });
+    const before = await makePayment(C1, { amount: 39900 });
     await sync(before);
     await svc(() => pg.query(`select public.referral_admin_set_partner_rate($1::uuid,$2::uuid,3000)`, [ADMIN, partner1]));
-    const after = await makePayment(C1, { amount: 29900 });
+    const after = await makePayment(C1, { amount: 39900 });
     await sync(after);
-    expect(await net(before)).toBe(59.8);
-    expect(await net(after)).toBe(89.7);
+    expect(await net(before)).toBe(79.8);
+    expect(await net(after)).toBe(119.7);
     await sync(before); // replay after the rate change must not re-rate the old payment
-    expect(await net(before)).toBe(59.8);
+    expect(await net(before)).toBe(79.8);
     await svc(() => pg.query(`select public.referral_admin_set_partner_rate($1::uuid,$2::uuid,2000)`, [ADMIN, partner1]));
   });
 
   it('stops accruing for a suspended partner but keeps existing history', async () => {
     await svc(() => pg.query(`select public.referral_admin_set_partner_status($1::uuid,$2::uuid,'suspended')`, [ADMIN, partner1]));
-    const p = await makePayment(C1, { amount: 29900 });
+    const p = await makePayment(C1, { amount: 39900 });
     expect((await sync(p)).outcome).toBe('partner_inactive');
     await svc(() => pg.query(`select public.referral_admin_set_partner_status($1::uuid,$2::uuid,'active')`, [ADMIN, partner1]));
     expect((await sync(p)).outcome).toBe('accrued');
@@ -411,7 +411,7 @@ describe('commission accrual: 20% of successfully collected charges only', () =>
     const ps = [await makePayment(C1), await makePayment(C1), await makePayment(C1)];
     for (const p of ps) {
       await sync(p);
-      expect(await net(p)).toBe(59.8);
+      expect(await net(p)).toBe(79.8);
     }
   });
 
@@ -421,7 +421,7 @@ describe('commission accrual: 20% of successfully collected charges only', () =>
     const att = (await val<{ id: string }>(`select id from public.referral_attributions where referred_user_id='${C1}'`))[0].id;
     const ins = (key: string) =>
       pg.query(`insert into public.referral_ledger_entries (partner_id, attribution_id, payment_id, entry_type, amount, basis_amount, rate_bps, dedupe_key, payable_after)
-                values ('${partner1}','${att}','${p}','accrual',59.80,299,2000,'${key}',now())`);
+                values ('${partner1}','${att}','${p}','accrual',79.80,399,2000,'${key}',now())`);
     await rejects(() => ins('acc:other-key')); // second accrual for the same payment, different key
     await rejects(() => ins(`acc:${p}`)); // same key
   });
@@ -431,7 +431,7 @@ describe('commission accrual: 20% of successfully collected charges only', () =>
     const p = await makePayment(C1);
     const q = (type: string, amount: string, extra = '') =>
       pg.query(`insert into public.referral_ledger_entries (partner_id, attribution_id, payment_id, entry_type, amount, basis_amount, rate_bps, payable_after, dedupe_key ${extra ? ',reason' : ''})
-                values ('${partner1}','${att}','${p}','${type}',${amount},299,2000,now(),'bad-${type}-${amount}' ${extra ? `,'${extra}'` : ''})`);
+                values ('${partner1}','${att}','${p}','${type}',${amount},399,2000,now(),'bad-${type}-${amount}' ${extra ? `,'${extra}'` : ''})`);
     await rejects(() => q('accrual', '-5')); // negative accrual
     await rejects(() => q('refund_reversal', '5')); // positive reversal
     await rejects(() => q('payout', '-5')); // payout with a payment link / no payout id
@@ -443,28 +443,28 @@ describe('commission accrual: 20% of successfully collected charges only', () =>
 });
 
 describe('refunds and chargebacks', () => {
-  async function accruedPayment(amount = 29900) {
+  async function accruedPayment(amount = 39900) {
     const p = await makePayment(C1, { amount });
     await sync(p);
     return p;
   }
 
   it('reverses proportionally on a partial refund, and is idempotent on replay', async () => {
-    const p = await accruedPayment(29900);
-    await setRefund(p, 10000); // refunded INR 100 -> remaining 199 -> 39.80
+    const p = await accruedPayment(39900);
+    await setRefund(p, 10000); // refunded INR 100 -> remaining 299 -> 59.80
     const r1 = await sync(p);
     expect(r1.outcome).toBe('adjusted');
     expect(Number(r1.delta)).toBe(-20);
-    expect(await net(p)).toBe(39.8);
+    expect(await net(p)).toBe(59.8);
     expect(await sync(p)).toMatchObject({ outcome: 'unchanged' });
     expect(await sync(p)).toMatchObject({ outcome: 'unchanged' });
-    expect(await net(p)).toBe(39.8);
+    expect(await net(p)).toBe(59.8);
     expect((await ledger(p)).map((l) => l.entry_type).sort()).toEqual(['accrual', 'refund_reversal']);
   });
 
   it('lands exactly on zero for a full refund, including a refund seen before the first sync', async () => {
-    const p = await accruedPayment(29900);
-    await setRefund(p, 29900, 'refunded');
+    const p = await accruedPayment(39900);
+    await setRefund(p, 39900, 'refunded');
     await sync(p);
     expect(await net(p)).toBe(0);
     await sync(p);
@@ -476,34 +476,34 @@ describe('refunds and chargebacks', () => {
   });
 
   it('is order-independent and handles several partial refunds with the same result', async () => {
-    const a = await accruedPayment(29900);
+    const a = await accruedPayment(39900);
     await setRefund(a, 5000); await sync(a);
     await setRefund(a, 15000); await sync(a);
-    await setRefund(a, 29900, 'refunded'); await sync(a);
-    const b = await accruedPayment(29900);
-    await setRefund(b, 29900, 'refunded'); await sync(b); // jumped straight to the final state
+    await setRefund(a, 39900, 'refunded'); await sync(a);
+    const b = await accruedPayment(39900);
+    await setRefund(b, 39900, 'refunded'); await sync(b); // jumped straight to the final state
     expect(await net(a)).toBe(0);
     expect(await net(b)).toBe(0);
   });
 
   it('reinstates commission when a refund level goes back down (failed refund), appending rather than editing', async () => {
-    const p = await accruedPayment(29900);
-    await setRefund(p, 29900, 'refunded'); await sync(p);
+    const p = await accruedPayment(39900);
+    await setRefund(p, 39900, 'refunded'); await sync(p);
     expect(await net(p)).toBe(0);
     await setRefund(p, 0, 'captured'); // refund failed
     const r2 = await sync(p);
     expect(r2.outcome).toBe('adjusted');
-    expect(Number(r2.delta)).toBe(59.8);
-    expect(await net(p)).toBe(59.8);
+    expect(Number(r2.delta)).toBe(79.8);
+    expect(await net(p)).toBe(79.8);
     expect((await ledger(p)).map((l) => l.entry_type).sort()).toEqual(['accrual', 'refund_reinstatement', 'refund_reversal']);
   });
 
   it('reverses the remaining net once on a lost chargeback and does not reinstate it later', async () => {
-    const p = await accruedPayment(29900);
-    await setRefund(p, 10000); await sync(p); // net 39.80
+    const p = await accruedPayment(39900);
+    await setRefund(p, 10000); await sync(p); // net 59.80
     const r = await svc(() => pg.query<{ outcome: string; delta: string }>(`select * from public.referral_apply_chargeback($1::uuid,'disp_1')`, [p]));
     expect(r.rows[0].outcome).toBe('reversed');
-    expect(Number(r.rows[0].delta)).toBe(-39.8);
+    expect(Number(r.rows[0].delta)).toBe(-59.8);
     expect(await net(p)).toBe(0);
     expect((await svc(() => pg.query<{ outcome: string }>(`select * from public.referral_apply_chargeback($1::uuid,'disp_1')`, [p]))).rows[0].outcome).toBe('duplicate');
     await setRefund(p, 0); await sync(p); // refund level drops; chargeback keeps the target at zero
@@ -516,11 +516,11 @@ describe('refunds and chargebacks', () => {
     const u = '77777777-7777-4777-8777-777777777777';
     await pg.exec(`insert into auth.users (id, email) values ('${u}','gone@example.com')`);
     expect((await attribute(u, 'ALPHA1', H('gone'))).outcome).toBe('attributed');
-    const p = await makePayment(u, { amount: 29900 });
+    const p = await makePayment(u, { amount: 39900 });
     await sync(p);
     await pg.exec(`delete from auth.users where id='${u}'`); // FK set null on subscriptions/payments/attribution
     expect((await val<{ u: string | null }>(`select referred_user_id u from public.referral_attributions where code_used='ALPHA1' and referred_email_hash='${H('gone')}'`))[0].u).toBeNull();
-    await setRefund(p, 29900, 'refunded');
+    await setRefund(p, 39900, 'refunded');
     await sync(p);
     expect(await net(p)).toBe(0);
   });
@@ -529,7 +529,7 @@ describe('refunds and chargebacks', () => {
 describe('payouts, hold period and balance', () => {
   let p3: string;
   it('treats fresh accruals as pending, not payable, and refuses to pay them', async () => {
-    const pay = await makePayment(C1, { amount: 29900 });
+    const pay = await makePayment(C1, { amount: 39900 });
     await sync(pay); // default 14-day hold
     const b = await balance(partner1);
     expect(Number(b.total)).toBeGreaterThan(0);
@@ -567,16 +567,16 @@ describe('payouts, hold period and balance', () => {
   });
 
   it('lets a reversal after payout carry forward as a negative balance (clawback)', async () => {
-    const fresh = await makePayment(C1, { amount: 29900 });
+    const fresh = await makePayment(C1, { amount: 39900 });
     await sync(fresh, 0); // no hold
     const paid = Number((await balance(partner1)).payable);
     await svc(() => pg.query(`select public.referral_admin_record_payout($1::uuid,$2::uuid,$3,'bank_transfer','NEFT-1',now())`, [ADMIN, partner1, paid]));
     expect(Number((await balance(partner1)).payable)).toBe(0);
-    await setRefund(fresh, 29900, 'refunded');
+    await setRefund(fresh, 39900, 'refunded');
     await sync(fresh, 0);
-    expect(Number((await balance(partner1)).payable)).toBeCloseTo(-59.8, 2);
+    expect(Number((await balance(partner1)).payable)).toBeCloseTo(-79.8, 2);
     await rejects(() => svc(() => pg.query(`select public.referral_admin_record_payout($1::uuid,$2::uuid,1,'upi','UPI-NEG',now())`, [ADMIN, partner1])));
-    await svc(() => pg.query(`select public.referral_admin_add_adjustment($1::uuid,$2::uuid,59.80,'clawback settled offline')`, [ADMIN, partner1]));
+    await svc(() => pg.query(`select public.referral_admin_add_adjustment($1::uuid,$2::uuid,79.80,'clawback settled offline')`, [ADMIN, partner1]));
     expect(Number((await balance(partner1)).payable)).toBeCloseTo(0, 2);
   });
 
@@ -593,10 +593,10 @@ describe('payouts, hold period and balance', () => {
     const u = '88888888-8888-4888-8888-888888888888';
     await pg.exec(`insert into auth.users (id, email) values ('${u}','flag@example.com')`);
     const att = await attribute(u, 'BETA22', H('flag'), ['contact_match']);
-    const pay = await makePayment(u, { amount: 29900 });
+    const pay = await makePayment(u, { amount: 39900 });
     await sync(pay, 0);
     const held = await balance(partner2);
-    expect(Number(held.pending)).toBeCloseTo(59.8, 2);
+    expect(Number(held.pending)).toBeCloseTo(79.8, 2);
     await svc(() => pg.query(`select public.referral_admin_review_attribution($1::uuid,$2::uuid,'active',null)`, [ADMIN, att.attribution_id]));
     expect(Number((await balance(partner2)).pending)).toBe(0);
     await svc(() => pg.query(`select public.referral_admin_review_attribution($1::uuid,$2::uuid,'void',null)`, [ADMIN, att.attribution_id]));

@@ -115,7 +115,7 @@ describe('duplicate subscription creation under concurrency', () => {
   });
   it('an intent row left behind by a crash (never reached Razorpay) is retired once it is old, so the user is not stuck', async () => {
     const { svc, gateway, store, clock } = world();
-    await store.beginSubscription({ userId: user.id, emailHash: 'h', planKey: 'monthly', razorpayPlanId: 'plan_MonthlyTest01', billingPeriod: 'monthly', amountPaise: 29900, trialDays: 3, authWindowMinutes: 30 });
+    await store.beginSubscription({ userId: user.id, emailHash: 'h', planKey: 'monthly', razorpayPlanId: 'plan_MonthlyTest01', billingPeriod: 'monthly', amountPaise: 39900, trialDays: 3, authWindowMinutes: 30 });
     await expect(svc.createSubscription(user, 'monthly')).rejects.toMatchObject({ status: 409, code: 'subscription_in_progress' }); // still young
     clock.advance(5 * 60_000);
     const r = await svc.createSubscription(user, 'monthly');
@@ -134,7 +134,7 @@ describe('duplicate subscription creation under concurrency', () => {
 describe('webhook replay and concurrent delivery', () => {
   const charge = (t: Awaited<ReturnType<typeof authorized>>) => {
     Object.assign(t.gateway.subs.get(t.subId)!, { status: 'active', paid_count: 1, current_start: 1_793_000_000, current_end: 1_795_592_000 });
-    t.gateway.payments.set('pay_Charge001', { id: 'pay_Charge001', status: 'captured', amount: 29900, currency: 'INR', method: 'upi', created_at: 1_793_000_000 });
+    t.gateway.payments.set('pay_Charge001', { id: 'pay_Charge001', status: 'captured', amount: 39900, currency: 'INR', method: 'upi', created_at: 1_793_000_000 });
   };
 
   it('the same signed body replayed under a DIFFERENT event id (the id header is not signed) is harmless: state converges, one payment', async () => {
@@ -176,7 +176,7 @@ describe('webhook replay and concurrent delivery', () => {
     const t = await authorized();
     Object.assign(t.gateway.subs.get(t.subId)!, { status: 'halted' });
     const b = body('subscription.charged', t.subId, 'pay_Charge001');
-    t.gateway.payments.set('pay_Charge001', { id: 'pay_Charge001', status: 'captured', amount: 29900, currency: 'INR', method: 'card', created_at: 1_793_000_000 });
+    t.gateway.payments.set('pay_Charge001', { id: 'pay_Charge001', status: 'captured', amount: 39900, currency: 'INR', method: 'card', created_at: 1_793_000_000 });
     await t.svc.handleWebhook(b, whSig(b), 'evt_forged_charge');
     expect(t.store.subs[0].status).toBe('halted');
     expect(await t.svc.checkEntitlement(user.id)).toMatchObject({ hasAccess: false });

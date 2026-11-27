@@ -80,7 +80,7 @@ describe('landing page', () => {
 });
 
 describe('billing disclosure (before Razorpay opens)', () => {
-  const plan = { key: 'monthly', amountPaise: 29_900, period: 'monthly', interval: 1 } as any;
+  const plan = { key: 'monthly', amountPaise: 39_900, period: 'monthly', interval: 1 } as any;
 
   it('links Terms, Refund Policy and Cancellation Policy, in a new tab, next to the unchanged agree checkbox', () => {
     act(() => root.render(<Disclosure plan={plan} trialEligible trialDays={3} verificationDebitPaise={500} firstChargeAt="2026-11-20T00:00:00Z" agreed={false} onAgree={() => {}} />));

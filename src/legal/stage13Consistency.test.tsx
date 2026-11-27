@@ -113,7 +113,7 @@ describe('Stage 13.1: trial timing wording matches the implemented timing', () =
   const customerFacing = (): string[] => {
     const pages = (['terms', 'privacy', 'refund-policy', 'cancellation-policy', 'contact'] as const).map(text);
     const disclosure = buildDisclosure({
-      plan: { key: 'monthly', amountPaise: 29900, currency: 'INR', interval: 'month', billingPeriod: 'monthly' } as never,
+      plan: { key: 'monthly', amountPaise: 39900, currency: 'INR', interval: 'month', billingPeriod: 'monthly' } as never,
       trialEligible: true, trialDays: 3, verificationDebitPaise: 500, firstChargeAt: '2026-11-13T12:00:00Z'
     }).join('\n');
     const ui = ['BillingParts', 'BillingOnboarding', 'BillingPanel'].map((f) => readFileSync(`src/components/billing/${f}.tsx`, 'utf8')).join('\n');
@@ -137,7 +137,7 @@ describe('Stage 13.1: trial timing wording matches the implemented timing', () =
   });
   it('the pre-checkout disclosure calls the first charge scheduled and says the date is set at checkout', () => {
     const d = buildDisclosure({
-      plan: { key: 'monthly', amountPaise: 29900, currency: 'INR', interval: 'month', billingPeriod: 'monthly' } as never,
+      plan: { key: 'monthly', amountPaise: 39900, currency: 'INR', interval: 'month', billingPeriod: 'monthly' } as never,
       trialEligible: true, trialDays: 3, verificationDebitPaise: 500, firstChargeAt: '2026-11-13T12:00:00Z'
     }).join('\n');
     expect(d).toMatch(/is scheduled for 13 Nov 2026/);

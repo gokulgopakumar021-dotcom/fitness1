@@ -30,7 +30,7 @@ const baseStatus = (over: Partial<BillingStatus> = {}): BillingStatus & { succes
   emailVerified: true,
   trial: { eligible: true, days: 3, firstChargePreviewAt: '2026-11-13T12:00:00Z', verificationDebit: { amountPaise: 500, refundedAutomatically: true } },
   plans: [
-    { key: 'monthly', amountPaise: 29900, currency: 'INR', billingPeriod: 'monthly', interval: 1 },
+    { key: 'monthly', amountPaise: 39900, currency: 'INR', billingPeriod: 'monthly', interval: 1 },
     { key: 'annual', amountPaise: 149900, currency: 'INR', billingPeriod: 'yearly', interval: 1 }
   ],
   entitlement: { state: 'none', hasAccess: false, accessEndsAt: null },
@@ -38,12 +38,12 @@ const baseStatus = (over: Partial<BillingStatus> = {}): BillingStatus & { succes
   ...over
 });
 const sub = (over: Partial<PublicSubscription> = {}): PublicSubscription => ({
-  id: 's1', planKey: 'monthly', status: 'authenticated', paymentStatus: 'authorized', amountPaise: 29900, currency: 'INR', billingPeriod: 'monthly',
+  id: 's1', planKey: 'monthly', status: 'authenticated', paymentStatus: 'authorized', amountPaise: 39900, currency: 'INR', billingPeriod: 'monthly',
   trialStartAt: '2026-11-10T00:00:00Z', trialEndAt: '2026-11-13T12:00:00Z', currentPeriodStart: null, currentPeriodEnd: null, nextBillingAt: '2026-11-13T12:00:00Z',
   paidCount: 0, cancelRequestedAt: null, cancelAtCycleEnd: false, cancelledAt: null, accessEndsAt: null, createdAt: '2026-11-10T00:00:00Z', ...over
 });
 const created = (over: Record<string, unknown> = {}) => ({
-  success: true, subscriptionId: 'sub_ABC123456', keyId: 'rzp_test_key', planKey: 'monthly', amountPaise: 29900, currency: 'INR', billingPeriod: 'monthly',
+  success: true, subscriptionId: 'sub_ABC123456', keyId: 'rzp_test_key', planKey: 'monthly', amountPaise: 39900, currency: 'INR', billingPeriod: 'monthly',
   trialEligible: true, trialDays: 3, firstChargeAt: '2026-11-13T12:00:00Z', authorizationExpiresAt: null, authorization: { amountPaise: 500, refundable: true }, reused: false, ...over
 });
 const callback = { razorpay_payment_id: 'pay_ABC123456', razorpay_subscription_id: 'sub_ABC123456', razorpay_signature: 'a'.repeat(64) };
@@ -88,7 +88,7 @@ afterEach(() => {
 describe('BillingPanel: subscribing', () => {
   it('shows both server plans and the full pre-authorisation disclosure, never "free" or "no charge"', async () => {
     await mount();
-    expect(text()).toContain('₹299 per month');
+    expect(text()).toContain('₹399 per month');
     expect(text()).toContain('₹1,499 per year');
     const d = container.querySelector('[data-testid="disclosure"]')!.textContent!;
     expect(d).toContain('₹5 card verification debit');
@@ -201,7 +201,7 @@ describe('BillingPanel: subscribing', () => {
   });
 
   it('does not open Checkout when trial eligibility changed under the person (disclosed a trial, server says none)', async () => {
-    api.createSubscription.mockResolvedValue(created({ trialEligible: false, trialDays: 0, firstChargeAt: null, authorization: { amountPaise: 29900, refundable: false } }));
+    api.createSubscription.mockResolvedValue(created({ trialEligible: false, trialDays: 0, firstChargeAt: null, authorization: { amountPaise: 39900, refundable: false } }));
     await mount();
     await agree();
     await click(startButton());
@@ -225,10 +225,10 @@ describe('BillingPanel: subscribing', () => {
     api.fetchBillingStatus.mockResolvedValue(baseStatus({ trial: { eligible: false, days: 3, firstChargePreviewAt: null, verificationDebit: { amountPaise: 500, refundedAutomatically: true } }, entitlement: { state: 'trial_expired', hasAccess: false, accessEndsAt: null }, subscription: sub({ status: 'cancelled' }) }));
     await mount();
     const d = container.querySelector('[data-testid="disclosure"]')!.textContent!;
-    expect(d).toContain('Charged today: ₹299');
+    expect(d).toContain('Charged today: ₹399');
     expect(d).not.toContain('verification debit');
     expect(text()).toContain('Trial ended');
-    expect(startButton()?.textContent).toBe('Subscribe, ₹299 per month');
+    expect(startButton()?.textContent).toBe('Subscribe, ₹399 per month');
   });
 
   it('blocks subscribing and explains why when the email is not verified', async () => {
@@ -248,7 +248,7 @@ describe('BillingPanel: dashboard states', () => {
     expect(container.querySelector('[data-testid="trial-days"]')!.textContent).toBe('3 days left');
     expect(text()).toContain('Trial ends');
     expect(text()).toContain('13 Nov 2026');
-    expect(text()).toContain('Monthly, ₹299 per month');
+    expect(text()).toContain('Monthly, ₹399 per month');
     expect(text()).toContain('Next billing date');
     expect(text()).toContain('Authorised, first charge scheduled');
     expect(container.querySelector('input[name="billing-plan"]')).toBeNull(); // no plan picker while subscribed
@@ -308,7 +308,7 @@ describe('BillingPanel: dashboard states', () => {
   it('billing history: lists payments, shows the verification debit as refunded only when it was, and recovers from a load error', async () => {
     api.fetchBillingPayments.mockResolvedValue([
       { id: 'a', kind: 'authorization', status: 'refunded', amountPaise: 500, amountRefundedPaise: 500, currency: 'INR', method: 'card', paidAt: '2026-11-10T06:00:00Z', createdAt: '2026-11-10T06:00:00Z' },
-      { id: 'b', kind: 'charge', status: 'captured', amountPaise: 29900, amountRefundedPaise: 0, currency: 'INR', method: 'card', paidAt: '2026-11-13T06:00:00Z', createdAt: '2026-11-13T06:00:00Z' }
+      { id: 'b', kind: 'charge', status: 'captured', amountPaise: 39900, amountRefundedPaise: 0, currency: 'INR', method: 'card', paidAt: '2026-11-13T06:00:00Z', createdAt: '2026-11-13T06:00:00Z' }
     ]);
     await mount();
     const list = container.querySelector('ul[aria-label="Payments"]')!.textContent!;
@@ -316,7 +316,7 @@ describe('BillingPanel: dashboard states', () => {
     expect(list).toContain('Refunded in full');
     expect(list).toContain('₹5');
     expect(list).toContain('Subscription charge');
-    expect(list).toContain('₹299');
+    expect(list).toContain('₹399');
   });
 
   it('billing history error does not hide the rest of the screen and can be retried', async () => {
@@ -338,7 +338,7 @@ describe('BillingPanel: cancelling', () => {
     await mount();
     await click(byText('button', 'Cancel subscription'));
     const dialog = document.querySelector('[role="dialog"]')!;
-    expect(dialog.textContent).toContain('first charge of ₹299 will not be taken');
+    expect(dialog.textContent).toContain('first charge of ₹399 will not be taken');
     expect(dialog.textContent).toContain('13 Nov 2026');
     expect(api.cancelSubscription).not.toHaveBeenCalled();
     await click(Array.from(dialog.querySelectorAll('button')).find((b) => b.textContent === 'Keep subscription'));
@@ -380,7 +380,7 @@ describe('BillingPanel: cancelling', () => {
 });
 
 const recovery = (over: Record<string, unknown> = {}) => ({
-  success: true, subscriptionId: 'sub_ABC123456', keyId: 'rzp_test_key', planKey: 'monthly', amountPaise: 29900, currency: 'INR', billingPeriod: 'monthly',
+  success: true, subscriptionId: 'sub_ABC123456', keyId: 'rzp_test_key', planKey: 'monthly', amountPaise: 39900, currency: 'INR', billingPeriod: 'monthly',
   status: 'halted', cardChangeOnly: true, ...over
 });
 const haltedStatus = (status: 'halted' | 'pending' = 'halted') =>
@@ -497,17 +497,17 @@ describe('BillingPanel: mobile layout and accessibility contract (class and sema
 describe('BillingPanel: creator discount already attached (for example from sign-up)', () => {
   const attributed = (over: Partial<BillingStatus> = {}) => baseStatus({ referral: { enabled: true, attributed: true }, ...over });
   const choice = (over: Record<string, unknown> = {}) => ({
-    success: true, discountUnavailable: true, reason: 'offer_rejected', planKey: 'monthly', fullPricePaise: 29900, discountedFirstChargePaise: 23920, fullPriceToken: 'tok.sig', ...over
+    success: true, discountUnavailable: true, reason: 'offer_rejected', planKey: 'monthly', fullPricePaise: 39900, discountedFirstChargePaise: 31920, fullPriceToken: 'tok.sig', ...over
   });
 
   it('shows the discount before payment and sends no code: the server applies it', async () => {
     api.fetchBillingStatus.mockResolvedValue(attributed());
-    api.createSubscription.mockResolvedValue(created({ referralDiscount: { applied: true, firstChargePaise: 23920, renewalPaise: 29900 } }));
+    api.createSubscription.mockResolvedValue(created({ referralDiscount: { applied: true, firstChargePaise: 31920, renewalPaise: 39900 } }));
     checkout.openSubscriptionCheckout.mockResolvedValue({ kind: 'dismissed' });
     await mount();
     expect(text()).toContain('Creator discount applied');
-    expect(text()).toContain('₹239.20');
-    expect(text()).toContain('then ₹299 per month');
+    expect(text()).toContain('₹319.20');
+    expect(text()).toContain('then ₹399 per month');
     expect(text()).toMatch(/₹5 verification payment is not discounted/);
     await agree();
     await click(startButton());
@@ -567,7 +567,7 @@ describe('BillingPanel: creator discount already attached (for example from sign
 
     api.createSubscription.mockResolvedValueOnce(created());
     checkout.openSubscriptionCheckout.mockResolvedValue({ kind: 'dismissed' });
-    await click(byText('button', /Continue at ₹299/));
+    await click(byText('button', /Continue at ₹399/));
     expect(api.createSubscription).toHaveBeenLastCalledWith('monthly', { fullPriceToken: 'tok.sig' });
   });
 });

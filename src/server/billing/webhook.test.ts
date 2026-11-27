@@ -23,11 +23,11 @@ async function setup() {
 }
 const deliver = (t: Awaited<ReturnType<typeof setup>>, b: Buffer, id: string, signature = sign(b)) => t.svc.handleWebhook(b, signature, id);
 
-/** Razorpay's view after the trial converts and the first INR 299 charge succeeds. */
+/** Razorpay's view after the trial converts and the first INR 399 charge succeeds. */
 const charged = (t: Awaited<ReturnType<typeof setup>>) => {
   const s = t.gateway.subs.get(t.subId)!;
   Object.assign(s, { status: 'active', paid_count: 1, current_start: 1_793_000_000, current_end: 1_795_592_000, charge_at: 1_795_592_000 });
-  t.gateway.payments.set('pay_Charge001', { id: 'pay_Charge001', status: 'captured', amount: 29900, currency: 'INR', method: 'upi', created_at: 1_793_000_000 });
+  t.gateway.payments.set('pay_Charge001', { id: 'pay_Charge001', status: 'captured', amount: 39900, currency: 'INR', method: 'upi', created_at: 1_793_000_000 });
 };
 
 describe('webhook processing', () => {
@@ -60,7 +60,7 @@ describe('webhook processing', () => {
     const row = t.store.subs[0];
     expect(row).toMatchObject({ status: 'active', payment_status: 'paid', paid_count: 1 });
     expect(row.next_billing_at).toBe(new Date(1_795_592_000 * 1000).toISOString());
-    expect(t.store.payments.find((p) => p.razorpayPaymentId === 'pay_Charge001')).toMatchObject({ kind: 'charge', status: 'captured', amountPaise: 29900 });
+    expect(t.store.payments.find((p) => p.razorpayPaymentId === 'pay_Charge001')).toMatchObject({ kind: 'charge', status: 'captured', amountPaise: 39900 });
     expect(t.store.events.get('evt_002')!.status).toBe('processed');
   });
   it('writes Razorpay\'s state, not the webhook\'s claim (a forged-looking payload cannot grant access)', async () => {

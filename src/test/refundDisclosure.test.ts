@@ -52,7 +52,7 @@ describe('no customer-facing text promises an automatic refund of the ₹5 debit
 });
 
 describe('what customers are told instead', () => {
-  const plan: BillingPlan = { key: 'monthly', amountPaise: 29900, currency: 'INR', interval: 'month' } as unknown as BillingPlan;
+  const plan: BillingPlan = { key: 'monthly', amountPaise: 39900, currency: 'INR', interval: 'month' } as unknown as BillingPlan;
   const lines = buildDisclosure({ plan, trialEligible: true, trialDays: 3, verificationDebitPaise: 500, firstChargeAt: '2026-11-13T12:00:00Z' }).join('\n');
 
   it('the pre-checkout disclosure says the debit MAY be made, that it is not part of the price, and points to the Refund Policy', () => {
@@ -62,7 +62,7 @@ describe('what customers are told instead', () => {
   });
 
   it('the disclosure still states the first charge, renewal and how to cancel, and never calls the trial free', () => {
-    expect(lines).toContain('₹299');
+    expect(lines).toContain('₹399');
     expect(lines).toMatch(/until you cancel/);
     expect(lines).toMatch(/cancel in Settings, then Billing/);
     expect(lines).not.toMatch(/\bfree\b|no charge/i);

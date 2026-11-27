@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { BillingPayment, BillingPlan, BillingStatus } from '../lib/billingApi';
 import { accessEndDate, buildDisclosure, daysRemaining, formatInr, panelState, paymentLabel, sameLocalDay } from './billingPresentation';
 
-const monthly: BillingPlan = { key: 'monthly', amountPaise: 29900, currency: 'INR', billingPeriod: 'monthly', interval: 1 };
+const monthly: BillingPlan = { key: 'monthly', amountPaise: 39900, currency: 'INR', billingPeriod: 'monthly', interval: 1 };
 const annual: BillingPlan = { key: 'annual', amountPaise: 149900, currency: 'INR', billingPeriod: 'yearly', interval: 1 };
 
 const status = (over: Partial<BillingStatus> = {}): BillingStatus => ({
@@ -17,7 +17,7 @@ const status = (over: Partial<BillingStatus> = {}): BillingStatus => ({
 
 describe('formatInr', () => {
   it('formats whole rupees without decimals and keeps paise', () => {
-    expect(formatInr(29900)).toBe('₹299');
+    expect(formatInr(39900)).toBe('₹399');
     expect(formatInr(149900)).toBe('₹1,499');
     expect(formatInr(500)).toBe('₹5');
     expect(formatInr(12950)).toBe('₹129.50');
@@ -66,14 +66,14 @@ describe('buildDisclosure (what the person reads before Checkout)', () => {
   const noTrial = buildDisclosure({ plan: annual, trialEligible: false, trialDays: 3, verificationDebitPaise: 500, firstChargeAt: null }).join('\n');
 
   it('discloses amount, interval, trial length, first charge date, that the verification debit may be made (with NO automatic-refund promise), renewal and cancellation', () => {
-    expect(trial).toContain('₹299 per month');
+    expect(trial).toContain('₹399 per month');
     expect(trial).toContain('3-day trial');
     expect(trial).toContain('₹5 card verification debit');
     expect(trial).toMatch(/Razorpay may make a ₹5 card verification debit/);
     expect(trial).toMatch(/refund handling is described in the Refund Policy/);
     expect(trial).not.toMatch(/(?<!not )refunded automatically|refunds? it automatically|auto-?refund/i);
     expect(trial).toContain('13 Nov 2026');
-    expect(trial).toMatch(/renews every month at ₹299 until you cancel/);
+    expect(trial).toMatch(/renews every month at ₹399 until you cancel/);
     expect(trial).toMatch(/cancel in Settings, then Billing/);
   });
   it('never calls the trial free and never says "no charge"', () => {
@@ -104,6 +104,6 @@ describe('paymentLabel', () => {
     expect(paymentLabel({ ...base, amountRefundedPaise: 200 }).detail).toMatch(/Not shown as refunded yet/); // partial refund is not "Refunded in full"
   });
   it('labels charges separately from verification debits', () => {
-    expect(paymentLabel({ ...base, kind: 'charge', status: 'captured', amountPaise: 29900 }).title).toBe('Subscription charge');
+    expect(paymentLabel({ ...base, kind: 'charge', status: 'captured', amountPaise: 39900 }).title).toBe('Subscription charge');
   });
 });

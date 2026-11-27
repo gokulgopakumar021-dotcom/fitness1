@@ -56,7 +56,7 @@ const begin = (user: string, hash: string, plan = 'monthly', trialDays = 3) =>
   pg
     .query<{ outcome: string; subscription_id: string; status: string; trial_eligible: boolean; trial_end_at: string | null; expire_by: string }>(
       `select * from public.billing_begin_subscription($1::uuid,$2,$3,$4,$5,$6,$7,$8)`,
-      [user, hash, plan, `plan_${plan}`, plan === 'annual' ? 'yearly' : 'monthly', plan === 'annual' ? 149900 : 29900, trialDays, 30]
+      [user, hash, plan, `plan_${plan}`, plan === 'annual' ? 'yearly' : 'monthly', plan === 'annual' ? 149900 : 39900, trialDays, 30]
     )
     .then((r) => r.rows[0]);
 const entitlement = (user: string, grace = 0) =>
@@ -144,7 +144,7 @@ describe('billing schema: RLS and privileges', () => {
   it('makes the billing functions executable by service_role only', async () => {
     for (const call of [
       `select * from public.billing_get_entitlement('${A}', 0)`,
-      `select * from public.billing_begin_subscription('${A}','h','monthly','plan_x','monthly',29900,3,30)`,
+      `select * from public.billing_begin_subscription('${A}','h','monthly','plan_x','monthly',39900,3,30)`,
       `select public.billing_consume_trial_claim('${A}','${A}')`,
       `select public.billing_begin_webhook_event('evt','subscription.charged',null,null,null,null)`,
       `select public.billing_mark_stop_verified('${A}','cancelled')`,
@@ -162,7 +162,7 @@ describe('billing schema: RLS and privileges', () => {
   it('rejects out-of-range data at the table level', async () => {
     const insert = (cols: string) =>
       pg.query(`insert into public.billing_subscriptions (user_id, plan_key, razorpay_plan_id, billing_period, amount_paise, ${cols})
-                values ('${C}', 'monthly','plan_x','monthly', 29900, ${cols.split(',').map((c) => (c.trim() === 'status' ? "'bogus'" : "'x'")).join(',')})`);
+                values ('${C}', 'monthly','plan_x','monthly', 39900, ${cols.split(',').map((c) => (c.trim() === 'status' ? "'bogus'" : "'x'")).join(',')})`);
     await rejects(() => insert('status'));
     await rejects(() => pg.query(`insert into public.billing_subscriptions (user_id, plan_key, razorpay_plan_id, billing_period, amount_paise) values ('${C}','weekly','p','monthly',100)`));
     await rejects(() => pg.query(`insert into public.billing_subscriptions (user_id, plan_key, razorpay_plan_id, billing_period, amount_paise) values ('${C}','monthly','p','monthly',0)`));
@@ -240,8 +240,8 @@ describe('billing_begin_subscription: trial eligibility and duplicate prevention
 
   it('validates arguments', async () => {
     await rejects(() => begin(B, H_B, 'monthly', 31));
-    await rejects(() => pg.query(`select * from public.billing_begin_subscription('${B}','h','monthly','plan_x','monthly',29900,3,1)`));
-    await rejects(() => pg.query(`select * from public.billing_begin_subscription(null,'h','monthly','plan_x','monthly',29900,3,30)`));
+    await rejects(() => pg.query(`select * from public.billing_begin_subscription('${B}','h','monthly','plan_x','monthly',39900,3,1)`));
+    await rejects(() => pg.query(`select * from public.billing_begin_subscription(null,'h','monthly','plan_x','monthly',39900,3,30)`));
   });
 });
 
@@ -340,7 +340,7 @@ describe('billing_begin_webhook_event: idempotency', () => {
     const sub = await val<{ id: string }>(`select id from public.billing_subscriptions where user_id='${B}'`);
     const ins = () =>
       pg.query(`insert into public.billing_payments (user_id, subscription_id, razorpay_payment_id, kind, status, amount_paise)
-                values ('${B}','${sub[0].id}','pay_dup','charge','captured',29900)`);
+                values ('${B}','${sub[0].id}','pay_dup','charge','captured',39900)`);
     await ins();
     await rejects(ins);
   });
@@ -462,8 +462,8 @@ describe('INR 5 authorization payment: refund tracking and revenue', () => {
     await sql(`insert into public.billing_payments (user_id, subscription_id, razorpay_payment_id, kind, status, amount_paise, amount_refunded_paise, refunded_at)
       values ('${U}','${subId}','pay_auth_refunded','authorization','refunded',500,500,now()),
              ('${U}','${subId}','pay_auth_captured','authorization','captured',500,0,null),
-             ('${U}','${subId}','pay_charge_ok','charge','captured',29900,0,null),
-             ('${U}','${subId}','pay_charge_failed','charge','failed',29900,0,null)`);
+             ('${U}','${subId}','pay_charge_ok','charge','captured',39900,0,null),
+             ('${U}','${subId}','pay_charge_failed','charge','failed',39900,0,null)`);
     const rows = await as('service_role', null, () => val<{ razorpay_payment_id: string }>('select razorpay_payment_id from public.billing_revenue_payments order by 1'));
     const ids = rows.map((r) => r.razorpay_payment_id);
     expect(ids).toContain('pay_charge_ok');

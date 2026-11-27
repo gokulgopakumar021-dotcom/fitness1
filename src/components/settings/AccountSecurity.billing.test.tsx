@@ -33,7 +33,7 @@ async function type(label: string, value: string) {
   await act(async () => { setter.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); });
 }
 const sub = (over: Partial<PublicSubscription> = {}): PublicSubscription => ({
-  id: 's1', planKey: 'monthly', status: 'active', paymentStatus: 'paid', amountPaise: 29900, currency: 'INR', billingPeriod: 'monthly', trialStartAt: null, trialEndAt: null,
+  id: 's1', planKey: 'monthly', status: 'active', paymentStatus: 'paid', amountPaise: 39900, currency: 'INR', billingPeriod: 'monthly', trialStartAt: null, trialEndAt: null,
   currentPeriodStart: null, currentPeriodEnd: '2026-12-13T12:00:00Z', nextBillingAt: null, paidCount: 1, cancelRequestedAt: null, cancelAtCycleEnd: false, cancelledAt: null,
   accessEndsAt: null, createdAt: '2026-11-01T00:00:00Z', ...over
 });
