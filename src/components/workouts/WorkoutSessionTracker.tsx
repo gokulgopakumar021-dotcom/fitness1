@@ -13,7 +13,8 @@ import {
   Play,
   Bluetooth,
   Heart,
-  Camera
+  Camera,
+  Lock
 } from 'lucide-react';
 import {
   EquipmentType,
@@ -28,6 +29,9 @@ import { calculateVolumeLoad } from '../../utils/calculations';
 import { extractExerciseHistory } from '../../utils/progressionEngine';
 import { RestTimer, playTimerChime } from '../common/RestTimer';
 import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
+import { usePremiumGate } from '../../context/EntitlementContext';
+import { requestOpenBilling } from '../../lib/billingGate';
+import { PremiumMark } from '../billing/PremiumLock';
 import { ExercisePostureModal } from '../posture/ExercisePostureModal';
 import { DynamicWarmupModal } from '../trainer/DynamicWarmupModal';
 import {
@@ -138,6 +142,9 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
 
   // Dynamic Warm-up Generator state
   const [showWarmupModal, setShowWarmupModal] = useState<boolean>(false);
+  // Premium locks: while the account has no active trial or paid access, AI actions open billing instead of running.
+  const { locked: premiumLocked, guard } = usePremiumGate();
+  const openWarmup = guard(() => setShowWarmupModal(true));
 
   // Elapsed workout time (respects pause and reset)
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
@@ -213,6 +220,10 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
 
   // AI Coach trigger
   const handleOpenAiCoach = async (ex: LoggedExercise, index: number) => {
+    if (premiumLocked) {
+      requestOpenBilling();
+      return;
+    }
     setAiCoachExercise(ex);
     setAiCoachIndex(index);
     setAiCoachData(null);
@@ -537,10 +548,11 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
               )}
               <Button
                 variant="secondary"
-                onClick={() => setShowWarmupModal(true)}
+                onClick={openWarmup}
                 icon={<Flame className="w-4 h-4 text-warning" aria-hidden />}
               >
                 5-Min Warm-up
+                <PremiumMark />
               </Button>
               <Button onClick={() => handleStartWorkout()} icon={<Flame className="w-4 h-4" aria-hidden />}>
                 Start Workout Now
@@ -794,13 +806,14 @@ export const WorkoutSessionTracker: React.FC<WorkoutTrackerProps> = ({
 
         <Button
           variant="secondary"
-          onClick={() => setShowWarmupModal(true)}
+          onClick={openWarmup}
           title="Launch 5-minute targeted dynamic pre-workout warm-up"
-          aria-label="5-minute warm-up"
-          icon={<Flame className="w-4 h-4 text-warning" aria-hidden />}
+          aria-label={premiumLocked ? '5-minute warm-up (Premium)' : '5-minute warm-up'}
+          icon={premiumLocked ? <Lock className="w-4 h-4 text-warning" aria-hidden /> : <Flame className="w-4 h-4 text-warning" aria-hidden />}
           className="max-sm:w-11 max-sm:px-0"
         >
           <span className="hidden sm:inline">5-Min Warm-up</span>
+          <span className="hidden sm:inline-flex"><PremiumMark /></span>
         </Button>
 
         <Button

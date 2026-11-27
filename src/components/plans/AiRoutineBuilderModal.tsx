@@ -33,6 +33,7 @@ import {
   summarizeMuscleHeatmapForAi
 } from '../../utils/aiRoutineEngine';
 import { apiFetch } from '../../lib/apiFetch';
+import { useCloseWhenLocked } from '../../context/EntitlementContext';
 import { logClientWarn } from '../../lib/clientLog';
 import { AiNotice } from '../legal/AiNotice';
 
@@ -114,6 +115,8 @@ export const AiRoutineBuilderModal: React.FC<AiRoutineBuilderModalProps> = ({
   onStartWorkout,
   onPlanSaved
 }) => {
+  // Premium: if access ends (or is already missing) while this is open, close it and open billing instead.
+  useCloseWhenLocked(isOpen, onClose);
   // Muscle heatmap report
   const heatmapReports = useMemo<MuscleRegionFatigueReport[]>(() => {
     return summarizeMuscleHeatmapForAi(sessions, new Date(), isDemoMode);

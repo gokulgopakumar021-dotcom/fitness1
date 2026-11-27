@@ -40,6 +40,9 @@ import {
 } from '../ui';
 import { apiFetch } from '../../lib/apiFetch';
 import { AiNotice } from '../legal/AiNotice';
+import { PremiumMark } from '../billing/PremiumLock';
+import { usePremiumAccess } from '../../context/EntitlementContext';
+import { requestOpenBilling } from '../../lib/billingGate';
 
 interface NutritionViewProps {
   profile: UserProfile;
@@ -68,6 +71,7 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile, onProfile
   // Search & add food modal
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [addMode, setAddMode] = useState<'database' | 'ai_parser'>('database');
+  const { locked: premiumLocked } = usePremiumAccess();
   const [activeMealCategory, setActiveMealCategory] = useState<MealCategory>('breakfast');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedFoodItem, setSelectedFoodItem] = useState<FoodItem | null>(null);
@@ -229,6 +233,11 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile, onProfile
 
   const handleParseAiMeal = async () => {
     if (!aiMealQuery.trim()) return;
+    if (premiumLocked) {
+      setIsAddModalOpen(false);
+      requestOpenBilling();
+      return;
+    }
     setAiMealLoading(true);
     setAiMealError(null);
 
@@ -688,10 +697,17 @@ export const NutritionView: React.FC<NutritionViewProps> = ({ profile, onProfile
             <SegmentedControl<'database' | 'ai_parser'>
               ariaLabel="How to add food"
               value={addMode}
-              onChange={setAddMode}
+              onChange={(mode) => {
+                if (mode === 'ai_parser' && premiumLocked) {
+                  setIsAddModalOpen(false);
+                  requestOpenBilling();
+                  return;
+                }
+                setAddMode(mode);
+              }}
               options={[
                 { value: 'database', label: 'Food Database' },
-                { value: 'ai_parser', label: 'AI Parser' }
+                { value: 'ai_parser', label: <span className="inline-flex items-center gap-1.5">AI Parser<PremiumMark /></span> }
               ]}
             />
             <Button

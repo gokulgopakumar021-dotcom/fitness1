@@ -3,7 +3,7 @@ import { cn } from './cn';
 
 interface Option<T extends string> {
   value: T;
-  label: string;
+  label: React.ReactNode;
 }
 
 interface Props<T extends string> {

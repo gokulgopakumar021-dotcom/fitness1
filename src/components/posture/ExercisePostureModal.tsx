@@ -14,6 +14,9 @@ import { Input } from '../ui/Input';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { apiFetch } from '../../lib/apiFetch';
 import { AiNotice } from '../legal/AiNotice';
+import { PremiumMark } from '../billing/PremiumLock';
+import { usePremiumAccess, useCloseWhenLocked } from '../../context/EntitlementContext';
+import { requestOpenBilling } from '../../lib/billingGate';
 
 interface ExercisePostureModalProps {
   exerciseName: string;
@@ -37,6 +40,9 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
   const [posturePhase, setPosturePhase] = useState<'setup' | 'bottom'>('setup');
   const [isPlayingAnimation, setIsPlayingAnimation] = useState<boolean>(true);
   const [animProgress, setAnimProgress] = useState<number>(0);
+  const { locked: premiumLocked } = usePremiumAccess();
+  // Access ended while the AI tab is showing: close and open billing.
+  useCloseWhenLocked(isOpen && activeTab === 'ai_coach', onClose);
 
   // AI Cues State
   const [aiCustomQuestion, setAiCustomQuestion] = useState<string>('');
@@ -426,13 +432,20 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
         <SegmentedControl
           ariaLabel="Form guide sections"
           value={activeTab}
-          onChange={setActiveTab}
+          onChange={(tab) => {
+            if (tab === 'ai_coach' && premiumLocked) {
+              onClose();
+              requestOpenBilling();
+              return;
+            }
+            setActiveTab(tab);
+          }}
           options={[
             { value: 'visual' as const, label: 'Visual Model & Angles' },
             { value: 'checkpoints' as const, label: 'Step Checkpoints' },
             { value: 'mistakes' as const, label: 'Form Mistakes & Fixes' },
             { value: 'tempo' as const, label: 'Tempo & Breathing' },
-            { value: 'ai_coach' as const, label: 'AI Form Coach' }
+            { value: 'ai_coach' as const, label: <span className="inline-flex items-center gap-1.5">AI Form Coach<PremiumMark /></span> }
           ]}
         />
 

@@ -20,6 +20,7 @@ import { LoadingState } from '../ui/LoadingState';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { MACRO_META } from '../nutrition/MacroBar';
 import { apiFetch } from '../../lib/apiFetch';
+import { useCloseWhenLocked } from '../../context/EntitlementContext';
 import { logClientError } from '../../lib/clientLog';
 import { AiNotice } from '../legal/AiNotice';
 
@@ -105,6 +106,8 @@ export const DreamPhysiqueModal: React.FC<DreamPhysiqueModalProps> = ({
   onProfileUpdated,
   onPlanCreated
 }) => {
+  // Premium: if access ends (or is already missing) while this is open, close it and open billing instead.
+  useCloseWhenLocked(isOpen, onClose);
   // Wizard states
   const [step, setStep] = useState<'configure' | 'visualize' | 'analysis'>('configure');
 

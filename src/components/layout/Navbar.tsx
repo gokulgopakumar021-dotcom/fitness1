@@ -29,6 +29,8 @@ import { Modal } from '../ui/Modal';
 import { cn } from '../ui/cn';
 import { BrandEmblem } from '../ui/BrandLogo';
 import { SyncStatusBadge } from '../sync/SyncStatusBadge';
+import { PremiumMark } from '../billing/PremiumLock';
+import { isPremiumTab } from '../../lib/premiumFeatures';
 
 export type NavTab =
   | 'home'
@@ -285,6 +287,7 @@ export const DesktopSidebar: React.FC<{
                         aria-hidden
                       />
                       <span className="truncate">{item.label}</span>
+                      {isPremiumTab(id) && <PremiumMark className="ml-auto" />}
                       {isWorkoutActive && (
                         <span className="ml-auto flex items-center gap-1 text-[11px] font-semibold text-volt-adaptive">
                           <span className="w-1.5 h-1.5 rounded-full bg-accent" aria-hidden />

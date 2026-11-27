@@ -63,6 +63,8 @@ import {
 } from '../../utils/progressionPresentation';
 import { apiFetch } from '../../lib/apiFetch';
 import { AiNotice } from '../legal/AiNotice';
+import { PremiumMark } from '../billing/PremiumLock';
+import { usePremiumGate } from '../../context/EntitlementContext';
 
 /** Signed change with an arrow icon and screen-reader text, so direction never relies on colour alone. */
 const DeltaChip: React.FC<{ value: number; suffix?: string }> = ({ value, suffix = '' }) => {
@@ -124,6 +126,7 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
 
   // AI Plan Overload Tuning State
   const [isAiTuningModalOpen, setIsAiTuningModalOpen] = useState<boolean>(false);
+  const { guard } = usePremiumGate();
   const [aiTuningLoading, setAiTuningLoading] = useState<boolean>(false);
   const [aiTuningData, setAiTuningData] = useState<any>(null);
   const [aiTuningError, setAiTuningError] = useState<string | null>(null);
@@ -643,10 +646,11 @@ export const ProgressionView: React.FC<ProgressionViewProps> = ({
             <Button
               variant="secondary"
               icon={<Sparkles className="w-4 h-4 text-accent" aria-hidden />}
-              onClick={handleRunAiPlanOverloadTuning}
+              onClick={guard(handleRunAiPlanOverloadTuning)}
               title="Use Gemini AI to analyze this uploaded plan and optimize overload targets"
             >
               AI optimizer
+              <PremiumMark />
             </Button>
           )}
           <Button

@@ -18,6 +18,7 @@ import { Card } from '../ui/Card';
 import { ErrorState } from '../ui/ErrorState';
 import { LoadingState } from '../ui/LoadingState';
 import { apiFetch } from '../../lib/apiFetch';
+import { useCloseWhenLocked } from '../../context/EntitlementContext';
 import { logClientError } from '../../lib/clientLog';
 import { AiNotice } from '../legal/AiNotice';
 
@@ -55,6 +56,8 @@ export const DynamicWarmupModal: React.FC<DynamicWarmupModalProps> = ({
   workoutName = 'Today Workout',
   onWarmupCompleted
 }) => {
+  // Premium: if access ends (or is already missing) while this is open, close it and open billing instead.
+  useCloseWhenLocked(isOpen, onClose);
   const [routine, setRoutine] = useState<WarmupRoutine | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);

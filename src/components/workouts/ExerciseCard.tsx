@@ -4,6 +4,7 @@ import type { LoggedExercise, LoggedSet } from '../../types';
 import { calculateVolumeLoad } from '../../utils/calculations';
 import { Badge, Button, Card, cn } from '../ui';
 import { SET_GRID, SetRow } from './SetRow';
+import { PremiumMark } from '../billing/PremiumLock';
 
 export interface LastSessionSummary {
   date: string;
@@ -132,6 +133,7 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
             icon={<Sparkles className="w-3.5 h-3.5 text-volt-adaptive" aria-hidden />}
           >
             AI Coach &amp; Subs
+            <PremiumMark />
           </Button>
           <Button
             variant="ghost"

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bot, X, Send } from 'lucide-react';
+import { Bot, X, Send, Lock } from 'lucide-react';
 import { UserProfile, WorkoutSession } from '../../types';
 import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
 import { NavTab } from '../layout/Navbar';
@@ -7,6 +7,8 @@ import { Badge, Button, Card } from '../ui';
 import { apiFetch } from '../../lib/apiFetch';
 import { BILLING_REQUIRED_MESSAGE, isSubscriptionRequired } from '../../lib/billingGate';
 import { AiNotice } from '../legal/AiNotice';
+import { PremiumMark } from '../billing/PremiumLock';
+import { usePremiumGate, useCloseWhenLocked } from '../../context/EntitlementContext';
 
 interface FloatingTrainerWidgetProps {
   currentTab: NavTab;
@@ -26,6 +28,9 @@ export const FloatingTrainerWidget: React.FC<FloatingTrainerWidgetProps> = ({
   const [quickReply, setQuickReply] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const { isConnected, liveHeartRate } = useBluetoothGadget();
+  const { locked, guard } = usePremiumGate();
+  // Access ended while the drawer is open: close it and open billing.
+  useCloseWhenLocked(isOpen, () => setIsOpen(false));
 
   if (currentTab === 'trainer') return null;
 
@@ -67,13 +72,21 @@ export const FloatingTrainerWidget: React.FC<FloatingTrainerWidgetProps> = ({
       {!isOpen ? (
         <button
           type="button"
-          onClick={() => setIsOpen(true)}
+          onClick={guard(() => setIsOpen(true))}
           className="relative flex items-center justify-center gap-2 w-12 h-12 sm:w-auto sm:h-11 sm:px-4 bg-surface-2 hover:bg-surface-3 border border-line-strong hover:border-accent/60 text-white rounded-full shadow-xl shadow-black/40 transition-colors group"
           title="Ask Coach Iron (AI Fitness Trainer)"
-          aria-label="Ask Coach Iron"
+          aria-label={locked ? 'Ask Coach Iron (Premium)' : 'Ask Coach Iron'}
         >
           <Bot className="w-5 h-5 text-volt-adaptive" aria-hidden />
           <span className="hidden sm:inline text-sm font-semibold">Ask Coach</span>
+          {locked && (
+            <>
+              <PremiumMark className="hidden sm:inline-flex" />
+              <span className="sm:hidden absolute -top-1 -right-1 w-5 h-5 rounded-full bg-warning/15 border border-warning/40 text-warning flex items-center justify-center" aria-hidden>
+                <Lock className="w-3 h-3" />
+              </span>
+            </>
+          )}
           {activeSession && (
             <span
               className="absolute top-1 right-1 sm:static w-2 h-2 rounded-full bg-accent animate-pulse"

@@ -5,6 +5,7 @@ import { BRAND } from '../../brand';
 import type { UserProfile } from '../../types';
 import { db } from '../../storage/db';
 import { useAuth } from '../../context/AuthContext';
+import { usePremiumAccess } from '../../context/EntitlementContext';
 import { validateHeightCm } from '../../utils/heightUnits';
 import { isProfileDirty, ProfileErrors, ProfileField, validateProfileEdits } from '../../utils/profileValidation';
 import { AccountSecurity } from './AccountSecurity';
@@ -69,6 +70,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
   openCategory
 }) => {
   const { user, signOut } = useAuth();
+  const { applyStatus: applyEntitlementStatus } = usePremiumAccess();
   const [category, setCategory] = useState<CategoryId>(openCategory?.id ?? 'profile');
   useEffect(() => {
     if (openCategory) setCategory(openCategory.id);
@@ -185,7 +187,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
           />
         );
       case 'billing':
-        return user ? <BillingPanel /> : null;
+        return user ? <BillingPanel onStatusChange={applyEntitlementStatus} /> : null;
       case 'account':
         return user ? <AccountSecurity /> : null;
     }

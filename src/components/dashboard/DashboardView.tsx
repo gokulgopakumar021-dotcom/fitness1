@@ -49,6 +49,7 @@ import { useLocalDayRollover } from './useLocalDayRollover';
 import { ExercisePostureModal } from '../posture/ExercisePostureModal';
 import { DynamicWarmupModal } from '../trainer/DynamicWarmupModal';
 import { DreamPhysiqueModal } from '../trainer/DreamPhysiqueModal';
+import { PremiumMark } from '../billing/PremiumLock';
 import { useBluetoothGadget } from '../../context/BluetoothGadgetContext';
 
 interface DashboardProps {
@@ -244,7 +245,12 @@ export const DashboardView: React.FC<DashboardProps> = ({
       description: 'Interactive consultation, customized 5-minute warm-ups, and physique recomposition blueprints.',
       icon: <Bot className="w-5 h-5" />,
       onClick: () => onNavigate('trainer'),
-      badge: <Badge tone="accent">AI coach</Badge>,
+      badge: (
+        <span className="inline-flex items-center gap-1.5">
+          <Badge tone="accent">AI coach</Badge>
+          <PremiumMark />
+        </span>
+      ),
       featured: true
     },
     {

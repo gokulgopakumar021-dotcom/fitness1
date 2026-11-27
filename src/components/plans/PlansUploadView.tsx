@@ -27,6 +27,9 @@ import {
 } from '../../types';
 import { db } from '../../storage/db';
 import { AiRoutineBuilderModal } from './AiRoutineBuilderModal';
+import { PremiumMark } from '../billing/PremiumLock';
+import { usePremiumGate } from '../../context/EntitlementContext';
+import { requestOpenBilling } from '../../lib/billingGate';
 import { PlanDaysEditor } from './PlanDaysEditor';
 import { PlanDetail } from './PlanDetail';
 import { summarizePlan, pluralize } from '../../utils/planPresentation';
@@ -71,6 +74,9 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
   const [activePlanId, setActivePlanId] = useState<string | null>(() => db.getActivePlanId());
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>(() => db.getUploadedDocs());
   const [isAiBuilderOpen, setIsAiBuilderOpen] = useState<boolean>(false);
+  // Premium locks: while the account has no active trial or paid access, AI actions open billing instead of running.
+  const { locked: premiumLocked, guard } = usePremiumGate();
+  const openAiBuilder = guard(() => setIsAiBuilderOpen(true));
   const [allSessions] = useState<WorkoutSession[]>(() => db.getSessions());
 
   // Active view: 'plans_list' | 'upload_file' | 'review_extracted' | 'manual_builder' | 'plan_detail'
@@ -234,6 +240,14 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // CSV and JSON import is local and free. Anything else (PDF, image, TXT) is read by the AI extractor, which is premium.
+    const isLocalFile = file.name.endsWith('.csv') || file.type.includes('csv') || file.name.endsWith('.json') || file.type.includes('json');
+    if (!isLocalFile && premiumLocked) {
+      e.target.value = '';
+      requestOpenBilling();
+      return;
+    }
 
     setIsProcessing(true);
     setUploadError(null);
@@ -637,8 +651,9 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
         className="mb-0"
         actions={
           <>
-            <Button variant="secondary" icon={<Sparkles className="w-4 h-4" />} onClick={() => setIsAiBuilderOpen(true)}>
+            <Button variant="secondary" icon={<Sparkles className="w-4 h-4" />} onClick={openAiBuilder}>
               AI builder
+              <PremiumMark />
             </Button>
             <Button variant="secondary" icon={<Plus className="w-4 h-4" />} onClick={() => setSubView('manual_builder')}>
               Build plan
@@ -695,8 +710,9 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
             </p>
           </div>
         </div>
-        <Button icon={<ArrowRight className="w-4 h-4" />} onClick={() => setIsAiBuilderOpen(true)} className="sm:shrink-0">
+        <Button icon={<ArrowRight className="w-4 h-4" />} onClick={openAiBuilder} className="sm:shrink-0">
           Launch AI builder
+          <PremiumMark />
         </Button>
       </Card>
 
@@ -817,6 +833,12 @@ export const PlansUploadView: React.FC<PlansUploadProps> = ({
           <span className="block text-xs text-zinc-400 mt-1">
             Supports PDF workout routines, JPG/PNG screenshots, CSV spreadsheets, JSON and TXT documents.
           </span>
+          {premiumLocked && (
+            <span className="mt-2 inline-flex items-center gap-1.5 text-xs text-zinc-400">
+              <PremiumMark />
+              PDF, image and TXT import use AI. CSV and JSON import stay free.
+            </span>
+          )}
         </button>
       </section>
 

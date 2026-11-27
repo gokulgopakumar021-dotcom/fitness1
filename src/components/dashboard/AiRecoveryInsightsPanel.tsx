@@ -33,6 +33,8 @@ import { NavTab } from '../layout/Navbar';
 import { apiFetch } from '../../lib/apiFetch';
 import { logClientWarn } from '../../lib/clientLog';
 import { AiNotice } from '../legal/AiNotice';
+import { PremiumMark } from '../billing/PremiumLock';
+import { usePremiumGate } from '../../context/EntitlementContext';
 
 interface AiRecoveryInsightsPanelProps {
   profile: UserProfile;
@@ -59,6 +61,8 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
     const initial = calculateLocalRecoveryInsights(recentSessions, profile, activePlan);
     setRecoveryData(initial);
   }, [recentSessions, profile, activePlan]);
+
+  const { guard } = usePremiumGate();
 
   const handleRunAiAnalysis = async () => {
     setIsLoadingAi(true);
@@ -183,12 +187,13 @@ export const AiRecoveryInsightsPanel: React.FC<AiRecoveryInsightsPanelProps> = (
         </div>
 
         <button
-          onClick={handleRunAiAnalysis}
+          onClick={guard(handleRunAiAnalysis)}
           disabled={isLoadingAi}
           className="touch-press px-5 py-2.5 bg-canvas hover:bg-surface-2 text-accent border border-accent/40 font-mono font-bold text-xs rounded-xl shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 shrink-0"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoadingAi ? 'animate-spin' : ''}`} />
           <span>{isLoadingAi ? 'Analyzing Recovery...' : 'Run AI Recovery Analysis'}</span>
+          <PremiumMark />
         </button>
       </div>
 

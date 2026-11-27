@@ -24,7 +24,9 @@ import { FloatingTrainerWidget } from './components/trainer/FloatingTrainerWidge
 import { BluetoothGadgetProvider } from './context/BluetoothGadgetContext';
 import { BluetoothGadgetModal } from './components/bluetooth/BluetoothGadgetModal';
 import { ThemeProvider } from './context/ThemeContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { EntitlementProvider, usePremiumAccess } from './context/EntitlementContext';
+import { isPremiumTab } from './lib/premiumFeatures';
 import { AuthGate } from './components/auth/AuthGate';
 import { SyncProvider, useSync } from './sync/SyncProvider';
 import { LegacyDataClaim } from './components/settings/LegacyDataClaim';
@@ -32,7 +34,7 @@ import { shouldPromptLegacyClaim } from './storage/legacyData';
 import { useReminders } from './hooks/useReminders';
 import { BillingRefusalNotice } from './components/billing/BillingRefusalNotice';
 import { BillingOnboardingGate } from './components/billing/BillingOnboardingGate';
-import { OPEN_BILLING_EVENT } from './lib/billingGate';
+import { OPEN_BILLING_EVENT, requestOpenBilling } from './lib/billingGate';
 import { PolicyUpdateNotice } from './components/legal/PolicyUpdateNotice';
 import { AgeEligibilityProvider } from './context/AgeEligibilityContext';
 import { AgeEligibilityGate } from './components/legal/AgeEligibilityGate';
@@ -43,6 +45,23 @@ function AppShell() {
   const [currentTab, setCurrentTab] = useState<NavTab>('home');
   const currentTabRef = useRef<NavTab>('home');
   currentTabRef.current = currentTab;
+
+  // Premium locks: a premium tab (AI Coach) is not opened while the account has no active trial or paid access; the existing
+  // billing screen opens instead. Display only: the server still refuses every AI request without entitlement.
+  const { locked: premiumLocked } = usePremiumAccess();
+  const premiumLockedRef = useRef(premiumLocked);
+  premiumLockedRef.current = premiumLocked;
+  const navigate = (tab: NavTab) => {
+    if (isPremiumTab(tab) && premiumLockedRef.current) {
+      requestOpenBilling();
+      return;
+    }
+    setCurrentTab(tab);
+  };
+  // Access ended while the person is on a premium tab: leave it for billing.
+  useEffect(() => {
+    if (premiumLocked && isPremiumTab(currentTab)) requestOpenBilling();
+  }, [premiumLocked, currentTab]);
   const [profile, setProfile] = useState<UserProfile>(() => db.getProfile());
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(() =>
     db.getActiveSession()
@@ -135,7 +154,7 @@ function AppShell() {
           {/* Top Application Header */}
         <TopHeader
           currentTab={currentTab}
-          onSelectTab={setCurrentTab}
+          onSelectTab={navigate}
           activeSession={activeSession}
           onResumeActiveSession={handleResumeActiveSession}
           profile={profile}
@@ -148,7 +167,7 @@ function AppShell() {
           {/* Desktop Left Sidebar */}
           <DesktopSidebar
             currentTab={currentTab}
-            onSelectTab={setCurrentTab}
+            onSelectTab={navigate}
             activeSession={activeSession}
           />
 
@@ -163,7 +182,7 @@ function AppShell() {
               <HomeView
                 profile={profile}
                 activeSession={activeSession}
-                onNavigate={setCurrentTab}
+                onNavigate={navigate}
                 onResumeActiveSession={handleResumeActiveSession}
                 isDemoMode={isDemoMode}
                 onLoadDemoData={handleLoadDemoData}
@@ -175,7 +194,7 @@ function AppShell() {
               <DashboardView
                 profile={profile}
                 activeSession={activeSession}
-                onNavigate={setCurrentTab}
+                onNavigate={navigate}
                 onResumeActiveSession={handleResumeActiveSession}
                 isDemoMode={isDemoMode}
                 onLoadDemoData={handleLoadDemoData}
@@ -204,7 +223,7 @@ function AppShell() {
               <AiTrainerView
                 profile={profile}
                 activeSession={activeSession}
-                onNavigate={setCurrentTab}
+                onNavigate={navigate}
                 onProfileUpdated={setProfile}
               />
             )}
@@ -282,14 +301,14 @@ function AppShell() {
         {/* Mobile Fixed Bottom Navigation */}
         <MobileBottomNav
           currentTab={currentTab}
-          onSelectTab={setCurrentTab}
+          onSelectTab={navigate}
           activeSession={activeSession}
         />
 
         {/* Floating Quick AI Coach Widget */}
         <FloatingTrainerWidget
           currentTab={currentTab}
-          onNavigate={setCurrentTab}
+          onNavigate={navigate}
           activeSession={activeSession}
           profile={profile}
         />
@@ -303,6 +322,12 @@ function AppShell() {
   );
 }
 
+/** One shared read of the billing entitlement for every screen, scoped to the signed-in account. */
+function EntitlementScope({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  return <EntitlementProvider userId={user?.id ?? null}>{children}</EntitlementProvider>;
+}
+
 export default function App() {
   return (
     <ThemeProvider>
@@ -313,7 +338,9 @@ export default function App() {
             <AgeEligibilityGate>
               <SyncProvider>
                 <BillingOnboardingGate>
-                  <AppShell />
+                  <EntitlementScope>
+                    <AppShell />
+                  </EntitlementScope>
                 </BillingOnboardingGate>
               </SyncProvider>
             </AgeEligibilityGate>
