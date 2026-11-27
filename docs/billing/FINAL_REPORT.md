@@ -40,7 +40,7 @@ The pushed head has a **stale `api/index.js`** (it still embeds the Stage 5 bill
 ## 4. Manual Razorpay Dashboard steps (Test Mode first)
 1. Generate Test Mode API keys; set `RAZORPAY_KEY_ID` (`rzp_test_...`) and `RAZORPAY_KEY_SECRET` as server env vars only.
 2. Activate Subscriptions on the account if it is not already.
-3. Create the plans once: `RAZORPAY_KEY_ID=... RAZORPAY_KEY_SECRET=... npx tsx scripts/billing-create-plans.ts`; put the printed ids in `RAZORPAY_PLAN_ID_MONTHLY` / `RAZORPAY_PLAN_ID_ANNUAL`. Amounts must stay 29900 and 149900 paise (the server refuses a mismatching plan).
+3. Create the plans once: `RAZORPAY_KEY_ID=... RAZORPAY_KEY_SECRET=... npx tsx scripts/billing-create-plans.ts`; put the printed ids in `RAZORPAY_PLAN_ID_MONTHLY` / `RAZORPAY_PLAN_ID_ANNUAL`. Amounts must stay 39900 (₹399 monthly) and 149900 (₹1,499 annual) paise (the server refuses a mismatching plan). With the creator referral offer applied, the first monthly charge is ₹319.20 (31920 paise) and renewals are ₹399.
 4. Add a webhook to `https://<your-domain>/api/billing/webhook` with a secret you generate (this becomes `RAZORPAY_WEBHOOK_SECRET`). Subscribe to: `subscription.authenticated, activated, charged, completed, updated, pending, halted, cancelled, paused, resumed`.
 5. Set `BILLING_TRIAL_PEPPER` (32+ random characters; changing it later breaks trial-claim matching) and `SUPABASE_SERVICE_ROLE_KEY` (server only, never `VITE_`).
 6. Set `TRUST_PROXY` correctly for Vercel and keep the shared Redis rate store.

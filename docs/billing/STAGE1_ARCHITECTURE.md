@@ -7,7 +7,8 @@ The matching migrations are `supabase/migrations/20261106052859_billing_core.sql
 
 | Topic | Decision |
 |---|---|
-| Currency, plans | INR. Monthly ₹299 (29900 paise), annual ₹1,499 (149900 paise). Amounts live in server configuration, not in code. |
+| Currency, plans | INR. Monthly ₹399 (39900 paise), annual ₹1,499 (149900 paise). Amounts live in server configuration, not in code. |
+| Creator referral | Valid creator code: 20% off the first actual monthly charge only, which is ₹319.20 (31920 paise) when the referral offer is applied successfully. The ₹5 verification debit is not discounted. Renewals are ₹399. The offer is a single-use Razorpay offer restricted to the monthly plan and is configured via `RAZORPAY_OFFER_ID_REFERRAL`; unset keeps the discount off. |
 | Trial | 3 days, both plans, one per person. Existing users are eligible once. Starts only after Razorpay confirms authorization. No charge during the trial. |
 | Gated | All 15 `ai: true` API routes need an active trial or paid subscription. |
 | Free | All local-first fitness features and every non-AI route. |
@@ -138,7 +139,7 @@ Server only. Never `VITE_`-prefixed, never in a client bundle.
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | API credentials (Test Mode `rzp_test_…` keys for development) |
 | `RAZORPAY_WEBHOOK_SECRET` | Webhook signature secret |
 | `RAZORPAY_PLAN_ID_MONTHLY`, `RAZORPAY_PLAN_ID_ANNUAL` | Plan ids created by a Stage 2 script |
-| `BILLING_PRICE_MONTHLY_PAISE=29900`, `BILLING_PRICE_ANNUAL_PAISE=149900` | Expected amounts; the server refuses to start a checkout if the Razorpay plan differs |
+| `BILLING_PRICE_MONTHLY_PAISE=39900`, `BILLING_PRICE_ANNUAL_PAISE=149900` | Expected amounts; the server refuses to start a checkout if the Razorpay plan differs |
 | `BILLING_TRIAL_DAYS=3`, `BILLING_AUTH_WINDOW_MINUTES=30` | Trial length and authorization window |
 | `BILLING_PENDING_GRACE_HOURS=0` | Optional access during failed-renewal retries; 0 = none |
 | `BILLING_TRIAL_PEPPER` | Secret used to hash emails for trial claims |
