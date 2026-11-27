@@ -22,5 +22,5 @@ manual payouts bounded by the payable balance (14-day default hold, flagged/void
 This migration is already recorded on the hosted project; do not apply it there again, and read `docs/deployment/MIGRATION_HISTORY_RECONCILIATION.md` (sections 4 to 6) before any push, because some migration-CLI commands are prohibited here. For a **new** project, apply it in filename order (after `20261112060134_legal_acceptances.sql`), on a branch/staging project first. Seed an admin manually:
 `insert into public.app_admins (user_id) values ('<auth.users id>');`. (The local-vs-live migration version drift noted in Stage 0 was reconciled in Stage 9.) Rollback block is at the end of the migration.
 
-## Proposed follow-up (not applied)
-`supabase/proposed/20261114000000_referral_trigger_search_path.sql` pins `search_path = ''` on the three guard trigger functions. It is PROPOSED only, outside `supabase/migrations/`, and needs a separate owner approval. Rollback: `supabase/manual/rollback_referral_trigger_search_path.sql`.
+## Follow-up (applied 2026-11-27)
+`supabase/migrations/20261127072822_referral_trigger_search_path.sql` pins `search_path = ''` on the three guard trigger functions. It was applied to the hosted project on 2026-11-27 (recorded version 20261127072822) after the in-process tests passed. Rollback: `supabase/manual/rollback_referral_trigger_search_path.sql`.

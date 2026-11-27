@@ -32,7 +32,8 @@ export const REMOTE_HISTORY: ReadonlyArray<readonly [string, string]> = [
   ['20261112060134', 'legal_acceptances'],
   ['20261112060254', 'referral_core'],
   ['20261113043228', 'legal_acceptance_enforcement'],
-  ['20261113043241', 'age_eligibility']
+  ['20261113043241', 'age_eligibility'],
+  ['20261127072822', 'referral_trigger_search_path']
 ];
 
 /** Local-only versions the repo used BEFORE reconciliation. They never existed on the project; nothing live may cite them. */
