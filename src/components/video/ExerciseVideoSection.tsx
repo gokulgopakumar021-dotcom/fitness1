@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, Loader2, PlayCircle, RefreshCw, Video, VideoOff } from 'lucide-react';
 import { getVideoCatalogService, useExerciseVideos } from '../../hooks/useExerciseVideos';
 import type { ExerciseVideo } from '../../types/video';
+import { PremiumMark } from '../billing/PremiumLock';
+import { usePremiumAccess, useCloseWhenLocked } from '../../context/EntitlementContext';
+import { requestOpenBilling } from '../../lib/billingGate';
 
 /**
  * Exercise video section for the posture modal.
@@ -128,12 +131,17 @@ interface ExerciseVideoSectionProps {
   exerciseName: string;
   /** Open on mount (the Watch video button). Otherwise the section stays collapsed and requests nothing. */
   defaultOpen?: boolean;
+  /** Called when a locked account taps the section (the host modal closes so billing is visible). */
+  onLocked?: () => void;
 }
 
-export const ExerciseVideoSection: React.FC<ExerciseVideoSectionProps> = ({ exerciseName, defaultOpen = false }) => {
+export const ExerciseVideoSection: React.FC<ExerciseVideoSectionProps> = ({ exerciseName, defaultOpen = false, onLocked }) => {
   const [open, setOpen] = useState<boolean>(defaultOpen);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { state, retry } = useExerciseVideos(exerciseName, open);
+  // Premium: while locked nothing is requested (no catalog read, no signed URL). If it is open when the lock appears, the host closes.
+  const { locked } = usePremiumAccess();
+  useCloseWhenLocked(open, () => onLocked?.());
+  const { state, retry } = useExerciseVideos(exerciseName, open && !locked);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -156,19 +164,27 @@ export const ExerciseVideoSection: React.FC<ExerciseVideoSectionProps> = ({ exer
     <div ref={rootRef} className="bg-surface-2/60 border border-line rounded-xl">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
+        onClick={() => {
+          if (locked) {
+            onLocked?.();
+            requestOpenBilling();
+            return;
+          }
+          setOpen((o) => !o);
+        }}
+        aria-expanded={open && !locked}
         aria-controls="exercise-video-panel"
         className="w-full px-3.5 py-2.5 flex items-center justify-between gap-2 text-left"
       >
         <span className="flex items-center gap-2 text-xs font-bold text-zinc-100">
           <Video className="w-4 h-4 text-sky-400" aria-hidden="true" />
           <span>Exercise video</span>
+          <PremiumMark />
         </span>
         <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
       </button>
 
-      {open && (
+      {open && !locked && (
         <div id="exercise-video-panel" className="px-3.5 pb-3.5 space-y-3">
           {state.status === 'loading' && (
             <div role="status" className="flex items-center gap-2 text-xs text-zinc-400">

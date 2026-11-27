@@ -394,7 +394,10 @@ export const MobileBottomNav: React.FC<{
                       <Icon className="w-5 h-5" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-[var(--text-primary)]">{item.label}</span>
+                      <span className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                        {item.label}
+                        {isPremiumTab(item.id) && <PremiumMark />}
+                      </span>
                       <span className="block text-xs text-[var(--text-secondary)]">{item.desc}</span>
                     </span>
                   </span>

@@ -85,7 +85,7 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
         }
       >
         <div className="space-y-5">
-          <ExerciseVideoSection exerciseName={exerciseName} defaultOpen={openVideoFirst} />
+          <ExerciseVideoSection exerciseName={exerciseName} defaultOpen={openVideoFirst} onLocked={onClose} />
 
           <div role="status" className="flex items-start gap-2 p-3.5 bg-canvas border border-line rounded-card text-sm text-zinc-300">
             <Info className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" aria-hidden />
@@ -426,7 +426,7 @@ export const ExercisePostureModal: React.FC<ExercisePostureModalProps> = ({
         <AiNotice kind="form" />
 
         {/* Exercise video (approved catalog videos only; keyed by the workout's own exercise name) */}
-        <ExerciseVideoSection exerciseName={exerciseName} defaultOpen={openVideoFirst} />
+        <ExerciseVideoSection exerciseName={exerciseName} defaultOpen={openVideoFirst} onLocked={onClose} />
 
         {/* Tab Selection */}
         <SegmentedControl

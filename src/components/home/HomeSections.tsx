@@ -32,6 +32,8 @@ import { Badge, Button, Card, EmptyState, ProgressBar, SectionHeading } from '..
 import { BarChart } from '../common/Charts';
 import { MacroBar, percentOf } from '../nutrition/MacroBar';
 import { formatWeight, kgToLbs } from '../../utils/calculations';
+import { PremiumMark } from '../billing/PremiumLock';
+import { isPremiumTab } from '../../lib/premiumFeatures';
 import { formatDelta } from '../../utils/progressionPresentation';
 import {
   completedSetCount,
@@ -549,7 +551,10 @@ export const HomeExploreCard: React.FC<{ onNavigate: Navigate; className?: strin
                 {item.icon}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium text-white">{item.label}</span>
+                <span className="flex items-center gap-2 text-sm font-medium text-white">
+                  {item.label}
+                  {isPremiumTab(item.tab) && <PremiumMark />}
+                </span>
                 <span className="block text-xs text-zinc-400 truncate">{item.hint}</span>
               </span>
               <ChevronRight className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden />

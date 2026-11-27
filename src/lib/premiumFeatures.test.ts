@@ -22,10 +22,17 @@ describe('premium feature registry', () => {
     }
   });
 
-  it('treats only the AI Coach tab as a premium tab', () => {
-    expect([...PREMIUM_TABS]).toEqual(['trainer']);
-    expect(isPremiumTab('trainer')).toBe(true);
-    for (const free of ['home', 'dashboard', 'workouts', 'mirror', 'nutrition', 'body', 'plans', 'progression', 'videos', 'settings']) expect(isPremiumTab(free)).toBe(false);
+  it('treats only AI Coach, Workout Mirror and Video Library as premium tabs', () => {
+    expect([...PREMIUM_TABS]).toEqual(['trainer', 'mirror', 'videos']);
+    for (const premium of ['trainer', 'mirror', 'videos']) expect(isPremiumTab(premium)).toBe(true);
+    for (const free of ['home', 'dashboard', 'workouts', 'nutrition', 'body', 'plans', 'progression', 'reports', 'timeline', 'settings']) expect(isPremiumTab(free)).toBe(false);
+  });
+
+  it('marks exactly the features no server route can enforce as ui-only (their lock is display only)', () => {
+    const uiOnly = PREMIUM_FEATURES.filter((f) => f.enforcement === 'ui-only');
+    expect(uiOnly.map((f) => f.id).sort()).toEqual(['video-library', 'workout-mirror']);
+    for (const f of uiOnly) expect(f.routes).toEqual([]);
+    for (const f of PREMIUM_FEATURES.filter((x) => x.enforcement !== 'ui-only')) expect(f.routes.length).toBeGreaterThan(0);
   });
 });
 
@@ -36,8 +43,9 @@ describe('free areas are never gated', () => {
       return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(n) && !/\.test\./.test(n) ? [p] : [];
     });
 
-  // Local Body Scan camera/pose tracking, Workout Mirror and the camera/pose services must not reference the premium locks.
-  it.each(['src/components/bodyscan', 'src/components/body', 'src/components/workoutMirror', 'src/services'])('%s does not import premium locks', (dir) => {
+  // Local Body Scan camera/pose tracking and the camera/pose services must not reference the premium locks. (Workout Mirror and the Video
+  // Library are premium, but they are locked at their navigation entry points, never inside the camera/pose services.)
+  it.each(['src/components/bodyscan', 'src/components/body', 'src/services'])('%s does not import premium locks', (dir) => {
     for (const file of walk(dir)) {
       const src = readFileSync(file, 'utf8');
       expect(src, file).not.toMatch(/EntitlementContext|PremiumLock|premiumFeatures/);

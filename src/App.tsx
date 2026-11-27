@@ -207,7 +207,7 @@ function AppShell() {
                 activeSession={activeSession}
                 onSessionUpdated={setActiveSession}
                 onNavigateToPlans={() => setCurrentTab('plans')}
-                onNavigateToMirror={() => setCurrentTab('mirror')}
+                onNavigateToMirror={() => navigate('mirror')}
               />
             )}
 

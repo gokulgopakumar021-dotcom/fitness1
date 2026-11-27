@@ -17,6 +17,7 @@ import { AiRecoveryInsightsPanel } from '../dashboard/AiRecoveryInsightsPanel';
 import { ExercisePostureModal } from '../posture/ExercisePostureModal';
 import { DesktopSidebar, NAV_GROUPS } from '../layout/Navbar';
 import { FloatingTrainerWidget } from '../trainer/FloatingTrainerWidget';
+import { HomeExploreCard } from '../home/HomeSections';
 import { BluetoothGadgetProvider } from '../../context/BluetoothGadgetContext';
 import { db, DEFAULT_PROFILE } from '../../storage/db';
 import { getCurrentDayKey } from '../../storage/nutritionTargetCommit';
@@ -244,16 +245,27 @@ describe('form & biomechanics modal', () => {
 });
 
 describe('navigation and widget', () => {
-  it('locked: only the AI Coach sidebar item carries the Premium lock', async () => {
+  it('locked: only AI Coach, Workout Mirror and Video Library carry the Premium lock in the sidebar', async () => {
     await renderWith(LOCKED(), <DesktopSidebar currentTab="home" onSelectTab={() => {}} activeSession={null} />);
     const locked = buttons().filter((b) => norm(b).includes('Premium')).map(norm);
-    expect(locked).toEqual(['AI CoachPremium']);
+    expect(locked).toEqual(['Workout MirrorPremium', 'Video LibraryPremium', 'AI CoachPremium']);
     expect(NAV_GROUPS.flatMap((g) => g.items)).toContain('trainer');
   });
 
   it('entitled: the sidebar shows no lock', async () => {
     await renderWith(ENTITLED(), <DesktopSidebar currentTab="home" onSelectTab={() => {}} activeSession={null} />);
     expect(lockCount()).toBe(0);
+  });
+
+  it('locked: Home "More" list marks Workout Mirror and Exercise videos only, and still routes through onNavigate', async () => {
+    const onNavigate = vi.fn();
+    await renderWith(LOCKED(), <HomeExploreCard onNavigate={onNavigate} />);
+    expect(buttons().filter((b) => norm(b).includes('Premium')).map((b) => norm(b).split(' Premium')[0].replace(/Premium.*/, ''))).toHaveLength(2);
+    expect(norm(buttonWithText('Workout Mirror')!)).toContain('Premium');
+    expect(norm(buttonWithText('Exercise videos')!)).toContain('Premium');
+    expect(norm(buttonWithText('Overview')!)).not.toContain('Premium');
+    await click(buttonWithText('Workout Mirror'));
+    expect(onNavigate).toHaveBeenCalledWith('mirror'); // App.navigate() turns this into billing while locked
   });
 
   it('locked: the Ask Coach button is marked Premium and does not open the drawer', async () => {
